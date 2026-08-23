@@ -1,0 +1,11 @@
+
+> samradhi-classes@0.1.0 dev
+> next dev -p 3100
+
+▲ Next.js 16.3.0 (Turbopack)
+- Local:         http://localhost:3100
+- Network:       http://192.168.1.6:3100
+- Environments: .env.local
+✓ Ready in 448ms
+✓ Running next.config.ts took 32ms
+[?25h

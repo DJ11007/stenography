@@ -1,0 +1,15 @@
+
+> samradhi-classes@0.1.0 dev
+> next dev -p 3101
+
+▲ Next.js 16.3.0 (Turbopack)
+- Local:         http://localhost:3101
+- Network:       http://192.168.1.22:3101
+- Environments: .env.local
+✓ Ready in 6.5s
+✓ Running next.config.ts took 68ms
+Creating turbopack project { dir: 'F:\\NEW WEB\\PROJECT 1\\samradhi-classes', testMode: true }
+○ Compiling proxy ...
+
+○ Compiling /login ...
+[?25h
