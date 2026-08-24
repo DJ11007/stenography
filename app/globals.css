@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+@keyframes vacancy-slide {
+  from { opacity: 0; transform: translateX(2rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+  [class*="vacancy-slide"] { animation: none !important; }
+}
+
+@font-face {
+  font-family: "Kruti Dev 010";
+  src: url("/fonts/KrutiDev010.ttf") format("truetype");
+  font-display: block;
+}
+
+@keyframes live-results-rtl {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.live-results-track {
+  animation: live-results-rtl 32s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-results-track { animation: none; }
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Typing Hub is available after student sign-in, not in public navigation. */
+header a[href="/typing"]:not(:has(img)) {
+  display: none;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-weight: 400;
+  color: #0f172a;
+  background: #fff;
+}
+
+.input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+/* Learn Typing: compact exam-style original-passage panel. */
+section:has(> textarea[aria-label="Lesson typing area"]) {
+  overflow: hidden;
+  border: 1px solid #93c5fd;
+  padding: 0;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > h2 {
+  margin: 0;
+  background: #1e293b;
+  padding: 0.75rem 1.25rem;
+  color: #fff;
+  font-size: 0;
+  font-weight: 800;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > h2::after {
+  content: "Original Passage";
+  font-size: 1rem;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > p {
+  height: clamp(15rem, 38vh, 23rem);
+  min-height: 0;
+  margin: 0;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  border-radius: 0;
+  background: #fff;
+  padding: 1.5rem;
+  color: #0f172a;
+  scrollbar-color: #64748b #e2e8f0;
+  scrollbar-width: auto;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > p::-webkit-scrollbar {
+  width: 14px;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > p::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > p::-webkit-scrollbar-thumb {
+  border: 3px solid #e2e8f0;
+  border-radius: 999px;
+  background: #64748b;
+}
+
+section:has(> textarea[aria-label="Lesson typing area"]) > textarea {
+  margin: 0;
+  border-width: 0;
+  border-top: 2px solid #1d4ed8;
+  border-radius: 0;
+}
+
+/* Prominent course navigation on the student learning catalogue. */
+main > section.bg-slate-950 a[href="/typing/learn"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.65rem 1.15rem 0.65rem 0.7rem;
+  border: 1px solid rgb(103 232 249 / 0.35);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.22);
+  color: white;
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  backdrop-filter: blur(12px);
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+main > section.bg-slate-950 a[href="/typing/learn"]:hover {
+  transform: translateY(-2px);
+  background: #67e8f9;
+  color: #082f49;
+}
+
+@media print {
+  details.error-scoring-guide > * {
+    display: block !important;
+  }
+
+  details.error-scoring-guide summary {
+    break-after: avoid;
+  }
+
+  details.error-scoring-guide table,
+  details.error-scoring-guide article {
+    break-inside: avoid;
+  }
+}
+
+/* Shared compact Office-style Word Efficiency ribbon. */
+.word-office-ribbon { width: 100%; overflow: hidden; background: #fff; color: #242424; font-family: "Segoe UI", Calibri, Arial, sans-serif; }
+.word-ribbon-tabs { display: flex; min-height: 30px; overflow-x: auto; border-bottom: 1px solid #d5d5d5; padding-left: 5px; scrollbar-width: thin; }
+.word-ribbon-tabs button { position: relative; flex: 0 0 auto; min-height: 30px; border: 0; border-radius: 0; background: #fff; padding: 4px 13px 3px; color: #343434; font-size: 11px; font-weight: 500; letter-spacing: .01em; outline: none; }
+.word-ribbon-tabs button[aria-selected="true"] { color: #1769aa; background: #fff; }
+.word-ribbon-tabs button[aria-selected="true"]::after { position: absolute; right: 8px; bottom: 0; left: 8px; height: 2px; background: #2b78b8; content: ""; }
+.word-ribbon-tabs button:focus-visible { box-shadow: inset 0 0 0 2px #2b78b8; }
+.word-ribbon-panel { height: 88px; overflow-x: auto; overflow-y: hidden; background: #fff; scrollbar-width: thin; }
+.word-ribbon-groups { display: flex; width: max-content; min-width: 100%; height: 88px; padding: 3px 4px 2px; }
+.word-ribbon-group { display: flex; min-width: 0; flex-direction: column; padding: 1px 6px 0; border-right: 1px solid #d6d6d6; background: #fff; }
+.word-ribbon-group:last-child { border-right: 0; }
+.word-ribbon-options { display: grid; flex: 1; grid-auto-flow: column; grid-template-rows: repeat(2, 29px); grid-auto-columns: max-content; align-content: start; gap: 1px 2px; }
+.word-ribbon-tool { position: relative; display: inline-flex; min-width: 27px; max-width: 92px; height: 29px; align-items: center; gap: 3px; border: 1px solid transparent; border-radius: 1px; background: transparent; padding: 1px 3px; color: #292929; font: 400 9.5px/1.05 "Segoe UI", Calibri, Arial, sans-serif; text-align: left; white-space: nowrap; }
+.word-ribbon-tool svg { width: 19px; height: 19px; flex: 0 0 19px; color: #275f98; }
+.word-ribbon-tool > span { max-width: 66px; overflow: hidden; text-overflow: ellipsis; }
+.word-ribbon-tool i { margin-left: 2px; color: #555; font-style: normal; }
+.word-ribbon-tool:hover:not(:disabled), .word-ribbon-tool[aria-pressed="true"] { border-color: #9cc2e7; background: #e5f1fb; }
+.word-ribbon-tool:focus-visible { border-color: #2b78b8; outline: 1px solid #2b78b8; }
+.word-ribbon-tool:disabled, .word-ribbon-tool[aria-disabled="true"] { cursor: default; opacity: 1; }
+.word-ribbon-group-name { margin-top: auto; padding: 1px 5px 0; color: #666; font-size: 9.5px; font-weight: 400; line-height: 13px; text-align: center; white-space: nowrap; }
+.word-ribbon-group[data-ribbon-group="clipboard"] .word-ribbon-options { grid-template-columns: 62px repeat(1,max-content); grid-template-rows: repeat(3,19px); }
+.word-ribbon-group[data-ribbon-group="clipboard"] .word-ribbon-tool:first-child { grid-row: 1 / 4; width: 58px; height: 58px; flex-direction: column; justify-content: center; text-align: center; }
+.word-ribbon-group[data-ribbon-group="clipboard"] .word-ribbon-tool:first-child svg { width: 30px; height: 30px; flex-basis: 30px; }
+.word-ribbon-group[data-ribbon-group="clipboard"] .word-ribbon-tool:not(:first-child) { height: 19px; }
+.word-ribbon-group[data-ribbon-group="font"] .word-ribbon-options { grid-template-columns: 112px 45px repeat(4,max-content); grid-template-rows: repeat(2,29px); }
+.word-ribbon-group[data-ribbon-group="font"] .word-ribbon-tool { max-width: 82px; }
+.word-ribbon-menu-wrap { position: relative; }
+.word-ribbon-menu { position: absolute; z-index: 60; top: 100%; left: 0; display: grid; min-width: 170px; border: 1px solid #aab5c0; background: white; padding: 4px; box-shadow: 0 8px 20px rgb(15 23 42 / .22); }
+.word-ribbon-menu button,.word-ribbon-menu label { display:flex; min-height:28px; align-items:center; justify-content:space-between; border:0; background:white; padding:4px 8px; color:#222; font:12px "Segoe UI",sans-serif; text-align:left; }
+.word-ribbon-menu button:hover,.word-ribbon-menu button:focus-visible { background:#e5f1fb; outline:1px solid #2b78b8; }
+.word-ribbon-select { display: flex; height: 27px; align-items: center; }
+.word-ribbon-select select { height: 24px; border: 1px solid #aaa; border-radius: 0; background: #fff; padding: 0 3px; color: #222; font-size: 10px; }
+.word-ribbon-font select { width: 112px; }
+.word-ribbon-size select { width: 43px; }
+.word-ribbon-color input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.word-office-ribbon[data-preview="true"] .word-ribbon-tool, .word-office-ribbon[data-preview="true"] select { color: #292929; opacity: 1; }
+@media (max-width: 700px) { .word-ribbon-panel { overflow-x: auto; } .word-ribbon-groups { min-width: max-content; } }

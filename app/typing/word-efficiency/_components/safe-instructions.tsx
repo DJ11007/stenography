@@ -1,0 +1,4 @@
+import { Fragment } from "react";
+
+function Inline({text}:{text:string}){const parts=text.split(/(\*\*[^*]+\*\*)/u);return <>{parts.map((part,index)=>part.startsWith("**")&&part.endsWith("**")?<strong key={index}>{part.slice(2,-2)}</strong>:<Fragment key={index}>{part}</Fragment>)}</>}
+export function SafeInstructions({markdown}:{markdown:string}){const blocks=markdown.replace(/\r\n?/g,"\n").split(/\n{2,}/u);return <div className="space-y-4 leading-7">{blocks.map((block,index)=>{const lines=block.split("\n");if(lines.every(line=>/^\d+[.)]\s+/u.test(line.trim())))return <ol key={index} className="list-decimal space-y-2 pl-6">{lines.map((line,item)=><li key={item}><Inline text={line.trim().replace(/^\d+[.)]\s+/u,"")}/></li>)}</ol>;return <p key={index} className="whitespace-pre-line"><Inline text={block}/></p>})}</div>}

@@ -1,0 +1,4 @@
+export type WordMeasurementKind="length"|"lineHeight";
+const LENGTH=/^(-?(?:\d+\.?\d*|\.\d+))(px|pt|in|cm|mm)?$/i;
+export function canonicalWordMeasurement(value:unknown,kind:WordMeasurementKind):string|null{if(typeof value!=="string"&&typeof value!=="number")return null;const text=String(value).trim();if(!text)return null;const match=text.match(LENGTH);if(!match)return null;const number=Number(match[1]);if(!Number.isFinite(number))return null;const unit=(match[2]??"").toLowerCase();if(kind==="lineHeight"){if(unit)return null;return decimal(number)}if(!unit&&number!==0)return null;const points=unit==="px"?number*.75:unit==="in"?number*72:unit==="cm"?number*72/2.54:unit==="mm"?number*72/25.4:number;return`${decimal(points)}pt`}
+function decimal(value:number){const rounded=Math.round((Object.is(value,-0)?0:value)*1_000_000)/1_000_000;return String(rounded)}

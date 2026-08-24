@@ -1,0 +1,257 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { recordManagedAttempt } from "@/app/tests/actions";
+import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, type BackspaceMode, type TypingSettings } from "@/lib/typing-test";
+import type { ExamPreset } from "@/lib/typing-curriculum";
+import { getInputSystemPassage, normalizeTypingInput, segmentGraphemes, type InputSystem } from "@/lib/typing-language";
+import { TypingBrandHeader } from "./typing-brand";
+import { AdvancedTypingResults } from "./advanced-typing-results";
+import { defaultTypingFontPreferences, type TypingFontPreferences } from "@/lib/typing-font-preferences";
+import { UniversalTypingSettings } from "./universal-typing-settings";
+import { useTypingPlatformSettings } from "./typing-platform-provider";
+import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
+
+function InputSystemOptions({ systems, value, onChange }: { systems: InputSystem[]; value: string; onChange: (id: string) => void }) { return <fieldset className="mt-6"><legend className="mb-2 text-sm font-black text-slate-900">Language and input system</legend><div className="grid gap-2 sm:grid-cols-2">{systems.map((system) => <button key={system.id} type="button" aria-pressed={value === system.id} onClick={() => onChange(system.id)} className={`rounded-xl border p-3 text-left text-sm font-bold ${value === system.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-slate-50 text-slate-800"}`}><span aria-hidden>{value === system.id ? "●" : "○"}</span> {system.label}<small className="mt-1 block font-normal opacity-80">{system.keyboardLayout}</small></button>)}</div></fieldset>; }
+
+type ExamMode = "practice" | "exam";
+export type PracticeNavigation={currentIndex:number;total:number;items:{title:string;href:string;label:string}[];previousHref:string|null;nextHref:string|null};
+const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const remainingSeconds = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
+const backspaceLabel = (mode: BackspaceMode) => mode === "full" ? "Full backspace" : mode === "word" ? "One-word backspace" : "Backspace disabled";
+// Tailwind class discovery for the result legend: bg-green-500 bg-red-500 bg-orange-500 bg-blue-500 bg-purple-500
+
+export function ConfigurableTypingExam({ preset, mode, customPreset = false, matterPreset = false, directWorkspace = false, managedTest, practiceNavigation }: { preset: ExamPreset; mode: ExamMode; customPreset?: boolean; matterPreset?: boolean; directWorkspace?: boolean; managedTest?: {testId:string;versionId:string;mode:"learn"|"practice"|"exam"|"stenography";isLive?:boolean;resultsPublishAt?:string|null}; practiceNavigation?:PracticeNavigation }) {
+  const { preferences, loaded, updatePreferences } = useTypingPlatformSettings();
+  const officialSettings = useMemo<TypingSettings>(() => ({ ...DEFAULT_TYPING_SETTINGS, backspaceMode: preset.backspaceMode, wordMethod: preset.wordMethod }), [preset.backspaceMode, preset.wordMethod]);
+  const [started, setStarted] = useState(directWorkspace);
+  const [finished, setFinished] = useState(false);
+  const [typedText, setTypedText] = useState("");
+  const [timeLeft, setTimeLeft] = useState(preset.durationSeconds);
+  const [endTimestamp, setEndTimestamp] = useState<number | null>(null);
+  const [timerStarted, setTimerStarted] = useState(false);
+  const [backspaces, setBackspaces] = useState(0);
+  const startedAt = useRef<string | null>(null); const recordedAttempt = useRef(false);
+  const directSettingsInitialized = useRef(false);
+  const [verifiedScore, setVerifiedScore] = useState<ReturnType<typeof calculateTypingScore> | null>(null);
+  const [liveSubmission, setLiveSubmission] = useState<"idle"|"saving"|"submitted"|"already-submitted"|"closed"|"failed">("idle");
+  const [settings, setSettings] = useState<TypingSettings>(officialSettings);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [showScrollbar, setShowScrollbar] = useState(preferences.showScrollbar);
+  const [paused, setPaused] = useState(false);
+  const [attemptVariant, setAttemptVariant] = useState<AttemptVariant>(mode === "practice" || customPreset ? "custom" : "official");
+  const managedSettingsLockMap = managedTestSettingsLocks(managedTest?.mode, managedTest?.isLive);
+  const managedRulesLocked = Object.keys(managedSettingsLockMap).length > 0;
+  const resolvedAttemptVariant: AttemptVariant = managedTest ? (managedRulesLocked ? "official" : "custom") : customPreset ? "official" : attemptVariant;
+  const activeDurationSeconds = attemptVariant === "official" || matterPreset || Boolean(managedTest) ? preset.durationSeconds : preferences.durationMinutes * 60;
+  const [inputSystemId, setInputSystemId] = useState(preset.inputSystems[0].id);
+  const [fontCheck, setFontCheck] = useState<{ id: string; available: boolean } | null>(null);
+  const inputSystem = preset.inputSystems.find((system) => system.id === inputSystemId) ?? preset.inputSystems[0];
+  const fontContext = fontContextFor(inputSystem.inputEncoding, inputSystem.script);
+  const fontPreferences = preferences.fonts[fontContext];
+  const fontAvailable = inputSystem.requiredFontAsset
+    ? fontCheck?.id === inputSystem.id ? fontCheck.available : null
+    : true;
+  const passage = useMemo(() => getInputSystemPassage(inputSystem, preset.passage), [inputSystem, preset.passage]);
+  const normalizedInput = useMemo(() => normalizeTypingInput(typedText, inputSystem), [inputSystem, typedText]);
+
+  useEffect(() => {
+    if (!inputSystem.requiredFontAsset) return;
+    let active = true;
+    fetch(inputSystem.requiredFontAsset, { method: "HEAD", cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        await document.fonts.load(`16px ${inputSystem.fontStack}`);
+        return document.fonts.check(`16px ${inputSystem.fontStack}`);
+      })
+      .then((available) => { if (active) setFontCheck({ id: inputSystem.id, available }); })
+      .catch(() => { if (active) setFontCheck({ id: inputSystem.id, available: false }); });
+    return () => { active = false; };
+  }, [inputSystem]);
+  useEffect(() => { if (!loaded || started || !preferences.inputSystemId || !preset.inputSystems.some((system) => system.id === preferences.inputSystemId)) return; const timer = window.setTimeout(() => setInputSystemId(preferences.inputSystemId), 0); return () => window.clearTimeout(timer); }, [loaded, preferences.inputSystemId, preset.inputSystems, started]);
+  useEffect(() => {
+    if (!directWorkspace || !loaded || directSettingsInitialized.current) return;
+    directSettingsInitialized.current = true;
+    const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant);
+    if (managedRulesLocked && preset.highlightMode) resolved.highlightMode = preset.highlightMode;
+    const timer = window.setTimeout(() => { setSettings(resolved); setAutoScroll(resolved.autoScroll); setShowScrollbar(preferences.showScrollbar); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [directWorkspace, loaded, managedRulesLocked, officialSettings, preferences, preset.highlightMode, resolvedAttemptVariant]);
+
+  useEffect(() => {
+    if (!started || finished || paused || !endTimestamp) return;
+    const sync = () => { const next = remainingSeconds(endTimestamp); setTimeLeft(next); if (!next) setFinished(true); };
+    const initial = window.setTimeout(sync, 0);
+    const interval = window.setInterval(sync, 500);
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    return () => { window.clearTimeout(initial); window.clearInterval(interval); window.removeEventListener("focus", sync); document.removeEventListener("visibilitychange", sync); };
+  }, [endTimestamp, finished, paused, started]);
+  useEffect(() => { if (!timerStarted || finished) return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [finished, timerStarted]);
+  useEffect(() => { sessionStorage.setItem("practice-attempt-active", String(timerStarted && !finished)); return () => sessionStorage.setItem("practice-attempt-active", "false"); }, [finished, timerStarted]);
+
+  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (managedRulesLocked && preset.highlightMode) resolved.highlightMode = preset.highlightMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setStarted(true); };
+  const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
+  const submit = () => { if (window.confirm("Submit this test now? You cannot continue typing after submission.")) { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setFinished(true); } };
+  const togglePause = () => { if (!timerStarted) return; if (paused) { setEndTimestamp(Date.now() + timeLeft * 1000); setPaused(false); } else { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setEndTimestamp(null); setPaused(true); } };
+  const navigatePracticeTest=(href:string)=>{if(timerStarted&&!finished&&!window.confirm("Changing tests will discard the active attempt. Continue?"))return;window.location.href=href;};
+  useEffect(() => { const shortcut=(event:KeyboardEvent)=>{if(event.altKey&&event.key==="ArrowLeft"&&practiceNavigation?.previousHref){event.preventDefault();navigatePracticeTest(practiceNavigation.previousHref);}if(event.altKey&&event.key==="ArrowRight"&&practiceNavigation?.nextHref){event.preventDefault();navigatePracticeTest(practiceNavigation.nextHref);}if(event.key==="Escape"&&started&&!finished&&!paused){event.preventDefault();togglePause();}if(event.ctrlKey&&event.key==="Enter"){event.preventDefault();if(!started)start();else if(!finished)submit();}};window.addEventListener("keydown",shortcut);return()=>window.removeEventListener("keydown",shortcut); });
+  const finalScore = useMemo(() => finished ? calculateTypingScore({ typedText: normalizedInput.comparisonText, passage, elapsedSeconds: activeDurationSeconds - timeLeft, wordMethod: settings.wordMethod, scoringProfile: preset.scoringProfile, includeUntypedWords: true }) : null, [activeDurationSeconds, finished, normalizedInput.comparisonText, passage, preset.scoringProfile, settings.wordMethod, timeLeft]);
+  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void recordManagedAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces}).then((result) => { if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest.isLive)setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed"); });},[backspaces,finalScore,finished,managedTest,typedText]);
+  const saveSettings = (next: TypingSettings) => { setSettings(next); updatePreferences(attemptVariant === "custom" ? { backspaceMode: next.backspaceMode, highlightMode: next.highlightMode, wordMethod: next.wordMethod } : { highlightMode: next.highlightMode }); };
+  const changeScroll = (value: boolean) => { setAutoScroll(value); updatePreferences({ autoScroll: value }); };
+  const changeScrollbar = (value: boolean) => { setShowScrollbar(value); updatePreferences({ showScrollbar: value }); };
+  const changeFontPreferences = (next: TypingFontPreferences) => updatePreferences({ fonts: { ...preferences.fonts, [fontContext]: next } });
+
+  const changeInputSystem = (id: string) => { if (id === inputSystemId) return; if (typedText && !window.confirm("Changing the language or input system will restart this attempt and clear the typed text. Continue?")) return; setInputSystemId(id); updatePreferences({ inputSystemId: id }); if (typedText) { setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); startedAt.current=null; } };
+  if (!started) return <ExamStart preset={preset} mode={mode} inputSystem={inputSystem} inputSystemId={inputSystemId} onInputSystemChange={(id) => { setInputSystemId(id); updatePreferences({ inputSystemId: id }); }} fontAvailable={fontAvailable} attemptVariant={attemptVariant} customPreset={customPreset} durationSeconds={activeDurationSeconds} durationLocked={attemptVariant === "official" || matterPreset} onDurationChange={(durationMinutes) => updatePreferences({ durationMinutes })} onAttemptVariantChange={setAttemptVariant} onStart={start}/>;
+  if (finished && finalScore && managedTest?.isLive) return <LiveSubmissionReceipt status={liveSubmission} resultsPublishAt={managedTest.resultsPublishAt}/>;
+  if (finished && finalScore) return <AdvancedTypingResults preset={preset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={passage} typedText={normalizedInput.comparisonText}/>;
+  return <ExamWorkspace preset={preset} passage={passage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} attemptVariant={attemptVariant} rulesLocked={attemptVariant === "official" || managedRulesLocked || (customPreset && !managedTest)} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest}/>;
+}
+
+function LiveSubmissionReceipt({status,resultsPublishAt}:{status:"idle"|"saving"|"submitted"|"already-submitted"|"closed"|"failed";resultsPublishAt?:string|null}) { const release=resultsPublishAt?new Date(resultsPublishAt).toLocaleString():"the scheduled publication time"; const message=status==="saving"||status==="idle"?"Securely saving your submission…":status==="submitted"?`Submission received. Your result will unlock on ${release}.`:status==="already-submitted"?`Your live-test attempt was already submitted. Results unlock on ${release}.`:status==="closed"?"The live-test window has closed, so this submission was not accepted.":"We could not confirm the submission. Please contact support."; return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4"><section className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-xl"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-3xl" aria-hidden>{status==="submitted"||status==="already-submitted"?"✓":"⏳"}</span><h1 className="mt-5 text-3xl font-black text-slate-900">Live test submission</h1><p className="mt-4 leading-7 text-slate-600">{message}</p><p className="mt-3 text-sm font-bold text-blue-700">Scores are hidden from everyone until the scheduled release.</p><a href="/live-test" className="mt-6 inline-block rounded-xl bg-blue-700 px-6 py-3 font-black text-white">Live test centre</a></section></main>; }
+
+function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChange, fontAvailable, attemptVariant, customPreset, durationSeconds, durationLocked, onDurationChange, onAttemptVariantChange, onStart }: { preset: ExamPreset; mode: ExamMode; inputSystem: InputSystem; inputSystemId: string; onInputSystemChange: (id: string) => void; fontAvailable: boolean | null; attemptVariant: AttemptVariant; customPreset: boolean; durationSeconds: number; durationLocked: boolean; onDurationChange: (value: number) => void; onAttemptVariantChange: (value: AttemptVariant) => void; onStart: () => void }) { const specs = [["Duration", formatTime(durationSeconds)], ["Language", inputSystem.language], ["Font", inputSystem.fontLabel], ["Layout", inputSystem.keyboardLayout], ["Required speed", `${preset.speedRequirement} WPM`], ["Required accuracy", `${preset.accuracyRequirement}%`], ["Backspace", backspaceLabel(preset.backspaceMode)]]; const blocked = Boolean(inputSystem.requiredFontAsset) && fontAvailable !== true; return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto max-w-5xl px-4 py-10"><div className="rounded-3xl bg-white p-6 shadow-xl sm:p-10"><span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">{mode === "exam" ? "Independent practice simulation" : "Practice mode"}</span>{mode === "exam" && !customPreset && <fieldset className="mt-6"><legend className="mb-2 text-sm font-black">Simulation rules</legend><div className="grid gap-2 sm:grid-cols-2"><button type="button" aria-pressed={attemptVariant === "official"} onClick={() => onAttemptVariantChange("official")} className={`rounded-xl border p-3 font-bold ${attemptVariant === "official" ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200"}`}>Official Preset</button><button type="button" aria-pressed={attemptVariant === "custom"} onClick={() => onAttemptVariantChange("custom")} className={`rounded-xl border p-3 font-bold ${attemptVariant === "custom" ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200"}`}>Custom Simulation</button></div></fieldset>}<h1 className="mt-5 text-4xl font-black text-slate-900">{preset.title}</h1><p className="mt-2 text-slate-600">{preset.subtitle}. This is a practice experience and not an official examination portal.</p>{preset.inputSystems.length > 1 && <InputSystemOptions systems={preset.inputSystems} value={inputSystemId} onChange={onInputSystemChange}/>}{!durationLocked && <label className="mt-6 block max-w-xs text-sm font-bold">Duration (1–60 minutes)<input type="number" min={1} max={60} value={durationSeconds / 60} onChange={(event) => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= 60) onDurationChange(value); }} className="input mt-2"/></label>}<div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{specs.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-black text-slate-900">{value}</p></div>)}</div>{blocked && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 font-bold text-red-800">{fontAvailable === null ? "Checking the licensed Kruti Dev 010 font…" : <>Kruti Dev 010 is unavailable. The project owner must provide the licensed font at <code>{inputSystem.requiredFontAsset}</code>. This legacy passage will not be shown with a fallback font.</>}</p>}<div className={`mt-7 rounded-xl p-5 text-sm ${mode === "exam" ? "bg-amber-50 text-amber-900" : "bg-blue-50 text-blue-900"}`}><strong>{customPreset ? "Locked Custom Preset:" : attemptVariant === "official" ? "Official preset lock:" : "Custom Simulation:"}</strong> {customPreset ? "Uploaded exam rules are locked; visual and accessibility settings stay editable." : attemptVariant === "official" ? "Exam rules lock when you begin; visual and accessibility settings stay editable." : "Rule changes use your universal defaults and clearly mark this as a custom simulation."}</div><button type="button" disabled={blocked} onClick={onStart} className="mt-8 w-full rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">Start {mode === "exam" ? "Simulation" : "Practice"}</button></div></section></main>; }
+
+type WorkspaceProps = { preset: ExamPreset; passage: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; attemptVariant: AttemptVariant; rulesLocked: boolean; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void };
+
+type SettingsPopupProps = {
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: (restoreFocus?: boolean) => void;
+  children: React.ReactNode;
+};
+
+function TypingSettingsPopup({ triggerRef, onClose, children }: SettingsPopupProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState({ top: 8, left: 8, width: 352, maxHeight: 420 });
+
+  useEffect(() => {
+    const place = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const gap = 6;
+      const edge = 8;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const width = Math.min(352, viewportWidth - edge * 2);
+      const belowSpace = viewportHeight - rect.bottom - gap - edge;
+      const aboveSpace = rect.top - gap - edge;
+      const preferredHeight = Math.min(480, viewportHeight - edge * 2);
+      const openBelow = belowSpace >= Math.min(320, preferredHeight) || belowSpace >= aboveSpace;
+      const availableHeight = Math.max(120, openBelow ? belowSpace : aboveSpace);
+      const maxHeight = Math.min(preferredHeight, availableHeight);
+      const left = Math.min(Math.max(edge, rect.right - width), viewportWidth - width - edge);
+      const top = openBelow ? rect.bottom + gap : Math.max(edge, rect.top - gap - maxHeight);
+      setPosition({ top, left, width, maxHeight });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [triggerRef]);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!panelRef.current?.contains(target) && !triggerRef.current?.contains(target)) onClose(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(true); return; }
+      if (event.key !== "Tab" || !panelRef.current) return;
+      const focusable = [...panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("pointerdown", onPointerDown); document.removeEventListener("keydown", onKeyDown); };
+  }, [onClose, triggerRef]);
+
+  return <div ref={panelRef} id="typing-settings-dialog" role="dialog" aria-modal="false" aria-labelledby="typing-settings-title" className="fixed z-[100] flex overscroll-contain rounded-xl bg-white text-slate-950 shadow-2xl ring-1 ring-slate-300" style={{ top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight }}>
+    <div className="flex min-h-0 w-full flex-col overflow-hidden rounded-xl">
+      <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3"><h2 id="typing-settings-title" className="font-black">Typing settings</h2><button ref={closeRef} type="button" onClick={() => onClose(true)} aria-label="Close typing settings" className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-2xl font-black leading-none text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700">×</button></header>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">{children}</div>
+    </div>
+  </div>;
+}
+
+function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPreferences, setFontPreferences, encodingMismatch, attemptVariant, rulesLocked, typedText, setTypedText, onFirstTypingInput, timerStarted, onInputSystemChange, timeLeft, paused, onPauseToggle, settings, setSettings, autoScroll, setAutoScroll, showScrollbar, setShowScrollbar, setBackspaces, onSubmit, practiceNavigation, onNavigateTest }: WorkspaceProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null); const passageRef = useRef<HTMLDivElement>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
+  const lockedPassageScrollTop = useRef(0); const lastActiveLine = useRef<number | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const passageUnits = useMemo(() => segmentGraphemes(passage), [passage]);
+  const typedUnitCount = useMemo(() => segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText).length, [inputSystem, typedText]);
+  const highlightStart = settings.highlightMode === "word" ? Math.max(0, passageUnits.lastIndexOf(" ", Math.max(0, typedUnitCount - 1)) + 1) : typedUnitCount;
+  const nextWordSpace = passageUnits.indexOf(" ", typedUnitCount);
+  const highlightEnd = settings.highlightMode === "word" ? (nextWordSpace < 0 ? passageUnits.length : nextWordSpace) : typedUnitCount + 1;
+  const allowed = (start: number, end: number, value: string) => isAllowedTypingEdit({ previousValue: typedText, nextValue: value, selectionStart: start, selectionEnd: end, mode: settings.backspaceMode, maximumLength: passage.length });
+  useEffect(() => {
+    if (!autoScroll || paused) { lastActiveLine.current = null; return; }
+    const original = passageRef.current; const typing = textareaRef.current;
+    const marker = original?.querySelector<HTMLElement>("[data-current-character]");
+    if (!original || !marker || !typing) return;
+    const activeLine = marker.offsetTop;
+    if (lastActiveLine.current === activeLine) return;
+    lastActiveLine.current = activeLine;
+    const originalTarget = Math.max(0, Math.min(original.scrollHeight - original.clientHeight, activeLine - original.clientHeight / 3));
+    lockedPassageScrollTop.current = originalTarget;
+    if (Math.abs(original.scrollTop - originalTarget) > 1) original.scrollTop = originalTarget;
+    const typingMaximum = Math.max(0, typing.scrollHeight - typing.clientHeight);
+    const typingProgress = typing.value.length ? typing.selectionStart / typing.value.length : 0;
+    const typingTarget = Math.max(0, Math.min(typingMaximum, typingMaximum * typingProgress));
+    if (Math.abs(typing.scrollTop - typingTarget) > typing.clientHeight * .25) typing.scrollTop = typingTarget;
+  }, [autoScroll, fontPreferences.originalSize, fontPreferences.typingSize, paused, typedText]);
+  useEffect(() => {
+    const original = passageRef.current;
+    if (!autoScroll || paused || !original) return;
+    const restore = () => { if (Math.abs(original.scrollTop - lockedPassageScrollTop.current) > 1) original.scrollTop = lockedPassageScrollTop.current; };
+    const preventManual = (event: Event) => { event.preventDefault(); restore(); };
+    const preventScrollKeys = (event: KeyboardEvent) => { if (["ArrowUp","ArrowDown","PageUp","PageDown","Home","End"," "].includes(event.key)) preventManual(event); };
+    original.addEventListener("scroll", restore);
+    original.addEventListener("wheel", preventManual, { passive: false });
+    original.addEventListener("touchmove", preventManual, { passive: false });
+    original.addEventListener("keydown", preventScrollKeys);
+    return () => { original.removeEventListener("scroll", restore); original.removeEventListener("wheel", preventManual); original.removeEventListener("touchmove", preventManual); original.removeEventListener("keydown", preventScrollKeys); };
+  }, [autoScroll, paused]);
+  const handleChange = (value: string) => { let prefix = 0; while (prefix < typedText.length && prefix < value.length && typedText[prefix] === value[prefix]) prefix++; let suffix = 0; while (suffix < typedText.length - prefix && suffix < value.length - prefix && typedText.at(-1 - suffix) === value.at(-1 - suffix)) suffix++; if (allowed(prefix, typedText.length - suffix, value)) { if (value !== typedText) onFirstTypingInput(); setTypedText(value); } };
+  const keyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => { const { selectionStart: start, selectionEnd: end } = event.currentTarget; if (event.key === "Backspace") { setBackspaces((value) => value + 1); const from = start === end ? Math.max(0, start - 1) : start; if (!allowed(from, end, typedText.slice(0, from) + typedText.slice(end))) event.preventDefault(); } else if (event.key === "Delete") { const to = start === end ? Math.min(typedText.length, end + 1) : end; if (!allowed(start, to, typedText.slice(0, start) + typedText.slice(to))) event.preventDefault(); } else if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase("en") === "x" && !allowed(start, end, typedText.slice(0, start) + typedText.slice(end))) { event.preventDefault(); } };
+  const beforeInput = (event: React.FormEvent<HTMLTextAreaElement>) => {
+    const nativeInputType = (event.nativeEvent as InputEvent).inputType;
+    const inputType = typeof nativeInputType === "string" ? nativeInputType : "";
+
+    if (inputType === "insertFromDrop" || inputType.startsWith("history")) {
+      event.preventDefault();
+    }
+  };
+  const update = (changes: Partial<TypingSettings>) => setSettings?.({ ...settings, ...changes });
+  const resetSettings = () => {
+    setFontPreferences(defaultTypingFontPreferences(inputSystem.script));
+    setAutoScroll(true);
+    setShowScrollbar(true);
+    update({ highlightMode: DEFAULT_TYPING_SETTINGS.highlightMode, ...(rulesLocked ? {} : { backspaceMode: DEFAULT_TYPING_SETTINGS.backspaceMode, wordMethod: DEFAULT_TYPING_SETTINGS.wordMethod }) });
+  };
+  const closeSettings = (restoreFocus = false) => { setShowSettings(false); if (restoreFocus) window.setTimeout(() => settingsTriggerRef.current?.focus(), 0); };
+  const activeText = passageUnits.slice(highlightStart, Math.max(highlightStart + 1, highlightEnd)).join("");
+  return <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-200">
+    <header className="z-40 shrink-0 bg-blue-800 px-3 py-2 text-white shadow"><div className="mx-auto grid max-w-[1800px] grid-cols-[1fr_auto_1fr] items-center gap-2">{!practiceNavigation&&<div className="min-w-0"><strong className="block truncate">SAMRADHI CLASSES</strong><p className="truncate text-xs text-blue-100">{inputSystem.language} · {inputSystem.fontLabel} · {inputSystem.keyboardLayout}</p></div>}{practiceNavigation&&<nav aria-label="Practice test navigation" className="col-start-2 flex items-center justify-center gap-1.5"><button type="button" aria-label="Previous test" disabled={!practiceNavigation.previousHref} onClick={()=>practiceNavigation.previousHref&&onNavigateTest(practiceNavigation.previousHref)} className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">‹</button><select title={practiceNavigation.items[practiceNavigation.currentIndex]?.title} aria-label={`Select practice test. Current: ${practiceNavigation.items[practiceNavigation.currentIndex]?.title}`} value={practiceNavigation.items[practiceNavigation.currentIndex]?.href} onChange={(event)=>onNavigateTest(event.target.value)} className="h-8 w-24 rounded-lg border border-blue-300 bg-white px-1 text-center text-xs font-black text-slate-900 sm:w-40 sm:px-2">{practiceNavigation.items.map(item=><option key={item.href} value={item.href} title={item.title}>{item.label}</option>)}</select><button type="button" aria-label="Next test" disabled={!practiceNavigation.nextHref} onClick={()=>practiceNavigation.nextHref&&onNavigateTest(practiceNavigation.nextHref)} className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">›</button></nav>}{!practiceNavigation&&<span/>}<span className={`justify-self-end rounded-full px-2 py-1 text-[10px] font-black sm:px-3 sm:text-xs ${attemptVariant === "official" ? "bg-amber-100 text-amber-950" : "bg-blue-100 text-blue-950"}`}>{attemptVariant === "official" ? "Official Preset" : "Custom Simulation"}</span></div></header>
+    <section className="mx-auto min-h-0 w-full max-w-[1800px] flex-1 overflow-hidden p-2 sm:p-3" aria-label="Active typing workspace">
+      <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl">
+        <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap">{passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>
+        <section className="z-10 flex flex-wrap items-center justify-center gap-1.5 border-y border-blue-300 bg-blue-700 px-2 py-1.5 text-white sm:gap-2" aria-label="Typing controls">
+          <div className="flex items-center gap-1.5 sm:gap-2"><button type="button" onClick={onSubmit} className="rounded-lg bg-white px-4 py-2 text-xs font-black text-blue-800 hover:bg-blue-50">Submit</button><button type="button" disabled={!timerStarted} onClick={onPauseToggle} aria-pressed={paused} className="rounded-lg bg-amber-100 px-4 py-2 text-xs font-black text-amber-950 disabled:cursor-not-allowed disabled:opacity-50">{paused ? "Resume" : "Pause"}</button><span role="timer" aria-label={`${formatTime(timeLeft)} remaining`} className="min-w-20 rounded-lg bg-white px-3 py-1.5 text-center text-xl font-black text-red-600">{formatTime(timeLeft)}</span></div>
+          <button ref={settingsTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={showSettings} aria-controls="typing-settings-dialog" onClick={() => setShowSettings((open) => !open)} className="ml-1 rounded-lg border border-blue-300 px-3 py-2 text-xs font-black hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:ml-2">{showSettings ? "Close Settings" : "Settings"}</button>
+          {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings}/></TypingSettingsPopup>}
+        </section>
+        <section className="flex min-h-0 flex-col bg-white" aria-labelledby="typing-passage-title"><h2 id="typing-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Type Here</h2><textarea disabled={fontAvailable !== true || paused} ref={textareaRef} autoFocus value={typedText} onChange={(event) => handleChange(event.target.value)} onKeyDown={keyDown} onBeforeInput={beforeInput} onPaste={(event) => event.preventDefault()} onDrop={(event) => event.preventDefault()} onCut={(event) => { const target = event.currentTarget; if (!allowed(target.selectionStart, target.selectionEnd, typedText.slice(0, target.selectionStart) + typedText.slice(target.selectionEnd))) event.preventDefault(); }} spellCheck={false} aria-label="Type Here" lang={inputSystem.language === "Hindi" ? "hi" : "en"} style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.typingSize}px`, lineHeight: `${Math.round(fontPreferences.typingSize * 1.7)}px` }} className="min-h-0 w-full flex-1 resize-none overflow-y-auto p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:p-5"/></section>
+      </div>
+    </section>
+  </main>;
+}

@@ -1,0 +1,15 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { VACANCIES, VACANCY_CATEGORY_LABELS, vacancyBySlug } from "@/lib/vacancies";
+
+export function generateStaticParams() { return VACANCIES.map(({ slug }) => ({ slug })); }
+
+function DetailPanel({ title, items }: { title: string; items: string[] }) {
+  return <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm"><h2 className="text-lg font-black text-blue-900">{title}</h2><ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">{items.map((item) => <li key={item} className="flex gap-2"><span aria-hidden className="text-blue-600">●</span><span>{item}</span></li>)}</ul></section>;
+}
+
+export default async function VacancyDetailPage({ params }: PageProps<"/vacancies/[slug]">) {
+  const vacancy = vacancyBySlug((await params).slug);
+  if (!vacancy) notFound();
+  return <main className="min-h-screen bg-slate-50 text-slate-950"><header className="border-b border-blue-100 bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4"><Link href="/vacancies" className="font-black text-blue-800">← All vacancy updates</Link><Link href="/" className="text-sm font-bold text-slate-600">Home</Link></div></header><article className="mx-auto max-w-6xl px-4 py-8"><span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-blue-800">{VACANCY_CATEGORY_LABELS[vacancy.category]}</span><h1 className="mt-5 text-3xl font-black sm:text-5xl">{vacancy.title}</h1><p className="mt-3 font-bold text-slate-600">{vacancy.organization}</p><div role="status" className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-950">{vacancy.status}. Do not use this sample page to submit an application.</div><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-700">{vacancy.summary}</p><div className="mt-8 grid gap-5 md:grid-cols-2"><DetailPanel title="Important dates" items={vacancy.importantDates}/><DetailPanel title="Application fees" items={vacancy.applicationFees}/><DetailPanel title="Eligibility" items={vacancy.eligibility}/><DetailPanel title="Age limit" items={vacancy.ageLimit}/></div><section aria-label="Official vacancy links" className="mt-7 grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2">{vacancy.notificationUrl ? <a href={vacancy.notificationUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-blue-700 px-5 py-3 text-center font-black text-white">Download Official Notification</a> : <span aria-disabled="true" className="cursor-not-allowed rounded-xl bg-slate-200 px-5 py-3 text-center font-black text-slate-500">Official Notification — Awaiting verification</span>}{vacancy.officialUrl ? <a href={vacancy.officialUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-green-700 px-5 py-3 text-center font-black text-white">Apply on Official Website</a> : <span aria-disabled="true" className="cursor-not-allowed rounded-xl bg-slate-200 px-5 py-3 text-center font-black text-slate-500">Official Application — Awaiting verification</span>}</section></article></main>;
+}

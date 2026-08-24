@@ -1,0 +1,20 @@
+Q.1 Use Bold, Italic and Underline effect in the given paragraph no. six.
+Q.2 Give strikethrough effect to the paragraph number two and set 2.5 Line
+spacing to the paragraph number one.
+Q.3 Change paragraph number six into capitalize each word with font
+Color red.
+Q.4 Apply Highlight color with pink color in the first line of the
+Paragraph number six.
+Q.5 Give font color red to paragraph number one with left side indent
+1.23 And right side indent 1.63.
+Q.6 Remove the applied formatting on the paragraph number three
+And find word “The” and replace it from “SAMRADHI CLASSES”.
+Q.7 Apply double strikethrough, outline, emboss effect and also
+Dot-Dot-dashed underline with color red to the paragraph number
+Four.
+Q.8 Change the font of paragraph number one to “bookman old style”
+And also increase font size to 18.5.
+Q.9 Apply a numbering list to the given list at the end of paragraph no
+Six with roman numbering format in capital mode.
+Q.10 Expand the character spacing with 5 pt. In the paragraph number
+Seven.

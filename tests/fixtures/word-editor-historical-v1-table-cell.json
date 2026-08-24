@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1",
+  "blocks": [
+    {
+      "id": "historical-table-cell-1",
+      "type": "table-cell",
+      "alignment": "left",
+      "runs": [
+        {
+          "text": "Historical table cell",
+          "bold": true,
+          "italic": false,
+          "underline": false,
+          "strike": false,
+          "superscript": false,
+          "subscript": false,
+          "fontFamily": "Arial",
+          "fontSize": 12,
+          "color": null,
+          "highlight": null
+        }
+      ]
+    }
+  ],
+  "savedAt": "2026-08-23T10:00:00.000Z"
+}
