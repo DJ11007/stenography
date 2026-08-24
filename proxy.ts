@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { expireSupabaseAuthTokenCookies,refreshSupabaseSession } from "@/lib/supabase-refresh-session";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -31,12 +32,10 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  try {
-    await supabase.auth.getUser();
-  } catch {
-    // Authentication must not make otherwise available routes fail when
-    // Supabase is temporarily unreachable.
-  }
+  await refreshSupabaseSession(
+    () => supabase.auth.getUser(),
+    () => expireSupabaseAuthTokenCookies(request.cookies,response.cookies)
+  );
 
   return response;
 }
