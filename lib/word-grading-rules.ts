@@ -1,0 +1,13 @@
+import type{WordGradingRule}from"./word-efficiency.ts";
+
+type Json=Record<string,unknown>;
+export type WordRuleEvaluation={matched:boolean;awardedMarks:number;actualValue:unknown;unrelatedChanges:string[]};
+
+function object(value:unknown):value is Json{return Boolean(value&&typeof value==="object"&&!Array.isArray(value))}
+function blocks(snapshot:unknown){if(!object(snapshot))return[];return Array.isArray(snapshot.blocks)?snapshot.blocks:Array.isArray(snapshot.paragraphs)?snapshot.paragraphs:[]}
+function expected(value:string){try{return JSON.parse(value)}catch{return value}}
+function targetValue(snapshot:unknown,target:string){const parts=target.split("."),root=object(snapshot)?snapshot:{};if(parts[0]==="pageLayout")return parts.slice(1).reduce<unknown>((value,key)=>object(value)?value[key]:undefined,root.pageLayout);if(parts[0]!=="blocks"||parts.length<3)return undefined;let value:unknown=blocks(snapshot).find(block=>object(block)&&block.id===parts[1]);for(const key of parts.slice(2))value=Array.isArray(value)&&/^\d+$/.test(key)?value[Number(key)]:object(value)?value[key]:undefined;return value}
+function leafMap(value:unknown,prefix="",result=new Map<string,string>()){if(Array.isArray(value)){value.forEach((item,index)=>leafMap(item,`${prefix}.${index}`,result))}else if(object(value)){for(const[key,item]of Object.entries(value))if(!["savedAt","operations","schemaVersion","formattingSummary","warnings","source","language"].includes(key))leafMap(item,prefix?`${prefix}.${key}`:key,result)}else result.set(prefix,JSON.stringify(value));return result}
+function normalized(snapshot:unknown){return{blocks:blocks(snapshot)}}
+
+export function evaluateWordGradingRule(original:unknown,finalDocument:unknown,rule:WordGradingRule):WordRuleEvaluation{const actual=targetValue(finalDocument,rule.target),wanted=expected(rule.expectedValue),matched=JSON.stringify(actual)===JSON.stringify(wanted),beforeLeaves=leafMap(normalized(original)),afterLeaves=leafMap(normalized(finalDocument)),targetSuffix=rule.target.replace(/^blocks\.[^.]+/,`blocks.${blocks(finalDocument).findIndex(block=>object(block)&&block.id===rule.target.split(".")[1])}`),paths=new Set([...beforeLeaves.keys(),...afterLeaves.keys()]),unrelatedChanges=[...paths].filter(path=>path!==targetSuffix&&beforeLeaves.get(path)!==afterLeaves.get(path));const operationApplied=object(finalDocument)&&Array.isArray(finalDocument.operations)&&finalDocument.operations.includes(rule.expectedOperation),awardedMarks=matched?rule.allocatedMarks:operationApplied?rule.partialMarks??0:0;return{matched,awardedMarks,actualValue:actual,unrelatedChanges}}

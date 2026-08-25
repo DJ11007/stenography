@@ -30,10 +30,10 @@ export async function signIn(_: AuthFormState, formData: FormData): Promise<Auth
   const role = profile?.is_active && (profile.role === "admin" || profile.role === "student")
     ? profile.role
     : null;
-  const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  const currentLevel = assurance?.currentLevel === "aal2"
+  const { data: verifiedToken } = await supabase.auth.getClaims(signInData.session?.access_token);
+  const currentLevel = verifiedToken?.claims.aal === "aal2"
     ? "aal2"
-    : assurance?.currentLevel === "aal1" ? "aal1" : null;
+    : verifiedToken?.claims.aal === "aal1" ? "aal1" : null;
   const decision = decideSignInDestination(loginKind, role, currentLevel);
 
   if (decision.type === "deny-admin") {

@@ -55,8 +55,10 @@ export default async function Page({
         .eq("version_id", current.id)
         .order("display_order")
     : { data: [] };
+  const {data:gradingRules}=current?await supabase.from("word_efficiency_grading_rules").select("question_id,exact_target,expected_operation,expected_value,allocated_marks,partial_marks").eq("version_id",current.id):{data:[]};
+  const gradingRuleMap=new Map((gradingRules??[]).map(rule=>[rule.question_id,rule]));
   const initialQuestions: WordQuestion[] = (questions ?? []).map(
-    (question) => ({
+    (question) => {const rule=gradingRuleMap.get(question.id);return({
       id: question.id,
       number: question.question_number,
       instruction: question.instruction,
@@ -64,7 +66,8 @@ export default async function Page({
       section: question.section,
       display_order: question.display_order,
       is_visible: question.is_visible,
-    }),
+      gradingRule:rule?{target:rule.exact_target,expectedOperation:rule.expected_operation,expectedValue:JSON.stringify(rule.expected_value),allocatedMarks:Number(rule.allocated_marks),partialMarks:rule.partial_marks==null?null:Number(rule.partial_marks)}:null,
+    })},
   );
   const selectedAttempts = editing
     ? (attempts ?? []).filter((attempt) => attempt.test_id === editing.id)

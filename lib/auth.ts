@@ -35,8 +35,8 @@ export async function requireAdmin() {
     redirect("/student");
   }
 
-  const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (assurance?.currentLevel !== "aal2") {
+  const { data: verifiedToken } = await supabase.auth.getClaims();
+  if (verifiedToken?.claims.aal !== "aal2") {
     redirect("/account/security?next=/admin");
   }
 

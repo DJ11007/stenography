@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfjs-dist"],
+  turbopack: {
+    root: projectRoot,
+  },
   async redirects() {
     return [
       { source: "/typing/practice/rssb-ldc-english", destination: "/typing/practice/english", permanent: true },
