@@ -19,6 +19,14 @@ const sections = [
     tone: "bg-green-600",
   },
   {
+    title: "Stenography",
+    description: "Shorthand dictation and transcription practice in English and Hindi.",
+    href: "/typing/practice/stenography",
+    action: "Choose stenography language",
+    icon: "✎",
+    tone: "bg-violet-600",
+  },
+  {
     title: "Exam Simulators",
     description: "Independent practice simulations with transparent preset rules and locked exam settings.",
     href: "/typing/exams",
@@ -28,11 +36,11 @@ const sections = [
   },
   {
     title: "Word/Excel Efficiency",
-    description: "Document and spreadsheet efficiency practice will arrive in a later phase.",
-    href: "",
-    action: "Coming Soon",
+    description: "Document formatting and productivity practice in English and Hindi. Spreadsheet exercises are coming soon.",
+    href: "/typing/word-efficiency",
+    action: "Explore Word Training",
     icon: "▦",
-    tone: "bg-slate-500",
+    tone: "bg-sky-600",
   },
 ];
 
@@ -42,7 +50,7 @@ export default function TypingHubPage() {
       <TypingBrandHeader />
       <section className="mx-auto max-w-7xl px-4 py-12">
         <p className="text-sm font-bold uppercase tracking-widest text-blue-600">Choose your path</p>
-        <h2 className="mt-2 text-3xl font-black">Four focused typing areas</h2>
+        <h2 className="mt-2 text-3xl font-black">Five focused typing areas</h2>
         <div className="mt-7 grid gap-5 md:grid-cols-2">
           {sections.map((section) => (
             <article

@@ -5,9 +5,29 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.7s ease-out both;
+}
+
+@keyframes blob-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(3%, -5%) scale(1.06); }
+}
+
+.animate-blob-float {
+  animation: blob-float 11s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; }
   [class*="vacancy-slide"] { animation: none !important; }
+  .animate-fade-in-up { animation: none; opacity: 1; transform: none; }
+  .animate-blob-float { animation: none; }
 }
 
 @font-face {
@@ -51,7 +71,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
 /* Typing Hub is available after student sign-in, not in public navigation. */
@@ -171,12 +191,16 @@ main > section.bg-slate-950 a[href="/typing/learn"]:hover {
 }
 
 /* Shared compact Office-style Word Efficiency ribbon. */
-.word-office-ribbon { width: 100%; overflow: hidden; background: #fff; color: #242424; font-family: "Segoe UI", Calibri, Arial, sans-serif; }
-.word-ribbon-tabs { display: flex; min-height: 30px; overflow-x: auto; border-bottom: 1px solid #d5d5d5; padding-left: 5px; scrollbar-width: thin; }
-.word-ribbon-tabs button { position: relative; flex: 0 0 auto; min-height: 30px; border: 0; border-radius: 0; background: #fff; padding: 4px 13px 3px; color: #343434; font-size: 11px; font-weight: 500; letter-spacing: .01em; outline: none; }
+.word-office-ribbon { width: 100%; overflow: hidden; background: #fff; color: #242424; font-family: "Segoe UI", Calibri, Arial, sans-serif; box-shadow: 0 2px 4px rgb(15 23 42 / .08); }
+.word-ribbon-tabs { display: flex; min-height: 30px; overflow-x: auto; border-bottom: 1px solid #d5d5d5; padding-left: 5px; scrollbar-width: thin; background: #fafafa; }
+.word-ribbon-tabs button { position: relative; flex: 0 0 auto; min-height: 30px; border: 0; border-radius: 0; background: transparent; padding: 4px 13px 3px; color: #343434; font-size: 11px; font-weight: 500; letter-spacing: .01em; outline: none; transition: background-color 120ms ease, color 120ms ease; }
+.word-ribbon-tabs button:hover:not([aria-selected="true"]):not([data-tab-id="File"]) { background: #e5f1fb; color: #1769aa; }
 .word-ribbon-tabs button[aria-selected="true"] { color: #1769aa; background: #fff; }
 .word-ribbon-tabs button[aria-selected="true"]::after { position: absolute; right: 8px; bottom: 0; left: 8px; height: 2px; background: #2b78b8; content: ""; }
 .word-ribbon-tabs button:focus-visible { box-shadow: inset 0 0 0 2px #2b78b8; }
+.word-ribbon-tabs button[data-tab-id="File"] { background: #2b579a; color: #fff; }
+.word-ribbon-tabs button[data-tab-id="File"]:hover { background: #1e4173; }
+.word-ribbon-tabs button[data-tab-id="File"][aria-selected="true"]::after { background: #7fb2ff; }
 .word-ribbon-panel { height: 88px; overflow-x: auto; overflow-y: hidden; background: #fff; scrollbar-width: thin; }
 .word-ribbon-groups { display: flex; width: max-content; min-width: 100%; height: 88px; padding: 3px 4px 2px; }
 .word-ribbon-group { display: flex; min-width: 0; flex-direction: column; padding: 1px 6px 0; border-right: 1px solid #d6d6d6; background: #fff; }
@@ -205,5 +229,7 @@ main > section.bg-slate-950 a[href="/typing/learn"]:hover {
 .word-ribbon-font select { width: 112px; }
 .word-ribbon-size select { width: 43px; }
 .word-ribbon-color input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.word-ribbon-color-icon { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.word-ribbon-color-bar { width: 15px; height: 3px; border: 1px solid rgb(0 0 0 / .18); border-radius: 1px; }
 .word-office-ribbon[data-preview="true"] .word-ribbon-tool, .word-office-ribbon[data-preview="true"] select { color: #292929; opacity: 1; }
 @media (max-width: 700px) { .word-ribbon-panel { overflow-x: auto; } .word-ribbon-groups { min-width: max-content; } }
