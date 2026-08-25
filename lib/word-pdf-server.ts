@@ -2,10 +2,12 @@ import"server-only";
 
 type WorkerModule={WorkerMessageHandler:unknown};
 type PdfJsWorkerGlobal=typeof globalThis&{pdfjsWorker?:WorkerModule};
+const PDFJS_VERSION="6.2.108";
 export class PdfReaderStartError extends Error{constructor(){super("The PDF reader could not start. Please retry after the application restarts.");this.name="PdfReaderStartError"}}
 
 async function loadServerPdfJs(){
- try{const[pdfjs,worker]=await Promise.all([import("pdfjs-dist/legacy/build/pdf.mjs"),import("pdfjs-dist/legacy/build/pdf.worker.mjs")]);(globalThis as PdfJsWorkerGlobal).pdfjsWorker={WorkerMessageHandler:worker.WorkerMessageHandler};return pdfjs}catch(error){console.error("[Word Efficiency PDF reader startup failed]",error);throw new PdfReaderStartError()}
+ let workerAvailable=false;
+ try{const[pdfjs,worker]=await Promise.all([import("pdfjs-dist/legacy/build/pdf.mjs"),import("pdfjs-dist/legacy/build/pdf.worker.mjs")]);workerAvailable=Boolean(worker.WorkerMessageHandler);if(pdfjs.version!==PDFJS_VERSION||!workerAvailable)throw new Error(`PDF.js runtime mismatch: expected ${PDFJS_VERSION}, loaded ${pdfjs.version||"unknown"}, worker ${workerAvailable?"available":"unavailable"}`);(globalThis as PdfJsWorkerGlobal).pdfjsWorker={WorkerMessageHandler:worker.WorkerMessageHandler};return pdfjs}catch(error){console.error("[Word Efficiency PDF reader startup failed]",pdfStartupDiagnostic(error,workerAvailable));throw new PdfReaderStartError()}
 }
 
 export async function extractPdfTextPages(arrayBuffer:ArrayBuffer|Uint8Array){
@@ -13,3 +15,5 @@ export async function extractPdfTextPages(arrayBuffer:ArrayBuffer|Uint8Array){
  try{document=await loadingTask.promise;const pages:string[]=[];for(let pageNumber=1;pageNumber<=document.numPages;pageNumber++){const page=await document.getPage(pageNumber);const content=await page.getTextContent();const lines=new Map<number,string[]>();for(const item of content.items){if(!("str"in item))continue;const y=Math.round(item.transform[5]);lines.set(y,[...(lines.get(y)??[]),item.str])}pages.push([...lines.entries()].sort((a,b)=>b[0]-a[0]).map(([,parts])=>parts.join(" ").trim()).filter(Boolean).join("\n"))}return{pages,pageCount:document.numPages,workerSource:pdfjs.GlobalWorkerOptions.workerSrc}}
  finally{try{await document?.cleanup()}catch(error){console.error("[Word Efficiency PDF document cleanup failed]",error)}try{await loadingTask.destroy()}catch(error){console.error("[Word Efficiency PDF loading task cleanup failed]",error)}}
 }
+
+function pdfStartupDiagnostic(error:unknown,workerAvailable:boolean){const value=error instanceof Error?error:new Error(String(error)),cause=value.cause instanceof Error?{name:value.cause.name,message:value.cause.message}:value.cause==null?null:{name:"UnknownCause",message:String(value.cause)};return{name:value.name,message:value.message,cause,nodeVersion:process.version,pdfjsVersion:PDFJS_VERSION,workerAvailable}}
