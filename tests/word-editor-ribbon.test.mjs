@@ -63,6 +63,12 @@ test("schema-v2 rejects unknown block run and typed-attribute injection", () => 
   assert.throws(() => validateWordEditorDocument(v2({ blocks: [v2().blocks[0], { ...v2().blocks[0] }] })), /duplicate/i);
 });
 
+test("page margins accept one uniform value or four independent top/right/bottom/left values", () => {
+  const withPadding = padding => v2({ pageLayout: { ...pageLayout, padding } });
+  for (const padding of ["20mm", "5mm", "50mm", "12.5mm", "20mm 15mm 20mm 15mm", "5mm 5mm 5mm 5mm"]) assert.equal(validateWordEditorDocument(withPadding(padding)).schemaVersion, "2");
+  for (const padding of ["20mm 15mm", "20mm 15mm 20mm", "20mm 15mm 20mm 15mm 20mm", "20px", "20mm 15mm 20mm 15px", "-5mm", "abc"]) assert.throws(() => validateWordEditorDocument(withPadding(padding)), /margins/i);
+});
+
 test("hyperlinks reject active and ambiguous protocols", () => {
   for (const href of ["javascript:alert(1)", "data:text/html,bad", "//evil.example/path", "vbscript:bad"]) assert.throws(() => validateWordEditorDocument(v2({ blocks: [{ ...v2().blocks[0], runs: [run({ href })] }] })), /hyperlink/i);
   for (const href of ["https://example.com/path", "http://example.com", "mailto:student@example.com", "#bookmark-safe"]) assert.equal(validateWordEditorDocument(v2({ blocks: [{ ...v2().blocks[0], runs: [run({ href })] }] })).schemaVersion, "2");
@@ -130,7 +136,7 @@ test("capability version flow snapshots exact v2 data and surfaces persistence a
   assert.match(migration, /'editor_capabilities',version_record\.editor_capabilities/);
   assert.match(migration, /prepared_capabilities is distinct from stored_capabilities/);
   assert.doesNotMatch(migration, /update\s+public\.word_efficiency_versions/i);
-  assert.match(adminAction, /validateWordEditorCapabilities/);
+  assert.match(adminAction, /recommendedWordEditorCapabilities\(\)/);
   assert.match(adminAction, /editor capabilities were not persisted exactly/);
   assert.match(studentAction, /process\.env\.NODE_ENV==="development"[\s\S]*error\.message/);
   assert.match(editor, /setStatus\(result\.error\)/);
@@ -177,16 +183,18 @@ test("every reduced content-changing option is server-enforced", async () => {
   for (const command of ["bold","italic","underline","strikeThrough","subscript","superscript","textEffects","bullets","numbering","multilevelList","decreaseIndent","increaseIndent","sort","alignLeft","alignCenter","alignRight","justify","lineSpacing","shading","borders","coverPage","blankPage","pageBreak","insertTable","insertPicture","onlinePictures","shapes","hyperlink","bookmark","crossReference","header","footer","pageNumber","dropCap","dateTime","symbol","watermark","pageColor","pageBorders","margins","orientation","pageSize","columns","sectionBreak","lineNumbers"]) assert.match(migration, new RegExp(`['\"]${command}['\"]`));
 });
 
-test("admin and student surfaces retain accessibility and immutable capability snapshots", async () => {
-  const [admin, editor, shared, migration] = await Promise.all([read("app/admin/word-efficiency-tests/editor-capability-fields.tsx"), read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"), read("components/word-efficiency/word-editor-ribbon.tsx"), read("supabase/migrations/202608240005_word_efficiency_hierarchical_editor_capabilities.sql")]);
-  for (const label of ["Select all supported", "Clear all", "Restore recommended defaults", "Admin-only live ribbon preview", "Allowed fonts"]) assert.match(admin, new RegExp(label));
-  assert.match(admin, /<WordEditorRibbon[\s\S]*preview/); assert.match(editor, /<WordEditorRibbon/);
+test("students always get full editor capabilities and admin no longer configures a per-test checklist", async () => {
+  const [actions, workingMatterFields, editor, shared, migration] = await Promise.all([read("app/admin/word-efficiency-tests/actions.ts"), read("app/admin/word-efficiency-tests/working-matter-docx-fields.tsx"), read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"), read("components/word-efficiency/word-editor-ribbon.tsx"), read("supabase/migrations/202608240005_word_efficiency_hierarchical_editor_capabilities.sql")]);
+  assert.match(actions, /recommendedWordEditorCapabilities\(\)/);
+  assert.doesNotMatch(actions, /validateWordEditorCapabilities/);
+  assert.doesNotMatch(workingMatterFields, /EditorCapabilityFields/);
+  assert.match(editor, /<WordEditorRibbon/);
   for (const pattern of [/role="tablist"/, /role="tabpanel"/, /aria-label=\{option\.label\}/, /<RibbonIcon/, /WORD_EDITOR_RIBBON/]) assert.match(shared, pattern);
   for (const pattern of [/sticky bottom-0/, /dataset\.operations/, /operations:/]) assert.match(editor, pattern);
   assert.match(migration, /jsonb_build_object\('working_matter',matter,'editor_capabilities',caps,'initial_editor_document',initial_editor/);
 });
 
-test("shared compact ribbon matches the reference proportions and responsive contract",async()=>{const[css,shared]=await Promise.all([read("app/globals.css"),read("components/word-efficiency/word-editor-ribbon.tsx")]);assert.match(css,/\.word-ribbon-panel \{ height: 88px/);assert.match(css,/\.word-ribbon-tabs \{[^}]*min-height: 30px/);assert.match(css,/border-right: 1px solid/);assert.match(css,/font-family: "Segoe UI", Calibri, Arial/);assert.match(css,/@media \(max-width: 700px\)/);assert.match(shared,/useState\("Calibri \(Body\)"\)/);assert.match(shared,/defaultValue="11"/);assert.match(shared,/aria-haspopup=\{option\.menu \? "menu"/);assert.doesNotMatch(shared,/option\.icon/)});
+test("shared compact ribbon matches the reference proportions and responsive contract",async()=>{const[css,shared]=await Promise.all([read("app/globals.css"),read("components/word-efficiency/word-editor-ribbon.tsx")]);assert.match(css,/\.word-ribbon-panel \{ height: 88px/);assert.match(css,/\.word-ribbon-tabs \{[^}]*min-height: 30px/);assert.match(css,/border-right: 1px solid/);assert.match(css,/font-family: "Segoe UI", Calibri, Arial/);assert.match(css,/@media \(max-width: 700px\)/);assert.match(shared,/useState\(currentFontFamily\|\|"Calibri \(Body\)"\)/);assert.match(shared,/defaultValue="11"/);assert.match(shared,/aria-haspopup=\{option\.menu \? "menu"/);assert.doesNotMatch(shared,/option\.icon/)});
 
 test("Paragraph uses the compact two-row reference order without visible long labels",async()=>{const[css,shared]=await Promise.all([read("app/globals.css"),read("components/word-efficiency/word-editor-ribbon.tsx")]);const top=["bullets","numbering","multilevelList","decreaseIndent","increaseIndent","sort","formattingMarks"],bottom=["alignLeft","alignCenter","alignRight","justify","lineSpacing","shading","borders"];assert.match(css,/data-ribbon-group="paragraph"[^\n]*min-width: 212px/);assert.match(css,/grid-template-columns: repeat\(7,28px\)/);for(const[id,index]of top.map((id,index)=>[id,index+1]))assert.match(css,new RegExp(`data-ribbon-option="${id}"\\] \\{ grid-column: ${index}; grid-row: 1`));for(const[id,index]of bottom.map((id,index)=>[id,index+1]))assert.match(css,new RegExp(`data-ribbon-option="${id}"\\] \\{ grid-column: ${index}; grid-row: 2`));assert.match(css,/data-ribbon-group="paragraph"[^\n]*\.word-ribbon-tool > span:not\(\.word-ribbon-color-icon\)/);for(const id of["decreaseIndent","increaseIndent","sort","formattingMarks","shading","borders"])assert.match(shared,new RegExp(`id === "${id}"|\\["decreaseIndent","increaseIndent"\\]\\.includes\\(id\\)`));assert.match(shared,/aria-label=\{option\.label\}/);assert.match(shared,/title=\{option\.label\}/)});
 
@@ -201,5 +209,109 @@ test("Page Layout uses four large Page Setup controls and two stacked controls",
 test("View matches the reference groups, checkbox grid, and mixed Zoom layout",async()=>{const[css,shared,capabilities,editor]=await Promise.all([read("app/globals.css"),read("components/word-efficiency/word-editor-ribbon.tsx"),read("lib/word-editor-capabilities.ts"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);assert.match(capabilities,/label:"Document Views"/);assert.match(capabilities,/label:"Show\/Hide"/);assert.match(capabilities,/option\("printLayout","Print Layout"[^\n]*option\("fullScreenReading","Full Screen Reading"/);assert.match(shared,/MESSAGE_BAR_OPTION[^\n]*unsupported: "Message Bar is unavailable/);assert.match(shared,/aria-description=\{option\.unsupported\}/);for(const id of["messageBar","thumbnails","zoom","pageWidth"])assert.match(shared,new RegExp(`id: "${id}"`));assert.match(css,/data-ribbon-group="views"[^\n]*min-width: 246px/);assert.match(css,/data-ribbon-group="views"\][^\n]*\.word-ribbon-options[^\n]*repeat\(5,48px\)/);assert.match(css,/data-ribbon-group="show"\][^\n]*\.word-ribbon-options[^\n]*grid-template-columns: 88px 104px/);assert.match(css,/data-ribbon-option="messageBar"\] \{ grid-column: 1; grid-row: 3/);assert.match(css,/data-ribbon-option="thumbnails"\] \{ grid-column: 2; grid-row: 2/);assert.match(css,/data-ribbon-group="zoom"\][^\n]*\.word-ribbon-options[^\n]*grid-template-columns: 48px 48px 88px/);for(const command of["printLayout","fullScreenReading","webLayout","outlineView","draftView","ruler","gridlines","documentMap","thumbnails","zoom100","onePage","twoPages","pageWidth"])assert.match(editor,new RegExp(`${command}:\\(\\)=>`));assert.match(editor,/zoom:"zoom100",thumbnails:"documentMap",pageWidth:"twoPages"/)});
 
 test("shared ribbon hides disabled tabs groups and options without rendering empty groups",async()=>{const shared=await read("components/word-efficiency/word-editor-ribbon.tsx");assert.match(shared,/filter\(tab => capabilities\.tabs\[tab\.id\]\.enabled\)/);assert.match(shared,/filter\(option => configured\.options\[option\.id\]\)/);assert.match(shared,/group\.options\.length > 0/);assert.match(shared,/disabled=\{preview\}/);assert.doesNotMatch(shared,/<span key=\{item\.id\}/)});
+
+test("autosave restore, watermark autosave, drop cap and line-number restoration, and dated fields are wired",async()=>{
+  const[workspace,editor]=await Promise.all([read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
+  assert.match(workspace,/initialDocument=\{initialDocument\}/);
+  assert.match(editor,/lastAutosave\.current=snapshot/);
+  assert.match(editor,/applyWatermark=\(text:string\)=>\{setDialog\(null\);editor\.current\?\.setAttribute\("data-watermark",text\.slice\(0,40\)\);changed\(\)\}/);
+  assert.match(editor,/applyDropCapMarker/);
+  assert.match(editor,/classList\.add\("editor-line-numbers"\)/);
+  assert.match(editor,/data-field="date-time"/);
+  assert.match(editor,/data-field="symbol"/);
+  assert.match(editor,/findNext/);
+  assert.doesNotMatch(editor,/dangerouslySetInnerHTML/);
+});
+
+test("table row/column edits target the cursor position and delete/spacing handlers remain reachable through existing commands",async()=>{
+  const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(editor,/const cell=anchor\?\.closest\("td,th"\)/);
+  assert.match(editor,/table\.insertRow\(action==="add-row-above"\?rowIndex:rowIndex\+1\)/);
+  assert.match(editor,/deleteTable:\(\)=>tableActionAtCursor\("remove-table"\)/);
+  assert.match(editor,/paragraphSpacing:\(\)=>setDialog\(\{kind:"lineSpacingOptions"/);
+});
+
+test("Insert Table offers a grid picker with a numeric dialog fallback, and a Table Tools bar exposes row/column/table commands at the cursor",async()=>{
+  const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(editor,/function TableSizePicker\(\{onPick,onCustom\}:\{onPick:\(rows:number,cols:number\)=>void;onCustom:\(\)=>void\}\)/);
+  assert.match(editor,/function InsertTableCustomForm\(\{onSubmit\}:\{onSubmit:\(rows:number,cols:number\)=>void\}\)/);
+  assert.match(editor,/dialog\.kind==="insertTableCustom"&&<InsertTableCustomForm onSubmit=\{onInsertTable\}\/>/);
+  assert.match(editor,/onOpenCustomTable=\{\(\)=>setDialog\(\{kind:"insertTableCustom"\}\)\}/);
+  assert.match(editor,/const tableActionAtCursor=\(action:string\)=>/);
+  assert.match(editor,/TABLE_TOOL_ACTIONS:\[string,string\]\[\]=\[\["add-row-above","Insert Above"\],\["add-row-below","Insert Below"\],\["add-column-left","Insert Left"\],\["add-column-right","Insert Right"\],\["remove-row","Delete Row"\],\["remove-column","Delete Column"\],\["remove-table","Delete Table"\]\]/);
+  assert.match(editor,/insideTable&&!submitted&&<div role="toolbar" aria-label="Table Tools"/);
+  assert.match(editor,/TABLE_TOOL_ACTIONS\.map\(\(\[action,label\]\)=><button key=\{action\} type="button" onMouseDown=\{event=>event\.preventDefault\(\)\} onClick=\{\(\)=>tableActionAtCursor\(action\)\}/);
+  assert.match(editor,/setInsideTable\(Boolean\(parent\.closest\("table"\)\)\)/);
+  assert.match(editor,/else if\(action==="remove-table"\)\{table\.remove\(\);setInsideTable\(false\)\}/);
+});
+
+test("change case, list styles, line spacing, shading, and borders drive real Office-style galleries instead of a single click or a prompt",async()=>{
+  const[shared,editor]=await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
+  assert.match(shared,/function GalleryMenu/);
+  for(const label of["Sentence case.","lowercase","UPPERCASE","Capitalize Each Word","tOGGLE cASE"])assert.match(shared,new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")));
+  assert.match(shared,/CLEAR_LABEL/);
+  assert.match(shared,/"Automatic"/);
+  assert.match(shared,/No Color/);
+  assert.match(shared,/No Fill/);
+  assert.match(shared,/onValueCommand\?:\s*\(id:\s*string,\s*value:\s*string\)\s*=>\s*void/);
+  assert.match(shared,/currentFontFamily/);
+  assert.match(editor,/onValueCommand=\(id:string,value:string\)=>\{/);
+  assert.match(editor,/id==="changeCase"/);
+  assert.match(editor,/id==="lineSpacing"/);
+  assert.match(editor,/id==="borders"/);
+  assert.match(editor,/setCurrentFont/);
+});
+
+test("margins, watermark, page color, columns, page size, symbol, and table insert/edit drive an in-app dialog instead of window.prompt",async()=>{
+  const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(editor,/margins:\(\)=>setDialog\(\{kind:"margins"/);
+  assert.match(editor,/watermark:\(\)=>setDialog\(\{kind:"watermark"/);
+  assert.match(editor,/pageColor:\(\)=>setDialog\(\{kind:"pageColor"/);
+  assert.match(editor,/columns:\(\)=>setDialog\(\{kind:"columns"/);
+  assert.match(editor,/pageSize:\(\)=>setDialog\(\{kind:"pageSize"/);
+  assert.match(editor,/symbol:\(\)=>setDialog\(\{kind:"symbol"\}\)/);
+  assert.match(editor,/insertTable:\(\)=>setDialog\(\{kind:"insertTable"\}\)/);
+  assert.match(editor,/tableRowsColumns:\(\)=>openTableEditDialog\(\)/);
+  assert.match(editor,/function CommandDialog/);
+  assert.match(editor,/function TableSizePicker/);
+  assert.match(editor,/function SymbolPicker/);
+  assert.doesNotMatch(editor,/promptValue\("Watermark text/);
+  assert.doesNotMatch(editor,/promptValue\("Enter a Unicode symbol/);
+});
+
+test("bullets, numbering, and multilevel list galleries offer real Word-style format choices that actually persist",async()=>{
+  const[shared,css,editor]=await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"),read("app/globals.css"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
+  for(const value of["bullet-disc","bullet-circle","bullet-square","bullet-diamond","bullet-arrow","bullet-check"])assert.match(shared,new RegExp(`value:"${value}"`));
+  for(const value of["decimal","decimal-paren","upper-roman","upper-alpha","lower-alpha-paren","lower-alpha","lower-roman"])assert.match(shared,new RegExp(`value:"${value}"`));
+  assert.match(shared,/const MULTILEVEL_ITEMS=NUMBER_ITEMS/);
+  assert.match(shared,/GALLERY_NOTES/);
+  assert.match(shared,/nested outline levels/);
+  assert.match(shared,/useLayoutEffect/);
+  assert.match(shared,/className="word-gallery-menu"/);
+  assert.match(css,/\.word-gallery-menu \{ position: fixed;/);
+  for(const selector of[/ul\[data-list-style="bullet-diamond"\]/,/ul\[data-list-style="bullet-arrow"\]/,/ol\[data-list-style="decimal-paren"\] > li::marker/,/ol\[data-list-style="lower-alpha-paren"\] > li::marker/])assert.match(css,selector);
+  assert.match(editor,/const applyListStyle=\(kind:"ul"\|"ol",value:string\)=>/);
+  assert.match(editor,/if\(id==="bullets"\)\{applyListStyle\("ul",value\);return\}/);
+  assert.match(editor,/if\(id==="numbering"\)\{applyListStyle\("ol",value\);return\}/);
+  assert.match(editor,/if\(id==="multilevelList"\)\{applyListStyle\("ol",value\);return\}/);
+  assert.match(editor,/list\.dataset\.listStyle=value/);
+});
+
+test("line spacing gallery exposes extra actions and Find/Replace opens a real dialog instead of window.prompt",async()=>{
+  const[shared,editor]=await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
+  assert.match(shared,/SPACING_ACTIONS=\[\{id:"options",label:"Line Spacing Options…"\}/);
+  assert.match(shared,/actions=\{SPACING_ACTIONS\} onAction=\{id=>onValueCommand\?\.\("lineSpacingAction",id\)\}/);
+  assert.match(editor,/kind:"lineSpacingOptions";before:string;after:string/);
+  assert.match(editor,/kind:"findReplace";mode:"find"\|"replace";query:string;replacement:string/);
+  assert.match(editor,/function LineSpacingOptionsForm/);
+  assert.match(editor,/function FindReplaceForm/);
+  assert.match(editor,/const find=\(replace:boolean\)=>setDialog\(\{kind:"findReplace"/);
+  assert.match(editor,/const runFindNext=/);
+  assert.match(editor,/const runReplaceOne=/);
+  assert.match(editor,/const runReplaceAll=/);
+  assert.doesNotMatch(editor,/promptValue\("Find text:"/);
+  assert.doesNotMatch(editor,/promptValue\("Replace with:"/);
+  assert.doesNotMatch(editor,/promptValue\("Space before/);
+});
 
 test("ribbon tabs render names, switch definitions, and reject screenshot assets",async()=>{const[shared,css]=await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"),read("app/globals.css")]);const source=`${shared}\n${css}`;for(const forbidden of[/studentImages/,/adminImages/,/imageNumber/,/\/images\/80/,/\/images\/111/,/word-ribbon-tab-icon/,/role="tab"[^>]*>[\s\S]{0,120}<img/i])assert.doesNotMatch(source,forbidden);assert.match(shared,/visibleTabs\.map\(tab => <button[\s\S]*\{tab\.id\.toUpperCase\(\)\}/);assert.match(shared,/onClick=\{\(\) => onTabChange\(tab\.id\)\}/);assert.match(shared,/WORD_EDITOR_RIBBON\.find\(tab => tab\.id === selectedTab\)/);assert.deepEqual(WORD_EDITOR_RIBBON.map(tab=>tab.id),["File","Home","Insert","Design","Page Layout","View"]);for(const tab of["Insert","Design","Page Layout","View"])assert.ok(WORD_EDITOR_RIBBON.find(item=>item.id===tab)?.groups.length)});

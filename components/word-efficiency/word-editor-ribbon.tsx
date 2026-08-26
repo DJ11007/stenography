@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import {
   WORD_EDITOR_RIBBON,
@@ -21,6 +21,8 @@ type Props = {
   onFontSizeChange?: (size: number) => void;
   onColorChange?: (id: string, color: string) => void;
   onUnderlineChange?: (style: string, color?: string) => void;
+  onValueCommand?: (id: string, value: string) => void;
+  currentFontFamily?: string;
 };
 
 const CLEAR_FORMAT_DEPENDENCIES = ["fontName", "fontSize", "bold", "italic", "underline", "strikeThrough", "subscript", "superscript", "textEffects", "highlightColor", "fontColor"] as const;
@@ -30,7 +32,7 @@ const THUMBNAILS_OPTION: RibbonOption = { id: "thumbnails", label: "Thumbnails",
 const ZOOM_OPTION: RibbonOption = { id: "zoom", label: "Zoom", icon: "zoom", kind: "button" };
 const PAGE_WIDTH_OPTION: RibbonOption = { id: "pageWidth", label: "Page Width", icon: "pageWidth", kind: "button" };
 
-export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange }: Props) {
+export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily }: Props) {
   const visibleTabs = WORD_EDITOR_RIBBON.filter(tab => capabilities.tabs[tab.id].enabled);
   const selectedTab = visibleTabs.some(tab => tab.id === activeTab) ? activeTab : visibleTabs[0]?.id;
   const definition = WORD_EDITOR_RIBBON.find(tab => tab.id === selectedTab);
@@ -49,7 +51,7 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
       <div className="word-ribbon-groups">
         {groups.map(group => <section key={group.id} data-ribbon-group={group.id} className="word-ribbon-group">
           <div className="word-ribbon-options">
-            {group.options.map(option => <div key={option.id} data-ribbon-option={option.id} className="word-ribbon-option-slot"><RibbonControl option={option} capabilities={capabilities} preview={preview} active={activeOption?.(option.id) ?? false} onCommand={onCommand} onFontChange={onFontChange} onFontSizeChange={onFontSizeChange} onColorChange={onColorChange} onUnderlineChange={onUnderlineChange}/></div>) }
+            {group.options.map(option => <div key={option.id} data-ribbon-option={option.id} className="word-ribbon-option-slot"><RibbonControl option={option} capabilities={capabilities} preview={preview} active={activeOption?.(option.id) ?? false} onCommand={onCommand} onFontChange={onFontChange} onFontSizeChange={onFontSizeChange} onColorChange={onColorChange} onUnderlineChange={onUnderlineChange} onValueCommand={onValueCommand} currentFontFamily={currentFontFamily}/></div>) }
           </div>
           <span className="word-ribbon-group-name">{group.label}</span>
         </section>)}
@@ -58,35 +60,53 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
   </div>;
 }
 
-function RibbonControl({ option, capabilities, preview, active, onCommand, onFontChange, onFontSizeChange, onColorChange,onUnderlineChange }: { option: RibbonOption; capabilities: HierarchicalEditorCapabilities; preview: boolean; active: boolean; onCommand?: (id: string) => void; onFontChange?: (font: string) => void; onFontSizeChange?: (size: number) => void; onColorChange?: (id: string, color: string) => void;onUnderlineChange?:(style:string,color?:string)=>void }) {
+function RibbonControl({ option, capabilities, preview, active, onCommand, onFontChange, onFontSizeChange, onColorChange,onUnderlineChange,onValueCommand,currentFontFamily }: { option: RibbonOption; capabilities: HierarchicalEditorCapabilities; preview: boolean; active: boolean; onCommand?: (id: string) => void; onFontChange?: (font: string) => void; onFontSizeChange?: (size: number) => void; onColorChange?: (id: string, color: string) => void;onUnderlineChange?:(style:string,color?:string)=>void;onValueCommand?:(id:string,value:string)=>void;currentFontFamily?:string }) {
   const[swatch,setSwatch]=useState(()=>defaultSwatch(option.id));
-  if (option.id === "fontName") return <FontGallery fonts={capabilities.fonts} preview={preview} onChange={onFontChange}/>;
+  if (option.id === "fontName") return <FontGallery fonts={capabilities.fonts} preview={preview} onChange={onFontChange} currentFontFamily={currentFontFamily}/>;
   if (option.id === "fontSize") return <label data-ribbon-option={option.id} className="word-ribbon-select word-ribbon-size"><span className="sr-only">{option.label}</span><select aria-label={option.label} disabled={preview} defaultValue="11" onChange={event => {const size=Number(event.target.value);if(!preview)window.dispatchEvent(new CustomEvent("word-editor-font-size",{detail:size}));else onFontSizeChange?.(size)}}>{[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].filter(size => size >= capabilities.fontSizeMin && size <= capabilities.fontSizeMax).map(size => <option key={size}>{size}</option>)}</select></label>;
-  if (["highlightColor", "fontColor"].includes(option.id)) return <ColorSplitButton option={option} preview={preview} swatch={swatch} setSwatch={setSwatch} onChange={onColorChange}/>;
+  if (["highlightColor", "fontColor", "shading"].includes(option.id)) return <ColorSplitButton option={option} preview={preview} swatch={swatch} setSwatch={setSwatch} onChange={onColorChange}/>;
   if (option.id === "pageColor") return <label data-ribbon-option={option.id} className="word-ribbon-tool word-ribbon-color" title={option.label} aria-disabled={preview}><span className="word-ribbon-color-icon"><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></span><span>{option.label}</span><input aria-label={option.label} disabled={preview} type="color" onChange={event => { setSwatch(event.target.value); onColorChange?.(option.id, event.target.value); }}/></label>;
   if(option.id==="underline")return <UnderlineSplitButton preview={preview} active={active} onChange={onUnderlineChange}/>;
+  if(option.id==="changeCase")return <GalleryMenu option={option} preview={preview} items={CASE_ITEMS} onPick={value=>onValueCommand?.("changeCase",value)}/>;
+  if(option.id==="bullets")return <GalleryMenu option={option} preview={preview} items={BULLET_ITEMS} onPick={value=>onValueCommand?.("bullets",value)}/>;
+  if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} onPick={value=>onValueCommand?.("numbering",value)}/>;
+  if(option.id==="multilevelList")return <GalleryMenu option={option} preview={preview} items={MULTILEVEL_ITEMS} onPick={value=>onValueCommand?.("multilevelList",value)}/>;
+  if(option.id==="lineSpacing")return <GalleryMenu option={option} preview={preview} items={SPACING_ITEMS} onPick={value=>onValueCommand?.("lineSpacing",value)} actions={SPACING_ACTIONS} onAction={id=>onValueCommand?.("lineSpacingAction",id)}/>;
+  if(option.id==="borders")return <GalleryMenu option={option} preview={preview} items={BORDER_ITEMS} onPick={value=>onValueCommand?.("borders",value)}/>;
   const disabled = preview || Boolean(option.unsupported);
   return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-description={option.unsupported} aria-haspopup={option.menu ? "menu" : undefined} aria-pressed={active || undefined} disabled={disabled} title={option.unsupported ?? option.label} onMouseDown={event => { if (!disabled) event.preventDefault(); }} onClick={() => onCommand?.(option.id === "zoom" ? "zoom100" : option.id)}><RibbonIcon id={option.id}/><span>{option.label}{option.menu && <i aria-hidden>▾</i>}</span></button>;
 }
 const RECENT_FONTS_KEY="word-efficiency-recent-fonts";
-function FontGallery({fonts,preview,onChange}:{fonts:string[];preview:boolean;onChange?:(font:string)=>void}){
-  const[open,setOpen]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState("Calibri (Body)"),[recent,setRecent]=useState<string[]>([]);
+function FontGallery({fonts,preview,onChange,currentFontFamily}:{fonts:string[];preview:boolean;onChange?:(font:string)=>void;currentFontFamily?:string}){
+  const[open,setOpen]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(currentFontFamily||"Calibri (Body)"),[recent,setRecent]=useState<string[]>([]),[position,setPosition]=useState<CSSProperties>({});
+  const buttonRef=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{if(currentFontFamily&&currentFontFamily!==selected&&!open)setSelected(currentFontFamily)},[currentFontFamily]);
+  useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-290)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
   useEffect(()=>{try{const value=JSON.parse(localStorage.getItem(RECENT_FONTS_KEY)??"[]");if(Array.isArray(value))setRecent(value.filter((font):font is string=>typeof font==="string"&&fonts.includes(font)).slice(0,8))}catch{}},[fonts]);
   const choose=(font:string)=>{if(preview||!fonts.includes(font))return;setSelected(font);setOpen(false);setQuery("");const next=[font,...recent.filter(item=>item!==font)].slice(0,8);setRecent(next);try{localStorage.setItem(RECENT_FONTS_KEY,JSON.stringify(next))}catch{}onChange?.(font)};
   const filter=(items:readonly string[])=>items.filter(font=>fonts.includes(font)&&font.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const theme=filter(WORD_THEME_FONTS),recentFonts=filter(recent),all=filter(fonts.filter(font=>!WORD_THEME_FONTS.includes(font as typeof WORD_THEME_FONTS[number])));
-  return <div data-ribbon-option="fontName" className="word-font-picker"><button type="button" aria-label="Font family" aria-haspopup="listbox" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span style={{fontFamily:fontCssName(selected)}}>{selected}</span><i aria-hidden>▾</i></button>{open&&<div className="word-font-gallery" role="listbox" aria-label="Font family"><input autoFocus aria-label="Search fonts" placeholder="Search fonts" value={query} onChange={event=>setQuery(event.target.value)} onMouseDown={event=>event.stopPropagation()}/><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>}</div>
+  const gallery=open&&typeof document!=="undefined"?createPortal(<div className="word-font-gallery" role="listbox" aria-label="Font family" style={position}><input autoFocus aria-label="Search fonts" placeholder="Search fonts" value={query} onChange={event=>setQuery(event.target.value)} onMouseDown={event=>event.stopPropagation()}/><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>,document.body):null;
+  return <div data-ribbon-option="fontName" className="word-font-picker"><button ref={buttonRef} type="button" aria-label="Font family" aria-haspopup="listbox" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span style={{fontFamily:fontCssName(selected)}}>{selected}</span><i aria-hidden>▾</i></button>{gallery}</div>
 }
 function FontSection({title,fonts,choose}:{title:string;fonts:readonly string[];choose:(font:string)=>void}){if(!fonts.length)return null;return <section><h3>{title}</h3>{fonts.map(font=><button role="option" type="button" key={font} style={{fontFamily:fontCssName(font)}} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(font)}><span>{font.replace(/ \((?:Headings|Body)\)$/u,"")}</span>{font.endsWith("(Headings)")&&<small>(Headings)</small>}{font.endsWith("(Body)")&&<small>(Body)</small>}</button>)}</section>}
 function fontCssName(font:string){return font.replace(/ \((?:Headings|Body)\)$/u,"")}
-const SAFE_COLORS=["#ffff00","#fff2cc","#f4cccc","#d9ead3","#cfe2f3","#d9d2e9","#000000","#c00000","#ed7d31","#70ad47","#4472c4","#7030a0"];
-function ColorSplitButton({option,preview,swatch,setSwatch,onChange}:{option:RibbonOption;preview:boolean;swatch:string;setSwatch:(color:string)=>void;onChange?:Props["onColorChange"]}){const[open,setOpen]=useState(false);const apply=(color=swatch)=>{if(!preview)onChange?.(option.id,color)};return <div data-ribbon-option={option.id} className="word-color-split"><button type="button" className="word-color-apply" aria-label={`Apply ${option.label}`} disabled={preview} title={option.label} onMouseDown={event=>event.preventDefault()} onClick={()=>apply()}><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></button><button type="button" className="word-color-arrow" aria-label={`Open ${option.label} palette`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}>▾</button>{open&&<div role="menu" aria-label={`${option.label} colors`} className="word-color-palette">{SAFE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`${option.label} ${color}`} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color);apply(color);setOpen(false)}}/>)}</div>}</div>}
+const SAFE_COLORS=["#000000","#7f7f7f","#a6a6a6","#d9d9d9","#ffffff","#c00000","#ff0000","#ffc000","#ffff00","#92d050","#00b050","#00b0f0","#0070c0","#002060","#7030a0","#fff2cc","#f4cccc","#d9ead3","#cfe2f3","#d9d2e9","#ed7d31","#70ad47","#4472c4","#a9d18e","#9dc3e6","#f9cb9c"];
+const CLEAR_LABEL:Record<string,string>={fontColor:"Automatic",highlightColor:"No Color",shading:"No Fill"};
+function ColorSplitButton({option,preview,swatch,setSwatch,onChange}:{option:RibbonOption;preview:boolean;swatch:string;setSwatch:(color:string)=>void;onChange?:Props["onColorChange"]}){
+  const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
+  const arrowRef=useRef<HTMLButtonElement>(null);
+  useLayoutEffect(()=>{if(!open)return;const rect=arrowRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left-134,window.innerWidth-158)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
+  const apply=(color=swatch)=>{if(!preview)onChange?.(option.id,color)};
+  const clearLabel=CLEAR_LABEL[option.id]??"No Color";
+  const palette=open&&typeof document!=="undefined"?createPortal(<div role="menu" aria-label={`${option.label} colors`} className="word-color-palette" style={{...position,gridTemplateColumns:"repeat(5,20px)",width:"auto"}}>{SAFE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`${option.label} ${color}`} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color);apply(color);setOpen(false)}}/>)}<button role="menuitem" type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{apply(option.id==="fontColor"?"automatic":"transparent");setOpen(false)}} style={{gridColumn:"1 / -1",marginTop:4,padding:"4px 2px",fontSize:10,fontWeight:700,background:"#fff",border:"1px solid #999",borderRadius:2}}>{clearLabel}</button></div>,document.body):null;
+  return <div data-ribbon-option={option.id} className="word-color-split"><button type="button" className="word-color-apply" aria-label={`Apply ${option.label}`} disabled={preview} title={option.label} onMouseDown={event=>event.preventDefault()} onClick={()=>apply()}><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></button><button ref={arrowRef} type="button" className="word-color-arrow" aria-label={`Open ${option.label} palette`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}>▾</button>{palette}</div>}
 const UNDERLINE_STYLES=["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy"] as const;
 const UNDERLINE_COLORS=["#000000","#c00000","#ed7d31","#ffc000","#70ad47","#5b9bd5","#4472c4","#7030a0"];
 function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:boolean;onChange?:(style:string,color?:string)=>void}){
   const[open,setOpen]=useState(false),[moreOpen,setMoreOpen]=useState(false),[colorOpen,setColorOpen]=useState(false),[lastStyle,setLastStyle]=useState("single"),[thickness,setThickness]=useState("3"),[wordsOnly,setWordsOnly]=useState(false),[position,setPosition]=useState<CSSProperties>({});
   const arrowRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);
-  useEffect(()=>{if(!open)return;const rect=arrowRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left-24,window.innerWidth-184)),top:rect.bottom+2});requestAnimationFrame(()=>menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())},[open]);
+  useLayoutEffect(()=>{if(!open)return;const rect=arrowRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left-24,window.innerWidth-184)),top:rect.bottom+2});requestAnimationFrame(()=>menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())},[open]);
   const close=()=>{setOpen(false);setMoreOpen(false);setColorOpen(false);arrowRef.current?.focus()};
   const applyStyle=(style:string)=>{if(!preview){setLastStyle(style==="none"?lastStyle:style);onChange?.(style)}close()};
   const move=(event:KeyboardEvent<HTMLDivElement>)=>{const items=[...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')],index=items.indexOf(document.activeElement as HTMLElement);if(event.key==="Escape"){event.preventDefault();close()}else if(["ArrowDown","ArrowRight"].includes(event.key)){event.preventDefault();items[(index+1+items.length)%items.length]?.focus()}else if(["ArrowUp","ArrowLeft"].includes(event.key)){event.preventDefault();items[(index-1+items.length)%items.length]?.focus()}else if(event.key==="Home"){event.preventDefault();items[0]?.focus()}else if(event.key==="End"){event.preventDefault();items.at(-1)?.focus()}};
@@ -102,7 +122,26 @@ function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:
 }
 function expandViewOptions(groupId:string,options:RibbonOption[]){if(groupId==="show"){const expanded:RibbonOption[]=[];for(const item of options){expanded.push(item);if(item.id==="gridlines")expanded.push(MESSAGE_BAR_OPTION);if(item.id==="documentMap")expanded.push(THUMBNAILS_OPTION)}return expanded}if(groupId==="zoom"){const expanded:RibbonOption[]=[];for(const item of options){if(item.id==="zoom100")expanded.push(ZOOM_OPTION);expanded.push(item);if(item.id==="twoPages")expanded.push(PAGE_WIDTH_OPTION)}return expanded}return options}
 function underlineLabel(style:string){return({none:"None",single:"Single",double:"Double",thick:"Thick",dotted:"Dotted",dashed:"Dashed","dot-dash":"Dot-dash","dot-dot-dash":"Dot-dot-dash",wavy:"Wavy","words-only":"Words only"}as Record<string,string>)[style]??style}
-function defaultSwatch(id:string){return({fontColor:"#c00000",highlightColor:"#ffff00",pageColor:"#ffffff"}as Record<string,string>)[id]??"#000000"}
+function defaultSwatch(id:string){return({fontColor:"#c00000",highlightColor:"#ffff00",pageColor:"#ffffff",shading:"#ffff00"}as Record<string,string>)[id]??"#000000"}
+const CASE_ITEMS=[{value:"sentence",label:"Sentence case."},{value:"lower",label:"lowercase"},{value:"upper",label:"UPPERCASE"},{value:"title",label:"Capitalize Each Word"},{value:"toggle",label:"tOGGLE cASE"}];
+const BULLET_ITEMS=[{value:"none",label:"None",swatch:""},{value:"bullet-disc",label:"Filled round bullets",swatch:"•"},{value:"bullet-circle",label:"Hollow round bullets",swatch:"○"},{value:"bullet-square",label:"Filled square bullets",swatch:"■"},{value:"bullet-diamond",label:"Diamond bullets",swatch:"◆"},{value:"bullet-arrow",label:"Arrow bullets",swatch:"➤"},{value:"bullet-check",label:"Checkmark bullets",swatch:"✓"}];
+const NUMBER_ITEMS=[{value:"none",label:"None",swatch:""},{value:"decimal",label:"1.  2.  3.",swatch:"1."},{value:"decimal-paren",label:"1)  2)  3)",swatch:"1)"},{value:"upper-roman",label:"I.  II.  III.",swatch:"I."},{value:"upper-alpha",label:"A.  B.  C.",swatch:"A."},{value:"lower-alpha-paren",label:"a)  b)  c)",swatch:"a)"},{value:"lower-alpha",label:"a.  b.  c.",swatch:"a."},{value:"lower-roman",label:"i.  ii.  iii.",swatch:"i."}];
+const MULTILEVEL_ITEMS=NUMBER_ITEMS;
+const GALLERY_NOTES:Record<string,string>={multilevelList:"This editor supports one numbering level per list, not nested outline levels."};
+const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
+const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];
+const BORDER_ITEMS=[{value:"none",label:"No Border"},{value:"box",label:"All Borders (Box)"}];
+function GalleryMenu({option,preview,items,onPick,actions,onAction}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void}){
+  const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
+  const buttonRef=useRef<HTMLButtonElement>(null);
+  useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-204)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
+  const note=GALLERY_NOTES[option.id];
+  const menu=open&&typeof document!=="undefined"?createPortal(<div role="menu" aria-label={option.label} className="word-gallery-menu" style={position}>{items.map(item=><button role="menuitem" type="button" key={item.value} data-list-preview={item.swatch!==undefined?"":undefined} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}>{item.swatch!==undefined&&<span className="word-gallery-swatch" aria-hidden>{item.swatch}</span>}<span>{item.label}</span></button>)}{note&&<p className="word-gallery-note">{note}</p>}{actions&&actions.length>0&&<><hr className="word-gallery-divider"/>{actions.map(action=><button role="menuitem" type="button" key={action.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onAction?.(action.id);setOpen(false)}}>{action.label}</button>)}</>}</div>,document.body):null;
+  return <div data-ribbon-option={option.id}>
+    <button ref={buttonRef} type="button" className="word-ribbon-tool" aria-label={option.label} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><RibbonIcon id={option.id}/><span>{option.label}<i aria-hidden>▾</i></span></button>
+    {menu}
+  </div>;
+}
 
 function RibbonIcon({ id }: { id: string }) {
   const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.55, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };

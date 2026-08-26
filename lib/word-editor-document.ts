@@ -14,6 +14,7 @@ const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlin
 const UNDERLINE_STYLES=new Set(["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy","words-only"]);
 const PAGE_LAYOUT_KEYS = new Set(["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"]);
 const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "marginTop", "marginBottom", "border", "backgroundColor", "hyphens"]);
+export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle", "bullet-square", "bullet-diamond", "bullet-arrow", "bullet-check", "decimal", "decimal-paren", "upper-roman", "upper-alpha", "lower-alpha-paren", "lower-alpha", "lower-roman"]);
 const ATTRS: Record<string, Set<string>> = {
   paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap"]),
   "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle"]),
@@ -70,10 +71,12 @@ function validV2Run(run:JsonObject){return optionalExact(run,RUN_V2)&&[...RUN_V1
 function validateOperations(value: unknown) {
   if (!Array.isArray(value) || value.length > 256 || new Set(value).size !== value.length || value.some(item => typeof item !== "string" || !SUPPORTED_WORD_COMMANDS.has(item))) throw new Error("Invalid editor operation history.");
 }
+const MARGIN_VALUE = String.raw`\d{1,2}(?:\.\d{1,2})?mm`;
+const MARGIN_PATTERN = new RegExp(`^${MARGIN_VALUE}$|^(?:${MARGIN_VALUE} ){3}${MARGIN_VALUE}$`);
 function validatePageLayout(value: unknown) {
   if (!object(value) || !exact(value, PAGE_LAYOUT_KEYS)) throw new Error("Invalid page layout.");
   for (const [key, item] of Object.entries(value)) if (!nullableString(item, key === "watermark" ? 40 : 100)) throw new Error(`Invalid page layout ${key}.`);
-  if (typeof value.padding === "string" && !/^\d{1,2}(?:\.\d{1,2})?mm$/.test(value.padding)) throw new Error("Invalid page margins.");
+  if (typeof value.padding === "string" && !MARGIN_PATTERN.test(value.padding)) throw new Error("Invalid page margins.");
   if (typeof value.columnCount === "string" && !/^[1-3]$/.test(value.columnCount)) throw new Error("Invalid page columns.");
   if (typeof value.backgroundColor === "string" && !/^(?:#[0-9A-Fa-f]{6}|[0-9A-Fa-f]{6})$/.test(value.backgroundColor)) throw new Error("Invalid page color.");
 }
@@ -97,7 +100,7 @@ function validateAttrs(value: unknown, type: string) {
   } else {
     for (const [key, item] of Object.entries(value)) {
       if (["lineNumbers", "dropCap"].includes(key) && typeof item !== "boolean") throw new Error(`Invalid ${key} attribute.`);
-      if (key === "listStyle" && !["bullet", "decimal", "upper-roman"].includes(String(item))) throw new Error("Invalid list style.");
+      if (key === "listStyle" && !WORD_LIST_STYLES.has(String(item))) throw new Error("Invalid list style.");
       if (key === "kind" && !["page", "blank-page", "section-next-page", "section-continuous"].includes(String(item))) throw new Error("Invalid break type.");
       if (!["lineNumbers", "dropCap"].includes(key) && item !== null && typeof item !== "string") throw new Error(`Invalid ${key} attribute.`);
       if (typeof item === "string" && item.length > 100) throw new Error(`Invalid ${key} attribute.`);

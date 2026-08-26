@@ -3,7 +3,6 @@ import Link from "next/link";
 const accessLinks = [
   { href: "/login", label: "Student Login" },
   { href: "/signup", label: "Sign Up" },
-  { href: "/admin/login", label: "Admin Login" },
 ];
 
 const supportNumber = "7014371324";

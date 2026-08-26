@@ -420,3 +420,41 @@ main > section.bg-slate-950 a[href="/typing/learn"]:hover {
 .word-color-palette button { width: 20px; height: 20px; border: 1px solid #777; }
 .word-office-ribbon[data-preview="true"] .word-ribbon-tool, .word-office-ribbon[data-preview="true"] select { color: #292929; opacity: 1; }
 @media (max-width: 700px) { .word-ribbon-panel { overflow-x: auto; } .word-ribbon-groups { min-width: max-content; } }
+
+/* Gallery dropdowns (change case, bullets, numbering, multilevel list, line spacing, borders).
+   Always portaled to document.body with an inline position:fixed set by JS before paint;
+   position:fixed here is only a safe fallback so the panel never inherits the unrelated
+   position:absolute/left/bottom rule that .word-underline-more uses for its own popover. */
+.word-gallery-menu { position: fixed; z-index: 1000; display: grid; width: 200px; max-height: 70vh; overflow-y: auto; border: 1px solid #aaa; background: #fff; padding: 4px 0; box-shadow: 0 3px 8px rgb(0 0 0 / .28); font: 12px "Segoe UI",Calibri,Arial,sans-serif; }
+.word-gallery-menu button { display: flex; align-items: center; gap: 8px; min-height: 27px; border: 0; border-radius: 0; background: #fff; padding: 4px 12px; color: #222; font: inherit; text-align: left; }
+.word-gallery-menu button:hover, .word-gallery-menu button:focus-visible { background: #dbeaf9; outline: 1px solid #75a8d3; outline-offset: -1px; }
+.word-gallery-menu button[data-list-preview] { justify-content: space-between; }
+.word-gallery-swatch { min-width: 20px; text-align: center; font-weight: 700; }
+.word-gallery-divider { grid-column: 1 / -1; margin: 4px 0; border: 0; border-top: 1px solid #ddd; }
+.word-gallery-note { grid-column: 1 / -1; margin: 2px 12px 4px; color: #777; font-size: 10.5px; line-height: 1.4; }
+
+/* List marker rendering: the wrapping <ul>/<ol> carries data-list-style so a chosen
+   gallery format (disc/roman/paren-numbered/etc.) actually persists and re-renders,
+   instead of every list silently collapsing back to a plain bullet. */
+ul[data-list-style="bullet"], ul[data-list-style="bullet-disc"] { list-style-type: disc; }
+ul[data-list-style="bullet-circle"] { list-style-type: circle; }
+ul[data-list-style="bullet-square"] { list-style-type: square; }
+ul[data-list-style="bullet-diamond"] { list-style-type: "\25c6  "; }
+ul[data-list-style="bullet-arrow"] { list-style-type: "\27a4  "; }
+ul[data-list-style="bullet-check"] { list-style-type: "\2713  "; }
+ol[data-list-style="decimal"] { list-style-type: decimal; }
+ol[data-list-style="upper-roman"] { list-style-type: upper-roman; }
+ol[data-list-style="upper-alpha"] { list-style-type: upper-alpha; }
+ol[data-list-style="lower-alpha"] { list-style-type: lower-alpha; }
+ol[data-list-style="lower-roman"] { list-style-type: lower-roman; }
+ol[data-list-style="decimal-paren"], ol[data-list-style="lower-alpha-paren"] { list-style-type: none; }
+ol[data-list-style="decimal-paren"] > li::marker { content: counter(list-item) ") "; }
+ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-item,lower-alpha) ") "; }
+
+/* Word Efficiency document surface: line-number gutter and thumbnail previews. */
+.word-document-page { counter-reset: word-line-number; }
+.word-document-page p.editor-line-numbers { position: relative; counter-increment: word-line-number; }
+.word-document-page p.editor-line-numbers::before { content: counter(word-line-number); position: absolute; left: -2.5em; width: 2em; color: #94a3b8; font-size: .75em; text-align: right; }
+.word-thumbnail-page { position: relative; overflow: hidden; border: 1px solid #cbd5e1; background: #fff; box-shadow: 0 1px 3px rgb(15 23 42 / .12); cursor: pointer; }
+.word-thumbnail-page:hover { border-color: #0891b2; }
+.word-thumbnail-page-inner { pointer-events: none; transform-origin: top left; }

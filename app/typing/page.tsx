@@ -36,9 +36,9 @@ const sections = [
   },
   {
     title: "Word/Excel Efficiency",
-    description: "Document formatting and productivity practice in English and Hindi. Spreadsheet exercises are coming soon.",
+    description: "Document and spreadsheet formatting, formulas, and productivity practice in English and Hindi.",
     href: "/typing/word-efficiency",
-    action: "Explore Word Training",
+    action: "Explore Efficiency Training",
     icon: "▦",
     tone: "bg-sky-600",
   },

@@ -195,7 +195,7 @@ export default async function Page({
                     : null
                 }
               />
-              <WorkingMatterDocxFields initialSnapshot={current?.working_matter_snapshot??null} initialCapabilities={current?.editor_capabilities}/>
+              <WorkingMatterDocxFields initialSnapshot={current?.working_matter_snapshot??null}/>
               <QuestionEditor initialQuestions={initialQuestions} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <SaveLocalDraftButton />

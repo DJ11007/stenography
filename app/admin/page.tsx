@@ -3,6 +3,7 @@ import { signOut } from "@/app/auth/actions";
 import { requireAdmin } from "@/lib/auth";
 
 const sections = [
+  ["/admin/students", "Students", "See every student's profile, contact details, and test results; unblock sign-in issues."],
   ["/admin/learning-tests", "Learning Tests", "Create public learning lessons."],
   ["/admin/practice-tests", "Practice Tests", "Create practice-mode tests."],
   ["/admin/exam-tests", "Exam Tests", "Create exam-mode simulations."],
