@@ -15,9 +15,24 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   const search = (params.search ?? "").trim();
 
   const supabase = await createClient();
-  let query = supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at").eq("role", "student").order("created_at", { ascending: false });
-  if (search) query = query.or(`full_name.ilike.%${search.replace(/[%_]/g, "\\$&")}%,email.ilike.%${search.replace(/[%_]/g, "\\$&")}%`);
-  const { data: students, error } = await query;
+  const base = () => supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at").eq("role", "student").order("created_at", { ascending: false });
+  let students: Profile[] | null;
+  let error: { message: string } | null = null;
+  if (search) {
+    // Two separate ilike queries merged in JS, instead of building a raw PostgREST
+    // .or() filter string, so a name or email containing "," "(" ")" (special to
+    // that filter syntax) can never be misparsed as extra filter clauses.
+    const escaped = `%${search.replace(/[%_]/g, "\\$&")}%`;
+    const [byName, byEmail] = await Promise.all([base().ilike("full_name", escaped), base().ilike("email", escaped)]);
+    error = byName.error ?? byEmail.error;
+    const merged = new Map((byName.data ?? []).map((row) => [row.id, row] as const));
+    for (const row of byEmail.data ?? []) merged.set(row.id, row);
+    students = [...merged.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  } else {
+    const result = await base();
+    students = result.data;
+    error = result.error;
+  }
   if (error) throw new Error(`Could not load students: ${error.message}`);
 
   const admin = createAdminClient();
@@ -29,7 +44,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
     }
   }
 
-  const rows = (students as Profile[] ?? []).map((student) => ({ student, status: authStatus.get(student.id) ?? { emailConfirmed: true, lastSignInAt: null } }));
+  const rows = (students ?? []).map((student) => ({ student, status: authStatus.get(student.id) ?? { emailConfirmed: true, lastSignInAt: null } }));
   const unconfirmedCount = rows.filter((row) => !row.status.emailConfirmed).length;
   const neverSignedInCount = rows.filter((row) => !row.status.lastSignInAt).length;
 
