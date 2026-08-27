@@ -5,6 +5,9 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { StudentActionButtons } from "../student-action-buttons";
+import { StudentAccessControls } from "../student-access-controls";
+import { AccessStatusBadge, validityLabel, type StudentAccessStatus } from "../access-status-badge";
+import { BackButton } from "../../../_components/back-button";
 
 export const metadata: Metadata = { title: "Student Profile | Admin" };
 
@@ -25,6 +28,9 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
     bannedUntil = data.user?.banned_until ?? null;
   }
 
+  const { data: accessRows } = await supabase.rpc("student_access_status", { p_student_id: id });
+  const access = ((accessRows ?? [])[0] ?? null) as StudentAccessStatus | null;
+
   const { data: typingAttempts } = await supabase.from("test_attempts").select("id,test_id,result,started_at,submitted_at,is_live_attempt").eq("student_id", id).order("started_at", { ascending: false }).limit(100);
   const typingTestIds = [...new Set((typingAttempts ?? []).map((a) => a.test_id))];
   const { data: typingTests } = typingTestIds.length ? await supabase.from("tests").select("id,title,mode").in("id", typingTestIds) : { data: [] };
@@ -38,7 +44,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-5xl">
-        <Link href="/admin/students" className="inline-flex text-sm font-bold text-blue-700 hover:underline">← Back to students</Link>
+        <BackButton href="/admin/students" label="Students" />
 
         <section className="mt-4 rounded-2xl bg-white p-6 shadow">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -52,10 +58,15 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
                 <Field label="Account status" value={student.is_active ? "Active" : "Deactivated"} />
                 <Field label="Email confirmation" value={emailConfirmed ? "Confirmed" : "Not confirmed"} />
                 {bannedUntil && <Field label="Banned until" value={date(bannedUntil)} />}
+                <div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Test access</dt><dd className="mt-1 flex items-center gap-2"><AccessStatusBadge access={access} />{access?.test_limit != null && <span className="text-slate-600">{access.tests_remaining}/{access.test_limit} left</span>}</dd></div>
+                <Field label="Validity" value={validityLabel(access)} />
               </dl>
               <p className="mt-4 max-w-md text-xs text-slate-500">Passwords are never stored or shown in plain text by this or any secure system — use &quot;Send password reset link&quot; below if this student is locked out.</p>
             </div>
             <StudentActionButtons studentId={student.id} emailConfirmed={emailConfirmed} isActive={student.is_active} />
+          </div>
+          <div className="mt-5">
+            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} />
           </div>
         </section>
 

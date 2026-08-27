@@ -23,7 +23,7 @@ function revalidateTestRoutes(mode?: ManagedTestMode, isLive = false) {
   }
   if (mode === "practice" || !mode) revalidatePath("/typing/practice", "layout");
   if (mode === "exam" || !mode) revalidatePath("/typing/exams", "layout");
-  if (mode === "stenography" || !mode) revalidatePath("/typing/stenography", "layout");
+  if (mode === "stenography" || !mode) { revalidatePath("/typing/stenography", "layout"); revalidatePath("/typing/practice/stenography/library/english"); revalidatePath("/typing/practice/stenography/library/hindi"); }
   if (isLive || !mode) revalidatePath("/live-test");
   revalidatePath("/");
 }
@@ -47,12 +47,36 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   });
 }
 
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
+
+async function resolveAudioPath(formData: FormData, testId: string | null, supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ audioPath: string | null; error?: string }> {
+  const removeAudio = formData.get("removeAudio") === "on";
+  const existing = text(formData, "existingAudioPath") || null;
+  const upload = formData.get("audioFile");
+  if (!(upload instanceof File) || !upload.size) return { audioPath: removeAudio ? null : existing };
+  if (!upload.type.startsWith("audio/")) return { audioPath: existing, error: "The dictation audio file must be an audio format." };
+  if (upload.size > MAX_AUDIO_BYTES) return { audioPath: existing, error: "Dictation audio must be under 50 MB." };
+  const bytes = new Uint8Array(await upload.arrayBuffer());
+  const safeName = upload.name.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
+  const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await supabase.storage.from("stenography-audio").upload(path, bytes, { contentType: upload.type, upsert: false });
+  if (error) return { audioPath: existing, error: `Audio upload failed: ${error.message}` };
+  return { audioPath: path };
+}
+
 async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode): Promise<TestFormState> {
   await requireAdmin(); const draft = parseDraft(formData); const validation = validateManagedTest(draft);
   if (lockedMode && draft.mode !== lockedMode) return { error: `This section only accepts ${lockedMode} tests.` };
   if (validation.errors.length) return { error: validation.errors[0] };
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt };
   const id = text(formData, "testId") || null; const publish = formData.get("intent") === "publish"; const supabase = await createClient();
+  let audioPath: string | null = null;
+  if (draft.mode === "stenography") {
+    const resolved = await resolveAudioPath(formData, id, supabase);
+    if (resolved.error) return { error: resolved.error };
+    audioPath = resolved.audioPath;
+  }
+  const taskCategory = draft.mode === "stenography" ? (text(formData, "taskCategory") || "Task") : null;
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory };
   const { error } = lockedMode
     ? await supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive

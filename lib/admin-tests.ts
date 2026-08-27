@@ -12,6 +12,7 @@ export type ManagedTestDraft = Partial<LiveTestSchedule> & {
   inputSystemId: string; mode: ManagedTestMode; durationSeconds: number; passage: string;
   requiredWpm: number; requiredAccuracy: number; backspaceMode: BackspaceMode;
   wordMethod: WordMethod; highlightMode: HighlightMode; visibility: ManagedTestVisibility;
+  audioPath?: string | null;
 };
 
 export type ManagedTestVersion = ManagedTestDraft & { id: string; testId: string; versionNumber: number };
@@ -58,5 +59,6 @@ export function managedVersionToPreset(version: ManagedTestVersion): ExamPreset 
     accuracyRequirement: version.requiredAccuracy, backspaceMode: version.backspaceMode,
     wordMethod: version.wordMethod, highlightMode: version.highlightMode,
     scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: version.requiredWpm, passAccuracy: version.requiredAccuracy, capitalizationErrors: version.language === "English" },
+    audioUrl: null,
   };
 }

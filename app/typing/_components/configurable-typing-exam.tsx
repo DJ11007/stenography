@@ -11,6 +11,7 @@ import { defaultTypingFontPreferences, type TypingFontPreferences } from "@/lib/
 import { UniversalTypingSettings } from "./universal-typing-settings";
 import { useTypingPlatformSettings } from "./typing-platform-provider";
 import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
+import { BackButton } from "../../_components/back-button";
 
 function InputSystemOptions({ systems, value, onChange }: { systems: InputSystem[]; value: string; onChange: (id: string) => void }) { return <fieldset className="mt-6"><legend className="mb-2 text-sm font-black text-slate-900">Language and input system</legend><div className="grid gap-2 sm:grid-cols-2">{systems.map((system) => <button key={system.id} type="button" aria-pressed={value === system.id} onClick={() => onChange(system.id)} className={`rounded-xl border p-3 text-left text-sm font-bold ${value === system.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-slate-50 text-slate-800"}`}><span aria-hidden>{value === system.id ? "●" : "○"}</span> {system.label}<small className="mt-1 block font-normal opacity-80">{system.keyboardLayout}</small></button>)}</div></fieldset>; }
 
@@ -185,8 +186,12 @@ function TypingSettingsPopup({ triggerRef, onClose, children }: SettingsPopupPro
 function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPreferences, setFontPreferences, encodingMismatch, attemptVariant, rulesLocked, typedText, setTypedText, onFirstTypingInput, timerStarted, onInputSystemChange, timeLeft, paused, onPauseToggle, settings, setSettings, autoScroll, setAutoScroll, showScrollbar, setShowScrollbar, setBackspaces, onSubmit, practiceNavigation, onNavigateTest }: WorkspaceProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null); const passageRef = useRef<HTMLDivElement>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
   const lockedPassageScrollTop = useRef(0); const lastActiveLine = useRef<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => { const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement)); document.addEventListener("fullscreenchange", onChange); return () => document.removeEventListener("fullscreenchange", onChange); }, []);
+  const toggleFullscreen = () => { if (document.fullscreenElement) void document.exitFullscreen(); else void workspaceRef.current?.requestFullscreen(); };
   const passageUnits = useMemo(() => segmentGraphemes(passage), [passage]);
   const typedUnitCount = useMemo(() => segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText).length, [inputSystem, typedText]);
   const highlightStart = settings.highlightMode === "word" ? Math.max(0, passageUnits.lastIndexOf(" ", Math.max(0, typedUnitCount - 1)) + 1) : typedUnitCount;
@@ -240,18 +245,88 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
   };
   const closeSettings = (restoreFocus = false) => { setShowSettings(false); if (restoreFocus) window.setTimeout(() => settingsTriggerRef.current?.focus(), 0); };
   const activeText = passageUnits.slice(highlightStart, Math.max(highlightStart + 1, highlightEnd)).join("");
-  return <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-200">
-    <header className="z-40 shrink-0 bg-blue-800 px-3 py-2 text-white shadow"><div className="mx-auto grid max-w-[1800px] grid-cols-[1fr_auto_1fr] items-center gap-2">{!practiceNavigation&&<div className="min-w-0"><strong className="block truncate">SAMRADHI CLASSES</strong><p className="truncate text-xs text-blue-100">{inputSystem.language} · {inputSystem.fontLabel} · {inputSystem.keyboardLayout}</p></div>}{practiceNavigation&&<nav aria-label="Practice test navigation" className="col-start-2 flex items-center justify-center gap-1.5"><button type="button" aria-label="Previous test" disabled={!practiceNavigation.previousHref} onClick={()=>practiceNavigation.previousHref&&onNavigateTest(practiceNavigation.previousHref)} className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">‹</button><select title={practiceNavigation.items[practiceNavigation.currentIndex]?.title} aria-label={`Select practice test. Current: ${practiceNavigation.items[practiceNavigation.currentIndex]?.title}`} value={practiceNavigation.items[practiceNavigation.currentIndex]?.href} onChange={(event)=>onNavigateTest(event.target.value)} className="h-8 w-24 rounded-lg border border-blue-300 bg-white px-1 text-center text-xs font-black text-slate-900 sm:w-40 sm:px-2">{practiceNavigation.items.map(item=><option key={item.href} value={item.href} title={item.title}>{item.label}</option>)}</select><button type="button" aria-label="Next test" disabled={!practiceNavigation.nextHref} onClick={()=>practiceNavigation.nextHref&&onNavigateTest(practiceNavigation.nextHref)} className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">›</button></nav>}{!practiceNavigation&&<span/>}<span className={`justify-self-end rounded-full px-2 py-1 text-[10px] font-black sm:px-3 sm:text-xs ${attemptVariant === "official" ? "bg-amber-100 text-amber-950" : "bg-blue-100 text-blue-950"}`}>{attemptVariant === "official" ? "Official Preset" : "Custom Simulation"}</span></div></header>
+  return <main ref={workspaceRef} className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-slate-200">
+    <header className="z-40 shrink-0 bg-blue-800 px-3 py-2 text-white shadow"><div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2">
+      <BackButton dark label="Back"/>
+      {!practiceNavigation&&<div className="min-w-0"><strong className="block truncate">SAMRADHI CLASSES</strong><p className="truncate text-xs text-blue-100">{inputSystem.language} · {inputSystem.fontLabel} · {inputSystem.keyboardLayout}</p></div>}
+      {practiceNavigation&&<nav aria-label="Practice test navigation" className="flex items-center gap-1.5"><button type="button" aria-label="Previous test" disabled={!practiceNavigation.previousHref} onClick={()=>practiceNavigation.previousHref&&onNavigateTest(practiceNavigation.previousHref)} className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">‹</button><select title={practiceNavigation.items[practiceNavigation.currentIndex]?.title} aria-label={`Select practice test. Current: ${practiceNavigation.items[practiceNavigation.currentIndex]?.title}`} value={practiceNavigation.items[practiceNavigation.currentIndex]?.href} onChange={(event)=>onNavigateTest(event.target.value)} className="h-8 w-24 rounded-lg border border-blue-300 bg-white px-1 text-center text-xs font-black text-slate-900 sm:w-40 sm:px-2">{practiceNavigation.items.map(item=><option key={item.href} value={item.href} title={item.title}>{item.label}</option>)}</select><button type="button" aria-label="Next test" disabled={!practiceNavigation.nextHref} onClick={()=>practiceNavigation.nextHref&&onNavigateTest(practiceNavigation.nextHref)} className="grid h-8 w-8 place-items-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">›</button></nav>}
+      <div className="ml-auto flex flex-wrap items-center justify-center gap-1.5 sm:gap-2" aria-label="Typing controls">
+        <button type="button" onClick={onSubmit} className="rounded-lg bg-white px-4 py-2 text-xs font-black text-blue-800 hover:bg-blue-50">Submit</button>
+        <button type="button" disabled={!timerStarted} onClick={onPauseToggle} aria-pressed={paused} className="rounded-lg bg-amber-100 px-4 py-2 text-xs font-black text-amber-950 disabled:cursor-not-allowed disabled:opacity-50">{paused ? "Resume" : "Pause"}</button>
+        <span role="timer" aria-label={`${formatTime(timeLeft)} remaining`} className="min-w-20 rounded-lg bg-white px-3 py-1.5 text-center text-xl font-black text-red-600">{formatTime(timeLeft)}</span>
+        <button ref={settingsTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={showSettings} aria-controls="typing-settings-dialog" onClick={() => setShowSettings((open) => !open)} className="rounded-lg border border-blue-300 px-3 py-2 text-xs font-black hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">{showSettings ? "Close Settings" : "Settings"}</button>
+        <button type="button" onClick={toggleFullscreen} aria-pressed={isFullscreen} aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"} title={isFullscreen ? "Exit full screen" : "Enter full screen"} className="grid h-8 w-8 place-items-center rounded-lg border border-blue-300 hover:bg-blue-600">{isFullscreen ? <span aria-hidden className="text-base font-black leading-none">✕</span> : <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>}</button>
+        {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings}/></TypingSettingsPopup>}
+      </div>
+      <span className={`rounded-full px-2 py-1 text-[10px] font-black sm:px-3 sm:text-xs ${attemptVariant === "official" ? "bg-amber-100 text-amber-950" : "bg-blue-100 text-blue-950"}`}>{attemptVariant === "official" ? "Official Preset" : "Custom Simulation"}</span>
+    </div></header>
     <section className="mx-auto min-h-0 w-full max-w-[1800px] flex-1 overflow-hidden p-2 sm:p-3" aria-label="Active typing workspace">
-      <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl">
-        <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap">{passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>
-        <section className="z-10 flex flex-wrap items-center justify-center gap-1.5 border-y border-blue-300 bg-blue-700 px-2 py-1.5 text-white sm:gap-2" aria-label="Typing controls">
-          <div className="flex items-center gap-1.5 sm:gap-2"><button type="button" onClick={onSubmit} className="rounded-lg bg-white px-4 py-2 text-xs font-black text-blue-800 hover:bg-blue-50">Submit</button><button type="button" disabled={!timerStarted} onClick={onPauseToggle} aria-pressed={paused} className="rounded-lg bg-amber-100 px-4 py-2 text-xs font-black text-amber-950 disabled:cursor-not-allowed disabled:opacity-50">{paused ? "Resume" : "Pause"}</button><span role="timer" aria-label={`${formatTime(timeLeft)} remaining`} className="min-w-20 rounded-lg bg-white px-3 py-1.5 text-center text-xl font-black text-red-600">{formatTime(timeLeft)}</span></div>
-          <button ref={settingsTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={showSettings} aria-controls="typing-settings-dialog" onClick={() => setShowSettings((open) => !open)} className="ml-1 rounded-lg border border-blue-300 px-3 py-2 text-xs font-black hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:ml-2">{showSettings ? "Close Settings" : "Settings"}</button>
-          {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings}/></TypingSettingsPopup>}
-        </section>
-        <section className="flex min-h-0 flex-col bg-white" aria-labelledby="typing-passage-title"><h2 id="typing-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Type Here</h2><textarea disabled={fontAvailable !== true || paused} ref={textareaRef} autoFocus value={typedText} onChange={(event) => handleChange(event.target.value)} onKeyDown={keyDown} onBeforeInput={beforeInput} onPaste={(event) => event.preventDefault()} onDrop={(event) => event.preventDefault()} onCut={(event) => { const target = event.currentTarget; if (!allowed(target.selectionStart, target.selectionEnd, typedText.slice(0, target.selectionStart) + typedText.slice(target.selectionEnd))) event.preventDefault(); }} spellCheck={false} aria-label="Type Here" lang={inputSystem.language === "Hindi" ? "hi" : "en"} style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.typingSize}px`, lineHeight: `${Math.round(fontPreferences.typingSize * 1.7)}px` }} className="min-h-0 w-full flex-1 resize-none overflow-y-auto p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:p-5"/></section>
+      <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl">
+        {preset.audioUrl ? <DictationAudioPanel url={preset.audioUrl}/> : <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap">{passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>}
+        <section className="flex min-h-0 flex-col border-t-2 border-blue-300 bg-white" aria-labelledby="typing-passage-title"><h2 id="typing-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Type Here</h2><textarea disabled={fontAvailable !== true || paused} ref={textareaRef} autoFocus value={typedText} onChange={(event) => handleChange(event.target.value)} onKeyDown={keyDown} onBeforeInput={beforeInput} onPaste={(event) => event.preventDefault()} onDrop={(event) => event.preventDefault()} onCut={(event) => { const target = event.currentTarget; if (!allowed(target.selectionStart, target.selectionEnd, typedText.slice(0, target.selectionStart) + typedText.slice(target.selectionEnd))) event.preventDefault(); }} spellCheck={false} aria-label="Type Here" lang={inputSystem.language === "Hindi" ? "hi" : "en"} style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.typingSize}px`, lineHeight: `${Math.round(fontPreferences.typingSize * 1.7)}px` }} className="min-h-0 w-full flex-1 resize-none overflow-y-auto p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:p-5"/></section>
       </div>
     </section>
   </main>;
+}
+
+const DICTATION_SPEEDS = [
+  { value: 0.5, label: "Half 0.5×" },
+  { value: 0.7, label: "-30%" },
+  { value: 0.8, label: "-20%" },
+  { value: 0.85, label: "-15%" },
+  { value: 0.9, label: "-10%" },
+  { value: 0.95, label: "-05%" },
+  { value: 1, label: "Original" },
+  { value: 1.05, label: "+05%" },
+  { value: 1.1, label: "+10%" },
+  { value: 1.15, label: "+15%" },
+  { value: 1.2, label: "+20%" },
+  { value: 1.3, label: "+30%" },
+  { value: 2, label: "Double 2×" },
+];
+
+function DictationAudioPanel({ url }: { url: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [speed, setSpeed] = useState(1);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.playbackRate = speed;
+    (audio as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean; webkitPreservesPitch?: boolean }).preservesPitch = true;
+    (audio as HTMLAudioElement & { mozPreservesPitch?: boolean }).mozPreservesPitch = true;
+    (audio as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = true;
+  }, [speed]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play(); else audio.pause();
+  };
+  const seek = (fraction: number) => { const audio = audioRef.current; if (audio && duration) audio.currentTime = fraction * duration; };
+
+  return (
+    <section className="flex min-h-0 flex-col bg-white" aria-labelledby="dictation-audio-title">
+      <h2 id="dictation-audio-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">🎧 Dictation Audio</h2>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-6">
+        <audio ref={audioRef} src={url} preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onEnded={() => setPlaying(false)}/>
+        <button type="button" onClick={togglePlay} aria-label={playing ? "Pause dictation" : "Play dictation"} className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-700 text-2xl text-white shadow-lg hover:bg-blue-800">{playing ? "⏸" : "▶"}</button>
+        <div className="flex w-full max-w-md items-center gap-3">
+          <span className="w-12 text-right text-xs font-black text-slate-500">{formatTime(Math.floor(current))}</span>
+          <input type="range" min={0} max={1} step={0.001} value={duration ? current / duration : 0} onChange={(event) => seek(Number(event.target.value))} className="flex-1" aria-label="Seek dictation audio"/>
+          <span className="w-12 text-xs font-black text-slate-500">{formatTime(Math.floor(duration))}</span>
+        </div>
+        <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+          Speed
+          <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))} className="input py-1.5">
+            {DICTATION_SPEEDS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <p className="text-center text-xs text-slate-500">इच्छित स्पीड में डिक्टेशन प्ले करें और स्टेनो में लिखें।</p>
+      </div>
+    </section>
+  );
 }

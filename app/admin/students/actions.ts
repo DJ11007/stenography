@@ -67,3 +67,38 @@ export async function setStudentActive(_: StudentActionState, formData: FormData
   revalidatePath(`/admin/students/${studentId}`);
   return { success: active ? "Account reactivated." : "Account deactivated." };
 }
+
+function optionalNonNegativeInt(formData: FormData, name: string): number | null {
+  const raw = String(formData.get(name) ?? "").trim();
+  if (raw === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : null;
+}
+
+export async function setStudentAccessPackage(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const testLimit = optionalNonNegativeInt(formData, "testLimit");
+  const validityDays = optionalNonNegativeInt(formData, "validityDays");
+  const graceDays = optionalNonNegativeInt(formData, "graceDays") ?? 0;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_student_access", { p_student_id: studentId, p_test_limit: testLimit, p_validity_days: validityDays, p_grace_days: graceDays, p_locked: false });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  revalidatePath("/admin/track");
+  return { success: "Access package saved. Usage count resets from now." };
+}
+
+export async function setStudentAccessLocked(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const locked = formData.get("locked") === "true";
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_student_locked", { p_student_id: studentId, p_locked: locked });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  revalidatePath("/admin/track");
+  return { success: locked ? "Test access locked." : "Test access unlocked." };
+}

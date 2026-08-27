@@ -16,6 +16,8 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
     supabase.from("test_versions").select("*").eq("id", payload.versionId).maybeSingle(),
   ]);
   if (!test || test.status !== "published" || test.visibility !== "public" || test.current_version_id !== v?.id || v.test_id !== test.id) return null;
+  const { error: accessError } = await supabase.rpc("assert_student_access_allowed");
+  if (accessError) return { status: "locked" as const };
   if (test.is_live) {
     const now = Date.now(); const starts = new Date(test.live_starts_at ?? "").getTime(); const ends = new Date(test.live_ends_at ?? "").getTime();
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || now < starts || now > ends) return { status: "closed" as const };

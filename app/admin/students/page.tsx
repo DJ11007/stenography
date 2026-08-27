@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { StudentActionButtons } from "./student-action-buttons";
+import { AccessStatusBadge, validityLabel, type AccessRow } from "./access-status-badge";
+import { BackButton } from "../../_components/back-button";
 
 export const metadata: Metadata = { title: "Students | Admin" };
 
@@ -44,7 +46,10 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
     }
   }
 
-  const rows = (students ?? []).map((student) => ({ student, status: authStatus.get(student.id) ?? { emailConfirmed: true, lastSignInAt: null } }));
+  const { data: accessRows } = await supabase.rpc("admin_list_student_access");
+  const accessByStudent = new Map<string, AccessRow>(((accessRows ?? []) as AccessRow[]).map((row) => [row.student_id, row]));
+
+  const rows = (students ?? []).map((student) => ({ student, status: authStatus.get(student.id) ?? { emailConfirmed: true, lastSignInAt: null }, access: accessByStudent.get(student.id) ?? null }));
   const unconfirmedCount = rows.filter((row) => !row.status.emailConfirmed).length;
   const neverSignedInCount = rows.filter((row) => !row.status.lastSignInAt).length;
 
@@ -57,7 +62,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
             <h1 className="text-2xl font-bold">Students</h1>
             <p className="mt-1 text-slate-300">{rows.length} student{rows.length === 1 ? "" : "s"} · {unconfirmedCount} unconfirmed · {neverSignedInCount} never signed in</p>
           </div>
-          <Link href="/admin" className="rounded-lg bg-white/10 px-4 py-2 font-semibold hover:bg-white/20">← Back to admin panel</Link>
+          <BackButton href="/admin" label="Admin panel" dark />
         </header>
 
         {!admin && (
@@ -80,13 +85,15 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
                 <th className="p-3">Email</th>
                 <th className="p-3">Phone</th>
                 <th className="p-3">Status</th>
+                <th className="p-3">Tests (today/total)</th>
+                <th className="p-3">Test access</th>
                 <th className="p-3">Joined</th>
                 <th className="p-3">Last sign-in</th>
                 {admin && <th className="p-3">Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ student, status }) => (
+              {rows.map(({ student, status, access }) => (
                 <tr key={student.id} className="border-b align-top">
                   <td className="p-3 font-bold"><Link href={`/admin/students/${student.id}`} className="text-blue-700 hover:underline">{student.full_name || "(no name)"}</Link></td>
                   <td className="p-3">{student.email}</td>
@@ -97,12 +104,19 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
                       {admin && <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${status.emailConfirmed ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>{status.emailConfirmed ? "Email confirmed" : "Email not confirmed"}</span>}
                     </div>
                   </td>
+                  <td className="p-3">{access ? `${access.tests_today} / ${access.tests_total}` : "—"}</td>
+                  <td className="p-3">
+                    <div className="flex flex-col gap-1">
+                      <AccessStatusBadge access={access} />
+                      <span className="text-[11px] text-slate-500">{access?.test_limit != null ? `${access.tests_remaining}/${access.test_limit} tests left` : "Unlimited tests"} · {validityLabel(access)}</span>
+                    </div>
+                  </td>
                   <td className="p-3">{date(student.created_at)}</td>
                   <td className="p-3">{status.lastSignInAt ? date(status.lastSignInAt) : <span className="text-slate-400">Never</span>}</td>
                   {admin && <td className="p-3"><StudentActionButtons studentId={student.id} emailConfirmed={status.emailConfirmed} isActive={student.is_active} /></td>}
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={7} className="p-6 text-center text-slate-500">No students match this search.</td></tr>}
+              {!rows.length && <tr><td colSpan={9} className="p-6 text-center text-slate-500">No students match this search.</td></tr>}
             </tbody>
           </table>
         </div>
