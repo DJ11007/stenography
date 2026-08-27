@@ -279,6 +279,25 @@ test("margins, watermark, page color, columns, page size, symbol, and table inse
   assert.doesNotMatch(editor,/promptValue\("Enter a Unicode symbol/);
 });
 
+test("zoom opens a real percentage dialog instead of doing nothing, and is tracked as a view-only setting",async()=>{
+  const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(editor,/zoom:\(\)=>setDialog\(\{kind:"zoom",value:String\(view\.zoom\)\}\)/);
+  assert.match(editor,/dialog\.kind==="zoom"&&<ZoomForm dialog=\{dialog\} onSubmit=\{onZoom\}\/>/);
+  assert.match(editor,/function ZoomForm/);
+  assert.match(editor,/const applyZoom=\(value:string\)=>\{setDialog\(null\);setView\(v=>\(\{\.\.\.v,zoom:bounded\(value,10,500\)\}\)\)\}/);
+  assert.match(editor,/viewOnly=new Set\(\["selectAll","formattingMarks","printLayout","fullScreenReading","webLayout","outlineView","draftView","ruler","gridlines","documentMap","thumbnails","zoom","zoom100","onePage","twoPages","pageWidth"\]\)/);
+});
+
+test("sort opens an Ascending/Descending dialog and only reorders the selected paragraphs, not the whole document unconditionally",async()=>{
+  const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  const tools=await read("lib/word-editor-browser-tools.ts");
+  assert.match(editor,/if\(id==="sort"\)\{setDialog\(\{kind:"sort",value:"Ascending"\}\);return false\}/);
+  assert.match(editor,/dialog\.kind==="sort"&&<ChoiceForm label="Sort" options=\{\["Ascending","Descending"\]\}/);
+  assert.match(editor,/const applySort=\(value:string\)=>\{setDialog\(null\);if\(!editor\.current\)return;sortSelectedBlocks\(editor\.current,selectedBlocks\(\),value==="Descending"\?"desc":"asc"\);changed\(\)\}/);
+  assert.match(tools,/const targets=selected\.length>1\?selected:all/);
+  assert.match(tools,/editor\.replaceChildren\(\.\.\.final\)/);
+});
+
 test("bullets, numbering, and multilevel list galleries offer real Word-style format choices that actually persist",async()=>{
   const[shared,css,editor]=await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"),read("app/globals.css"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
   for(const value of["bullet-disc","bullet-circle","bullet-square","bullet-diamond","bullet-arrow","bullet-check"])assert.match(shared,new RegExp(`value:"${value}"`));

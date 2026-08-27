@@ -21,10 +21,10 @@ export type ManagedSettingsLock = "duration" | "highlightMode" | "backspaceMode"
 export type ManagedSettingsLockMap = Partial<Record<ManagedSettingsLock, true>>;
 
 export const DEFAULT_PLATFORM_PREFERENCES: UniversalTypingPreferences = {
-  highlightMode: "character",
-  backspaceMode: "full",
-  wordMethod: "characters",
-  autoScroll: true,
+  highlightMode: "none",
+  backspaceMode: "word",
+  wordMethod: "spaces",
+  autoScroll: false,
   showScrollbar: true,
   inputSystemId: "",
   durationMinutes: 10,

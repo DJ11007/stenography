@@ -1,5 +1,7 @@
 import type { BackspaceMode, HighlightMode, ScoringProfile, WordMethod } from "./typing-test";
 import { KRUTI_DEV_FONT_ASSET, type InputEncoding, type InputSystem, type TypingLanguage, type TypingScript } from "./typing-language.ts";
+import { EXAM_CATEGORIES, examCategoryPresetId, type ExamCategoryDefinition } from "./exam-categories.ts";
+import { STENOGRAPHY_CATEGORIES, stenographyCategoryPresetId, type StenographyCategoryDefinition } from "./stenography-categories.ts";
 
 export type TypingLessonCategory =
   | "home-row"
@@ -55,6 +57,10 @@ export type ExamPreset = {
   backspaceMode: BackspaceMode;
   wordMethod: WordMethod;
   highlightMode?: HighlightMode;
+  /** Signed, time-limited URL for a real dictation recording. When present, the stenography
+   * workspace plays this audio (with adjustable speed) instead of showing the Original Passage
+   * panel; the passage text is still used for scoring exactly as before. */
+  audioUrl?: string | null;
   scoringProfile: ScoringProfile;
   marksMethod?: {
     id: "configured-rssb-ldc";
@@ -112,7 +118,33 @@ export const EXAM_PRESETS: ExamPreset[] = [
   preset({ id: "hindi-stenography", slug: "hindi-stenography", title: "Hindi Stenography", subtitle: "Independent stenography practice simulation", category: "stenography", language: "Hindi", durationSeconds: 600, passage: HINDI_STENO_PASSAGE, inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: 70, accuracyRequirement: 90, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(70) }),
 ];
 
-export const getExamPreset = (id: string) => EXAM_PRESETS.find((preset) => preset.id === id || preset.slug === id);
+function categoryPreset(category: ExamCategoryDefinition, language: "English" | "Hindi"): ExamPreset {
+  const id = examCategoryPresetId(category.slug, language);
+  const durationSeconds = category.durationMinutes * 60;
+  const subtitle = `${category.fullName} (${category.patternSourced ? "researched exam pattern" : "estimated baseline — verify official pattern"})`;
+  if (language === "English") {
+    const wordCount = Math.max(50, Math.round(500 * (category.durationMinutes / 10)));
+    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedEnglish) });
+  }
+  const wordCount = Math.max(50, Math.round(400 * (category.durationMinutes / 10)));
+  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedHindi) });
+}
+
+export const EXAM_CATEGORY_PRESETS: ExamPreset[] = EXAM_CATEGORIES.flatMap((category) => [categoryPreset(category, "English"), categoryPreset(category, "Hindi")]);
+
+function stenographyCategoryPreset(category: StenographyCategoryDefinition, language: "English" | "Hindi"): ExamPreset {
+  const id = stenographyCategoryPresetId(category.slug, language);
+  const durationSeconds = category.durationMinutes * 60;
+  const subtitle = `${category.fullName} (${category.patternSourced ? "researched exam pattern" : "estimated baseline — verify official pattern"})`;
+  if (language === "English") {
+    return preset({ id, slug: id, title: `${category.name} — English Stenography`, subtitle, category: "stenography", language: "English", durationSeconds, passage: ENGLISH_STENO_PASSAGE, inputSystems: [ENGLISH_QWERTY], speedRequirement: category.dictationSpeedEnglish, accuracyRequirement: category.accuracy, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(category.dictationSpeedEnglish) });
+  }
+  return preset({ id, slug: id, title: `${category.name} — Hindi Stenography`, subtitle, category: "stenography", language: "Hindi", durationSeconds, passage: HINDI_STENO_PASSAGE, inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.dictationSpeedHindi, accuracyRequirement: category.accuracy, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(category.dictationSpeedHindi) });
+}
+
+export const STENOGRAPHY_CATEGORY_PRESETS: ExamPreset[] = STENOGRAPHY_CATEGORIES.flatMap((category) => [stenographyCategoryPreset(category, "English"), stenographyCategoryPreset(category, "Hindi")]);
+
+export const getExamPreset = (id: string) => EXAM_PRESETS.find((preset) => preset.id === id || preset.slug === id) ?? EXAM_CATEGORY_PRESETS.find((preset) => preset.id === id || preset.slug === id) ?? STENOGRAPHY_CATEGORY_PRESETS.find((preset) => preset.id === id || preset.slug === id);
 export const getLesson = (id: string) => ENGLISH_LESSONS.find((lesson) => lesson.id === id);
 export function isLessonUnlocked(lessonId: string, progress: Record<string, LessonProgress>, lessons: TypingLesson[]) {
   const lessonIndex = lessons.findIndex((lesson) => lesson.id === lessonId);

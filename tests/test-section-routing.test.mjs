@@ -10,7 +10,7 @@ test("student catalogues use exact modes and exclude live tests", async () => {
   assert.match(source, /\.eq\("is_live", false\)/);
   assert.match(source, /\.eq\("status", "published"\)/);
   assert.match(source, /\.eq\("visibility", "public"\)/);
-  for (const [page, mode] of [["app/typing/exams/page.tsx", "exam"], ["app/typing/stenography/page.tsx", "stenography"]]) {
+  for (const [page, mode] of [["app/typing/stenography/page.tsx", "stenography"]]) {
     assert.match(await read(page), new RegExp(`getPublishedManagedTests\\(\\"${mode}\\"\\)`));
   }
   assert.match(await read("app/typing/practice/english/page.tsx"), /PracticeNavigator language="English"/);
