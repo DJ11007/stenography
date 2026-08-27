@@ -24,6 +24,7 @@ export type Vacancy = {
 export type CoursePackage = {
   id: string;
   title: string;
+  category: string;
   durationLabel: string;
   priceLabel: string;
   originalPriceLabel: string | null;
@@ -32,6 +33,13 @@ export type CoursePackage = {
   couponDescription: string | null;
   isPopular: boolean;
 };
+
+/** Suggested categories shown in the admin's category field and used to
+ * order the homepage Buy Now tabs. Not an enum -- a package's `category` is
+ * free text so the admin can add new subjects without a migration; any
+ * category found in published packages that isn't in this list still gets
+ * its own tab, just ordered after these. */
+export const COURSE_PACKAGE_CATEGORIES = ["Typing", "Efficiency", "Stenography", "Combo / All-in-one"];
 
 export type StudentFeedback = {
   id: string;
@@ -64,13 +72,13 @@ export function mapVacancyRow(row: VacancyRow): Vacancy {
 }
 
 type CoursePackageRow = {
-  id: string; title: string; duration_label: string; price_label: string; original_price_label: string | null;
+  id: string; title: string; category: string | null; duration_label: string; price_label: string; original_price_label: string | null;
   features: string[] | null; coupon_code: string | null; coupon_description: string | null; is_popular: boolean;
 };
 
 export function mapCoursePackageRow(row: CoursePackageRow): CoursePackage {
   return {
-    id: row.id, title: row.title, durationLabel: row.duration_label, priceLabel: row.price_label,
+    id: row.id, title: row.title, category: row.category ?? "Typing", durationLabel: row.duration_label, priceLabel: row.price_label,
     originalPriceLabel: row.original_price_label, features: row.features ?? [], couponCode: row.coupon_code,
     couponDescription: row.coupon_description, isPopular: row.is_popular,
   };

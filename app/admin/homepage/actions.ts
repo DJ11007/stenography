@@ -76,6 +76,7 @@ export async function saveCoursePackage(_: HomepageActionState, formData: FormDa
   const { error } = await supabase.rpc("admin_save_course_package", {
     p_id: id,
     p_title: String(formData.get("title") ?? "").trim(),
+    p_category: String(formData.get("category") ?? "Typing").trim() || "Typing",
     p_duration_label: String(formData.get("durationLabel") ?? "").trim(),
     p_price_label: String(formData.get("priceLabel") ?? "").trim(),
     p_original_price_label: String(formData.get("originalPriceLabel") ?? "").trim() || null,

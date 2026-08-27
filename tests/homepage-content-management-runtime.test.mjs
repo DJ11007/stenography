@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 const migrationPath = new URL("../supabase/migrations/202608260030_homepage_content_management.sql", import.meta.url);
 const richDetailsMigrationPath = new URL("../supabase/migrations/202608260031_vacancy_notice_rich_details.sql", import.meta.url);
 const documentsMigrationPath = new URL("../supabase/migrations/202608260033_vacancy_notice_documents.sql", import.meta.url);
+const categoriesMigrationPath = new URL("../supabase/migrations/202608270037_course_package_categories.sql", import.meta.url);
 
 const adminId = "00000000-0000-4000-8000-000000000009";
 const studentId = "00000000-0000-4000-8000-000000000001";
@@ -33,6 +34,7 @@ alter table storage.objects enable row level security;
   await db.exec(await readFile(migrationPath, "utf8"));
   await db.exec(await readFile(richDetailsMigrationPath, "utf8"));
   await db.exec(await readFile(documentsMigrationPath, "utf8"));
+  await db.exec(await readFile(categoriesMigrationPath, "utf8"));
   return db;
 }
 const asUser = (db, id) => db.query("select set_config('app.current_uid',$1,false)", [id ?? ""]);
@@ -40,12 +42,13 @@ const asUser = (db, id) => db.query("select set_config('app.current_uid',$1,fals
 test("public visitors can list published course packages and vacancy notices without authentication", async () => {
   const db = await database();
   await asUser(db, adminId);
-  await db.query("select public.admin_save_course_package(null,'Samradhi Complete Course','6 Months','₹599',null,array['Typing','Efficiency','Stenography'],'SAVE100','Flat ₹100 off',true,true,0)");
+  await db.query("select public.admin_save_course_package(null,'Samradhi Complete Course','Combo / All-in-one','6 Months','₹599',null,array['Typing','Efficiency','Stenography'],'SAVE100','Flat ₹100 off',true,true,0)");
   await db.query(`select public.admin_save_vacancy_notice(null,'jobs','Sample Clerk Recruitment','RSSB','Summary text','Open',array['Notification: TBD'],array['General: TBD'],array['Graduate'],array['18-40'],'https://example.com/notice','https://example.com/apply',true,0,null)`);
   await asUser(db, null);
   const { rows: packages } = await db.query("select * from public.list_published_course_packages()");
   assert.equal(packages.length, 1);
   assert.equal(packages[0].coupon_code, "SAVE100");
+  assert.equal(packages[0].category, "Combo / All-in-one");
   const { rows: vacancies } = await db.query("select * from public.list_published_vacancy_notices('jobs',null)");
   assert.equal(vacancies.length, 1);
   assert.equal(vacancies[0].slug, "sample-clerk-recruitment");
@@ -55,7 +58,7 @@ test("public visitors can list published course packages and vacancy notices wit
 test("only aal2 admins can save or delete course packages and vacancy notices", async () => {
   const db = await database();
   await asUser(db, studentId);
-  await assert.rejects(db.query("select public.admin_save_course_package(null,'X','1 Month','₹99',null,'{}','','',false,true,0)"), /not authorized/);
+  await assert.rejects(db.query("select public.admin_save_course_package(null,'X','Typing','1 Month','₹99',null,'{}','','',false,true,0)"), /not authorized/);
   await assert.rejects(db.query(`select public.admin_save_vacancy_notice(null,'jobs','X','','','',array[]::text[],array[]::text[],array[]::text[],array[]::text[],null,null,true,0,null)`), /not authorized/);
   await db.close();
 });

@@ -9,6 +9,7 @@ import { VacancyCarousel } from "./_components/vacancy-carousel";
 import { VacancySections } from "./_components/vacancy-sections";
 import { FeedbackSection } from "./_components/feedback-section";
 import { WhatsAppButton } from "./_components/whatsapp-button";
+import { BuyNowButton } from "./_components/buy-now-button";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedCoursePackages, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
@@ -112,7 +113,7 @@ export default async function Home() {
   ]);
   return (
     <main className="min-h-screen bg-white">
-      <SiteHeader />
+      <SiteHeader coursePackages={coursePackages} />
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-800 to-violet-900 py-14 text-white sm:py-20">
         <div
@@ -207,49 +208,14 @@ export default async function Home() {
 
       <section className="border-b border-blue-100 bg-slate-50 px-4 py-12">
         <div className="mx-auto max-w-7xl">
-          <Reveal className="grid gap-8 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm lg:grid-cols-[1.05fr_.95fr] lg:p-9">
-            <aside aria-label="Vacancy updates"><div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Samradhi updates</p><h2 className="mt-1 text-2xl font-black text-slate-950">Latest vacancies</h2></div></div><VacancyCarousel vacancies={vacancies.filter((vacancy) => vacancy.category === "jobs")}/></aside>
-            <section aria-labelledby="course-plans-title">
-              <div className="mb-4">
-                <p className="text-xs font-black uppercase tracking-widest text-blue-700">Choose your duration</p>
-                <h2 id="course-plans-title" className="mt-1 text-2xl font-black text-slate-950">Buy our complete course</h2>
-                <p className="mt-1 text-sm text-slate-600">Typing, efficiency and stenography preparation in one plan.</p>
+          <Reveal className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm lg:p-9">
+            <aside aria-label="Vacancy updates">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Samradhi updates</p><h2 className="mt-1 text-2xl font-black text-slate-950">Latest vacancies</h2></div>
+                {coursePackages.length > 0 && <BuyNowButton packages={coursePackages} />}
               </div>
-              <div className="grid gap-3 pt-3 sm:grid-cols-2">
-                {coursePackages.length === 0 && <p className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Course packages will appear here once the administrator publishes them.</p>}
-                {coursePackages.map((plan) => (
-                  <article
-                    key={plan.id}
-                    className={`relative flex flex-col rounded-2xl border p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${
-                      plan.isPopular
-                        ? "border-blue-600 bg-white ring-2 ring-blue-600"
-                        : "border-blue-100 bg-blue-50/60"
-                    }`}
-                  >
-                    {plan.isPopular && (
-                      <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-blue-600 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow">
-                        Most Popular
-                      </span>
-                    )}
-                    <h3 className="font-black text-slate-950">{plan.title}</h3>
-                    <ul className="mt-3 flex-1 space-y-2 text-sm text-slate-600">
-                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Duration: <strong>{plan.durationLabel}</strong></span></li>
-                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Price: <strong>{plan.priceLabel}</strong>{plan.originalPriceLabel && <span className="ml-1.5 text-xs font-bold text-slate-400 line-through">{plan.originalPriceLabel}</span>}</span></li>
-                      {plan.features.map((feature) => <li key={feature} className="flex gap-2"><span aria-hidden>✓</span><span>{feature}</span></li>)}
-                    </ul>
-                    {plan.couponCode && <p className="mt-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-2 text-xs font-black text-amber-900">Coupon <span className="font-mono">{plan.couponCode}</span>{plan.couponDescription ? ` — ${plan.couponDescription}` : ""}</p>}
-                    <a
-                      href="tel:+917014371324"
-                      className={`mt-4 rounded-xl px-4 py-2.5 text-center text-sm font-black transition-colors ${
-                        plan.isPopular ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-700 text-white hover:bg-blue-800"
-                      }`}
-                    >
-                      Call to enroll
-                    </a>
-                  </article>
-                ))}
-              </div>
-            </section>
+              <VacancyCarousel vacancies={vacancies.filter((vacancy) => vacancy.category === "jobs")} />
+            </aside>
           </Reveal>
           <Reveal className="mt-8">
             <FeedbackSection feedback={feedback} canSubmit={Boolean(user)} />
