@@ -3,9 +3,8 @@ import Link from "next/link";
 import { AccessNavigation } from "./access-navigation";
 import { BuyNowButton } from "./buy-now-button";
 import { OFFICIAL_LINKS, OfficialLinkIcon } from "./official-links";
-import type { CoursePackage } from "@/lib/homepage-content";
 
-export function SiteHeader({ coursePackages }: { coursePackages?: CoursePackage[] } = {}) {
+export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-6">
@@ -44,7 +43,7 @@ export function SiteHeader({ coursePackages }: { coursePackages?: CoursePackage[
               ))}
             </nav>
           </details>
-          {coursePackages && coursePackages.length > 0 && <BuyNowButton packages={coursePackages} />}
+          <BuyNowButton />
           <AccessNavigation />
         </div>
       </div>

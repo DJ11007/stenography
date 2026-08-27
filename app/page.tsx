@@ -12,7 +12,7 @@ import { WhatsAppButton } from "./_components/whatsapp-button";
 import { BuyNowButton } from "./_components/buy-now-button";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getApprovedFeedback, getPublishedCoursePackages, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
+import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
 
 const EXAM_CATEGORIES = [
   {
@@ -103,9 +103,8 @@ function Icon({ name, className }: { name: IconName; className: string }) {
 
 export default async function Home() {
   const supabase = await createClient();
-  const [{ data: liveResults }, coursePackages, vacancies, feedback, officialWebsites, user] = await Promise.all([
+  const [{ data: liveResults }, vacancies, feedback, officialWebsites, user] = await Promise.all([
     supabase.rpc("published_live_results", { p_limit: 20 }),
-    getPublishedCoursePackages(),
     getPublishedVacancies(),
     getApprovedFeedback(6),
     getPublishedOfficialWebsites(),
@@ -113,7 +112,7 @@ export default async function Home() {
   ]);
   return (
     <main className="min-h-screen bg-white">
-      <SiteHeader coursePackages={coursePackages} />
+      <SiteHeader />
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-800 to-violet-900 py-14 text-white sm:py-20">
         <div
@@ -212,7 +211,7 @@ export default async function Home() {
             <aside aria-label="Vacancy updates">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Samradhi updates</p><h2 className="mt-1 text-2xl font-black text-slate-950">Latest vacancies</h2></div>
-                {coursePackages.length > 0 && <BuyNowButton packages={coursePackages} />}
+                <BuyNowButton />
               </div>
               <VacancyCarousel vacancies={vacancies.filter((vacancy) => vacancy.category === "jobs")} />
             </aside>

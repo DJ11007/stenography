@@ -11,32 +11,45 @@ test("course package categories cover the platform's main offerings", () => {
   assert.ok(COURSE_PACKAGE_CATEGORIES.includes("Stenography"));
 });
 
-test("the Buy Now button groups packages by category, offers a call and WhatsApp CTA per plan, and never claims to take payment on the page", async () => {
+test("the header Buy Now button links straight to the /courses page with a distinct indigo/violet/fuchsia style, not the site's usual blue", async () => {
   const component = await read("app/_components/buy-now-button.tsx");
-  assert.match(component, /Buy Now/);
-  assert.match(component, /role="dialog" aria-modal="true"/);
-  assert.match(component, /categories\.map/);
-  assert.match(component, /Call to Buy/);
-  assert.match(component, /WhatsApp/);
-  assert.match(component, /no payment is collected on this page/i);
-  assert.doesNotMatch(component, /razorpay|stripe|card number|cvv/i);
+  assert.match(component, /href="\/courses"/);
+  assert.match(component, /from-indigo-600 via-violet-600 to-fuchsia-600/);
+  assert.doesNotMatch(component, /from-amber-500 via-orange-500 to-rose-500/);
+  assert.doesNotMatch(component, /role="dialog"/);
+  assert.doesNotMatch(component, /useState/);
 });
 
-test("the site header renders Buy Now only when course packages are supplied, next to the sign-in links", async () => {
+test("the site header always renders Buy Now next to the sign-in links, on every page that uses it", async () => {
   const header = await read("app/_components/site-header.tsx");
-  assert.match(header, /<BuyNowButton packages=\{coursePackages\}/);
-  assert.match(header, /coursePackages && coursePackages\.length > 0/);
+  assert.match(header, /<BuyNowButton \/>/);
   assert.match(header, /<AccessNavigation \/>/);
+  assert.doesNotMatch(header, /coursePackages/);
 });
 
-test("the homepage passes its published course packages into the header and no longer renders the old flat 'Buy our complete course' section", async () => {
+test("the homepage no longer threads course packages into the header, and the old flat 'Buy our complete course' section is gone", async () => {
   const homepage = await read("app/page.tsx");
-  assert.match(homepage, /<SiteHeader coursePackages=\{coursePackages\} \/>/);
+  assert.match(homepage, /<SiteHeader \/>/);
   assert.doesNotMatch(homepage, /Buy our complete course/);
-  assert.match(homepage, /<BuyNowButton packages=\{coursePackages\}/);
+  assert.doesNotMatch(homepage, /coursePackages/);
+  assert.match(homepage, /<BuyNowButton \/>/);
 });
 
-test("the admin course package form lets an admin choose or type a category, saved through the new migration's extra parameter", async () => {
+test("the /courses page groups published packages by category with a distinct color theme, jump links, per-plan call and WhatsApp CTAs, and a graceful empty state", async () => {
+  const page = await read("app/courses/page.tsx");
+  assert.match(page, /getPublishedCoursePackages/);
+  assert.match(page, /groupByCategory/);
+  assert.match(page, /Typing:.*from-blue-600 to-cyan-500/s);
+  assert.match(page, /Efficiency:.*from-emerald-600 to-teal-500/s);
+  assert.match(page, /Stenography:.*from-violet-600 to-fuchsia-500/s);
+  assert.match(page, /Jump to a course category/);
+  assert.match(page, /Enroll Now/);
+  assert.match(page, /WhatsAppIcon/);
+  assert.match(page, /Courses are being set up/);
+  assert.doesNotMatch(page, /razorpay|stripe|card number|cvv/i);
+});
+
+test("the admin course package form lets an admin choose or type a category, saved through the migration's extra parameter", async () => {
   const manager = await read("app/admin/homepage/homepage-content-manager.tsx");
   assert.match(manager, /name="category" list="course-category-options"/);
   assert.match(manager, /COURSE_PACKAGE_CATEGORIES\.map/);
