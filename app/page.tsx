@@ -7,15 +7,11 @@ import { SiteHeader } from "./_components/site-header";
 import { StudentSuccessCarousel } from "./_components/student-success-carousel";
 import { VacancyCarousel } from "./_components/vacancy-carousel";
 import { VacancySections } from "./_components/vacancy-sections";
+import { FeedbackSection } from "./_components/feedback-section";
+import { WhatsAppButton } from "./_components/whatsapp-button";
 import { createClient } from "@/lib/supabase/server";
-import { VACANCIES } from "@/lib/vacancies";
-
-const COURSE_PLANS = [
-  { duration: "30 Days", price: "₹299", popular: false },
-  { duration: "3 Months", price: "₹499", popular: false },
-  { duration: "6 Months", price: "₹599", popular: true },
-  { duration: "1 Year", price: "₹799", popular: false },
-] as const;
+import { getCurrentUser } from "@/lib/auth";
+import { getApprovedFeedback, getPublishedCoursePackages, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
 
 const EXAM_CATEGORIES = [
   {
@@ -106,7 +102,14 @@ function Icon({ name, className }: { name: IconName; className: string }) {
 
 export default async function Home() {
   const supabase = await createClient();
-  const { data: liveResults } = await supabase.rpc("published_live_results", { p_limit: 20 });
+  const [{ data: liveResults }, coursePackages, vacancies, feedback, officialWebsites, user] = await Promise.all([
+    supabase.rpc("published_live_results", { p_limit: 20 }),
+    getPublishedCoursePackages(),
+    getPublishedVacancies(),
+    getApprovedFeedback(6),
+    getPublishedOfficialWebsites(),
+    getCurrentUser(),
+  ]);
   return (
     <main className="min-h-screen bg-white">
       <SiteHeader />
@@ -205,7 +208,7 @@ export default async function Home() {
       <section className="border-b border-blue-100 bg-slate-50 px-4 py-12">
         <div className="mx-auto max-w-7xl">
           <Reveal className="grid gap-8 rounded-3xl border border-blue-100 bg-white p-6 shadow-sm lg:grid-cols-[1.05fr_.95fr] lg:p-9">
-            <aside aria-label="Vacancy updates"><div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Samradhi updates</p><h2 className="mt-1 text-2xl font-black text-slate-950">Latest vacancies</h2></div><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">Sample data</span></div><VacancyCarousel vacancies={VACANCIES.filter((vacancy) => vacancy.category === "jobs")}/></aside>
+            <aside aria-label="Vacancy updates"><div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Samradhi updates</p><h2 className="mt-1 text-2xl font-black text-slate-950">Latest vacancies</h2></div></div><VacancyCarousel vacancies={vacancies.filter((vacancy) => vacancy.category === "jobs")}/></aside>
             <section aria-labelledby="course-plans-title">
               <div className="mb-4">
                 <p className="text-xs font-black uppercase tracking-widest text-blue-700">Choose your duration</p>
@@ -213,31 +216,32 @@ export default async function Home() {
                 <p className="mt-1 text-sm text-slate-600">Typing, efficiency and stenography preparation in one plan.</p>
               </div>
               <div className="grid gap-3 pt-3 sm:grid-cols-2">
-                {COURSE_PLANS.map((plan) => (
+                {coursePackages.length === 0 && <p className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">Course packages will appear here once the administrator publishes them.</p>}
+                {coursePackages.map((plan) => (
                   <article
-                    key={plan.duration}
+                    key={plan.id}
                     className={`relative flex flex-col rounded-2xl border p-4 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${
-                      plan.popular
+                      plan.isPopular
                         ? "border-blue-600 bg-white ring-2 ring-blue-600"
                         : "border-blue-100 bg-blue-50/60"
                     }`}
                   >
-                    {plan.popular && (
+                    {plan.isPopular && (
                       <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-blue-600 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-white shadow">
                         Most Popular
                       </span>
                     )}
-                    <h3 className="font-black text-slate-950">Samradhi Complete Course</h3>
+                    <h3 className="font-black text-slate-950">{plan.title}</h3>
                     <ul className="mt-3 flex-1 space-y-2 text-sm text-slate-600">
-                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Duration: <strong>{plan.duration}</strong></span></li>
-                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Price: <strong>{plan.price}</strong></span></li>
-                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Typing, efficiency and stenography</span></li>
-                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Enroll by phone or in person</span></li>
+                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Duration: <strong>{plan.durationLabel}</strong></span></li>
+                      <li className="flex gap-2"><span aria-hidden>✓</span><span>Price: <strong>{plan.priceLabel}</strong>{plan.originalPriceLabel && <span className="ml-1.5 text-xs font-bold text-slate-400 line-through">{plan.originalPriceLabel}</span>}</span></li>
+                      {plan.features.map((feature) => <li key={feature} className="flex gap-2"><span aria-hidden>✓</span><span>{feature}</span></li>)}
                     </ul>
+                    {plan.couponCode && <p className="mt-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-2 text-xs font-black text-amber-900">Coupon <span className="font-mono">{plan.couponCode}</span>{plan.couponDescription ? ` — ${plan.couponDescription}` : ""}</p>}
                     <a
                       href="tel:+917014371324"
                       className={`mt-4 rounded-xl px-4 py-2.5 text-center text-sm font-black transition-colors ${
-                        plan.popular ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-700 text-white hover:bg-blue-800"
+                        plan.isPopular ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-700 text-white hover:bg-blue-800"
                       }`}
                     >
                       Call to enroll
@@ -248,7 +252,10 @@ export default async function Home() {
             </section>
           </Reveal>
           <Reveal className="mt-8">
-            <VacancySections compact />
+            <FeedbackSection feedback={feedback} canSubmit={Boolean(user)} />
+          </Reveal>
+          <Reveal className="mt-8">
+            <VacancySections vacancies={vacancies} officialWebsites={officialWebsites} compact />
           </Reveal>
           <Reveal className="mt-8">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Published automatically</p><h2 className="mt-1 text-2xl font-black">Latest live-test results</h2></div><Link href="/live-test" className="text-sm font-black text-blue-700">Open live-test centre →</Link></div><LiveResultsTicker results={(liveResults??[]) as PublicLiveResult[]}/>
@@ -303,6 +310,7 @@ export default async function Home() {
         </div>
       </section>
       <SiteFooter />
+      <WhatsAppButton />
     </main>
   );
 }

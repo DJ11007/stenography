@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Vacancy } from "@/lib/vacancies";
+import type { Vacancy } from "@/lib/homepage-content";
 
 export function VacancyCarousel({ vacancies }: { vacancies: Vacancy[] }) {
   const [active, setActive] = useState(0);
