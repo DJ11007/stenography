@@ -19,6 +19,7 @@ import { DeliveryPdfFields } from "./delivery-pdf-fields";
 import { WorkingMatterDocxFields } from "./working-matter-docx-fields";
 import { SaveLocalDraftButton } from "./draft-preserver";
 import{PermanentDeleteDangerZone}from"./permanent-delete-danger-zone";
+import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 export const metadata: Metadata = { title: "Word Efficiency Tests | Admin" };
 
 export default async function Page({
@@ -114,6 +115,7 @@ export default async function Page({
                 ? `Edit ${editing.title}`
                 : "Create Word Efficiency test"}
             </h2>
+            <ExamPatternReference subject="Word" />
             <form action={saveWordEfficiencyTest} className="mt-6 grid gap-5">
               {editing && (
                 <input type="hidden" name="testId" value={editing.id} />
