@@ -79,6 +79,24 @@ export default function StenographyLanguagePage() {
             </article>
           ))}
         </div>
+
+        <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-xs font-black uppercase tracking-[.18em] text-violet-600">New</p>
+          <h2 className="mt-2 text-2xl font-black text-slate-950">Court &amp; Government Stenography Exam Simulator</h2>
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">Choose from court and government stenographer recruitment patterns — Supreme Court, High Courts, SSC, CBI, Parliament, and more — in English or Hindi.</p>
+          <Link href="/typing/practice/stenography/exams" className="mt-5 inline-flex rounded-xl bg-violet-700 px-5 py-3 font-black text-white hover:bg-violet-800">
+            Select Exam Category →
+          </Link>
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <p className="text-xs font-black uppercase tracking-[.18em] text-violet-600">New</p>
+          <h2 className="mt-2 text-2xl font-black text-slate-950">Task / Topic Wise Tests Library</h2>
+          <p className="mt-3 max-w-2xl leading-7 text-slate-600">Browse stenography tests by category — Task, Basic, Paper, Court, Books, Editor, Speech, Article — in English or Hindi.</p>
+          <Link href="/typing/practice/stenography/library" className="mt-5 inline-flex rounded-xl bg-violet-700 px-5 py-3 font-black text-white hover:bg-violet-800">
+            Browse Task Library →
+          </Link>
+        </div>
       </section>
     </main>
   );
