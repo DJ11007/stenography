@@ -10,15 +10,15 @@ const ROOT_V2 = new Set(["schemaVersion", "blocks", "pageLayout", "operations", 
 const BLOCK_V1 = new Set(["id", "type", "alignment", "runs"]);
 const BLOCK_V2 = new Set(["id", "type", "alignment", "runs", "attrs"]);
 const RUN_V1 = new Set(["text", "bold", "italic", "underline", "strike", "superscript", "subscript", "fontFamily", "fontSize", "color", "highlight"]);
-const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "doubleStrike", "href", "bookmark", "field"]);
+const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "doubleStrike", "href", "bookmark", "field", "smallCaps", "allCaps", "hidden"]);
 const UNDERLINE_STYLES=new Set(["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy","words-only"]);
 const PAGE_LAYOUT_KEYS = new Set(["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"]);
 const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "marginTop", "marginBottom", "border", "backgroundColor", "hyphens"]);
 export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle", "bullet-square", "bullet-diamond", "bullet-arrow", "bullet-check", "decimal", "decimal-paren", "upper-roman", "upper-alpha", "lower-alpha-paren", "lower-alpha", "lower-roman"]);
 const ATTRS: Record<string, Set<string>> = {
-  paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap"]),
-  "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle"]),
-  table: new Set(["rows"]), image: new Set(["src", "alt", "width", "height", "localAsset"]),
+  paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap", "specialIndentMode", "specialIndentAmount"]),
+  "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle", "specialIndentMode", "specialIndentAmount"]),
+  table: new Set(["rows", "tableLayout"]), image: new Set(["src", "alt", "width", "height", "localAsset"]),
   "page-break": new Set(["kind"]), "section-break": new Set(["kind"]),
   "cover-page": new Set(COMMON_BLOCK_ATTRS), header: new Set(COMMON_BLOCK_ATTRS), footer: new Set(COMMON_BLOCK_ATTRS),
   shape: new Set(COMMON_BLOCK_ATTRS),
@@ -47,6 +47,7 @@ export function validateWordEditorDocument(value: unknown) {
       text += run.text.length; if (text > 1000000) throw new Error("Structured document is too large.");
       for (const flag of ["bold", "italic", "underline", "strike", "superscript", "subscript"] as const) if (typeof run[flag] !== "boolean") throw new Error("Invalid structured document mark.");
       if (version === "2" && typeof run.doubleStrike !== "boolean") throw new Error("Invalid double-strikethrough mark.");
+      if (version === "2") for (const flag of ["smallCaps", "allCaps", "hidden"] as const) if (flag in run && typeof run[flag] !== "boolean") throw new Error("Invalid structured document mark.");
       if(version==="2"&&("underlineStyle"in run||"underlineColor"in run||"underlineThickness"in run||"underlineWordsOnly"in run)&&(run.underlineStyle!==null&&(typeof run.underlineStyle!=="string"||!UNDERLINE_STYLES.has(run.underlineStyle))||!color(run.underlineColor)||(run.underlineThickness!==null&&(typeof run.underlineThickness!=="number"||run.underlineThickness<1||run.underlineThickness>5))||typeof run.underlineWordsOnly!=="boolean"))throw new Error("Invalid structured underline style.");
       if (run.fontFamily !== null && (typeof run.fontFamily !== "string" || !FONTS.has(run.fontFamily))) throw new Error("Invalid structured document font.");
       if (run.fontSize !== null && (typeof run.fontSize !== "number" || !Number.isFinite(run.fontSize) || run.fontSize < 8 || run.fontSize > 72)) throw new Error("Invalid structured document font size.");
@@ -84,12 +85,13 @@ function validateRunLinkFields(run: JsonObject) {
   if (!nullableString(run.href, 2048) || !nullableString(run.bookmark, 50) || !nullableString(run.field, 30)) throw new Error("Invalid link or field metadata.");
   if (typeof run.href === "string" && !safeLink(run.href)) throw new Error("Unsafe hyperlink protocol.");
   if (typeof run.bookmark === "string" && !/^[A-Za-z0-9_-]{1,50}$/.test(run.bookmark)) throw new Error("Invalid bookmark.");
-  if (typeof run.field === "string" && !["page-number", "date-time", "symbol", "special-character"].includes(run.field)) throw new Error("Invalid document field.");
+  if (typeof run.field === "string" && !["page-number", "date-time", "symbol", "special-character"].includes(run.field) && !/^page-number\|(top|bottom|current)\|(left|center|right)$/.test(run.field)) throw new Error("Invalid document field.");
 }
 function validateAttrs(value: unknown, type: string) {
   if (!object(value) || !optionalExact(value, ATTRS[type] ?? new Set())) throw new Error(`Invalid ${type} attributes.`);
   if (type === "table") {
     if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 50 || value.rows.some(row => !Array.isArray(row) || row.length < 1 || row.length > 20 || row.some(cell => typeof cell !== "string" || cell.length > 10000))) throw new Error("Invalid table structure.");
+    if ("tableLayout" in value && !["auto", "fixed", "window"].includes(String(value.tableLayout))) throw new Error("Invalid table layout.");
   } else if (type === "image") {
     if (typeof value.src !== "string" || !(/^(?:data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}|asset:samradhi-mark)$/.test(value.src))) throw new Error("Unsafe embedded image.");
     if (typeof value.alt !== "string" || value.alt.length > 200 || typeof value.width !== "number" || typeof value.height !== "number" || !Number.isInteger(value.width) || !Number.isInteger(value.height) || value.width < 1 || value.height < 1 || value.width > 6000 || value.height > 6000 || typeof value.localAsset !== "boolean") throw new Error("Invalid embedded image metadata.");
@@ -102,6 +104,7 @@ function validateAttrs(value: unknown, type: string) {
       if (["lineNumbers", "dropCap"].includes(key) && typeof item !== "boolean") throw new Error(`Invalid ${key} attribute.`);
       if (key === "listStyle" && !WORD_LIST_STYLES.has(String(item))) throw new Error("Invalid list style.");
       if (key === "kind" && !["page", "blank-page", "section-next-page", "section-continuous"].includes(String(item))) throw new Error("Invalid break type.");
+      if (key === "specialIndentMode" && !["none", "firstLine", "hanging"].includes(String(item))) throw new Error("Invalid special indent mode.");
       if (!["lineNumbers", "dropCap"].includes(key) && item !== null && typeof item !== "string") throw new Error(`Invalid ${key} attribute.`);
       if (typeof item === "string" && item.length > 100) throw new Error(`Invalid ${key} attribute.`);
     }
