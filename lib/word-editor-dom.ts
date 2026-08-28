@@ -1,4 +1,4 @@
-export type EditorRunStyles=Partial<Pick<CSSStyleDeclaration,"fontFamily"|"fontSize"|"fontWeight"|"fontStyle"|"color"|"backgroundColor"|"textDecoration"|"textDecorationLine"|"textDecorationStyle"|"verticalAlign">>;
+export type EditorRunStyles=Partial<Pick<CSSStyleDeclaration,"fontFamily"|"fontSize"|"fontWeight"|"fontStyle"|"color"|"backgroundColor"|"textDecoration"|"textDecorationLine"|"textDecorationStyle"|"verticalAlign"|"fontVariant"|"textTransform"|"opacity">>;
 
 export function selectedEditorBlocks(editor:HTMLElement,range:Range){return[...editor.children].filter((node):node is HTMLElement=>node.nodeType===1&&range.intersectsNode(node))as HTMLElement[]}
 

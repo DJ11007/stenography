@@ -19,7 +19,7 @@ test("reduced ribbon tab order and exact groups are explicit", () => {
   assert.deepEqual(groups.View, ["Document Views", "Show/Hide", "Zoom"]);
 });
 
-test("reduced ribbon contains exactly the specified option labels",()=>{const actual=Object.fromEntries(WORD_EDITOR_RIBBON.map(tab=>[tab.id,Object.fromEntries(tab.groups.map(group=>[group.label,group.options.map(item=>item.label)]))]));assert.deepEqual(actual,{File:{},Home:{Clipboard:["Paste","Cut","Copy","Format Painter"],Font:["Font family","Font size","Increase font size","Decrease font size","Change case","Bold","Italic","Underline","Strikethrough","Subscript","Superscript","Text effects","Text highlight color","Font color"],Paragraph:["Bullets","Numbering","Multilevel list","Decrease indent","Increase indent","Sort","Show/hide formatting marks","Align left","Center","Align right","Justify","Line spacing","Shading","Borders"],Editing:["Find","Replace","Select"]},Insert:{Pages:["Cover Page","Blank Page","Page Break"],Tables:["Table"],Illustrations:["Pictures","Online Pictures","Shapes"],Links:["Hyperlink","Bookmark","Cross-reference"],"Header & Footer":["Header","Footer","Page Number"],Text:["Drop Cap","Date & Time"],Symbols:["Symbol"]},Design:{"Page Background":["Watermark","Page Color","Page Borders"]},"Page Layout":{"Page Setup":["Margins","Orientation","Size","Columns","Breaks","Line Numbers"]},View:{"Document Views":["Print Layout","Full Screen Reading","Web Layout","Outline","Draft"],"Show/Hide":["Ruler","Gridlines","Document Map"],Zoom:["100%","One Page","Two Pages"]}})});
+test("reduced ribbon contains exactly the specified option labels",()=>{const actual=Object.fromEntries(WORD_EDITOR_RIBBON.map(tab=>[tab.id,Object.fromEntries(tab.groups.map(group=>[group.label,group.options.map(item=>item.label)]))]));assert.deepEqual(actual,{File:{},Home:{Clipboard:["Undo","Redo","Paste","Cut","Copy","Format Painter"],Font:["Font family","Font size","Increase font size","Decrease font size","Change case","Bold","Italic","Underline","Strikethrough","Subscript","Superscript","Text effects","Text highlight color","Font color","Font Settings…"],Paragraph:["Bullets","Numbering","Multilevel list","Decrease indent","Increase indent","Sort","Show/hide formatting marks","Align left","Center","Align right","Justify","Line spacing","Shading","Borders"],Editing:["Find","Replace","Select"]},Insert:{Pages:["Cover Page","Blank Page","Page Break"],Tables:["Table"],Illustrations:["Pictures","Online Pictures","Shapes"],Links:["Hyperlink","Bookmark","Cross-reference"],"Header & Footer":["Header","Footer","Page Number"],Text:["Drop Cap","Date & Time"],Symbols:["Symbol"]},Design:{"Page Background":["Watermark","Page Color","Page Borders"]},"Page Layout":{"Page Setup":["Margins","Orientation","Size","Columns","Breaks","Line Numbers"]},View:{"Document Views":["Print Layout","Full Screen Reading","Web Layout","Outline","Draft"],"Show/Hide":["Ruler","Gridlines","Document Map"],Zoom:["100%","One Page","Two Pages"]}})});
 
 test("flat capabilities normalize without mutating the source and effective parents are enforced", () => {
   const flat = { tabs: ["Home"], commands: ["bold", "insertUnorderedList"], fonts: ["Arial"], fontSizeMin: 10, fontSizeMax: 20 };
@@ -39,7 +39,7 @@ test("schema-v2 capabilities reject unknown membership and unsupported commands"
 });
 
 test("TypeScript and database capability defaults have identical membership", async () => {
-  const migration = await read("supabase/migrations/202608240005_word_efficiency_hierarchical_editor_capabilities.sql");
+  const migration = await read("supabase/migrations/202608280040_word_efficiency_font_dialog_and_layout_options.sql");
   const sqlOptions = [...migration.slice(0, migration.indexOf("),groups as")).matchAll(/\('([^']+)','([^']+)','([^']+)',(true|false)\)/g)].map(match => `${match[1]}|${match[2]}|${match[3]}|${match[4]}`).sort();
   const tsOptions = WORD_EDITOR_RIBBON.flatMap(tab => tab.groups.flatMap(group => group.options.map(option => `${tab.id}|${group.id}|${option.id}|${!option.unsupported}`))).sort();
   assert.deepEqual(sqlOptions, tsOptions);
@@ -234,7 +234,8 @@ test("table row/column edits target the cursor position and delete/spacing handl
 test("Insert Table offers a grid picker with a numeric dialog fallback, and a Table Tools bar exposes row/column/table commands at the cursor",async()=>{
   const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   assert.match(editor,/function TableSizePicker\(\{onPick,onCustom\}:\{onPick:\(rows:number,cols:number\)=>void;onCustom:\(\)=>void\}\)/);
-  assert.match(editor,/function InsertTableCustomForm\(\{onSubmit\}:\{onSubmit:\(rows:number,cols:number\)=>void\}\)/);
+  assert.match(editor,/function InsertTableCustomForm\(\{onSubmit\}:\{onSubmit:\(rows:number,cols:number,layout\?:string\)=>void\}\)/);
+  assert.match(editor,/AutoFit behavior/);
   assert.match(editor,/dialog\.kind==="insertTableCustom"&&<InsertTableCustomForm onSubmit=\{onInsertTable\}\/>/);
   assert.match(editor,/onOpenCustomTable=\{\(\)=>setDialog\(\{kind:"insertTableCustom"\}\)\}/);
   assert.match(editor,/const tableActionAtCursor=\(action:string\)=>/);
@@ -285,7 +286,7 @@ test("zoom opens a real percentage dialog instead of doing nothing, and is track
   assert.match(editor,/dialog\.kind==="zoom"&&<ZoomForm dialog=\{dialog\} onSubmit=\{onZoom\}\/>/);
   assert.match(editor,/function ZoomForm/);
   assert.match(editor,/const applyZoom=\(value:string\)=>\{setDialog\(null\);setView\(v=>\(\{\.\.\.v,zoom:bounded\(value,10,500\)\}\)\)\}/);
-  assert.match(editor,/viewOnly=new Set\(\["selectAll","formattingMarks","printLayout","fullScreenReading","webLayout","outlineView","draftView","ruler","gridlines","documentMap","thumbnails","zoom","zoom100","onePage","twoPages","pageWidth"\]\)/);
+  assert.match(editor,/viewOnly=new Set\(\["selectAll","formattingMarks","printLayout","fullScreenReading","webLayout","outlineView","draftView","ruler","gridlines","documentMap","thumbnails","zoom","zoom100","onePage","twoPages","pageWidth","undo","redo"\]\)/);
 });
 
 test("sort opens an Ascending/Descending dialog and only reorders the selected paragraphs, not the whole document unconditionally",async()=>{

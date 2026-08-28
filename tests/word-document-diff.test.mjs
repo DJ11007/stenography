@@ -85,6 +85,29 @@ test("page layout changes (e.g. margins) are detected under the pageLayout names
   assert.equal(changes[0].target, "pageLayout.padding");
 });
 
+test("small caps, all caps, and hidden run changes are each detected independently", () => {
+  const before = doc([paragraph("block-0", "Hello")]);
+  const after = doc([{ ...paragraph("block-0", "Hello"), runs: [{ text: "Hello", bold: false, italic: false, underline: false, smallCaps: true, allCaps: true, hidden: true }] }]);
+  const targets = diffWordDocuments(before, after).map((change) => change.target).sort();
+  assert.deepEqual(targets, ["blocks.block-0.runs.0.allCaps", "blocks.block-0.runs.0.hidden", "blocks.block-0.runs.0.smallCaps"]);
+});
+
+test("a paragraph's special indent (mode and amount) is detected as an attrs change", () => {
+  const before = doc([{ ...paragraph("block-1", "Hello"), attrs: {} }]);
+  const after = doc([{ ...paragraph("block-1", "Hello"), attrs: { specialIndentMode: "hanging", specialIndentAmount: "0.5in" } }]);
+  const targets = diffWordDocuments(before, after).map((change) => change.target).sort();
+  assert.deepEqual(targets, ["blocks.block-1.attrs.specialIndentAmount", "blocks.block-1.attrs.specialIndentMode"]);
+});
+
+test("a table's AutoFit (tableLayout) change is detected alongside, not instead of, cell edits", () => {
+  const table = (rows, tableLayout) => ({ id: "block-9", type: "table", alignment: "left", runs: [], attrs: { rows, ...(tableLayout ? { tableLayout } : {}) } });
+  const before = doc([table([["A", "B"]], "fixed")]);
+  const after = doc([table([["A", "Changed"]], "auto")]);
+  const changes = diffWordDocuments(before, after);
+  const targets = changes.map((change) => change.target).sort();
+  assert.deepEqual(targets, ["blocks.block-9.attrs.rows.0.1", "blocks.block-9.attrs.tableLayout"]);
+});
+
 test("a change to only one of several paragraphs reports just that paragraph, with the correct 1-based position", () => {
   const before = doc([paragraph("block-0", "One"), paragraph("block-1", "Two"), paragraph("block-2", "Three")]);
   const after = doc([paragraph("block-0", "One"), { ...paragraph("block-1", "Two"), alignment: "center" }, paragraph("block-2", "Three")]);

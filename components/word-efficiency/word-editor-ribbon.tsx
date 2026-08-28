@@ -145,6 +145,9 @@ function GalleryMenu({option,preview,items,onPick,actions,onAction}:{option:Ribb
 
 function RibbonIcon({ id }: { id: string }) {
   const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.55, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if(id==="undo")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="M7 8H3V4"/><path d="M3.5 14a8 8 0 1 0 2-9L3 8"/></svg>;
+  if(id==="redo")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="M17 8h4V4"/><path d="M20.5 14a8 8 0 1 1-2-9l3 3"/></svg>;
+  if(id==="fontDialog")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="m4 17 5-13h2l5 13M6.5 12h7"/><path d="m15 19 2 2 4-4"/></svg>;
   if(id==="highlightColor")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="m5 15 9-9 4 4-9 9H5z" fill="#fff"/><path d="m13 7 4 4M3 21h13" stroke="#d0b800" strokeWidth="2.5"/></svg>;
   if(id==="fontColor")return <svg viewBox="0 0 24 24" aria-hidden><text x="12" y="17" textAnchor="middle" fontFamily="Segoe UI,Arial" fontSize="18" fontWeight="600">A</text><path d="M4 21h16" stroke="#c00000" strokeWidth="3"/></svg>;
   if (["increaseFontSize","decreaseFontSize"].includes(id)) return <svg viewBox="0 0 24 24" aria-hidden><text x="4" y="18" fontFamily="Segoe UI,Arial" fontSize="16" fontWeight="600">A</text><path d={id==="increaseFontSize"?"m15 10 3-3 3 3M18 7v9":"m15 13 3 3 3-3M18 7v9"} {...stroke}/></svg>;

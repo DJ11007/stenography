@@ -46,16 +46,18 @@ function equalValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-const RUN_FIELDS = ["text", "bold", "italic", "underline", "strike", "doubleStrike", "superscript", "subscript", "fontFamily", "fontSize", "color", "highlight"] as const;
-const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "listStyle"] as const;
+const RUN_FIELDS = ["text", "bold", "italic", "underline", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "fontFamily", "fontSize", "color", "highlight", "field"] as const;
+const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "listStyle", "specialIndentMode", "specialIndentAmount"] as const;
+const TABLE_ATTR_FIELDS = ["tableLayout"] as const;
 const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"] as const;
 
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
     text: "text", bold: "bold", italic: "italic", underline: "underline", strike: "strikethrough", doubleStrike: "double strikethrough",
-    superscript: "superscript", subscript: "subscript", fontFamily: "font", fontSize: "font size", color: "text color", highlight: "highlight color",
+    superscript: "superscript", subscript: "subscript", smallCaps: "small caps", allCaps: "all caps", hidden: "hidden text", fontFamily: "font", fontSize: "font size", color: "text color", highlight: "highlight color", field: "inserted field",
     marginLeft: "left indent", marginRight: "right indent", marginTop: "space before", marginBottom: "space after", lineHeight: "line spacing",
     backgroundColor: "shading", border: "border", hyphens: "hyphenation", lineNumbers: "line numbers", dropCap: "drop cap", listStyle: "list style",
+    specialIndentMode: "special indent", specialIndentAmount: "special indent amount", tableLayout: "table AutoFit behavior",
   };
   return labels[field] ?? field;
 }
@@ -68,6 +70,10 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
   const beforeAttrs = isObject(before.attrs) ? before.attrs : {};
   const afterAttrs = isObject(after.attrs) ? after.attrs : {};
   if (Array.isArray(afterAttrs.rows) && Array.isArray(beforeAttrs.rows)) {
+    for (const field of TABLE_ATTR_FIELDS) {
+      if (!(field in beforeAttrs) && !(field in afterAttrs)) continue;
+      if (!equalValue(beforeAttrs[field], afterAttrs[field])) changes.push({ target: `blocks.${id}.attrs.${field}`, expectedValue: afterAttrs[field] ?? null, label: `Paragraph ${position} (table): ${fieldLabel(field)} changed to ${String(afterAttrs[field])}`, blockPosition: position });
+    }
     const beforeRows = beforeAttrs.rows as unknown[][];
     const afterRows = afterAttrs.rows as unknown[][];
     if (beforeRows.length === afterRows.length && beforeRows.every((row, index) => Array.isArray(row) && Array.isArray(afterRows[index]) && row.length === (afterRows[index] as unknown[]).length)) {
