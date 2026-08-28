@@ -1,7 +1,8 @@
 export type WordLanguage="English"|"Hindi";
 export type WordDelivery="onscreen"|"pdf";
 export const MAX_WORD_QUESTION_MARKS=1000;
-export type WordGradingRule={target:string;expectedOperation:string;expectedValue:string;allocatedMarks:number;partialMarks:number|null};
+export type WordGradingCriterion={target:string;expectedValue:string};
+export type WordGradingRule={target:string;expectedOperation:string;expectedValue:string;allocatedMarks:number;partialMarks:number|null;additionalCriteria?:WordGradingCriterion[]};
 export type WordQuestion={id?:string;source_fingerprint?:string;number:number;instruction:string;marks:number;section:string|null;display_order:number;is_visible:boolean;gradingRule?:WordGradingRule|null};
 export type WordVersion={id:string;test_id:string;version_number:number;title:string;language:WordLanguage;description:string;instructions_markdown:string;delivery_onscreen:boolean;delivery_pdf:boolean;question_count:number;maximum_marks:number;duration_options:number[];passing_marks:number|null;pdf_path:string|null;pdf_file_name:string|null;pdf_size_bytes:number|null;pdf_page_count:number|null;pdf_uploaded_at:string|null;working_matter_snapshot?:import("./word-docx").WorkingMatterSnapshot|null;editor_capabilities?:Record<string,unknown>|null};
 export type WordTest={id:string;slug:string;title:string;language:WordLanguage;status:string;current_version_id:string;current_version_number:number;published_at:string|null;updated_at:string};
