@@ -85,6 +85,13 @@ test("page layout changes (e.g. margins) are detected under the pageLayout names
   assert.equal(changes[0].target, "pageLayout.padding");
 });
 
+test("a run missing the newer optional boolean fields (smallCaps/allCaps/hidden) entirely is NOT reported as different from a run that has them explicitly false -- missing means off, same as the schema validator's rule", () => {
+  const before = doc([{ id: "block-0", type: "paragraph", alignment: "left", runs: [{ text: "Hello", bold: false, italic: false, underline: false }], attrs: {} }]);
+  const after = doc([{ id: "block-0", type: "paragraph", alignment: "left", runs: [{ text: "Hello", bold: false, italic: false, underline: false, smallCaps: false, allCaps: false, hidden: false }], attrs: {} }]);
+  assert.deepEqual(diffWordDocuments(before, after), []);
+  assert.deepEqual(diffWordDocuments(after, before), []);
+});
+
 test("small caps, all caps, and hidden run changes are each detected independently", () => {
   const before = doc([paragraph("block-0", "Hello")]);
   const after = doc([{ ...paragraph("block-0", "Hello"), runs: [{ text: "Hello", bold: false, italic: false, underline: false, smallCaps: true, allCaps: true, hidden: true }] }]);

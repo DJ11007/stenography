@@ -47,6 +47,19 @@ function equalValue(a: unknown, b: unknown): boolean {
 }
 
 const RUN_FIELDS = ["text", "bold", "italic", "underline", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "fontFamily", "fontSize", "color", "highlight", "field"] as const;
+// Newer optional boolean run fields (smallCaps/allCaps/hidden, added after
+// doubleStrike) can be absent on one side of a diff -- e.g. a document
+// captured before these fields existed, or any snapshot that simply never
+// set them -- without that meaning anything actually changed. Missing is
+// the same as "off" for every one of these, exactly like the schema
+// validator already treats them (optional, type-checked only when
+// present), so the diff must use the same default before comparing, or it
+// reports a false "changed to undefined" for every single run.
+const BOOLEAN_RUN_FIELDS = new Set(["bold", "italic", "underline", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden"]);
+function normalizedRunField(run: JsonRecord, field: string): unknown {
+  const value = run[field];
+  return BOOLEAN_RUN_FIELDS.has(field) ? Boolean(value) : (value ?? null);
+}
 const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "listStyle", "specialIndentMode", "specialIndentAmount"] as const;
 const TABLE_ATTR_FIELDS = ["tableLayout"] as const;
 const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"] as const;
@@ -102,10 +115,11 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
   afterRuns.forEach((run, index) => {
     const beforeRun = beforeRuns[index] ?? {};
     for (const field of RUN_FIELDS) {
-      if (!equalValue(beforeRun[field], run[field])) {
-        const value = run[field];
-        const preview = field === "text" ? `"${String(value)}"` : String(value);
-        changes.push({ target: `blocks.${id}.runs.${index}.${field}`, expectedValue: value ?? null, label: `Paragraph ${position}: ${fieldLabel(field)} changed to ${preview}`, blockPosition: position });
+      const beforeValue = normalizedRunField(beforeRun, field);
+      const afterValue = normalizedRunField(run, field);
+      if (!equalValue(beforeValue, afterValue)) {
+        const preview = field === "text" ? `"${String(afterValue)}"` : String(afterValue);
+        changes.push({ target: `blocks.${id}.runs.${index}.${field}`, expectedValue: afterValue, label: `Paragraph ${position}: ${fieldLabel(field)} changed to ${preview}`, blockPosition: position });
       }
     }
   });

@@ -62,7 +62,12 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
       </section>
       <aside className="rounded-3xl bg-white p-5 shadow">
         <h2 className="text-lg font-black">Detected changes</h2>
-        <p className="mt-1 text-sm text-slate-500">Everything you've changed versus the original Working Matter. Assign each one to the question it answers, then generate grading rules.</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-600">
+          <li>Solve a question in the document on the left (e.g. make a paragraph bold).</li>
+          <li>Click <strong>"Save Model Answer"</strong> — every change you made shows up below, one row per change.</li>
+          <li>Pick which question each change answers from its dropdown.</li>
+          <li>Click <strong>"Generate Grading Rules"</strong> — a student only earns that question's marks if their submission matches every change you assigned to it, exactly.</li>
+        </ol>
         {!beforeSnapshot && <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading the original document…</p>}
         {Boolean(beforeSnapshot) && !changes.length && <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">No changes detected yet. Solve a question, then click "Save Model Answer" to detect what changed.</p>}
         <div className="mt-4 max-h-[50dvh] space-y-2 overflow-y-auto">
