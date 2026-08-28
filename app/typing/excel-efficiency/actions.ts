@@ -16,8 +16,12 @@ export async function prepareExcelAttempt(form: FormData) {
   redirect(`/typing/excel-efficiency/${language}/${testId}/workspace?attempt=${data}`);
 }
 
+// autosaveExcelDocument/submitExcelDocument deliberately do NOT call requireStudent() -- see the
+// matching comment in app/typing/word-efficiency/actions.ts. These fire on every debounced edit
+// during a live attempt; requireStudent()'s extra auth.getUser() + profiles lookup added real
+// latency and could false-positive redirect a mid-exam student to /login on a transient hiccup.
+// The RPC already enforces ownership and role via auth.uid()/is_active_word_efficiency_student().
 export async function autosaveExcelDocument(attemptId: string, document: unknown): Promise<{ ok: boolean; error: string }> {
-  await requireStudent();
   try {
     const safeDocument = validateExcelOperations(document);
     const supabase = await createClient();
@@ -30,7 +34,6 @@ export async function autosaveExcelDocument(attemptId: string, document: unknown
 }
 
 export async function submitExcelDocument(attemptId: string, document: unknown): Promise<{ ok: boolean; error: string }> {
-  await requireStudent();
   try {
     const safeDocument = validateExcelOperations(document);
     const supabase = await createClient();
