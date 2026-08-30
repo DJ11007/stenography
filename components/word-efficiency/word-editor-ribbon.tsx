@@ -72,7 +72,7 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} onPick={value=>onValueCommand?.("numbering",value)}/>;
   if(option.id==="multilevelList")return <GalleryMenu option={option} preview={preview} items={MULTILEVEL_ITEMS} onPick={value=>onValueCommand?.("multilevelList",value)}/>;
   if(option.id==="lineSpacing")return <GalleryMenu option={option} preview={preview} items={SPACING_ITEMS} onPick={value=>onValueCommand?.("lineSpacing",value)} actions={SPACING_ACTIONS} onAction={id=>onValueCommand?.("lineSpacingAction",id)}/>;
-  if(option.id==="borders")return <GalleryMenu option={option} preview={preview} items={BORDER_ITEMS} onPick={value=>onValueCommand?.("borders",value)}/>;
+  if(option.id==="borders")return <GalleryMenu option={option} preview={preview} items={BORDER_ITEMS} onPick={value=>onValueCommand?.("borders",value)} actions={BORDER_ACTIONS} onAction={id=>onValueCommand?.("borders",id)}/>;
   const disabled = preview || Boolean(option.unsupported);
   return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-description={option.unsupported} aria-haspopup={option.menu ? "menu" : undefined} aria-pressed={active || undefined} disabled={disabled} title={option.unsupported ?? option.label} onMouseDown={event => { if (!disabled) event.preventDefault(); }} onClick={() => onCommand?.(option.id === "zoom" ? "zoom100" : option.id)}><RibbonIcon id={option.id}/><span>{option.label}{option.menu && <i aria-hidden>▾</i>}</span></button>;
 }
@@ -130,7 +130,8 @@ const MULTILEVEL_ITEMS=NUMBER_ITEMS;
 const GALLERY_NOTES:Record<string,string>={multilevelList:"This editor supports one numbering level per list, not nested outline levels."};
 const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
 const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];
-const BORDER_ITEMS=[{value:"none",label:"No Border"},{value:"box",label:"All Borders (Box)"}];
+const BORDER_ITEMS=[{value:"bottom",label:"Bottom Border"},{value:"top",label:"Top Border"},{value:"left",label:"Left Border"},{value:"right",label:"Right Border"},{value:"none",label:"No Border"},{value:"all",label:"All Borders"},{value:"outside",label:"Outside Borders"}];
+const BORDER_ACTIONS=[{id:"horizontal-line",label:"Horizontal Line"}];
 function GalleryMenu({option,preview,items,onPick,actions,onAction}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void}){
   const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
   const buttonRef=useRef<HTMLButtonElement>(null);
