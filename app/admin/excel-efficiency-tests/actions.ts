@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { calculateExcelQuestionTotal, parseExcelDurationOptions, parseExcelQuestions, safeExcelSlug, validateExcelDraft, type ExcelLanguage } from "@/lib/excel-efficiency";
 import { parseWorkingSheetXlsx, validateWorkingSheetFile, type WorkingSheetSnapshot } from "@/lib/excel-sheet";
+import { safePdfName } from "@/lib/word-efficiency";
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 const refresh = (testId?: string) => {
@@ -27,9 +28,14 @@ export async function extractWorkingMatterXlsx(form: FormData) {
   if (!(upload instanceof File) || !upload.size) return { ok: false, error: "Choose a .xlsx Working Matter file.", snapshot: null };
   const errors = validateWorkingSheetFile(upload);
   if (errors.length) return { ok: false, error: errors[0], snapshot: null };
+  const bytes = new Uint8Array(await upload.arrayBuffer());
   try {
-    const snapshot = parseWorkingSheetXlsx(new Uint8Array(await upload.arrayBuffer()), language);
-    snapshot.source = { fileName: upload.name, sizeBytes: upload.size };
+    const snapshot = parseWorkingSheetXlsx(bytes, language);
+    const fileName = safePdfName(upload.name);
+    const storagePath = `${crypto.randomUUID()}/${fileName}`;
+    const supabase = await createClient();
+    const { error: uploadError } = await supabase.storage.from("excel-efficiency-working-matter").upload(storagePath, bytes, { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", upsert: false });
+    snapshot.source = { fileName: upload.name, sizeBytes: upload.size, ...(uploadError ? {} : { bucket: "excel-efficiency-working-matter", storagePath }) };
     return { ok: true, error: null, snapshot };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Working Matter XLSX could not be read.", snapshot: null };

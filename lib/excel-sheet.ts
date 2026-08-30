@@ -3,7 +3,7 @@ import { XMLParser } from "fast-xml-parser";
 import { columnLetters, columnIndex } from "./excel-formula.ts";
 
 export type SheetCell = { value: string | number | null; formula: string | null; bold: boolean; italic: boolean; underline: boolean; fontColor: string | null; fillColor: string | null; border: string | null; numberFormat: "General" | "Number" | "Currency" | "Percentage"; align: "left" | "center" | "right" };
-export type WorkingSheetSnapshot = { schemaVersion: 1; language: "English" | "Hindi"; rows: number; cols: number; cells: Record<string, SheetCell>; source?: { fileName: string; sizeBytes: number } };
+export type WorkingSheetSnapshot = { schemaVersion: 1; language: "English" | "Hindi"; rows: number; cols: number; cells: Record<string, SheetCell>; source?: { fileName: string; sizeBytes: number; bucket?: string; storagePath?: string } };
 
 const MAX_XLSX_BYTES = 10 * 1024 * 1024, MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024, MAX_ROWS = 200, MAX_COLS = 26;
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@", textNodeName: "#text", isArray: (name) => ["row", "c", "si", "font", "fill", "xf", "sheet"].includes(name) });

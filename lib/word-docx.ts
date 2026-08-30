@@ -6,7 +6,7 @@ export type MatterRun={text:string;bold:boolean;italic:boolean;underline:boolean
 export type MatterTextParagraph={id:string;type:"paragraph"|"list-item";paragraphNumber:number|null;listGroup:string|null;runs:MatterRun[];alignment:"left"|"center"|"right"|"justify";leftIndent:number;rightIndent:number;lineSpacing:number;spaceBefore:number;spaceAfter:number};
 export type MatterTable={id:string;type:"table";rows:string[][]};
 export type MatterParagraph=MatterTextParagraph|MatterTable;
-export type WorkingMatterSnapshot={schemaVersion:1|"1";language:"English"|"Hindi";source?:{fileName:string;sizeBytes:number};paragraphs:MatterParagraph[];formattingSummary:{paragraphs:number;runs:number;italicParagraphs:number;justifiedParagraphs:number;listItems:number;tables:number;fonts:string[]};warnings:string[]};
+export type WorkingMatterSnapshot={schemaVersion:1|"1";language:"English"|"Hindi";source?:{fileName:string;sizeBytes:number;bucket?:string;storagePath?:string};paragraphs:MatterParagraph[];formattingSummary:{paragraphs:number;runs:number;italicParagraphs:number;justifiedParagraphs:number;listItems:number;tables:number;fonts:string[]};warnings:string[]};
 const MAX_DOCX_BYTES=10*1024*1024,MAX_UNCOMPRESSED_BYTES=40*1024*1024;
 const parser=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",textNodeName:"#text",isArray:(name)=>["w:p","w:r","w:t","w:tbl","w:tr","w:tc"].includes(name)});
 const own=(value:unknown,key:string)=>Boolean(value&&typeof value==="object"&&Object.prototype.hasOwnProperty.call(value,key));
