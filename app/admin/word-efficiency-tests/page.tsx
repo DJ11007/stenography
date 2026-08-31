@@ -198,6 +198,14 @@ export default async function Page({
                 }
               />
               <WorkingMatterDocxFields initialSnapshot={current?.working_matter_snapshot??null}/>
+              <fieldset className="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-4">
+                <legend className="px-2 font-black">Real file delivery (optional)</legend>
+                <label className="flex gap-3 text-sm font-bold">
+                  <input type="checkbox" name="deliveryRealFile" defaultChecked={current?.delivery_realfile ?? false} />
+                  Deliver as a real .docx — student downloads the Working Matter above, edits it in their own installed Microsoft Word, and uploads the finished file back for grading.
+                </label>
+                <p className="mt-2 text-xs text-slate-600">Requires the Working Matter above to be uploaded as a real .docx file (not just pasted content) — its original file is what gets handed to students.</p>
+              </fieldset>
               <QuestionEditor initialQuestions={initialQuestions} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <SaveLocalDraftButton />

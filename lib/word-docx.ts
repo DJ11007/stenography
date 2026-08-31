@@ -35,3 +35,30 @@ function parseRun(value:Record<string,unknown>,paragraphRun:Record<string,unknow
 function groupShortList(items:MatterTextParagraph[]){const result=items.map(item=>({...item,runs:item.runs.map(run=>({...run}))}));for(let start=0;start<result.length;){if(textOf(result[start]).length>40){start++;continue}let end=start;while(end<result.length&&textOf(result[end]).length>0&&textOf(result[end]).length<=40)end++;if(end-start>=2)for(let index=start;index<end;index++){result[index].type="list-item";result[index].listGroup=`matter-list-${start+1}`}start=Math.max(end,start+1)}return result}
 function textOf(paragraph:MatterTextParagraph){return paragraph.runs.map(run=>run.text).join("").trim()}
 export function cloneMatterSnapshot(snapshot:WorkingMatterSnapshot):WorkingMatterSnapshot{return structuredClone(snapshot)}
+
+/** Ports public.word_efficiency_initial_editor_document's conversion to
+ * TypeScript (schema-v1 "paragraphs" -> schema-v1 "blocks") so a real .docx
+ * uploaded by a student for the realfile delivery mode can be turned into
+ * exactly the same document shape the on-screen editor's original/final
+ * snapshots already use, without a network round trip. Unlike the Postgres
+ * function, a table paragraph is converted into a plain-text block instead
+ * of a block with no runs at all -- the Postgres version's naive
+ * `runs` lookup produces `null` for a table paragraph (tables carry `rows`,
+ * not `runs`), which the document schema validator would then reject as an
+ * invalid block; this avoids that trap for real uploaded files, which are
+ * far more likely to actually contain a table than an admin-controlled
+ * working matter used only to seed the on-screen editor. */
+export function convertWorkingMatterToEditorDocument(matter:WorkingMatterSnapshot):Record<string,unknown>{
+ const blocks=matter.paragraphs.map((paragraph,index)=>{
+  if(paragraph.type==="table"){
+   return{id:`block-${index}`,type:"paragraph",alignment:"left",runs:[{text:paragraph.rows.flat().join(" ").slice(0,200000),bold:false,italic:false,underline:false,strike:false,superscript:false,subscript:false,fontFamily:null,fontSize:null,color:null,highlight:null}]};
+  }
+  return{
+   id:`block-${index}`,
+   type:paragraph.type==="list-item"?"list-item":"paragraph",
+   alignment:paragraph.alignment,
+   runs:paragraph.runs.length?paragraph.runs.map(run=>({text:run.text,bold:run.bold,italic:run.italic,underline:run.underline,strike:run.strike,superscript:false,subscript:false,fontFamily:run.fontFamily,fontSize:run.fontSize,color:run.color,highlight:run.highlight})):[{text:"",bold:false,italic:false,underline:false,strike:false,superscript:false,subscript:false,fontFamily:null,fontSize:null,color:null,highlight:null}],
+  };
+ });
+ return{schemaVersion:"1",blocks,savedAt:"1970-01-01T00:00:00.000Z"};
+}
