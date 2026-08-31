@@ -31,6 +31,13 @@ const MESSAGE_BAR_OPTION: RibbonOption = { id: "messageBar", label: "Message Bar
 const THUMBNAILS_OPTION: RibbonOption = { id: "thumbnails", label: "Thumbnails", icon: "thumbnails", kind: "button" };
 const ZOOM_OPTION: RibbonOption = { id: "zoom", label: "Zoom", icon: "zoom", kind: "button" };
 const PAGE_WIDTH_OPTION: RibbonOption = { id: "pageWidth", label: "Page Width", icon: "pageWidth", kind: "button" };
+// Real Word doesn't show its "Font..." command as just another icon in the
+// group's icon grid -- it renders as a small dialog-box launcher pinned to
+// the group's bottom-right corner, next to the group name. This keeps the
+// same fontDialog command ID/capability (no migration needed) but moves its
+// rendering out of the icon grid and into that corner slot instead.
+const GROUP_LAUNCHER_OPTION_ID = "fontDialog";
+function GroupLauncherIcon() { return <svg viewBox="0 0 11 11" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5v3M1.5 1.5h3M1.5 1.5 9.5 9.5"/><path d="M9.5 5.5v4h-4"/></svg>; }
 
 export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily }: Props) {
   const visibleTabs = WORD_EDITOR_RIBBON.filter(tab => capabilities.tabs[tab.id].enabled);
@@ -38,9 +45,14 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
   const definition = WORD_EDITOR_RIBBON.find(tab => tab.id === selectedTab);
   const groups = definition?.groups.map(group => {
     const configured = capabilities.tabs[definition.id].groups[group.id];
-    const options = group.options.filter(option => configured.options[option.id]);
+    let options = group.options.filter(option => configured.options[option.id]);
     if (definition.id === "Home" && group.id === "font" && CLEAR_FORMAT_DEPENDENCIES.every(id => configured.options[id])) options.splice(5, 0, CLEAR_FORMAT_OPTION);
-    return { ...group, options: definition.id === "View" ? expandViewOptions(group.id, options) : options };
+    let launcher: RibbonOption | undefined;
+    if (definition.id === "Home" && group.id === "font") {
+      launcher = options.find(item => item.id === GROUP_LAUNCHER_OPTION_ID);
+      options = options.filter(item => item.id !== GROUP_LAUNCHER_OPTION_ID);
+    }
+    return { ...group, options: definition.id === "View" ? expandViewOptions(group.id, options) : options, launcher };
   }).filter(group => capabilities.tabs[definition.id].groups[group.id].enabled && group.options.length > 0) ?? [];
 
   return <div className="word-office-ribbon" data-preview={preview || undefined}>
@@ -54,6 +66,7 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
             {group.options.map(option => <div key={option.id} data-ribbon-option={option.id} className="word-ribbon-option-slot"><RibbonControl option={option} capabilities={capabilities} preview={preview} active={activeOption?.(option.id) ?? false} onCommand={onCommand} onFontChange={onFontChange} onFontSizeChange={onFontSizeChange} onColorChange={onColorChange} onUnderlineChange={onUnderlineChange} onValueCommand={onValueCommand} currentFontFamily={currentFontFamily}/></div>) }
           </div>
           <span className="word-ribbon-group-name">{group.label}</span>
+          {group.launcher && <button type="button" data-ribbon-option={group.launcher.id} className="word-ribbon-group-launcher" aria-label={group.launcher.label} title={group.launcher.label} disabled={preview} onMouseDown={event => event.preventDefault()} onClick={() => onCommand?.(group.launcher!.id)}><GroupLauncherIcon/></button>}
         </section>)}
       </div>
     </div>
@@ -148,7 +161,6 @@ function RibbonIcon({ id }: { id: string }) {
   const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.55, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if(id==="undo")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="M7 8H3V4"/><path d="M3.5 14a8 8 0 1 0 2-9L3 8"/></svg>;
   if(id==="redo")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="M17 8h4V4"/><path d="M20.5 14a8 8 0 1 1-2-9l3 3"/></svg>;
-  if(id==="fontDialog")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="m4 17 5-13h2l5 13M6.5 12h7"/><path d="m15 19 2 2 4-4"/></svg>;
   if(id==="highlightColor")return <svg viewBox="0 0 24 24" aria-hidden {...stroke}><path d="m5 15 9-9 4 4-9 9H5z" fill="#fff"/><path d="m13 7 4 4M3 21h13" stroke="#d0b800" strokeWidth="2.5"/></svg>;
   if(id==="fontColor")return <svg viewBox="0 0 24 24" aria-hidden><text x="12" y="17" textAnchor="middle" fontFamily="Segoe UI,Arial" fontSize="18" fontWeight="600">A</text><path d="M4 21h16" stroke="#c00000" strokeWidth="3"/></svg>;
   if (["increaseFontSize","decreaseFontSize"].includes(id)) return <svg viewBox="0 0 24 24" aria-hidden><text x="4" y="18" fontFamily="Segoe UI,Arial" fontSize="16" fontWeight="600">A</text><path d={id==="increaseFontSize"?"m15 10 3-3 3 3M18 7v9":"m15 13 3 3 3-3M18 7v9"} {...stroke}/></svg>;
