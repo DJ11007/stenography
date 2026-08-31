@@ -458,6 +458,7 @@ ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-ite
 
 /* Word Efficiency document surface: line-number gutter and thumbnail previews. */
 .word-document-page { counter-reset: word-line-number; }
+.word-document-page.cursor-format-painter, .word-document-page.cursor-format-painter * { cursor: cell !important; }
 .word-document-page p.editor-line-numbers { position: relative; counter-increment: word-line-number; }
 .word-document-page p.editor-line-numbers::before { content: counter(word-line-number); position: absolute; left: -2.5em; width: 2em; color: #94a3b8; font-size: .75em; text-align: right; }
 .word-thumbnail-page { position: relative; overflow: hidden; border: 1px solid #cbd5e1; background: #fff; box-shadow: 0 1px 3px rgb(15 23 42 / .12); cursor: pointer; }

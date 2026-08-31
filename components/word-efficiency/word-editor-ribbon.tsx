@@ -83,6 +83,12 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if (["highlightColor", "fontColor", "shading"].includes(option.id)) return <ColorSplitButton option={option} preview={preview} swatch={swatch} setSwatch={setSwatch} onChange={onColorChange}/>;
   if (option.id === "pageColor") return <label data-ribbon-option={option.id} className="word-ribbon-tool word-ribbon-color" title={option.label} aria-disabled={preview}><span className="word-ribbon-color-icon"><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></span><span>{option.label}</span><input aria-label={option.label} disabled={preview} type="color" onChange={event => { setSwatch(event.target.value); onColorChange?.(option.id, event.target.value); }}/></label>;
   if(option.id==="underline")return <UnderlineSplitButton preview={preview} active={active} onChange={onUnderlineChange}/>;
+  // Real Word: a single click on Format Painter copies formatting for one
+  // use; a double click keeps it active for repeated use. A plain onClick
+  // handler already receives event.detail===2 on the second click of a
+  // double-click (browsers set this for any click listener, not just
+  // dblclick), so no separate dblclick listener is needed here.
+  if(option.id==="formatPainter"){const disabled=preview||Boolean(option.unsupported);return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-pressed={active||undefined} disabled={disabled} title={option.unsupported??option.label} onMouseDown={event=>{if(!disabled)event.preventDefault()}} onClick={event=>{if(!disabled)onCommand?.(event.detail>=2?"formatPainterSticky":"formatPainter")}}><RibbonIcon id={option.id}/><span>{option.label}</span></button>}
   if(option.id==="changeCase")return <GalleryMenu option={option} preview={preview} items={CASE_ITEMS} onPick={value=>onValueCommand?.("changeCase",value)}/>;
   if(option.id==="bullets")return <GalleryMenu option={option} preview={preview} items={BULLET_ITEMS} onPick={value=>onValueCommand?.("bullets",value)}/>;
   if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} onPick={value=>onValueCommand?.("numbering",value)}/>;
