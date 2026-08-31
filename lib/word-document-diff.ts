@@ -60,7 +60,7 @@ function normalizedRunField(run: JsonRecord, field: string): unknown {
   const value = run[field];
   return BOOLEAN_RUN_FIELDS.has(field) ? Boolean(value) : (value ?? null);
 }
-const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "listStyle", "specialIndentMode", "specialIndentAmount"] as const;
+const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "dropCapLines", "dropCapDistance", "dropCapMargin", "listStyle", "specialIndentMode", "specialIndentAmount"] as const;
 const TABLE_ATTR_FIELDS = ["tableLayout"] as const;
 const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"] as const;
 
@@ -72,6 +72,7 @@ function fieldLabel(field: string): string {
     marginLeft: "left indent", marginRight: "right indent", marginTop: "space before", marginBottom: "space after", lineHeight: "line spacing",
     backgroundColor: "shading", border: "border", hyphens: "hyphenation", lineNumbers: "line numbers", dropCap: "drop cap", listStyle: "list style",
     specialIndentMode: "special indent", specialIndentAmount: "special indent amount", tableLayout: "table AutoFit behavior",
+    dropCapLines: "drop cap lines to drop", dropCapDistance: "drop cap distance from text", dropCapMargin: "drop cap in margin",
   };
   return labels[field] ?? field;
 }

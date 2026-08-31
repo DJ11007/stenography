@@ -265,11 +265,11 @@ test("change case, list styles, line spacing, shading, and borders drive real Of
 
 test("margins, watermark, page color, columns, page size, symbol, and table insert/edit drive an in-app dialog instead of window.prompt",async()=>{
   const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
-  assert.match(editor,/margins:\(\)=>setDialog\(\{kind:"margins"/);
+  assert.match(editor,/if\(id==="marginsAction"\)\{if\(value==="custom"\)setDialog\(\{kind:"margins"/);
   assert.match(editor,/watermark:\(\)=>setDialog\(\{kind:"watermark"/);
   assert.match(editor,/pageColor:\(\)=>setDialog\(\{kind:"pageColor"/);
-  assert.match(editor,/columns:\(\)=>setDialog\(\{kind:"columns"/);
-  assert.match(editor,/pageSize:\(\)=>setDialog\(\{kind:"pageSize"/);
+  assert.match(editor,/if\(id==="columnsAction"\)\{if\(value==="custom"\)setDialog\(\{kind:"columns"/);
+  assert.match(editor,/if\(id==="pageSizeAction"\)\{if\(value==="custom"\)setDialog\(\{kind:"pageSize"/);
   assert.match(editor,/symbol:\(\)=>setDialog\(\{kind:"symbol"\}\)/);
   assert.match(editor,/insertTable:\(\)=>setDialog\(\{kind:"insertTable"\}\)/);
   assert.match(editor,/tableRowsColumns:\(\)=>openTableEditDialog\(\)/);

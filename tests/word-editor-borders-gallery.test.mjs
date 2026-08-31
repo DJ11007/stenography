@@ -25,6 +25,6 @@ test("a saved border (per-side keyword or legacy raw CSS) round-trips: makeBlock
 
 test("border values remain plain, length-bounded strings, so this change needed no schema or capability migration on either the client or Postgres validator", async () => {
   const clientValidator = await read("lib/word-editor-document.ts");
-  assert.match(clientValidator, /if \(\["lineNumbers", "dropCap"\]\.includes\(key\) && typeof item !== "boolean"\)/);
+  assert.match(clientValidator, /if \(\["lineNumbers", "dropCap", "dropCapMargin"\]\.includes\(key\) && typeof item !== "boolean"\)/);
   assert.doesNotMatch(clientValidator, /"top"|"bottom"|"outside"/); // no new enum was added for border -- it stays a free-form bounded string
 });

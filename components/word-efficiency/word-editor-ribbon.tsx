@@ -95,6 +95,11 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="multilevelList")return <GalleryMenu option={option} preview={preview} items={MULTILEVEL_ITEMS} onPick={value=>onValueCommand?.("multilevelList",value)}/>;
   if(option.id==="lineSpacing")return <GalleryMenu option={option} preview={preview} items={SPACING_ITEMS} onPick={value=>onValueCommand?.("lineSpacing",value)} actions={SPACING_ACTIONS} onAction={id=>onValueCommand?.("lineSpacingAction",id)}/>;
   if(option.id==="borders")return <GalleryMenu option={option} preview={preview} items={BORDER_ITEMS} onPick={value=>onValueCommand?.("borders",value)} actions={BORDER_ACTIONS} onAction={id=>onValueCommand?.("borders",id)}/>;
+  if(option.id==="dropCap")return <GalleryMenu option={option} preview={preview} items={DROP_CAP_ITEMS} onPick={value=>onValueCommand?.("dropCap",value)} actions={DROP_CAP_ACTIONS} onAction={id=>onValueCommand?.("dropCapAction",id)}/>;
+  if(option.id==="margins")return <GalleryMenu option={option} preview={preview} items={MARGIN_PRESETS} onPick={value=>onValueCommand?.("margins",value)} actions={MARGIN_ACTIONS} onAction={id=>onValueCommand?.("marginsAction",id)}/>;
+  if(option.id==="orientation")return <GalleryMenu option={option} preview={preview} items={ORIENTATION_ITEMS} onPick={value=>onValueCommand?.("orientation",value)}/>;
+  if(option.id==="pageSize")return <GalleryMenu option={option} preview={preview} items={PAGE_SIZE_ITEMS} onPick={value=>onValueCommand?.("pageSize",value)} actions={PAGE_SIZE_ACTIONS} onAction={id=>onValueCommand?.("pageSizeAction",id)}/>;
+  if(option.id==="columns")return <GalleryMenu option={option} preview={preview} items={COLUMN_ITEMS} onPick={value=>onValueCommand?.("columns",value)} actions={COLUMN_ACTIONS} onAction={id=>onValueCommand?.("columnsAction",id)}/>;
   const disabled = preview || Boolean(option.unsupported);
   return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-description={option.unsupported} aria-haspopup={option.menu ? "menu" : undefined} aria-pressed={active || undefined} disabled={disabled} title={option.unsupported ?? option.label} onMouseDown={event => { if (!disabled) event.preventDefault(); }} onClick={() => onCommand?.(option.id === "zoom" ? "zoom100" : option.id)}><RibbonIcon id={option.id}/><span>{option.label}{option.menu && <i aria-hidden>▾</i>}</span></button>;
 }
@@ -149,7 +154,31 @@ const CASE_ITEMS=[{value:"sentence",label:"Sentence case."},{value:"lower",label
 const BULLET_ITEMS=[{value:"none",label:"None",swatch:""},{value:"bullet-disc",label:"Filled round bullets",swatch:"•"},{value:"bullet-circle",label:"Hollow round bullets",swatch:"○"},{value:"bullet-square",label:"Filled square bullets",swatch:"■"},{value:"bullet-diamond",label:"Diamond bullets",swatch:"◆"},{value:"bullet-arrow",label:"Arrow bullets",swatch:"➤"},{value:"bullet-check",label:"Checkmark bullets",swatch:"✓"}];
 const NUMBER_ITEMS=[{value:"none",label:"None",swatch:""},{value:"decimal",label:"1.  2.  3.",swatch:"1."},{value:"decimal-paren",label:"1)  2)  3)",swatch:"1)"},{value:"upper-roman",label:"I.  II.  III.",swatch:"I."},{value:"upper-alpha",label:"A.  B.  C.",swatch:"A."},{value:"lower-alpha-paren",label:"a)  b)  c)",swatch:"a)"},{value:"lower-alpha",label:"a.  b.  c.",swatch:"a."},{value:"lower-roman",label:"i.  ii.  iii.",swatch:"i."}];
 const MULTILEVEL_ITEMS=NUMBER_ITEMS;
-const GALLERY_NOTES:Record<string,string>={multilevelList:"This editor supports one numbering level per list, not nested outline levels."};
+const GALLERY_NOTES:Record<string,string>={multilevelList:"This editor supports one numbering level per list, not nested outline levels.",columns:"Left/Right unequal columns aren't supported in this exam tool — only equal-width columns."};
+const DROP_CAP_ITEMS=[{value:"none",label:"None"},{value:"dropped",label:"Dropped"},{value:"margin",label:"In margin"}];
+const DROP_CAP_ACTIONS=[{id:"options",label:"Drop Cap Options…"}];
+const MARGIN_PRESETS=[
+ {value:"normal",label:"Normal — Top/Bottom 2.54 cm, Left/Right 2.54 cm"},
+ {value:"narrow",label:"Narrow — all sides 1.27 cm"},
+ {value:"moderate",label:"Moderate — Top/Bottom 2.54 cm, Left/Right 1.91 cm"},
+ {value:"wide",label:"Wide — Top/Bottom 2.54 cm, Left/Right 5.08 cm"},
+ {value:"mirrored",label:"Mirrored — Top/Bottom 2.54 cm, Inside 3.18 cm, Outside 2.54 cm"},
+ {value:"office2003",label:"Office 2003 Default — Top/Bottom 2.54 cm, Left/Right 3.18 cm"},
+];
+const MARGIN_ACTIONS=[{id:"custom",label:"Custom Margins…"}];
+const ORIENTATION_ITEMS=[{value:"portrait",label:"Portrait"},{value:"landscape",label:"Landscape"}];
+const PAGE_SIZE_ITEMS=[
+ {value:"letter",label:"Letter — 21.59 × 27.94 cm"},
+ {value:"legal",label:"Legal — 21.59 × 35.56 cm"},
+ {value:"statement",label:"Statement — 13.97 × 21.59 cm"},
+ {value:"executive",label:"Executive — 18.41 × 26.67 cm"},
+ {value:"a4",label:"A4 — 21 × 29.7 cm"},
+ {value:"a5",label:"A5 — 14.8 × 21 cm"},
+ {value:"b5",label:"B5 (JIS) — 18.2 × 25.7 cm"},
+];
+const PAGE_SIZE_ACTIONS=[{id:"custom",label:"More Paper Sizes…"}];
+const COLUMN_ITEMS=[{value:"1",label:"One"},{value:"2",label:"Two"},{value:"3",label:"Three"}];
+const COLUMN_ACTIONS=[{id:"custom",label:"More Columns…"}];
 const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
 const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];
 const BORDER_ITEMS=[{value:"bottom",label:"Bottom Border"},{value:"top",label:"Top Border"},{value:"left",label:"Left Border"},{value:"right",label:"Right Border"},{value:"none",label:"No Border"},{value:"all",label:"All Borders"},{value:"outside",label:"Outside Borders"}];

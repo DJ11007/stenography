@@ -16,7 +16,7 @@ const PAGE_LAYOUT_KEYS = new Set(["padding", "maxWidth", "aspectRatio", "columnC
 const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "marginTop", "marginBottom", "border", "backgroundColor", "hyphens"]);
 export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle", "bullet-square", "bullet-diamond", "bullet-arrow", "bullet-check", "decimal", "decimal-paren", "upper-roman", "upper-alpha", "lower-alpha-paren", "lower-alpha", "lower-roman"]);
 const ATTRS: Record<string, Set<string>> = {
-  paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap", "specialIndentMode", "specialIndentAmount"]),
+  paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap", "specialIndentMode", "specialIndentAmount", "dropCapLines", "dropCapDistance", "dropCapMargin"]),
   "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle", "specialIndentMode", "specialIndentAmount"]),
   table: new Set(["rows", "tableLayout"]), image: new Set(["src", "alt", "width", "height", "localAsset"]),
   "page-break": new Set(["kind"]), "section-break": new Set(["kind"]),
@@ -83,7 +83,7 @@ function validatePageLayout(value: unknown) {
   if (!object(value) || !exact(value, PAGE_LAYOUT_KEYS)) throw new Error("Invalid page layout.");
   for (const [key, item] of Object.entries(value)) if (!nullableString(item, key === "watermark" ? 40 : 100)) throw new Error(`Invalid page layout ${key}.`);
   if (typeof value.padding === "string" && !MARGIN_PATTERN.test(value.padding)) throw new Error("Invalid page margins.");
-  if (typeof value.columnCount === "string" && !/^[1-3]$/.test(value.columnCount)) throw new Error("Invalid page columns.");
+  if (typeof value.columnCount === "string" && !/^[1-6]$/.test(value.columnCount)) throw new Error("Invalid page columns.");
   if (typeof value.backgroundColor === "string" && !/^(?:#[0-9A-Fa-f]{6}|[0-9A-Fa-f]{6})$/.test(value.backgroundColor)) throw new Error("Invalid page color.");
 }
 function validateRunLinkFields(run: JsonObject) {
@@ -106,11 +106,13 @@ function validateAttrs(value: unknown, type: string) {
     return { count: 1, bytes };
   } else {
     for (const [key, item] of Object.entries(value)) {
-      if (["lineNumbers", "dropCap"].includes(key) && typeof item !== "boolean") throw new Error(`Invalid ${key} attribute.`);
+      if (["lineNumbers", "dropCap", "dropCapMargin"].includes(key) && typeof item !== "boolean") throw new Error(`Invalid ${key} attribute.`);
       if (key === "listStyle" && !WORD_LIST_STYLES.has(String(item))) throw new Error("Invalid list style.");
       if (key === "kind" && !["page", "blank-page", "section-next-page", "section-continuous"].includes(String(item))) throw new Error("Invalid break type.");
       if (key === "specialIndentMode" && !["none", "firstLine", "hanging"].includes(String(item))) throw new Error("Invalid special indent mode.");
-      if (!["lineNumbers", "dropCap"].includes(key) && item !== null && typeof item !== "string") throw new Error(`Invalid ${key} attribute.`);
+      if (key === "dropCapLines" && (typeof item !== "number" || !Number.isFinite(item) || item < 1 || item > 10)) throw new Error("Invalid drop cap lines.");
+      if (key === "dropCapDistance" && (typeof item !== "number" || !Number.isFinite(item) || item < 0 || item > 2)) throw new Error("Invalid drop cap distance.");
+      if (!["lineNumbers", "dropCap", "dropCapMargin", "dropCapLines", "dropCapDistance"].includes(key) && item !== null && typeof item !== "string") throw new Error(`Invalid ${key} attribute.`);
       if (typeof item === "string" && item.length > 100) throw new Error(`Invalid ${key} attribute.`);
     }
   }
