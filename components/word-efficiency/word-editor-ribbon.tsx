@@ -31,12 +31,14 @@ const MESSAGE_BAR_OPTION: RibbonOption = { id: "messageBar", label: "Message Bar
 const THUMBNAILS_OPTION: RibbonOption = { id: "thumbnails", label: "Thumbnails", icon: "thumbnails", kind: "button" };
 const ZOOM_OPTION: RibbonOption = { id: "zoom", label: "Zoom", icon: "zoom", kind: "button" };
 const PAGE_WIDTH_OPTION: RibbonOption = { id: "pageWidth", label: "Page Width", icon: "pageWidth", kind: "button" };
-// Real Word doesn't show its "Font..." command as just another icon in the
-// group's icon grid -- it renders as a small dialog-box launcher pinned to
-// the group's bottom-right corner, next to the group name. This keeps the
-// same fontDialog command ID/capability (no migration needed) but moves its
-// rendering out of the icon grid and into that corner slot instead.
-const GROUP_LAUNCHER_OPTION_ID = "fontDialog";
+// Real Word doesn't show its "Font..."/"Paragraph..." commands as just
+// another icon in the group's icon grid -- each renders as a small
+// dialog-box launcher pinned to the group's bottom-right corner, next to
+// the group name. This keeps the same command ID/capability for each (no
+// migration needed for the Font one; the Paragraph one is a genuinely new
+// command) but moves its rendering out of the icon grid and into that
+// corner slot instead.
+const GROUP_LAUNCHER_OPTION_IDS: Record<string, string> = { font: "fontDialog", paragraph: "paragraphDialog" };
 function GroupLauncherIcon() { return <svg viewBox="0 0 11 11" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5v3M1.5 1.5h3M1.5 1.5 9.5 9.5"/><path d="M9.5 5.5v4h-4"/></svg>; }
 
 export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily }: Props) {
@@ -48,9 +50,10 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
     let options = group.options.filter(option => configured.options[option.id]);
     if (definition.id === "Home" && group.id === "font" && CLEAR_FORMAT_DEPENDENCIES.every(id => configured.options[id])) options.splice(5, 0, CLEAR_FORMAT_OPTION);
     let launcher: RibbonOption | undefined;
-    if (definition.id === "Home" && group.id === "font") {
-      launcher = options.find(item => item.id === GROUP_LAUNCHER_OPTION_ID);
-      options = options.filter(item => item.id !== GROUP_LAUNCHER_OPTION_ID);
+    const launcherId = definition.id === "Home" ? GROUP_LAUNCHER_OPTION_IDS[group.id] : undefined;
+    if (launcherId) {
+      launcher = options.find(item => item.id === launcherId);
+      options = options.filter(item => item.id !== launcherId);
     }
     return { ...group, options: definition.id === "View" ? expandViewOptions(group.id, options) : options, launcher };
   }).filter(group => capabilities.tabs[definition.id].groups[group.id].enabled && group.options.length > 0) ?? [];
