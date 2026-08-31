@@ -42,7 +42,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   };
 
   return (
-    <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,1fr)]">
+    <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(320px,1fr)]">
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow">
         <RichDocumentEditor
           attemptId={versionId}

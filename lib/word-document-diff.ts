@@ -116,12 +116,20 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
   }
   afterRuns.forEach((run, index) => {
     const beforeRun = beforeRuns[index] ?? {};
+    // A paragraph is frequently more than one run (e.g. bolding only part of
+    // a sentence), so two different runs in the same paragraph can easily
+    // pick up the exact same field change (both set to font size 16, say).
+    // Without a text snippet those show up as identical-looking rows in the
+    // Model Answer diff panel -- they're genuinely separate grading targets,
+    // not a duplicate, so the label needs to say which text each one is.
+    const runText = typeof run.text === "string" ? run.text.trim() : "";
+    const snippet = runText ? ` ("${runText.length > 24 ? `${runText.slice(0, 24)}…` : runText}")` : "";
     for (const field of RUN_FIELDS) {
       const beforeValue = normalizedRunField(beforeRun, field);
       const afterValue = normalizedRunField(run, field);
       if (!equalValue(beforeValue, afterValue)) {
         const preview = field === "text" ? `"${String(afterValue)}"` : String(afterValue);
-        changes.push({ target: `blocks.${id}.runs.${index}.${field}`, expectedValue: afterValue, label: `Paragraph ${position}: ${fieldLabel(field)} changed to ${preview}`, blockPosition: position });
+        changes.push({ target: `blocks.${id}.runs.${index}.${field}`, expectedValue: afterValue, label: `Paragraph ${position}${field === "text" ? "" : snippet}: ${fieldLabel(field)} changed to ${preview}`, blockPosition: position });
       }
     }
   });
