@@ -322,10 +322,10 @@ test("line spacing gallery exposes extra actions and Find/Replace opens a real d
   assert.match(shared,/SPACING_ACTIONS=\[\{id:"options",label:"Line Spacing Options…"\}/);
   assert.match(shared,/actions=\{SPACING_ACTIONS\} onAction=\{id=>onValueCommand\?\.\("lineSpacingAction",id\)\}/);
   assert.match(editor,/kind:"lineSpacingOptions";before:string;after:string/);
-  assert.match(editor,/kind:"findReplace";mode:"find"\|"replace";query:string;replacement:string/);
+  assert.match(editor,/kind:"findReplace";mode:"find"\|"replace"\|"goto";query:string;replacement:string/);
   assert.match(editor,/function LineSpacingOptionsForm/);
   assert.match(editor,/function FindReplaceForm/);
-  assert.match(editor,/const find=\(replace:boolean\)=>setDialog\(\{kind:"findReplace"/);
+  assert.match(editor,/const find=\(replace:boolean\)=>\{[\s\S]*?setDialog\(\{kind:"findReplace"/);
   assert.match(editor,/const runFindNext=/);
   assert.match(editor,/const runReplaceOne=/);
   assert.match(editor,/const runReplaceAll=/);
