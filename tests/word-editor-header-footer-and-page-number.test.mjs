@@ -30,21 +30,26 @@ test("the gallery offers Edit/Remove/Save Selection to Gallery, matching the rea
   assert.match(editor, /const saveCustomHeaderFooterStyle=\(which:"header"\|"footer"\)=>\{/);
 });
 
-test("a real Header & Footer Tools contextual bar appears while editing a header or footer, mirroring the existing Table Tools bar pattern", async () => {
+test("a real Header & Footer Tools > Design contextual ribbon tab appears and auto-selects while editing a header or footer, matching real Word instead of a flat toolbar bar", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /insideHeaderFooter&&!submitted&&<div role="toolbar" aria-label="Header & Footer Tools"/);
-  assert.match(editor, /Go to Footer/);
-  assert.match(editor, /Go to Header/);
+  assert.match(editor, /extraTab=\{hfKind\?\{id:"hf-design",label:"Design",contextLabel:"Header & Footer Tools",groups:headerFooterToolsGroups\}:undefined\}/);
+  assert.match(editor, /extraTabActive=\{headerFooterToolsSelected\}/);
+  assert.match(editor, /if\(nowInside&&!wasInsideHeaderFooter\.current\)setHeaderFooterToolsSelected\(true\)/);
+  assert.match(editor, /if\(!nowInside&&wasInsideHeaderFooter\.current\)setHeaderFooterToolsSelected\(false\)/);
+  assert.match(editor, /Go to \{hfKind==="header"\?"Footer":"Header"\}/);
   assert.match(editor, /Show Document Text/);
   assert.match(editor, /Close Header and Footer/);
   assert.match(editor, /const closeHeaderFooter=\(\)=>\{/);
+  const ribbon = await read("components/word-efficiency/word-editor-ribbon.tsx");
+  assert.match(ribbon, /extraTab\?: \{ id: string; label: string; contextLabel: string; groups: ReactNode \}/);
+  assert.match(ribbon, /word-ribbon-context-banner/);
 });
 
 test("Different First Page and Different Odd & Even Pages are shown but honestly disabled -- this tool has no real page-by-page pagination to back them", async () => {
   const editor = await read(EDITOR);
   const reason = "Requires true multi-page pagination, which this exam tool doesn't model.";
-  assert.match(editor, new RegExp(`disabled title="${reason.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"[^>]*>Different First Page`));
-  assert.match(editor, new RegExp(`disabled title="${reason.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"[^>]*>Different Odd &amp; Even Pages`));
+  assert.match(editor, new RegExp(`title="${reason.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"><input type="checkbox" disabled/>Different First Page`));
+  assert.match(editor, new RegExp(`title="${reason.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"><input type="checkbox" disabled/>Different Odd &amp; Even Pages`));
 });
 
 test("Header from Top / Footer from Bottom genuinely adjust the header/footer element's own spacing, reusing the marginTop/marginBottom attrs the schema already validates", async () => {

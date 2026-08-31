@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   WORD_EDITOR_RIBBON,
@@ -23,6 +23,17 @@ type Props = {
   onUnderlineChange?: (style: string, color?: string) => void;
   onValueCommand?: (id: string, value: string) => void;
   currentFontFamily?: string;
+  // A contextual tab (e.g. Word's "Header & Footer Tools > Design") that
+  // isn't part of the fixed, capability-gated WORD_EDITOR_RIBBON set --
+  // it appears/disappears based on live editing state (cursor inside a
+  // header/footer), not admin configuration, so it's driven entirely by
+  // the caller instead of the capabilities schema. Passing it in renders
+  // one extra tab button, styled like Word's contextual-tab banner+tab
+  // pairing; the caller controls both whether it's selected and its panel
+  // content.
+  extraTab?: { id: string; label: string; contextLabel: string; groups: ReactNode };
+  extraTabActive?: boolean;
+  onExtraTabSelect?: () => void;
 };
 
 const CLEAR_FORMAT_DEPENDENCIES = ["fontName", "fontSize", "bold", "italic", "underline", "strikeThrough", "subscript", "superscript", "textEffects", "highlightColor", "fontColor"] as const;
@@ -41,7 +52,7 @@ const PAGE_WIDTH_OPTION: RibbonOption = { id: "pageWidth", label: "Page Width", 
 const GROUP_LAUNCHER_OPTION_IDS: Record<string, string> = { font: "fontDialog", paragraph: "paragraphDialog" };
 function GroupLauncherIcon() { return <svg viewBox="0 0 11 11" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5v3M1.5 1.5h3M1.5 1.5 9.5 9.5"/><path d="M9.5 5.5v4h-4"/></svg>; }
 
-export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily }: Props) {
+export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily, extraTab, extraTabActive, onExtraTabSelect }: Props) {
   const visibleTabs = WORD_EDITOR_RIBBON.filter(tab => capabilities.tabs[tab.id].enabled);
   const selectedTab = visibleTabs.some(tab => tab.id === activeTab) ? activeTab : visibleTabs[0]?.id;
   const definition = WORD_EDITOR_RIBBON.find(tab => tab.id === selectedTab);
@@ -59,10 +70,14 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
   }).filter(group => capabilities.tabs[definition.id].groups[group.id].enabled && group.options.length > 0) ?? [];
 
   return <div className="word-office-ribbon" data-preview={preview || undefined}>
+    {extraTab && extraTabActive && <div className="word-ribbon-context-banner">{extraTab.contextLabel}</div>}
     <div role="tablist" aria-label={preview ? "Capability preview tabs" : "Document editor ribbon"} className="word-ribbon-tabs">
-      {visibleTabs.map(tab => <button key={tab.id} type="button" role="tab" data-tab-id={tab.id} aria-selected={selectedTab === tab.id} aria-controls={`ribbon-${tab.id.replaceAll(" ", "-")}`} onClick={() => onTabChange(tab.id)} onKeyDown={event => navigateTabs(event, tab.id, visibleTabs.map(item => item.id), onTabChange)}>{tab.id.toUpperCase()}</button>)}
+      {visibleTabs.map(tab => <button key={tab.id} type="button" role="tab" data-tab-id={tab.id} aria-selected={!extraTabActive && selectedTab === tab.id} aria-controls={`ribbon-${tab.id.replaceAll(" ", "-")}`} onClick={() => onTabChange(tab.id)} onKeyDown={event => navigateTabs(event, tab.id, visibleTabs.map(item => item.id), onTabChange)}>{tab.id.toUpperCase()}</button>)}
+      {extraTab && <button type="button" role="tab" data-tab-id={extraTab.id} aria-selected={Boolean(extraTabActive)} aria-controls={`ribbon-${extraTab.id}`} className="word-ribbon-extra-tab" onClick={onExtraTabSelect}>{extraTab.label.toUpperCase()}</button>}
     </div>
-    <div id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel">
+    {extraTab && extraTabActive ? <div id={`ribbon-${extraTab.id}`} role="tabpanel" aria-label={`${extraTab.label} tools`} className="word-ribbon-panel">
+      <div className="word-ribbon-groups">{extraTab.groups}</div>
+    </div> : <div id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel">
       <div className="word-ribbon-groups">
         {groups.map(group => <section key={group.id} data-ribbon-group={group.id} className="word-ribbon-group">
           <div className="word-ribbon-options">
@@ -72,7 +87,7 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
           {group.launcher && <button type="button" data-ribbon-option={group.launcher.id} className="word-ribbon-group-launcher" aria-label={group.launcher.label} title={group.launcher.label} disabled={preview} onMouseDown={event => event.preventDefault()} onClick={() => onCommand?.(group.launcher!.id)}><GroupLauncherIcon/></button>}
         </section>)}
       </div>
-    </div>
+    </div>}
   </div>;
 }
 
