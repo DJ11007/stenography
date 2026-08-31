@@ -28,6 +28,16 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
 
   const assignedCount = Object.values(resolvedAssignment).filter((value) => value !== "").length;
 
+  // The old design put a full "assign to question" dropdown on every single
+  // detected change -- technically complete, but it asked the admin to
+  // think about all N questions at once, N times over. This tracks one
+  // "question I'm currently answering" instead, so grading a change is a
+  // single click: pick the question once, then click every change that
+  // belongs to it. Defaults to the first question so there's always
+  // something to click into immediately.
+  const [activeQuestion, setActiveQuestion] = useState<number | null>(null);
+  const selectedQuestion = activeQuestion !== null && questions.some((question) => question.number === activeQuestion) ? activeQuestion : (questions[0]?.number ?? null);
+
   const generate = async () => {
     setPending(true);
     setMessage(null);
@@ -64,25 +74,32 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
         <h2 className="text-lg font-black">Detected changes</h2>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-600">
           <li>Solve a question in the document on the left (e.g. make a paragraph bold).</li>
-          <li>Click <strong>"Save Model Answer"</strong> — every change you made shows up below, one row per change.</li>
-          <li>Pick which question each change answers from its dropdown.</li>
-          <li>Click <strong>"Generate Grading Rules"</strong> — a student only earns that question's marks if their submission matches every change you assigned to it, exactly.</li>
+          <li>Click <strong>"Save Model Answer"</strong> — every change you made shows up below.</li>
+          <li>Pick the question you're answering, then click each change that answers it.</li>
+          <li>Click <strong>"Generate Grading Rules"</strong> once everything is assigned — a student only earns that question's marks if their submission matches every change you assigned to it, exactly.</li>
         </ol>
         {!beforeSnapshot && <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Loading the original document…</p>}
         {Boolean(beforeSnapshot) && !changes.length && <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">No changes detected yet. Solve a question, then click "Save Model Answer" to detect what changed.</p>}
-        <div className="mt-4 max-h-[50dvh] space-y-2 overflow-y-auto">
-          {changes.map((change, index) => (
-            <div key={`${change.target}-${index}`} className="rounded-xl border border-slate-200 p-3">
-              <p className="text-sm text-slate-800">{change.label}</p>
-              <label className="mt-2 block text-xs font-bold text-slate-500">
-                Assign to question
-                <select className="input mt-1 w-full" value={resolvedAssignment[index] ?? ""} onChange={(event) => setAssignment((current) => ({ ...current, [index]: event.target.value === "" ? "" : Number(event.target.value) }))}>
-                  <option value="">— Not part of any question —</option>
-                  {questions.map((question) => <option key={question.id} value={question.number}>Question {question.number} ({question.marks} marks)</option>)}
-                </select>
-              </label>
+        {!questions.length && <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">Add at least one question to this test before assigning changes.</p>}
+        {Boolean(changes.length && questions.length) && <>
+          <div className="mt-4">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Step 1 — which question are you answering?</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {questions.map((question) => <button key={question.id} type="button" onClick={() => setActiveQuestion(question.number)} aria-pressed={selectedQuestion === question.number} className={`rounded-full px-3 py-1.5 text-xs font-black ${selectedQuestion === question.number ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>Q{question.number} ({question.marks} marks)</button>)}
             </div>
-          ))}
+          </div>
+          <p className="mt-4 text-xs font-black uppercase tracking-wide text-slate-500">Step 2 — click every change below that answers Q{selectedQuestion}</p>
+        </>}
+        <div className="mt-2 max-h-[50dvh] space-y-2 overflow-y-auto">
+          {changes.map((change, index) => {
+            const assignedTo = resolvedAssignment[index];
+            const isHere = selectedQuestion !== null && assignedTo === selectedQuestion;
+            const isElsewhere = assignedTo !== "" && assignedTo !== selectedQuestion;
+            return <button key={`${change.target}-${index}`} type="button" disabled={selectedQuestion === null} onClick={() => setAssignment((current) => ({ ...current, [index]: isHere ? "" : (selectedQuestion as number) }))} aria-pressed={isHere} className={`block w-full rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-60 ${isHere ? "border-blue-600 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+              <p className="text-sm text-slate-800">{change.label}</p>
+              <p className={`mt-1 text-xs font-bold ${isHere ? "text-blue-700" : isElsewhere ? "text-amber-700" : "text-slate-400"}`}>{isHere ? `✓ Assigned to Q${selectedQuestion}` : isElsewhere ? `Currently assigned to Q${assignedTo} — click to move to Q${selectedQuestion}` : selectedQuestion === null ? "Add a question first" : `Not assigned — click to assign to Q${selectedQuestion}`}</p>
+            </button>;
+          })}
         </div>
         {changes.length > 0 && (
           <div className="mt-5 border-t pt-4">

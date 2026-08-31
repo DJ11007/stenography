@@ -51,6 +51,24 @@ test("the main admin test list links to the Model Answer page per test", async (
   assert.match(page, /Model Answer/);
 });
 
+test("assigning a detected change to a question is a single click against the currently selected question, not a per-row dropdown", async () => {
+  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
+  // The old per-row <select> is gone entirely.
+  assert.doesNotMatch(editor, /Assign to question/);
+  assert.doesNotMatch(editor, /<select className="input mt-1 w-full"/);
+  // A question is picked once (Step 1), then every change is a toggle button
+  // against that selection (Step 2) -- not one dropdown per change.
+  assert.match(editor, /which question are you answering/);
+  assert.match(editor, /click every change below that answers/);
+  assert.match(editor, /onClick=\{\(\) => setActiveQuestion\(question\.number\)\}/);
+  assert.match(editor, /onClick=\{\(\) => setAssignment\(\(current\) => \(\{ \.\.\.current, \[index\]: isHere \? "" : \(selectedQuestion as number\) \}\)\)\}/);
+});
+
+test("a change already assigned to a different question is shown as movable, not silently overwritten or hidden", async () => {
+  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
+  assert.match(editor, /Currently assigned to Q\$\{assignedTo\} — click to move to Q\$\{selectedQuestion\}/);
+});
+
 test("the migration's additional_criteria column and evaluator ship together with the model answer save RPC", async () => {
   const migration = await read("supabase/migrations/202608280039_word_efficiency_model_answer_grading.sql");
   assert.match(migration, /alter table public\.word_efficiency_grading_rules add column if not exists additional_criteria jsonb not null default '\[\]'::jsonb/);
