@@ -42,8 +42,8 @@ test("inserting a table offers an AutoFit behavior choice (fixed / to contents /
 test("Page Number opens a real position + alignment dialog instead of an unconditional insert", async () => {
   const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   assert.match(editor, /function PageNumberForm/);
-  assert.match(editor, /pageNumber:\(\)=>setDialog\(\{kind:"pageNumber",position:"bottom",alignment:"center"\}\)/);
-  assert.match(editor, /dialog\.kind==="pageNumber"&&<PageNumberForm dialog=\{dialog\} onSubmit=\{onPageNumber\}\/>/);
+  assert.match(editor, /pageNumber:\(\)=>setDialog\(\{kind:"pageNumber",position:insideHeaderFooter==="header"\?"top":"bottom",alignment:"center",style:"plain",format:"1",startAt:"1"\}\)/);
+  assert.match(editor, /dialog\.kind==="pageNumber"&&<PageNumberForm dialog=\{dialog\} onSubmit=\{onPageNumber\} onRemove=\{onRemovePageNumbers\}\/>/);
 });
 
 test("the font dialog, paragraph special indent, table AutoFit, and page-number position are all gradable via lib/word-document-diff.ts", async () => {
