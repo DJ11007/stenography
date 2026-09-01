@@ -16,13 +16,11 @@ test("active workspace puts the toolbar in the top header, ahead of the original
   assert.match(workspace, /aria-label=\{`\$\{formatTime\(timeLeft\)\} remaining`\}/);
 });
 
-test("when a preset carries dictation audio, the Original Passage panel is replaced by an adjustable-speed audio player, without disturbing non-audio presets", () => {
-  assert.match(workspace, /\{preset\.audioUrl \? <DictationAudioPanel url=\{preset\.audioUrl\}\/> : <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
-  assert.match(workspace, /function DictationAudioPanel/);
-  assert.match(workspace, /audio\.playbackRate = speed/);
-  assert.match(workspace, /preservesPitch = true/);
-  for (const label of ["Half 0.5×", "Original", "Double 2×"]) assert.ok(workspace.includes(label));
-  assert.match(workspace, /aria-label="Seek dictation audio"/);
+test("when a preset carries dictation audio, the workspace shows neither the passage nor an audio panel -- the dedicated dictation gate (a separate screen, before typing is unlocked) owns the audio player now, and the workspace itself never regains it", () => {
+  assert.doesNotMatch(workspace, /function DictationAudioPanel/);
+  assert.doesNotMatch(workspace, /const DICTATION_SPEEDS/);
+  assert.match(workspace, /\{!preset\.audioUrl && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
+  assert.match(workspace, /import \{ DictationGate \} from "\.\/dictation-gate"/);
 });
 
 test("the toolbar header also exposes a back button and a full screen toggle with a distinct exit state", () => {
@@ -41,8 +39,8 @@ test("workspace is viewport constrained with independently scrollable min-height
   assert.match(workspace, /className="min-h-0 w-full flex-1 resize-none overflow-y-auto/);
 });
 
-test("original and typing panels use equal remaining-viewport grid tracks including their headings", () => {
-  assert.match(workspace, /grid h-full min-h-0 grid-rows-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]/);
+test("original and typing panels use equal remaining-viewport grid tracks including their headings -- except for a dictation test, which drops to a single full-height typing panel since there's no passage to show", () => {
+  assert.match(workspace, /grid h-full min-h-0 overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl \$\{preset\.audioUrl \? "" : "grid-rows-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]"\}/);
   assert.equal(workspace.match(/minmax\(0,1fr\)/g)?.length, 2);
   assert.match(workspace, /<section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
   assert.match(workspace, /<section className="flex min-h-0 flex-col border-t-2 border-blue-300 bg-white" aria-labelledby="typing-passage-title">/);

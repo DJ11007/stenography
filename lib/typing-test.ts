@@ -111,6 +111,9 @@ export type ScoringProfile = {
   passNetWpm: number;
   passAccuracy: number;
   capitalizationErrors?: boolean;
+  punctuationErrors?: boolean;
+  spacingErrors?: boolean;
+  minorSpellingErrors?: boolean;
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -120,6 +123,34 @@ export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
   passNetWpm: 35,
   passAccuracy: 90,
 };
+
+// The four half-error categories a stenography dictation attempt lets the
+// student choose to have graded (missing/extra/repeated/substituted "full"
+// word errors are never optional -- a wrong word is always wrong). Shared
+// between the student-facing selection UI, the server-side re-scoring in
+// app/tests/actions.ts, and the results-page "graded for this attempt"
+// banner, so all three always agree on the same four names/labels.
+export const ALL_HALF_ERROR_CATEGORIES: HalfErrorCategory[] = ["capitalization", "punctuation", "spacing", "minorSpelling"];
+export const HALF_ERROR_CATEGORY_LABELS: Record<HalfErrorCategory, string> = { capitalization: "Capitalization", punctuation: "Punctuation", spacing: "Spacing", minorSpelling: "Minor spelling" };
+
+export function scoringProfileWithSelectedCategories(base: ScoringProfile, selected: HalfErrorCategory[]): ScoringProfile {
+  return { ...base, capitalizationErrors: selected.includes("capitalization"), punctuationErrors: selected.includes("punctuation"), spacingErrors: selected.includes("spacing"), minorSpellingErrors: selected.includes("minorSpelling") };
+}
+
+// Defaults to every category (today's unrestricted-grading behavior) for
+// any missing/malformed input -- the safe fallback for every existing
+// caller that has never heard of this selection, and for a tampered or
+// stale client payload.
+export function sanitizeSelectedCategories(value: unknown): HalfErrorCategory[] {
+  if (!Array.isArray(value)) return [...ALL_HALF_ERROR_CATEGORIES];
+  const set = new Set(value.filter((item): item is HalfErrorCategory => (ALL_HALF_ERROR_CATEGORIES as string[]).includes(item as string)));
+  return ALL_HALF_ERROR_CATEGORIES.filter((category) => set.has(category));
+}
+
+export function activeHalfErrorCategories(profile: ScoringProfile): HalfErrorCategory[] {
+  const flags: Record<HalfErrorCategory, boolean | undefined> = { capitalization: profile.capitalizationErrors, punctuation: profile.punctuationErrors, spacing: profile.spacingErrors, minorSpelling: profile.minorSpellingErrors };
+  return ALL_HALF_ERROR_CATEGORIES.filter((category) => flags[category] !== false);
+}
 
 export type ErrorCategoryCounts = {
   missing: number;
@@ -208,6 +239,24 @@ function editDistance(left: string, right: string) {
   return previous[rightUnits.length];
 }
 
+// Whether a word-pair belongs to the "half-error" family at all -- same
+// normalized core, or within the minor-spelling edit-distance threshold --
+// independent of which of its specific differences (capitalization,
+// punctuation, ...) are actually being graded right now. Used to tell
+// "this word has no differences in a graded category, so it's simply
+// correct" apart from "this word is a real full-error substitution" --
+// see halfErrorCategories()'s doc comment for why that distinction matters.
+function isWithinHalfErrorFamily(original: WordToken, typed: WordToken, maxDistance: number) {
+  return original.normalizedCore === typed.normalizedCore || editDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance;
+}
+
+// Returns only the categories that are BOTH actually present as a
+// difference AND currently graded (profile.<category>Errors !== false).
+// A category being toggled off must mean "forgive this difference", not
+// "this difference doesn't count as this category but still counts as
+// something else" -- callers combine this with isWithinHalfErrorFamily()
+// to tell "no graded difference" (forgiven, status "correct") apart from
+// "genuinely a different word" (status "substituted").
 function halfErrorCategories(
   original: WordToken,
   typed: WordToken,
@@ -216,18 +265,18 @@ function halfErrorCategories(
   const categories: HalfErrorCategory[] = [];
   if (original.normalizedCore === typed.normalizedCore) {
     if (profile.capitalizationErrors !== false && original.core !== typed.core) categories.push("capitalization");
-    if (original.punctuation !== typed.punctuation) categories.push("punctuation");
+    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
     return categories;
   }
   if (
     editDistance(original.normalizedCore, typed.normalizedCore) <=
     profile.minorSpellingMaxDistance
   ) {
-    categories.push("minorSpelling");
+    if (profile.minorSpellingErrors !== false) categories.push("minorSpelling");
     if (original.core !== typed.core && original.core.toLocaleLowerCase("en") === typed.core.toLocaleLowerCase("en")) {
       if (profile.capitalizationErrors !== false) categories.push("capitalization");
     }
-    if (original.punctuation !== typed.punctuation) categories.push("punctuation");
+    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
   }
   return categories;
 }
@@ -238,7 +287,13 @@ function substitutionCost(
   profile: ScoringProfile,
 ) {
   if (original.raw === typed.raw) return 0;
-  return halfErrorCategories(original, typed, profile).length > 0 ? 0.45 : 1;
+  if (halfErrorCategories(original, typed, profile).length > 0) return 0.45;
+  // A word within the half-error family but with no *graded* category
+  // difference (every applicable category was toggled off) is forgiven --
+  // it must align as a cheap "pair" match (cost 0), not fall through to
+  // the full substitution cost, or a toggled-off category would silently
+  // make that word MORE wrong instead of not counting at all.
+  return isWithinHalfErrorFamily(original, typed, profile.minorSpellingMaxDistance) ? 0 : 1;
 }
 
 function classifyRepeatedEntries(entries: WordAnalysisEntry[], originalWords: WordToken[]) {
@@ -364,9 +419,13 @@ export function alignWords(
       const original = originalWords[originalIndex - 1];
       const typed = typedWords[typedIndex - 1];
       const categories = halfErrorCategories(original, typed, profile);
+      // A toggled-off category difference (categories.length === 0, but
+      // still within the half-error family) is forgiven as "correct", not
+      // escalated to "substituted" -- see halfErrorCategories()'s comment.
+      const withinFamily = isWithinHalfErrorFamily(original, typed, profile.minorSpellingMaxDistance);
       entries.push({
         id: `o${original.index}-t${typed.index}`,
-        status: original.raw === typed.raw ? "correct" : categories.length ? "half-error" : "substituted",
+        status: original.raw === typed.raw ? "correct" : categories.length ? "half-error" : withinFamily ? "correct" : "substituted",
         original: original.raw,
         typed: typed.raw,
         originalIndex: original.index,
@@ -396,7 +455,8 @@ export function alignWords(
       entry.originalIndex !== undefined && entry.typedIndex !== undefined &&
       next.originalIndex === entry.originalIndex + 1 &&
       next.typedIndex === entry.typedIndex + 1 &&
-      originalWords[entry.originalIndex].separatorAfter !== typedWords[entry.typedIndex].separatorAfter
+      originalWords[entry.originalIndex].separatorAfter !== typedWords[entry.typedIndex].separatorAfter &&
+      profile.spacingErrors !== false
     ) {
       entry.halfErrorCategories = [...entry.halfErrorCategories, "spacing"];
       if (entry.status === "correct") entry.status = "half-error";

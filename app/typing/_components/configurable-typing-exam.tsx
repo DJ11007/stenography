@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { recordManagedAttempt } from "@/app/tests/actions";
-import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, type BackspaceMode, type TypingSettings } from "@/lib/typing-test";
+import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, scoringProfileWithSelectedCategories, ALL_HALF_ERROR_CATEGORIES, type BackspaceMode, type HalfErrorCategory, type TypingSettings } from "@/lib/typing-test";
 import type { ExamPreset } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, normalizeTypingInput, segmentGraphemes, type InputSystem } from "@/lib/typing-language";
 import { TypingBrandHeader } from "./typing-brand";
 import { AdvancedTypingResults } from "./advanced-typing-results";
+import { DictationGate } from "./dictation-gate";
 import { defaultTypingFontPreferences, type TypingFontPreferences } from "@/lib/typing-font-preferences";
 import { UniversalTypingSettings } from "./universal-typing-settings";
 import { useTypingPlatformSettings } from "./typing-platform-provider";
@@ -20,6 +21,10 @@ export type PracticeNavigation={currentIndex:number;total:number;items:{title:st
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const remainingSeconds = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
 const backspaceLabel = (mode: BackspaceMode) => mode === "full" ? "Full backspace" : mode === "word" ? "One-word backspace" : "Backspace disabled";
+// Devanagari has no case, so capitalization is never a meaningful category
+// for Hindi -- matches managedVersionToPreset()'s existing
+// capitalizationErrors: language === "English" default exactly.
+const defaultCategoriesFor = (language: string): HalfErrorCategory[] => language === "English" ? [...ALL_HALF_ERROR_CATEGORIES] : ALL_HALF_ERROR_CATEGORIES.filter((category) => category !== "capitalization");
 // Tailwind class discovery for the result legend: bg-green-500 bg-red-500 bg-orange-500 bg-blue-500 bg-purple-500
 
 export function ConfigurableTypingExam({ preset, mode, customPreset = false, matterPreset = false, directWorkspace = false, managedTest, practiceNavigation }: { preset: ExamPreset; mode: ExamMode; customPreset?: boolean; matterPreset?: boolean; directWorkspace?: boolean; managedTest?: {testId:string;versionId:string;mode:"learn"|"practice"|"exam"|"stenography";isLive?:boolean;resultsPublishAt?:string|null}; practiceNavigation?:PracticeNavigation }) {
@@ -32,6 +37,14 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   const [endTimestamp, setEndTimestamp] = useState<number | null>(null);
   const [timerStarted, setTimerStarted] = useState(false);
   const [backspaces, setBackspaces] = useState(0);
+  // Stenography dictation phase (only ever reachable when preset.audioUrl is
+  // set -- every other test takes the exact same path as before this
+  // feature existed). dictationReady flips true the moment Start Typing is
+  // clicked, which is also what starts the timer (see beginTiming below) --
+  // a fixed transcription-time window, like the real exam, not tied to the
+  // student's first keystroke the way plain typing tests are.
+  const [dictationReady, setDictationReady] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<HalfErrorCategory[]>(() => defaultCategoriesFor(preset.language));
   const startedAt = useRef<string | null>(null); const recordedAttempt = useRef(false);
   const directSettingsInitialized = useRef(false);
   const [verifiedScore, setVerifiedScore] = useState<ReturnType<typeof calculateTypingScore> | null>(null);
@@ -91,14 +104,21 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   useEffect(() => { if (!timerStarted || finished) return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [finished, timerStarted]);
   useEffect(() => { sessionStorage.setItem("practice-attempt-active", String(timerStarted && !finished)); return () => sessionStorage.setItem("practice-attempt-active", "false"); }, [finished, timerStarted]);
 
-  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (managedRulesLocked && preset.highlightMode) resolved.highlightMode = preset.highlightMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setStarted(true); };
+  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (managedRulesLocked && preset.highlightMode) resolved.highlightMode = preset.highlightMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset.language)); setStarted(true); };
   const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
   const submit = () => { if (window.confirm("Submit this test now? You cannot continue typing after submission.")) { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setFinished(true); } };
   const togglePause = () => { if (!timerStarted) return; if (paused) { setEndTimestamp(Date.now() + timeLeft * 1000); setPaused(false); } else { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setEndTimestamp(null); setPaused(true); } };
   const navigatePracticeTest=(href:string)=>{if(timerStarted&&!finished&&!window.confirm("Changing tests will discard the active attempt. Continue?"))return;window.location.href=href;};
-  useEffect(() => { const shortcut=(event:KeyboardEvent)=>{if(event.altKey&&event.key==="ArrowLeft"&&practiceNavigation?.previousHref){event.preventDefault();navigatePracticeTest(practiceNavigation.previousHref);}if(event.altKey&&event.key==="ArrowRight"&&practiceNavigation?.nextHref){event.preventDefault();navigatePracticeTest(practiceNavigation.nextHref);}if(event.key==="Escape"&&started&&!finished&&!paused){event.preventDefault();togglePause();}if(event.ctrlKey&&event.key==="Enter"){event.preventDefault();if(!started)start();else if(!finished)submit();}};window.addEventListener("keydown",shortcut);return()=>window.removeEventListener("keydown",shortcut); });
-  const finalScore = useMemo(() => finished ? calculateTypingScore({ typedText: normalizedInput.comparisonText, passage, elapsedSeconds: activeDurationSeconds - timeLeft, wordMethod: settings.wordMethod, scoringProfile: preset.scoringProfile, includeUntypedWords: true }) : null, [activeDurationSeconds, finished, normalizedInput.comparisonText, passage, preset.scoringProfile, settings.wordMethod, timeLeft]);
-  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void recordManagedAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces}).then((result) => { if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest.isLive)setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed"); });},[backspaces,finalScore,finished,managedTest,typedText]);
+  useEffect(() => { const shortcut=(event:KeyboardEvent)=>{if(event.altKey&&event.key==="ArrowLeft"&&practiceNavigation?.previousHref){event.preventDefault();navigatePracticeTest(practiceNavigation.previousHref);}if(event.altKey&&event.key==="ArrowRight"&&practiceNavigation?.nextHref){event.preventDefault();navigatePracticeTest(practiceNavigation.nextHref);}if(event.key==="Escape"&&started&&!finished&&!paused){event.preventDefault();togglePause();}if(event.ctrlKey&&event.key==="Enter"){event.preventDefault();if(!started)start();else if(!finished&&(!preset.audioUrl||dictationReady))submit();}};window.addEventListener("keydown",shortcut);return()=>window.removeEventListener("keydown",shortcut); });
+  // Folding the student's dictation-phase category selection into the
+  // scoring profile is only meaningful for audio (dictation) tests -- for
+  // every other test scoredPreset is the exact same object reference as
+  // preset, so nothing downstream that reads preset.scoringProfile behaves
+  // any differently than before this feature existed.
+  const effectiveScoringProfile = useMemo(() => preset.audioUrl ? scoringProfileWithSelectedCategories(preset.scoringProfile, selectedCategories) : preset.scoringProfile, [preset.audioUrl, preset.scoringProfile, selectedCategories]);
+  const scoredPreset = useMemo(() => preset.audioUrl ? { ...preset, scoringProfile: effectiveScoringProfile } : preset, [preset, effectiveScoringProfile]);
+  const finalScore = useMemo(() => finished ? calculateTypingScore({ typedText: normalizedInput.comparisonText, passage, elapsedSeconds: activeDurationSeconds - timeLeft, wordMethod: settings.wordMethod, scoringProfile: effectiveScoringProfile, includeUntypedWords: true }) : null, [activeDurationSeconds, effectiveScoringProfile, finished, normalizedInput.comparisonText, passage, settings.wordMethod, timeLeft]);
+  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void recordManagedAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories}).then((result) => { if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest.isLive)setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed"); });},[backspaces,finalScore,finished,managedTest,selectedCategories,typedText]);
   const saveSettings = (next: TypingSettings) => { setSettings(next); updatePreferences(attemptVariant === "custom" ? { backspaceMode: next.backspaceMode, highlightMode: next.highlightMode, wordMethod: next.wordMethod } : { highlightMode: next.highlightMode }); };
   const changeScroll = (value: boolean) => { setAutoScroll(value); updatePreferences({ autoScroll: value }); };
   const changeScrollbar = (value: boolean) => { setShowScrollbar(value); updatePreferences({ showScrollbar: value }); };
@@ -106,9 +126,10 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
 
   const changeInputSystem = (id: string) => { if (id === inputSystemId) return; if (typedText && !window.confirm("Changing the language or input system will restart this attempt and clear the typed text. Continue?")) return; setInputSystemId(id); updatePreferences({ inputSystemId: id }); if (typedText) { setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); startedAt.current=null; } };
   if (!started) return <ExamStart preset={preset} mode={mode} inputSystem={inputSystem} inputSystemId={inputSystemId} onInputSystemChange={(id) => { setInputSystemId(id); updatePreferences({ inputSystemId: id }); }} fontAvailable={fontAvailable} attemptVariant={attemptVariant} customPreset={customPreset} durationSeconds={activeDurationSeconds} durationLocked={attemptVariant === "official" || matterPreset} onDurationChange={(durationMinutes) => updatePreferences({ durationMinutes })} onAttemptVariantChange={setAttemptVariant} onStart={start}/>;
+  if (started && preset.audioUrl && !dictationReady) return <DictationGate preset={preset} url={preset.audioUrl} selectedCategories={selectedCategories} onCategoriesChange={setSelectedCategories} onStartTyping={() => { beginTiming(); setDictationReady(true); }}/>;
   if (finished && finalScore && managedTest?.isLive) return <LiveSubmissionReceipt status={liveSubmission} resultsPublishAt={managedTest.resultsPublishAt}/>;
-  if (finished && finalScore) return <AdvancedTypingResults preset={preset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={passage} typedText={normalizedInput.comparisonText}/>;
-  return <ExamWorkspace preset={preset} passage={passage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} attemptVariant={attemptVariant} rulesLocked={attemptVariant === "official" || managedRulesLocked || (customPreset && !managedTest)} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest}/>;
+  if (finished && finalScore) return <AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={passage} typedText={normalizedInput.comparisonText}/>;
+  return <ExamWorkspace preset={scoredPreset} passage={passage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} attemptVariant={attemptVariant} rulesLocked={attemptVariant === "official" || managedRulesLocked || (customPreset && !managedTest)} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest}/>;
 }
 
 function LiveSubmissionReceipt({status,resultsPublishAt}:{status:"idle"|"saving"|"submitted"|"already-submitted"|"closed"|"failed";resultsPublishAt?:string|null}) { const release=resultsPublishAt?new Date(resultsPublishAt).toLocaleString():"the scheduled publication time"; const message=status==="saving"||status==="idle"?"Securely saving your submission…":status==="submitted"?`Submission received. Your result will unlock on ${release}.`:status==="already-submitted"?`Your live-test attempt was already submitted. Results unlock on ${release}.`:status==="closed"?"The live-test window has closed, so this submission was not accepted.":"We could not confirm the submission. Please contact support."; return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4"><section className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-xl"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-3xl" aria-hidden>{status==="submitted"||status==="already-submitted"?"✓":"⏳"}</span><h1 className="mt-5 text-3xl font-black text-slate-900">Live test submission</h1><p className="mt-4 leading-7 text-slate-600">{message}</p><p className="mt-3 text-sm font-bold text-blue-700">Scores are hidden from everyone until the scheduled release.</p><a href="/live-test" className="mt-6 inline-block rounded-xl bg-blue-700 px-6 py-3 font-black text-white">Live test centre</a></section></main>; }
@@ -261,72 +282,16 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
       <span className={`rounded-full px-2 py-1 text-[10px] font-black sm:px-3 sm:text-xs ${attemptVariant === "official" ? "bg-amber-100 text-amber-950" : "bg-blue-100 text-blue-950"}`}>{attemptVariant === "official" ? "Official Preset" : "Custom Simulation"}</span>
     </div></header>
     <section className="mx-auto min-h-0 w-full max-w-[1800px] flex-1 overflow-hidden p-2 sm:p-3" aria-label="Active typing workspace">
-      <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl">
-        {preset.audioUrl ? <DictationAudioPanel url={preset.audioUrl}/> : <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap">{passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>}
+      <div className={`grid h-full min-h-0 overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl ${preset.audioUrl ? "" : "grid-rows-[minmax(0,1fr)_minmax(0,1fr)]"}`}>
+        {/* Dictation tests never reach this component until dictationReady
+            is true (see the DictationGate render branch above), so there is
+            never a passage -- or the audio player -- to show here: the
+            typing panel below is the only row, matching "a blank area where
+            he can type" from the exam workflow this is modeling. */}
+        {!preset.audioUrl && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap">{passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>}
         <section className="flex min-h-0 flex-col border-t-2 border-blue-300 bg-white" aria-labelledby="typing-passage-title"><h2 id="typing-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Type Here</h2><textarea disabled={fontAvailable !== true || paused} ref={textareaRef} autoFocus value={typedText} onChange={(event) => handleChange(event.target.value)} onKeyDown={keyDown} onBeforeInput={beforeInput} onPaste={(event) => event.preventDefault()} onDrop={(event) => event.preventDefault()} onCut={(event) => { const target = event.currentTarget; if (!allowed(target.selectionStart, target.selectionEnd, typedText.slice(0, target.selectionStart) + typedText.slice(target.selectionEnd))) event.preventDefault(); }} spellCheck={false} aria-label="Type Here" lang={inputSystem.language === "Hindi" ? "hi" : "en"} style={{ fontFamily: inputSystem.fontStack, fontSize: `${fontPreferences.typingSize}px`, lineHeight: `${Math.round(fontPreferences.typingSize * 1.7)}px` }} className="min-h-0 w-full flex-1 resize-none overflow-y-auto p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:p-5"/></section>
       </div>
     </section>
   </main>;
 }
 
-const DICTATION_SPEEDS = [
-  { value: 0.5, label: "Half 0.5×" },
-  { value: 0.7, label: "-30%" },
-  { value: 0.8, label: "-20%" },
-  { value: 0.85, label: "-15%" },
-  { value: 0.9, label: "-10%" },
-  { value: 0.95, label: "-05%" },
-  { value: 1, label: "Original" },
-  { value: 1.05, label: "+05%" },
-  { value: 1.1, label: "+10%" },
-  { value: 1.15, label: "+15%" },
-  { value: 1.2, label: "+20%" },
-  { value: 1.3, label: "+30%" },
-  { value: 2, label: "Double 2×" },
-];
-
-function DictationAudioPanel({ url }: { url: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [speed, setSpeed] = useState(1);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.playbackRate = speed;
-    (audio as HTMLAudioElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean; webkitPreservesPitch?: boolean }).preservesPitch = true;
-    (audio as HTMLAudioElement & { mozPreservesPitch?: boolean }).mozPreservesPitch = true;
-    (audio as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = true;
-  }, [speed]);
-
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) void audio.play(); else audio.pause();
-  };
-  const seek = (fraction: number) => { const audio = audioRef.current; if (audio && duration) audio.currentTime = fraction * duration; };
-
-  return (
-    <section className="flex min-h-0 flex-col bg-white" aria-labelledby="dictation-audio-title">
-      <h2 id="dictation-audio-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">🎧 Dictation Audio</h2>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-6">
-        <audio ref={audioRef} src={url} preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onEnded={() => setPlaying(false)}/>
-        <button type="button" onClick={togglePlay} aria-label={playing ? "Pause dictation" : "Play dictation"} className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-700 text-2xl text-white shadow-lg hover:bg-blue-800">{playing ? "⏸" : "▶"}</button>
-        <div className="flex w-full max-w-md items-center gap-3">
-          <span className="w-12 text-right text-xs font-black text-slate-500">{formatTime(Math.floor(current))}</span>
-          <input type="range" min={0} max={1} step={0.001} value={duration ? current / duration : 0} onChange={(event) => seek(Number(event.target.value))} className="flex-1" aria-label="Seek dictation audio"/>
-          <span className="w-12 text-xs font-black text-slate-500">{formatTime(Math.floor(duration))}</span>
-        </div>
-        <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
-          Speed
-          <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))} className="input py-1.5">
-            {DICTATION_SPEEDS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-        <p className="text-center text-xs text-slate-500">इच्छित स्पीड में डिक्टेशन प्ले करें और स्टेनो में लिखें।</p>
-      </div>
-    </section>
-  );
-}

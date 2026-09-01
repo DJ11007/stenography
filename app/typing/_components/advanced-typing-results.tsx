@@ -7,13 +7,12 @@ import { krutiDevToUnicode } from "@/lib/hindi-font-converter";
 import { segmentGraphemes, type InputSystem } from "@/lib/typing-language";
 import { buildErrorGuide, guidePenaltyTotal, type ErrorGuideDefinition } from "@/lib/typing-error-guide";
 import { buildResultCalculations, buildResultSummary, calculateConfiguredRssbMarks, categoryTotalsReconcile, comparisonWordDisplay, resultCategoryTotals } from "@/lib/typing-results";
-import type { HalfErrorCategory, TypingScore, WordAnalysisEntry } from "@/lib/typing-test";
+import { ALL_HALF_ERROR_CATEGORIES, activeHalfErrorCategories, HALF_ERROR_CATEGORY_LABELS as CATEGORY_LABELS, type TypingScore, type WordAnalysisEntry } from "@/lib/typing-test";
 import { TypingBrandHeader } from "./typing-brand";
 
 type ResultTab = "summary" | "combined" | "original" | "typed" | "errors" | "categories" | "self";
 type Props = { preset: ExamPreset; inputSystem: InputSystem; passage: string; typedText: string; score: TypingScore; backspaces: number; onRestart: () => void };
 const number = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
-const CATEGORY_LABELS: Record<HalfErrorCategory, string> = { capitalization: "Capitalization", punctuation: "Punctuation", spacing: "Spacing", minorSpelling: "Minor spelling" };
 const TABS: [ResultTab, string][] = [["summary", "Summary"], ["combined", "Combined Analysis"], ["original", "Original Passage"], ["typed", "Typed Passage"], ["errors", "Errors Only"], ["categories", "Category Analysis"], ["self", "Self Analysis"]];
 const toneClasses: Record<string, string> = { green: "border-green-200 bg-green-50 text-green-900", red: "border-red-200 bg-red-50 text-red-900", rose: "border-rose-200 bg-rose-50 text-rose-950", orange: "border-orange-200 bg-orange-50 text-orange-950", blue: "border-blue-200 bg-blue-50 text-blue-900", purple: "border-purple-200 bg-purple-50 text-purple-900", slate: "border-slate-200 bg-slate-50 text-slate-900" };
 
@@ -35,7 +34,9 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
   const resultPassed = marksResult ? marksResult.qualified : score.passed;
   const summary = buildResultSummary(passage, score, backspaces);
   const createPractice = () => { const words = weakWords.map((item) => item.text).filter(Boolean); setPracticePassage(words.length ? Array.from({ length: 3 }, () => words.join(" ")).join(". ") : "No mistakes are available for focused practice."); setTab("self"); };
+  const gradedCategories = activeHalfErrorCategories(preset.scoringProfile);
   return <main className="min-h-screen bg-slate-100 text-slate-950 print:bg-white"><TypingBrandHeader/><section className="mx-auto max-w-[1500px] px-3 py-6 sm:px-5 sm:py-8 print:max-w-none print:p-0 [&>:first-child]:mt-0">
+    {gradedCategories.length < ALL_HALF_ERROR_CATEGORIES.length && <p role="status" className="rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-900 print:hidden">Graded for this attempt: {gradedCategories.length ? gradedCategories.map((category) => CATEGORY_LABELS[category]).join(", ") : "wrong, missing, extra, and repeated words only"}. Wrong, missing, extra, and repeated words are always graded.</p>}
     {marksResult && preset.marksMethod && <RssbMarksPanel result={marksResult} method={preset.marksMethod} language={preset.language}/>}
     {marksResult ? <><RssbTypingDetails summary={summary}/><RssbSpeedDetails summary={summary}/><RssbMistakeDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError} profile={preset.scoringProfile}/></> : <><ScreenshotResultSummary passage={passage} score={score} backspaces={backspaces} entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError} resultLabel={resultLabel} resultPassed={resultPassed} profile={preset.scoringProfile}/><DetailedResultBreakdown summary={summary}/><CategoryStrip categories={totals}/></>}
     <ErrorScoringGuide profile={preset.scoringProfile} textLanguage={textLanguage} entries={score.analysis.entries} savedPenalty={score.analysis.totalPenalty}/>
