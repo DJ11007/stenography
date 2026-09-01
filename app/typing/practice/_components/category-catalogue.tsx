@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ManagedTestMode } from "@/lib/admin-tests";
-import { HINDI_INPUT_SYSTEMS } from "@/lib/typing-curriculum";
+import { hindiInputSystemsFor } from "@/lib/typing-curriculum";
 import { getPublishedManagedTests } from "@/lib/managed-test-catalogue-server";
 import { ManagedTestCards } from "../../_components/managed-test-cards";
 import { TypingBrandHeader } from "../../_components/typing-brand";
@@ -15,8 +15,9 @@ export async function ExactCatalogue({ title, description, mode, language, input
 
 export async function HindiCatalogue({ title, description, mode, selectedInput }: { title:string; description:string; mode:ManagedTestMode; selectedInput?:string }) {
   const availableTests = await getPublishedManagedTests(mode, { language:"Hindi" });
-  const known = new Map(HINDI_INPUT_SYSTEMS.map((system)=>[system.id,system]));
-  const ids = [...new Set([...HINDI_INPUT_SYSTEMS.map((system)=>system.id), ...availableTests.map((test)=>test.input_system_id)])];
+  const hindiInputSystems = hindiInputSystemsFor(mode);
+  const known = new Map(hindiInputSystems.map((system)=>[system.id,system]));
+  const ids = [...new Set([...hindiInputSystems.map((system)=>system.id), ...availableTests.map((test)=>test.input_system_id)])];
   const selected = selectedInput && ids.includes(selectedInput) ? selectedInput : undefined;
   const tests = selected ? await getPublishedManagedTests(mode, { language:"Hindi", inputSystemId:selected }) : [];
   return <CatalogueShell title={title} description={description}><section className="rounded-3xl bg-white p-6 shadow"><h2 className="text-xl font-black">Choose keyboard and font</h2><p className="mt-2 text-sm text-slate-600">Only tests configured for your selection will be shown.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{ids.map((id)=>{const system=known.get(id);return <Link key={id} href={`?input=${encodeURIComponent(id)}`} className={`rounded-2xl border p-4 transition ${selected===id?"border-orange-500 bg-orange-50 shadow":"border-slate-200 hover:border-orange-300"}`}><strong className="block">{system?.label ?? humanize(id)}</strong><span className="mt-1 block text-xs text-slate-500">{system?.keyboardLayout ?? "Administrator-configured Hindi input system"}</span></Link>})}</div>{selected?.includes("krutidev")&&<p role="alert" className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-900">Kruti Dev 010 is a legacy font. Install the licensed Kruti Dev 010 font on this device before starting; otherwise the passage may not display correctly.</p>}</section><section className="mt-8"><h2 className="mb-5 text-2xl font-black">{selected ? `Compatible ${title} tests` : "Select an input system to view tests"}</h2>{selected&&<ManagedTestCards tests={tests} empty/>}</section></CatalogueShell>;

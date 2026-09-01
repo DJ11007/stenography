@@ -82,11 +82,24 @@ test("duration can be changed from the in-workspace Settings popup too (not just
   assert.match(settingsPanel, /PRACTICE_DURATION_MINUTES\.includes\(durationMinutes\)/);
 });
 
-test("the admin Practice Tests page gates entry behind a language picker, then a Hindi input-system picker, before reaching the (now scoped) test list", async () => {
+test("the admin Practice Tests page gates entry behind a language picker, then goes straight to the (now scoped) test list -- Hindi has no keyboard picker any more since Kruti Dev is the only option", async () => {
   const page = await read("app/admin/practice-tests/page.tsx");
   assert.match(page, /const language = params\.language === "Hindi" \? "Hindi" as const : params\.language === "English" \? "English" as const : null;/);
   assert.match(page, /if \(!language\) \{/);
-  assert.match(page, /if \(language === "Hindi" && !params\.input\) \{/);
-  assert.match(page, /HINDI_INPUT_SYSTEMS\.map/);
+  assert.doesNotMatch(page, /HINDI_INPUT_SYSTEMS/);
+  assert.match(page, /const inputSystemId = language === "Hindi" \? HINDI_KRUTI_DEV\.id : "english-qwerty";/);
   assert.match(page, /<SectionTestPage mode="practice" language=\{language\} inputSystemId=\{inputSystemId\} backHref=\{backHref\} \/>/);
+});
+
+test("Hindi typing (Learn/Practice) is restricted to Kruti Dev 010 only; Exam Simulators and Stenography keep every Hindi input system", async () => {
+  const curriculum = await read("lib/typing-curriculum.ts");
+  assert.match(curriculum, /export function hindiInputSystemsFor\(mode: "learn" \| "practice" \| "exam" \| "stenography"\): InputSystem\[\] \{/);
+  assert.match(curriculum, /return mode === "learn" \|\| mode === "practice" \? \[HINDI_KRUTI_DEV\] : HINDI_INPUT_SYSTEMS;/);
+
+  const manager = await read("app/admin/tests/test-manager.tsx");
+  assert.match(manager, /const hindiSystemIds = new Set\(hindiInputSystemsFor\(formMode\)\.map\(\(system\) => system\.id\)\);/);
+  assert.match(manager, /const systems = MANAGED_INPUT_SYSTEMS\.filter\(\(system\) => system\.language === language && \(language !== "Hindi" \|\| hindiSystemIds\.has\(system\.id\)\)\);/);
+
+  const catalogue = await read("app/typing/practice/_components/category-catalogue.tsx");
+  assert.match(catalogue, /const hindiInputSystems = hindiInputSystemsFor\(mode\);/);
 });

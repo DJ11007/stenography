@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { MANAGED_INPUT_SYSTEMS, countPassageWords, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
+import { hindiInputSystemsFor } from "@/lib/typing-curriculum";
 import { STENOGRAPHY_TASK_CATEGORIES } from "@/lib/stenography-task-library";
 import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, type HalfErrorCategory } from "@/lib/typing-test";
 import { encodingValidationMessage, type HindiTextFormat } from "@/lib/hindi-font-converter";
@@ -48,7 +49,10 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
     setDictationAvailable(new Set(validated(stored?.available) ?? ALL_HALF_ERROR_CATEGORIES));
     setDictationDefaults(new Set(validated(stored?.defaults) ?? ALL_HALF_ERROR_CATEGORIES));
   };
-  const systems = MANAGED_INPUT_SYSTEMS.filter((system) => system.language === language);
+  // Hindi typing (Learn/Practice) offers Kruti Dev 010 only -- Exam/Stenography
+  // keep every input system, unaffected by this restriction.
+  const hindiSystemIds = new Set(hindiInputSystemsFor(formMode).map((system) => system.id));
+  const systems = MANAGED_INPUT_SYSTEMS.filter((system) => system.language === language && (language !== "Hindi" || hindiSystemIds.has(system.id)));
   const showAdminRules = formMode !== "practice" || isLive;
   const passageFormat:HindiTextFormat=inputSystem.includes("krutidev")?"krutidev":"unicode";
   const encodingWarning=language==="Hindi"?encodingValidationMessage(passage,passageFormat):null;

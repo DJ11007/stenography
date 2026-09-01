@@ -95,6 +95,17 @@ export const HINDI_UNICODE_INSCRIPT: InputSystem = { ...HINDI_UNICODE_MANGAL, id
 export const HINDI_KRUTI_DEV: InputSystem = { id: "hindi-krutidev-010", label: "Kruti Dev 010 — legacy encoding", language: "Hindi", script: "Devanagari", inputEncoding: "krutidev-legacy", fontLabel: "Kruti Dev 010 (licensed asset required)", fontStack: '"Kruti Dev 010", sans-serif', keyboardLayout: "Remington / Kruti Dev legacy layout", requiredFontAsset: KRUTI_DEV_FONT_ASSET, passageOverride: repeatPassageToExactWordCount("f'k{kk O;fDr ds thou esa egRoiw.kZ Hkwfedk fuHkkrh gSA fu;fer vH;kl ls Vkbfiax dh xfr vkSj 'kq)rk esa lq/kkj gksrk gSA", 400) };
 export const HINDI_INPUT_SYSTEMS = [HINDI_KRUTI_DEV, HINDI_UNICODE_MANGAL, HINDI_UNICODE_REMINGTON_GAIL, HINDI_UNICODE_REMINGTON_CBI, HINDI_UNICODE_INSCRIPT, HINDI_UNICODE_REMINGTON];
 
+// At the admin's explicit request: the general Typing section (Learn Typing
+// and Practice Tests) offers Kruti Dev 010 only for Hindi -- Mangal/InScript/
+// Remington GAIL/CBI stay available everywhere else (Exam Simulators,
+// Stenography), since those sections were deliberately left untouched.
+// Confirmed against live data before this shipped: every existing Hindi
+// Learn/Practice test already used Kruti Dev exclusively, so nothing was
+// orphaned by narrowing this.
+export function hindiInputSystemsFor(mode: "learn" | "practice" | "exam" | "stenography"): InputSystem[] {
+  return mode === "learn" || mode === "practice" ? [HINDI_KRUTI_DEV] : HINDI_INPUT_SYSTEMS;
+}
+
 // Learning lessons are now created and published by administrators.
 export const ENGLISH_LESSONS: TypingLesson[] = [];
 
