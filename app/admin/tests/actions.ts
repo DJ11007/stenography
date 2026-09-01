@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeManagedTestRules, slugifyTest, validateManagedTest, type ManagedTestDraft, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
 import { ALL_HALF_ERROR_CATEGORIES } from "@/lib/typing-test";
 
@@ -131,3 +132,41 @@ export async function saveStenographyManagedTest(_: TestFormState, formData: For
 export async function setManagedTestStatus(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); const value=text(formData,"status"); if(!id||!["draft","published","unpublished","archived"].includes(value))return; const supabase=await createClient(); await supabase.rpc("set_managed_test_status",{p_test_id:id,p_status:value as ManagedTestStatus}); revalidateTestRoutes(); }
 export async function duplicateManagedTest(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); if(!id)return; const supabase=await createClient(); await supabase.rpc("duplicate_managed_test",{p_test_id:id}); revalidateTestRoutes(); }
 export async function deleteManagedTest(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); if(!id)return; const supabase=await createClient(); await supabase.rpc("delete_managed_test_if_safe",{p_test_id:id}); revalidateTestRoutes(); }
+
+export type PermanentDeleteState = { error?: string; result?: { title: string; mode: string; versionCount: number; attemptCount: number; audioFileCount: number; cleanupJobs: { id: string; bucket: string; path: string; status: string; attempt_count: number }[] } };
+type CleanupJob = { id: string; bucket: string; path: string; status: string; attempt_count: number };
+
+// The only bucket a general managed test's audio ever lives in
+// (test_versions.configuration->>'audio_path', stenography dictation
+// only) -- mirrors word-efficiency's cleanup-job processor, narrower
+// because there's just the one bucket here.
+async function processTestCleanupJob(job: CleanupJob): Promise<{ failed: boolean }> {
+  const admin = createAdminClient();
+  if (!admin) return { failed: true };
+  const safeBucket = job.bucket === "stenography-audio";
+  const safePath = Boolean(job.path) && !job.path.startsWith("/") && !job.path.includes("\\") && !job.path.split("/").includes("..");
+  let status: "removed" | "failed" | "retained_shared" = "failed"; let cleanupError: string | null = null;
+  if (!safeBucket || !safePath) cleanupError = "Cleanup job failed application scope validation.";
+  else {
+    const { data: references, error: referenceError } = await admin.from("test_versions").select("id").contains("configuration", { audio_path: job.path }).limit(1);
+    if (referenceError) cleanupError = `Reference check failed: ${referenceError.message}`;
+    else if (references?.length) status = "retained_shared";
+    else { const { error: removeError } = await admin.storage.from(job.bucket).remove([job.path]); cleanupError = removeError?.message ?? null; status = cleanupError ? "failed" : "removed"; }
+  }
+  await admin.from("test_storage_cleanup").update({ status, attempt_count: (job.attempt_count ?? 0) + 1, last_error: cleanupError?.slice(0, 1000) ?? null, last_attempted_at: new Date().toISOString() }).eq("id", job.id);
+  return { failed: status === "failed" };
+}
+
+export async function permanentlyDeleteManagedTest(_: PermanentDeleteState, formData: FormData): Promise<PermanentDeleteState> {
+  await requireAdmin();
+  const testId = text(formData, "testId"); const typedTitle = String(formData.get("typedTitle") ?? "");
+  if (!testId || !typedTitle || formData.get("destroyAcknowledged") !== "on") return { error: "Exact title and destruction acknowledgement are required." };
+  const requestId = text(formData, "requestId") || crypto.randomUUID();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("permanently_delete_managed_test", { p_test_id: testId, p_typed_title: typedTitle, p_acknowledged: true, p_request_id: requestId });
+  if (error || !data) return { error: error?.message ?? "Permanent deletion failed." };
+  const result = data as { title: string; mode: string; version_count: number; attempt_count: number; audio_file_count: number; cleanup_jobs?: CleanupJob[] };
+  for (const job of result.cleanup_jobs ?? []) { if (job.status === "removed" || job.status === "retained_shared") continue; await processTestCleanupJob(job); }
+  revalidateTestRoutes();
+  return { result: { title: result.title, mode: result.mode, versionCount: result.version_count, attemptCount: result.attempt_count, audioFileCount: result.audio_file_count, cleanupJobs: result.cleanup_jobs ?? [] } };
+}
