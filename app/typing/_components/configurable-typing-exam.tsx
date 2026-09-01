@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, scoringProfileWithSelectedCategories, ALL_HALF_ERROR_CATEGORIES, PRACTICE_DURATION_MINUTES, type BackspaceMode, type HalfErrorCategory, type TypingSettings } from "@/lib/typing-test";
 import type { ExamPreset } from "@/lib/typing-curriculum";
-import { getInputSystemPassage, normalizeTypingInput, segmentGraphemes, type InputSystem } from "@/lib/typing-language";
+import { getInputSystemPassage, getScoringText, normalizeTypingInput, segmentGraphemes, type InputSystem } from "@/lib/typing-language";
 import { TypingBrandHeader } from "./typing-brand";
 import { AdvancedTypingResults } from "./advanced-typing-results";
 import { DictationGate } from "./dictation-gate";
@@ -154,7 +154,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // any differently than before this feature existed.
   const effectiveScoringProfile = useMemo(() => preset.audioUrl ? scoringProfileWithSelectedCategories(preset.scoringProfile, selectedCategories) : preset.scoringProfile, [preset.audioUrl, preset.scoringProfile, selectedCategories]);
   const scoredPreset = useMemo(() => preset.audioUrl ? { ...preset, scoringProfile: effectiveScoringProfile } : preset, [preset, effectiveScoringProfile]);
-  const finalScore = useMemo(() => finished ? calculateTypingScore({ typedText: normalizedInput.comparisonText, passage, elapsedSeconds: activeDurationSeconds - timeLeft, wordMethod: settings.wordMethod, scoringProfile: effectiveScoringProfile, includeUntypedWords: true }) : null, [activeDurationSeconds, effectiveScoringProfile, finished, normalizedInput.comparisonText, passage, settings.wordMethod, timeLeft]);
+  const finalScore = useMemo(() => finished ? calculateTypingScore({ typedText: getScoringText(normalizedInput.comparisonText, inputSystem), passage: getScoringText(passage, inputSystem), elapsedSeconds: activeDurationSeconds - timeLeft, wordMethod: settings.wordMethod, scoringProfile: effectiveScoringProfile, includeUntypedWords: true }) : null, [activeDurationSeconds, effectiveScoringProfile, finished, inputSystem, normalizedInput.comparisonText, passage, settings.wordMethod, timeLeft]);
   useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void recordManagedAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories}).then((result) => { if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest.isLive)setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed"); });},[backspaces,finalScore,finished,managedTest,selectedCategories,typedText]);
   const saveSettings = (next: TypingSettings) => { setSettings(next); updatePreferences(attemptVariant === "custom" ? { backspaceMode: next.backspaceMode, highlightMode: next.highlightMode, wordMethod: next.wordMethod } : { highlightMode: next.highlightMode }); };
   const changeScroll = (value: boolean) => { setAutoScroll(value); updatePreferences({ autoScroll: value }); };

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateTypingScore } from "../lib/typing-test.ts";
 import { HINDI_KRUTI_DEV, HINDI_UNICODE_INSCRIPT } from "../lib/typing-curriculum.ts";
-import { getInputSystemPassage, normalizeTypingInput, segmentGraphemes } from "../lib/typing-language.ts";
+import { getInputSystemPassage, getScoringText, normalizeTypingInput, segmentGraphemes } from "../lib/typing-language.ts";
 
 test("segments Hindi matras and conjuncts as grapheme clusters", () => {
   assert.equal(segmentGraphemes("कि").length, 1);
@@ -54,4 +54,29 @@ test("Kruti Dev comparison text is NFC-normalized, so an NFD-decomposed keystrok
 test("getInputSystemPassage NFC-normalizes a Kruti Dev passageOverride too, so an NFD-decomposed reference passage still compares consistently", () => {
   const decomposedSystem = { ...HINDI_KRUTI_DEV, passageOverride: "çkIr".normalize("NFD") };
   assert.equal(getInputSystemPassage(decomposedSystem, "ignored"), "çkIr");
+});
+
+// Real-world repro #2, confirmed live: a Kruti Dev admin passage spelled
+// "प्राप्त" as "çkIr" (a single-key typist shortcut for "प्र") while a
+// student typing on an ordinary keyboard produced "izkIr" (the same
+// content as two separate keystrokes, "i"=प + "z"=्र). These are NOT
+// registered as aliases of each other in the legacy dictionary -- "ç" only
+// equals "iz" because "i" and "z" independently decode to "प" and "्र" and
+// happen to concatenate into the same result. No raw-byte alias table can
+// discover that; only a full decode through krutiDevToUnicode() can.
+test("getScoringText resolves a Kruti Dev shortcut spelling and its literal multi-key equivalent to the same score-comparison text", () => {
+  assert.equal(getScoringText("çkIr", HINDI_KRUTI_DEV), getScoringText("izkIr", HINDI_KRUTI_DEV));
+  assert.equal(getScoringText("çkIr", HINDI_KRUTI_DEV), "प्राप्त");
+  // Same passage's other reported word: प्रयास, spelled "ç;kl" in storage.
+  assert.equal(getScoringText("ç;kl", HINDI_KRUTI_DEV), getScoringText("iz;kl", HINDI_KRUTI_DEV));
+  assert.equal(getScoringText("ç;kl", HINDI_KRUTI_DEV), "प्रयास");
+});
+
+test("getScoringText still tells a genuinely different Kruti Dev word apart -- this is not a blanket everything-matches fix", () => {
+  assert.notEqual(getScoringText("çkIr", HINDI_KRUTI_DEV), getScoringText("çkl", HINDI_KRUTI_DEV));
+});
+
+test("getScoringText passes non-Kruti-Dev text through unchanged", () => {
+  assert.equal(getScoringText("hello world", HINDI_UNICODE_INSCRIPT), "hello world");
+  assert.equal(getScoringText("भारत", HINDI_UNICODE_INSCRIPT), "भारत");
 });
