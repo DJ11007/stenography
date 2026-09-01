@@ -16,9 +16,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Samradhi Classes",
   description: "Typing, stenography and competitive-exam preparation from Samradhi Classes.",
-  icons: {
-    icon: "/samradhi-classes-logo.png",
-  },
+  // Favicon comes from app/icon.png (Next.js's file-convention icon, a
+  // properly sized 512x512 render of the logo) -- Next detects it
+  // automatically and injects the right <link rel="icon"> tag, so it does
+  // not need to be declared here too.
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

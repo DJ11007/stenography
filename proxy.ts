@@ -2,6 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { expireSupabaseAuthTokenCookies,refreshSupabaseSession } from "@/lib/supabase-refresh-session";
 
+// /typing is deliberately NOT excluded from the matcher below (unlike the
+// auth pages), even though it's the single most-visited section of the
+// site. Reason: /typing pages still call supabase.auth.getUser() on the
+// server themselves (to check access, load the profile, etc.), which
+// silently refreshes an expiring access token using the refresh token --
+// but Server Components cannot persist cookies (see lib/supabase/server.ts),
+// so that refreshed token pair was never written back to the browser. With
+// Supabase's default refresh-token rotation, the browser kept sending the
+// now-already-used refresh token on every request. Nothing looked wrong
+// while the student stayed on /typing, but the *next* page that WAS
+// covered by proxy (e.g. clicking the logo back to "/") would try to
+// refresh with that stale token, fail, and proxy would then wipe the
+// session cookies -- a real, reported "I got logged out just from clicking
+// the logo" bug. Running proxy on /typing too means the refreshed token
+// pair actually gets persisted every time, so this can't happen there.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -42,6 +57,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!typing(?:/|$)|login(?:/|$)|admin/login(?:/|$)|signup(?:/|$)|forgot-password(?:/|$)|recover-account(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!login(?:/|$)|admin/login(?:/|$)|signup(?:/|$)|forgot-password(?:/|$)|recover-account(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -20,10 +20,10 @@ test("the header Buy Now button links straight to the /courses page with a disti
   assert.doesNotMatch(component, /useState/);
 });
 
-test("the site header always renders Buy Now next to the sign-in links, on every page that uses it", async () => {
+test("the site header always renders Buy Now next to the account navigation, on every page that uses it", async () => {
   const header = await read("app/_components/site-header.tsx");
   assert.match(header, /<BuyNowButton \/>/);
-  assert.match(header, /<AccessNavigation \/>/);
+  assert.match(header, /<AccessNavigation account=\{account\} \/>/);
   assert.doesNotMatch(header, /coursePackages/);
 });
 

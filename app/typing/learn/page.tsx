@@ -5,7 +5,7 @@ import { BackButton } from "../../_components/back-button";
 type Choice = { label: string; detail: string; href: string; icon: string; accent: string };
 const english: Choice[] = [
   { label: "Learn Typing", detail: "Build accuracy from the basics", href: "/typing/learn/english", icon: "AB", accent: "from-blue-600 to-cyan-500" },
-  { label: "Take Tests", detail: "Measure speed and precision", href: "/typing/practice", icon: "✓", accent: "from-indigo-600 to-violet-500" },
+  { label: "Take Tests", detail: "Measure speed and precision", href: "/typing/practice/english", icon: "✓", accent: "from-indigo-600 to-violet-500" },
   { label: "Number Typing", detail: "Master the complete number row", href: "/typing/learn/english", icon: "12", accent: "from-cyan-600 to-teal-500" },
 ];
 // Hindi typing here is Kruti Dev 010 only, by design -- the other Unicode
@@ -14,7 +14,7 @@ const english: Choice[] = [
 // Simulators, Stenography), which this page has nothing to do with.
 const kruti: Choice[] = [
   { label: "Learn Typing", detail: "Guided Kruti Dev lessons", href: "/typing/learn/hindi", icon: "अ", accent: "from-orange-500 to-amber-400" },
-  { label: "Take Tests", detail: "Kruti Dev speed practice", href: "/typing/practice", icon: "क", accent: "from-rose-500 to-orange-400" },
+  { label: "Take Tests", detail: "Kruti Dev speed practice", href: "/typing/practice/hindi", icon: "क", accent: "from-rose-500 to-orange-400" },
 ];
 
 export default function LearnTypingPage() {
