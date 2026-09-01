@@ -287,12 +287,6 @@ export default async function Page({
                         >
                           View Attempts
                         </Link>
-                        <Link
-                          href={`/admin/word-efficiency-tests/${test.id}/model-answer`}
-                          className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-800"
-                        >
-                          Model Answer
-                        </Link>
                         <form action={duplicateWordEfficiencyTest}>
                           <input type="hidden" name="testId" value={test.id} />
                           <button className="w-full rounded-lg bg-cyan-50 px-3 py-2 text-sm font-bold text-cyan-800">

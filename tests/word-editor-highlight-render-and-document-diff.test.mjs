@@ -11,12 +11,13 @@ test("the static (pre-edit) Run component prefixes highlight with # like it alre
   assert.doesNotMatch(editor, /backgroundColor:run\.highlight\?\?undefined/);
 });
 
-test("the Model Answer editor gives the document a much bigger share of the page (~75/25) instead of splitting roughly in half, so the ribbon has room to show every group at 100% zoom", async () => {
-  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
-  assert.match(editor, /xl:grid-cols-\[minmax\(0,3fr\)_minmax\(320px,1fr\)\]/);
-});
-
-test("a run-level Model Answer diff includes a short text snippet so two different runs in the same paragraph with the same field change don't look like an identical duplicate", () => {
+// diffWordDocuments() itself has no application caller any more -- its only
+// consumer, the admin Model Answer page, was removed at the admin's
+// request (see tests/word-efficiency-model-answer-admin.test.mjs). The
+// function is left in lib/word-document-diff.ts (harmless, dead until
+// something calls it again), so these two regression tests for its own
+// correctness stay valid and cheap to keep.
+test("a run-level document diff includes a short text snippet so two different runs in the same paragraph with the same field change don't look like an identical duplicate", () => {
   const before = { schemaVersion: "2", blocks: [{ id: "b1", type: "paragraph", alignment: "left", runs: [{ text: "hello ", fontSize: null }, { text: "world", fontSize: null }], attrs: {} }] };
   const after = { schemaVersion: "2", blocks: [{ id: "b1", type: "paragraph", alignment: "left", runs: [{ text: "hello ", fontSize: 16 }, { text: "world", fontSize: 16 }], attrs: {} }] };
   const changes = diffWordDocuments(before, after);

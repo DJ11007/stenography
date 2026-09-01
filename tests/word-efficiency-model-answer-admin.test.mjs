@@ -4,25 +4,15 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("the Model Answer page loads the version's working matter, existing model answer, questions, and grading rules, and requires an admin", async () => {
-  const page = await read("app/admin/word-efficiency-tests/[testId]/model-answer/page.tsx");
-  assert.match(page, /await requireAdmin\(\)/);
-  assert.match(page, /working_matter_snapshot,model_answer_snapshot,editor_capabilities/);
-  assert.match(page, /word_efficiency_grading_rules/);
-  assert.match(page, /notFound\(\)/);
-});
-
-test("the Model Answer editor reuses RichDocumentEditor in authoring mode with a non-locking save action, not the student attempt actions", async () => {
-  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
-  assert.match(editor, /mode="authoring"/);
-  assert.match(editor, /oneTimeSubmit=\{false\}/);
-  assert.match(editor, /submitAction=\{saveWordEfficiencyModelAnswer\}/);
-  assert.match(editor, /autosaveAction=\{saveWordEfficiencyModelAnswer\}/);
-  assert.match(editor, /diffWordDocuments/);
-  assert.match(editor, /Generate Grading Rules From Model Answer/);
-  assert.match(editor, /replaces ALL grading rules/);
-  assert.doesNotMatch(editor, /autosaveWordDocument|submitWordDocument/);
-});
+// The Model Answer admin UI page (the "click every detected change" diff
+// workflow) was removed at the admin's request -- they prefer authoring
+// grading manually and reviewing/grading student attempts directly via
+// "Edit / Preview" and "View Attempts" on the test list, both of which
+// already existed and are untouched by this removal. The underlying
+// save_word_efficiency_model_answer/evaluate_word_efficiency_grading_rule
+// schema and server actions are left in place (unreachable without a UI,
+// but harmless, and preserve the option to rebuild an authoring surface
+// later without a new migration).
 
 test("RichDocumentEditor's authoring-mode props default to exactly the original student-attempt behavior when omitted", async () => {
   const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
@@ -34,7 +24,7 @@ test("RichDocumentEditor's authoring-mode props default to exactly the original 
   assert.match(editor, /\(submitAction\?\?submitWordDocument\)/);
 });
 
-test("saveWordEfficiencyModelAnswer and generateWordEfficiencyGradingRulesFromModelAnswer are admin-gated server actions calling the matching RPCs", async () => {
+test("saveWordEfficiencyModelAnswer and generateWordEfficiencyGradingRulesFromModelAnswer remain admin-gated server actions calling the matching RPCs, even with no UI calling them any more", async () => {
   const actions = await read("app/admin/word-efficiency-tests/actions.ts");
   const modelAnswerBody = actions.slice(actions.indexOf("export async function saveWordEfficiencyModelAnswer"), actions.indexOf("export async function generateWordEfficiencyGradingRulesFromModelAnswer"));
   assert.match(modelAnswerBody, /requireAdmin\(\)/);
@@ -45,28 +35,12 @@ test("saveWordEfficiencyModelAnswer and generateWordEfficiencyGradingRulesFromMo
   assert.match(generateBody, /additionalCriteria:rest/);
 });
 
-test("the main admin test list links to the Model Answer page per test", async () => {
+test("the admin test list no longer links to the removed Model Answer page, and Edit/Preview + View Attempts remain the way to check a test and grade student submissions", async () => {
   const page = await read("app/admin/word-efficiency-tests/page.tsx");
-  assert.match(page, /\/admin\/word-efficiency-tests\/\$\{test\.id\}\/model-answer/);
-  assert.match(page, /Model Answer/);
-});
-
-test("assigning a detected change to a question is a single click against the currently selected question, not a per-row dropdown", async () => {
-  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
-  // The old per-row <select> is gone entirely.
-  assert.doesNotMatch(editor, /Assign to question/);
-  assert.doesNotMatch(editor, /<select className="input mt-1 w-full"/);
-  // A question is picked once (Step 1), then every change is a toggle button
-  // against that selection (Step 2) -- not one dropdown per change.
-  assert.match(editor, /which question are you answering/);
-  assert.match(editor, /click every change below that answers/);
-  assert.match(editor, /onClick=\{\(\) => setActiveQuestion\(question\.number\)\}/);
-  assert.match(editor, /onClick=\{\(\) => setAssignment\(\(current\) => \(\{ \.\.\.current, \[index\]: isHere \? "" : \(selectedQuestion as number\) \}\)\)\}/);
-});
-
-test("a change already assigned to a different question is shown as movable, not silently overwritten or hidden", async () => {
-  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
-  assert.match(editor, /Currently assigned to Q\$\{assignedTo\} — click to move to Q\$\{selectedQuestion\}/);
+  assert.doesNotMatch(page, /\/admin\/word-efficiency-tests\/\$\{test\.id\}\/model-answer/);
+  assert.doesNotMatch(page, />Model Answer</);
+  assert.match(page, /Edit \/ Preview/);
+  assert.match(page, /View Attempts/);
 });
 
 test("the migration's additional_criteria column and evaluator ship together with the model answer save RPC", async () => {
