@@ -20,7 +20,7 @@ test("DictationAudioPanel and its old always-visible speed list are gone from th
 
 test("the workspace never shows the reference passage or an audio panel for a dictation test -- the typing panel is the only row", async () => {
   const editor = await read(EXAM_PATH);
-  assert.match(editor, /\{!preset\.audioUrl && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
+  assert.match(editor, /\{!preset\.audioUrl && !printoutMode && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
   assert.doesNotMatch(editor, /preset\.audioUrl \? <DictationAudioPanel/);
 });
 

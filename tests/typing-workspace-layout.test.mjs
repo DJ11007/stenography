@@ -19,7 +19,7 @@ test("active workspace puts the toolbar in the top header, ahead of the original
 test("when a preset carries dictation audio, the workspace shows neither the passage nor an audio panel -- the dedicated dictation gate (a separate screen, before typing is unlocked) owns the audio player now, and the workspace itself never regains it", () => {
   assert.doesNotMatch(workspace, /function DictationAudioPanel/);
   assert.doesNotMatch(workspace, /const DICTATION_SPEEDS/);
-  assert.match(workspace, /\{!preset\.audioUrl && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
+  assert.match(workspace, /\{!preset\.audioUrl && !printoutMode && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
   assert.match(workspace, /import \{ DictationGate \} from "\.\/dictation-gate"/);
 });
 
@@ -39,8 +39,8 @@ test("workspace is viewport constrained with independently scrollable min-height
   assert.match(workspace, /className="min-h-0 w-full flex-1 resize-none overflow-y-auto/);
 });
 
-test("original and typing panels use equal remaining-viewport grid tracks including their headings -- except for a dictation test, which drops to a single full-height typing panel since there's no passage to show", () => {
-  assert.match(workspace, /grid h-full min-h-0 overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl \$\{preset\.audioUrl \? "" : "grid-rows-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]"\}/);
+test("original and typing panels use equal remaining-viewport grid tracks including their headings -- except for a dictation test or Printout Mode, either of which drops to a single full-height typing panel since there's no passage to show", () => {
+  assert.match(workspace, /grid h-full min-h-0 overflow-hidden rounded-2xl border border-blue-300 bg-blue-100 shadow-xl \$\{preset\.audioUrl \|\| printoutMode \? "" : "grid-rows-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]"\}/);
   assert.equal(workspace.match(/minmax\(0,1fr\)/g)?.length, 2);
   assert.match(workspace, /<section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);
   assert.match(workspace, /<section className="flex min-h-0 flex-col border-t-2 border-blue-300 bg-white" aria-labelledby="typing-passage-title">/);
@@ -71,7 +71,9 @@ test("pause stops movement and input while resume restores the active position",
 
 test("selected English, Hindi Unicode, and Kruti Dev fonts and language metadata remain active", () => {
   assert.equal(workspace.match(/fontFamily: inputSystem\.fontStack/g)?.length, 2);
-  assert.equal(workspace.match(/inputSystem\.language === "Hindi" \? "hi" : "en"/g)?.length, 2);
+  // 2 in the on-screen panels (original passage, typing textarea) + 1 in the
+  // Print / PDF window's own lang attribute.
+  assert.equal(workspace.match(/inputSystem\.language === "Hindi" \? "hi" : "en"/g)?.length, 3);
   assert.match(workspace, /normalizeTypingInput\(typedText, inputSystem\)/);
   assert.match(workspace, /getInputSystemPassage\(inputSystem, preset\.passage\)/);
 });

@@ -60,7 +60,8 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
       <div className="mt-5 space-y-3">{filtered.length ? filtered.map((test)=><TestRow key={test.id} test={test} learningOnly={learningOnly} onEdit={()=>choose(test)}/>) : <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">No tests match these filters.</p>}</div>
     </section>
     <aside className="rounded-2xl bg-white p-5 shadow xl:sticky xl:top-5 xl:self-start">
-      <div className="flex justify-between"><h2 className="text-xl font-black">{editing ? "Edit and create version" : "Create test"}</h2>{editing&&<button type="button" className="font-bold text-blue-700" onClick={()=>choose(null)}>New</button>}</div>
+      <div className="flex justify-between"><h2 className="text-xl font-black">{editing ? "Edit and create version" : "Create test"}</h2>{editing&&<button type="button" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800" onClick={()=>choose(null)}>+ Create a new test instead</button>}</div>
+      {editing && <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">You are editing <span className="underline">{editing.title}</span> (v{editing.current_version_number}, last saved {new Date(editing.updated_at).toLocaleDateString()}). Saving replaces its content with a new version -- it does not create a separate test. Click &quot;+ Create a new test instead&quot; above if you meant to make something new.</p>}
       <form action={action} className="mt-4 space-y-3">
         <input type="hidden" name="testId" value={editing?.id??""}/>
         {effectiveMode&&<input type="hidden" name="mode" value={effectiveMode}/>} {learningOnly&&<input type="hidden" name="visibility" value="public"/>}
