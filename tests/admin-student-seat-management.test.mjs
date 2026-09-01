@@ -30,7 +30,7 @@ test("the access-controls panel wires all four new forms: lock/unlock, clear sea
   assert.match(controls, /useActionState\(setStudentClassInfo, initial\)/);
   assert.match(controls, /useActionState\(setStudentPassword, initial\)/);
   assert.match(controls, /name="classInfo"/);
-  assert.match(controls, /name="password" type="password"/);
+  assert.match(controls, /<PasswordInput name="password"/);
 });
 
 test("the student detail page selects class_info and passes it into the access-controls panel", async () => {

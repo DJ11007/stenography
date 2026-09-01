@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentPassword, type StudentActionState } from "./actions";
+import { PasswordInput } from "@/app/_components/password-input";
 
 const initial: StudentActionState = {};
 
@@ -62,7 +63,7 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
       <form action={passwordAction} className="mt-5 border-t border-slate-200 pt-4" onSubmit={(event) => { if (!confirm("Set this student's password directly? This bypasses the reset-link flow -- only use it if they're genuinely locked out of their email too.")) event.preventDefault(); }}>
         <input type="hidden" name="studentId" value={studentId} />
         <label className="text-xs font-bold text-slate-600">Set password directly<span className="ml-1 font-normal text-slate-400">(optional -- leave blank to do nothing)</span>
-          <div className="mt-1 flex gap-2"><input name="password" type="password" placeholder="New password (min. 8 characters)" className="input w-full" minLength={8} autoComplete="new-password" /><button disabled={passwordPending} className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-60">{passwordPending ? "Saving…" : "Set password"}</button></div>
+          <div className="mt-1 flex gap-2"><PasswordInput name="password" placeholder="New password (min. 8 characters)" className="input w-full" minLength={8} autoComplete="new-password" /><button disabled={passwordPending} className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-60">{passwordPending ? "Saving…" : "Set password"}</button></div>
         </label>
         <p className="mt-1 text-[11px] text-slate-500">Prefer &quot;Send password reset link&quot; above for routine use -- this sets the password immediately without the student confirming it themselves.</p>
       </form>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { signIn, type AuthFormState } from "@/app/auth/actions";
+import { PasswordInput } from "@/app/_components/password-input";
 
 const initialState: AuthFormState = {};
 
@@ -18,7 +19,7 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
       </div>
       <div>
         <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">Password</label>
-        <input id="password" name="password" type="password" autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
+        <PasswordInput id="password" name="password" autoComplete="current-password" required className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
       {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}
       <button disabled={pending} type="submit" className="w-full rounded-lg bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">{pending ? "Signing in..." : "Sign in"}</button>
