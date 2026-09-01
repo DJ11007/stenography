@@ -1,4 +1,4 @@
-import type { BackspaceMode, HighlightMode, ScoringProfile, WordMethod } from "./typing-test";
+import type { BackspaceMode, HalfErrorCategory, HighlightMode, ScoringProfile, WordMethod } from "./typing-test";
 import { KRUTI_DEV_FONT_ASSET, type InputEncoding, type InputSystem, type TypingLanguage, type TypingScript } from "./typing-language.ts";
 import { EXAM_CATEGORIES, examCategoryPresetId, type ExamCategoryDefinition } from "./exam-categories.ts";
 import { STENOGRAPHY_CATEGORIES, stenographyCategoryPresetId, type StenographyCategoryDefinition } from "./stenography-categories.ts";
@@ -61,6 +61,14 @@ export type ExamPreset = {
    * workspace plays this audio (with adjustable speed) instead of showing the Original Passage
    * panel; the passage text is still used for scoring exactly as before. */
   audioUrl?: string | null;
+  /** Admin-configured menu for the dictation gate's pre-typing checklist:
+   * which half-error categories are offered to the student at all
+   * (`available`), and which start pre-checked (`defaults`, always a
+   * subset of `available`). Undefined means "not configured" -- the
+   * dictation gate falls back to offering every category, all on, which
+   * is the same as today's behavior for every test an admin hasn't set
+   * this for. */
+  dictationCategories?: { available: HalfErrorCategory[]; defaults: HalfErrorCategory[] };
   scoringProfile: ScoringProfile;
   marksMethod?: {
     id: "configured-rssb-ldc";

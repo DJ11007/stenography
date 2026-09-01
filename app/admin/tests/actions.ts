@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeManagedTestRules, slugifyTest, validateManagedTest, type ManagedTestDraft, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
+import { ALL_HALF_ERROR_CATEGORIES } from "@/lib/typing-test";
 
 export type TestFormState = { error?: string; success?: string };
 const text = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
@@ -76,7 +77,19 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     audioPath = resolved.audioPath;
   }
   const taskCategory = draft.mode === "stenography" ? (text(formData, "taskCategory") || "Task") : null;
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory };
+  // "Offer to student" categories not in ALL_HALF_ERROR_CATEGORIES (a
+  // tampered form field, or a category name from a future/older client)
+  // are silently dropped rather than stored -- managedVersionToPreset()
+  // reads this back with the same validation, so a malformed value here
+  // would just fall back to "offer everything" there anyway; filtering it
+  // here keeps what's actually stored honest.
+  const dictationCategories = draft.mode === "stenography" ? (() => {
+    const parse = (name: string) => text(formData, name).split(",").map((item) => item.trim()).filter((item) => (ALL_HALF_ERROR_CATEGORIES as string[]).includes(item));
+    const available = parse("dictationAvailable");
+    const defaults = parse("dictationDefaults").filter((item) => available.includes(item));
+    return { available, defaults };
+  })() : null;
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories };
   const { error } = lockedMode
     ? await supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive

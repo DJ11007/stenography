@@ -36,7 +36,7 @@ test("Start Typing begins the timer immediately (reuses the existing idempotent 
 
 test("starting a fresh attempt resets the dictation phase and category selection back to defaults, so Try Again doesn't get stuck on a stale selection", async () => {
   const editor = await read(EXAM_PATH);
-  assert.match(editor, /setDictationReady\(false\); setSelectedCategories\(defaultCategoriesFor\(preset\.language\)\); setStarted\(true\);/);
+  assert.match(editor, /setDictationReady\(false\); setSelectedCategories\(defaultCategoriesFor\(preset\)\); setStarted\(true\);/);
 });
 
 test("the student's category selection is folded into the scoring profile only for audio tests (zero behavior change otherwise), and used for both the on-screen and server-recorded score", async () => {
@@ -56,7 +56,7 @@ test("the dictation gate hides the audio player, shows the category checkboxes, 
 
 test("capitalization is not offered for non-English (Devanagari has no case), and halant is not offered for English (a Latin-script pair has no such concept)", async () => {
   const gate = await read(GATE_PATH);
-  assert.match(gate, /const availableCategories = ALL_HALF_ERROR_CATEGORIES\.filter\(\(category\) => preset\.language === "English" \? category !== "halant" : category !== "capitalization"\)/);
+  assert.match(gate, /const languageAppropriate = ALL_HALF_ERROR_CATEGORIES\.filter\(\(category\) => preset\.language === "English" \? category !== "halant" : category !== "capitalization"\)/);
 });
 
 test("punctuation is relabeled Comma Count for Hindi tests, matching what comma-focused dictation checking actually catches", async () => {

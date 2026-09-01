@@ -65,8 +65,13 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   // capitalization is meaningless for Hindi (Devanagari has no case);
   // halant (viram) is meaningless for English (a Latin-script concept has
   // no such thing) -- each is only ever offered for the language it
-  // actually applies to.
-  const availableCategories = ALL_HALF_ERROR_CATEGORIES.filter((category) => preset.language === "English" ? category !== "halant" : category !== "capitalization");
+  // actually applies to. On top of that language filter, the admin can
+  // narrow which categories are offered at all for this specific test
+  // (preset.dictationCategories.available) -- undefined means "not
+  // configured", which falls back to offering everything, same as before
+  // this was ever admin-controllable.
+  const languageAppropriate = ALL_HALF_ERROR_CATEGORIES.filter((category) => preset.language === "English" ? category !== "halant" : category !== "capitalization");
+  const availableCategories = preset.dictationCategories ? languageAppropriate.filter((category) => preset.dictationCategories!.available.includes(category)) : languageAppropriate;
   // Comma is the punctuation mark that actually matters in Hindi
   // dictation -- relabeling the existing punctuation checkbox for Hindi
   // tests is simpler and clearer than adding a whole separate category

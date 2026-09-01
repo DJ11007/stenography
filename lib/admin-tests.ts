@@ -1,4 +1,4 @@
-import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HighlightMode, type WordMethod } from "./typing-test.ts";
+import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
 import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, type ExamPreset } from "./typing-curriculum.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
@@ -13,6 +13,7 @@ export type ManagedTestDraft = Partial<LiveTestSchedule> & {
   requiredWpm: number; requiredAccuracy: number; backspaceMode: BackspaceMode;
   wordMethod: WordMethod; highlightMode: HighlightMode; visibility: ManagedTestVisibility;
   audioPath?: string | null;
+  dictationCategories?: { available: HalfErrorCategory[]; defaults: HalfErrorCategory[] } | null;
 };
 
 export type ManagedTestVersion = ManagedTestDraft & { id: string; testId: string; versionNumber: number };
@@ -60,5 +61,6 @@ export function managedVersionToPreset(version: ManagedTestVersion): ExamPreset 
     wordMethod: version.wordMethod, highlightMode: version.highlightMode,
     scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: version.requiredWpm, passAccuracy: version.requiredAccuracy, capitalizationErrors: version.language === "English" },
     audioUrl: null,
+    dictationCategories: version.dictationCategories ?? undefined,
   };
 }

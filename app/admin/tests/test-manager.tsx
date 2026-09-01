@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { MANAGED_INPUT_SYSTEMS, countPassageWords, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
 import { STENOGRAPHY_TASK_CATEGORIES } from "@/lib/stenography-task-library";
+import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, type HalfErrorCategory } from "@/lib/typing-test";
 import { encodingValidationMessage, type HindiTextFormat } from "@/lib/hindi-font-converter";
 import { FontConverter } from "@/app/admin/font-converter/font-converter";
 import { deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearningManagedTest, saveManagedTest, savePracticeManagedTest, saveStenographyManagedTest, setManagedTestStatus, type TestFormState } from "./actions";
@@ -31,9 +32,22 @@ export default function TestManager({ tests, lockedMode, learningOnly:legacyLear
   const [converterOpen,setConverterOpen] = useState(false);
   const [showRawPassage,setShowRawPassage] = useState(false);
   const [krutiFontReady,setKrutiFontReady] = useState(true);
+  // Which dictation-phase mistake categories the student's pre-typing
+  // checklist offers for this test, and which start pre-checked -- an
+  // admin choice per test, not a hardcoded one. Defaults to "offer
+  // everything, all on" (today's behavior) for a new test or one that's
+  // never had this configured.
+  const [dictationAvailable,setDictationAvailable] = useState<Set<HalfErrorCategory>>(new Set(ALL_HALF_ERROR_CATEGORIES));
+  const [dictationDefaults,setDictationDefaults] = useState<Set<HalfErrorCategory>>(new Set(ALL_HALF_ERROR_CATEGORIES));
   const [state,action,pending] = useActionState(saveAction,initialState);
   const filtered = useMemo(() => tests.filter((item) => { const q=query.toLowerCase(); const kindMatch=kind==="all"||item.mode===kind||item.language===kind||item.input_system_id.includes(kind)||(kind==="typing"&&item.mode!=="stenography"); return (!q||`${item.title} ${item.slug}`.toLowerCase().includes(q))&&(status==="all"||item.status===status)&&kindMatch; }).sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="attempts"?b.attempts-a.attempts:new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime()), [tests,query,status,kind,sort]);
-  const choose = (test:ManagedTestRow|null) => { setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(test?.currentVersion?.language??"English"); setInputSystem(test?.currentVersion?.input_system_id??"english-qwerty"); setFormMode(effectiveMode??test?.currentVersion?.mode??"practice"); setIsLive(Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false); };
+  const choose = (test:ManagedTestRow|null) => {
+    setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(test?.currentVersion?.language??"English"); setInputSystem(test?.currentVersion?.input_system_id??"english-qwerty"); setFormMode(effectiveMode??test?.currentVersion?.mode??"practice"); setIsLive(Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
+    const stored = test?.currentVersion?.configuration?.dictation_categories as {available?:unknown;defaults?:unknown}|undefined;
+    const validated = (value:unknown) => Array.isArray(value) ? value.filter((item):item is HalfErrorCategory => (ALL_HALF_ERROR_CATEGORIES as string[]).includes(item as string)) : null;
+    setDictationAvailable(new Set(validated(stored?.available) ?? ALL_HALF_ERROR_CATEGORIES));
+    setDictationDefaults(new Set(validated(stored?.defaults) ?? ALL_HALF_ERROR_CATEGORIES));
+  };
   const systems = MANAGED_INPUT_SYSTEMS.filter((system) => system.language === language);
   const showAdminRules = formMode !== "practice" || isLive;
   const passageFormat:HindiTextFormat=inputSystem.includes("krutidev")?"krutidev":"unicode";
@@ -59,6 +73,23 @@ export default function TestManager({ tests, lockedMode, learningOnly:legacyLear
         <div className="grid grid-cols-2 gap-3"><Field label="Required WPM"><input className="input" name="requiredWpm" type="number" min={0} max={300} step="0.01" defaultValue={editing?.currentVersion?.required_wpm??30}/></Field><Field label="Required accuracy"><input className="input" name="requiredAccuracy" type="number" min={0} max={100} step="0.01" defaultValue={editing?.currentVersion?.required_accuracy??90}/></Field></div>
         {formMode==="stenography" && <Field label="Task category"><select className="input" name="taskCategory" defaultValue={(editing?.currentVersion?.configuration?.task_category as string|undefined)??"Task"}>{STENOGRAPHY_TASK_CATEGORIES.map((category)=><option key={category} value={category}>{category}</option>)}</select></Field>}
         {formMode==="stenography" && <Field label="Dictation audio (optional)"><input type="hidden" name="existingAudioPath" value={(editing?.currentVersion?.configuration?.audio_path as string|undefined)??""}/>{(editing?.currentVersion?.configuration?.audio_path as string|undefined) && <p className="mb-2 text-xs font-bold text-emerald-700">Audio attached ✓ <label className="ml-2 font-normal text-slate-600"><input type="checkbox" name="removeAudio"/> Remove on save</label></p>}<input className="input" name="audioFile" type="file" accept="audio/*"/><p className="mt-1 text-xs text-slate-500">Students hear this recording (speed adjustable) instead of reading the passage; the passage is still used to score their typed text.</p></Field>}
+        {formMode==="stenography" && <Field label="Dictation grading checklist (shown to the student before typing)">
+          <input type="hidden" name="dictationAvailable" value={[...dictationAvailable].join(",")}/>
+          <input type="hidden" name="dictationDefaults" value={[...dictationDefaults].join(",")}/>
+          <div className="grid gap-1 rounded-xl border border-slate-200 p-3 text-sm">
+            {ALL_HALF_ERROR_CATEGORIES.filter((category)=>language==="English"?category!=="halant":category!=="capitalization").map((category)=>{
+              const offered = dictationAvailable.has(category);
+              return <div key={category} className="flex items-center justify-between gap-3 border-b border-slate-100 py-1.5 last:border-0">
+                <span className="font-bold text-slate-800">{category==="punctuation"&&language!=="English"?"Comma Count":HALF_ERROR_CATEGORY_LABELS[category]}</span>
+                <span className="flex gap-3 text-xs">
+                  <label className="flex items-center gap-1 font-bold text-slate-600"><input type="checkbox" checked={offered} onChange={(event)=>{const next=new Set(dictationAvailable);if(event.target.checked)next.add(category);else{next.delete(category);const defaults=new Set(dictationDefaults);defaults.delete(category);setDictationDefaults(defaults);}setDictationAvailable(next);}}/>Offer to student</label>
+                  <label className={`flex items-center gap-1 font-bold ${offered?"text-slate-600":"text-slate-300"}`}><input type="checkbox" disabled={!offered} checked={dictationDefaults.has(category)} onChange={(event)=>{const next=new Set(dictationDefaults);if(event.target.checked)next.add(category);else next.delete(category);setDictationDefaults(next);}}/>On by default</label>
+                </span>
+              </div>;
+            })}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Unchecked "Offer to student" categories never appear on the checklist at all -- they're never graded for this test. The student can still adjust anything left checked before typing.</p>
+        </Field>}
         {showAdminRules ? <><Field label="Backspace"><select className="input" name="backspaceMode" defaultValue={editing?.currentVersion?.backspace_mode??"full"}><option value="full">Full</option><option value="word">Current word</option><option value="disabled">Disabled</option></select></Field><Field label="Word calculation"><select className="input" name="wordMethod" defaultValue={editing?.currentVersion?.word_method??"characters"}><option value="characters">5 characters</option><option value="spaces">Space-separated words</option></select></Field><Field label="Highlight default"><select className="input" name="highlightMode" defaultValue={editing?.currentVersion?.highlight_mode??"character"}><option value="character">Character</option><option value="word">Current word</option><option value="none">None</option></select></Field></> : <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-black text-blue-900">Practice settings are controlled by the student.</p>}
         <Field label="Visibility"><select className="input" name="visibility" defaultValue={editing?.currentVersion?.visibility??"private"}><option value="private">Private</option><option value="public">Public</option></select></Field>
         {!effectiveMode&&<fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3"><label className="flex items-center gap-2 font-black text-blue-950"><input type="checkbox" name="isLive" checked={isLive} onChange={(event)=>setIsLive(event.target.checked)}/>Free scheduled live test</label><p className="mt-1 text-xs text-blue-800">Live tests must be public. Each registered student receives one attempt; results unlock at the publication time.</p>{isLive&&<div className="mt-3 grid gap-2"><Field label="Starts"><input className="input" name="startsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_starts_at)}/></Field><Field label="Ends"><input className="input" name="endsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_ends_at)}/></Field><Field label="Publish results"><input className="input" name="resultsPublishAt" type="datetime-local" defaultValue={localDateTime(editing?.results_publish_at)}/></Field></div>}</fieldset>}

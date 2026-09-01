@@ -24,7 +24,19 @@ const backspaceLabel = (mode: BackspaceMode) => mode === "full" ? "Full backspac
 // Devanagari has no case, so capitalization is never a meaningful category
 // for Hindi -- matches managedVersionToPreset()'s existing
 // capitalizationErrors: language === "English" default exactly.
-const defaultCategoriesFor = (language: string): HalfErrorCategory[] => ALL_HALF_ERROR_CATEGORIES.filter((category) => language === "English" ? category !== "halant" : category !== "capitalization");
+// The dictation gate's initial checklist selection: the admin's configured
+// defaults when this test has been set up for it (preset.dictationCategories),
+// falling back to "everything on" (this app's original behavior, before
+// admin-configurability existed) for any test that hasn't. Either way,
+// capitalization/halant are still excluded for the language they don't
+// apply to -- an admin-configured default can only narrow the language-
+// appropriate set further, never reintroduce a category that makes no
+// sense for this test's language.
+const defaultCategoriesFor = (preset: ExamPreset): HalfErrorCategory[] => {
+  const languageAppropriate = ALL_HALF_ERROR_CATEGORIES.filter((category) => preset.language === "English" ? category !== "halant" : category !== "capitalization");
+  if (!preset.dictationCategories) return languageAppropriate;
+  return languageAppropriate.filter((category) => preset.dictationCategories!.defaults.includes(category));
+};
 // Tailwind class discovery for the result legend: bg-green-500 bg-red-500 bg-orange-500 bg-blue-500 bg-purple-500
 
 export function ConfigurableTypingExam({ preset, mode, customPreset = false, matterPreset = false, directWorkspace = false, managedTest, practiceNavigation }: { preset: ExamPreset; mode: ExamMode; customPreset?: boolean; matterPreset?: boolean; directWorkspace?: boolean; managedTest?: {testId:string;versionId:string;mode:"learn"|"practice"|"exam"|"stenography";isLive?:boolean;resultsPublishAt?:string|null}; practiceNavigation?:PracticeNavigation }) {
@@ -44,7 +56,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // a fixed transcription-time window, like the real exam, not tied to the
   // student's first keystroke the way plain typing tests are.
   const [dictationReady, setDictationReady] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<HalfErrorCategory[]>(() => defaultCategoriesFor(preset.language));
+  const [selectedCategories, setSelectedCategories] = useState<HalfErrorCategory[]>(() => defaultCategoriesFor(preset));
   const startedAt = useRef<string | null>(null); const recordedAttempt = useRef(false);
   const directSettingsInitialized = useRef(false);
   const [verifiedScore, setVerifiedScore] = useState<ReturnType<typeof calculateTypingScore> | null>(null);
@@ -104,7 +116,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   useEffect(() => { if (!timerStarted || finished) return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [finished, timerStarted]);
   useEffect(() => { sessionStorage.setItem("practice-attempt-active", String(timerStarted && !finished)); return () => sessionStorage.setItem("practice-attempt-active", "false"); }, [finished, timerStarted]);
 
-  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (managedRulesLocked && preset.highlightMode) resolved.highlightMode = preset.highlightMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset.language)); setStarted(true); };
+  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (managedRulesLocked && preset.highlightMode) resolved.highlightMode = preset.highlightMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
   const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
   const submit = () => { if (window.confirm("Submit this test now? You cannot continue typing after submission.")) { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setFinished(true); } };
   const togglePause = () => { if (!timerStarted) return; if (paused) { setEndTimestamp(Date.now() + timeLeft * 1000); setPaused(false); } else { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setEndTimestamp(null); setPaused(true); } };
