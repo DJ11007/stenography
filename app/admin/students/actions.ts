@@ -102,3 +102,51 @@ export async function setStudentAccessLocked(_: StudentActionState, formData: Fo
   revalidatePath("/admin/track");
   return { success: locked ? "Test access locked." : "Test access unlocked." };
 }
+
+// "Clear seat" -- a defined, non-destructive reset of the access package
+// back to its blank/default state (unlimited tests, no expiry, no grace,
+// but locked so the seat isn't silently usable again until an admin
+// re-configures it). Deliberately does NOT touch the account itself
+// (profiles row, auth user, results history) -- that stays exactly this
+// codebase's established pattern of keeping destructive account actions
+// separate and explicitly confirmed elsewhere, not folded into this.
+export async function clearStudentAccessPackage(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_student_access", { p_student_id: studentId, p_test_limit: null, p_validity_days: null, p_grace_days: 0, p_locked: true });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  revalidatePath("/admin/track");
+  return { success: "Access package cleared and locked. The account itself was not touched -- re-configure a new package to reactivate this seat." };
+}
+
+export async function setStudentClassInfo(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const classInfo = String(formData.get("classInfo") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_student_class_info", { p_student_id: studentId, p_class_info: classInfo });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  return { success: "Class info saved." };
+}
+
+// This bypasses the "email a reset link" flow entirely and sets a password
+// directly -- meant for the rare case a student is genuinely locked out of
+// their email too, not routine use. The password is never stored or
+// logged by this action beyond the single Supabase Auth call it makes.
+export async function setStudentPassword(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const password = String(formData.get("password") ?? "");
+  if (!password) return { error: "Enter a new password." };
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  const admin = createAdminClient();
+  if (!admin) return { error: "Admin password tools are not configured on this server." };
+  const { error } = await admin.auth.admin.updateUserById(studentId, { password });
+  if (error) return { error: error.message };
+  return { success: "Password updated. Share it with the student through a secure channel -- it is not shown again here." };
+}

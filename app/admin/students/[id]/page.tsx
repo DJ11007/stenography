@@ -16,7 +16,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at").eq("id", id).maybeSingle();
+  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at,class_info").eq("id", id).maybeSingle();
   if (!student) notFound();
 
   const admin = createAdminClient();
@@ -57,6 +57,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
                 <Field label="Last sign-in" value={lastSignInAt ? date(lastSignInAt) : "Never"} />
                 <Field label="Account status" value={student.is_active ? "Active" : "Deactivated"} />
                 <Field label="Email confirmation" value={emailConfirmed ? "Confirmed" : "Not confirmed"} />
+                <Field label="Class info" value={student.class_info || "Not set"} />
                 {bannedUntil && <Field label="Banned until" value={date(bannedUntil)} />}
                 <div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Test access</dt><dd className="mt-1 flex items-center gap-2"><AccessStatusBadge access={access} />{access?.test_limit != null && <span className="text-slate-600">{access.tests_remaining}/{access.test_limit} left</span>}</dd></div>
                 <Field label="Validity" value={validityLabel(access)} />
@@ -66,7 +67,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
             <StudentActionButtons studentId={student.id} emailConfirmed={emailConfirmed} isActive={student.is_active} />
           </div>
           <div className="mt-5">
-            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} />
+            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} />
           </div>
         </section>
 

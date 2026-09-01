@@ -9,7 +9,7 @@ import { BackButton } from "../../_components/back-button";
 
 export const metadata: Metadata = { title: "Students | Admin" };
 
-type Profile = { id: string; email: string; full_name: string | null; phone: string | null; role: string; is_active: boolean; created_at: string };
+type Profile = { id: string; email: string; full_name: string | null; phone: string | null; role: string; is_active: boolean; created_at: string; class_info: string | null };
 
 export default async function AdminStudentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await requireAdmin();
@@ -17,7 +17,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   const search = (params.search ?? "").trim();
 
   const supabase = await createClient();
-  const base = () => supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at").eq("role", "student").order("created_at", { ascending: false });
+  const base = () => supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at,class_info").eq("role", "student").order("created_at", { ascending: false });
   let students: Profile[] | null;
   let error: { message: string } | null = null;
   if (search) {
@@ -52,6 +52,9 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   const rows = (students ?? []).map((student) => ({ student, status: authStatus.get(student.id) ?? { emailConfirmed: true, lastSignInAt: null }, access: accessByStudent.get(student.id) ?? null }));
   const unconfirmedCount = rows.filter((row) => !row.status.emailConfirmed).length;
   const neverSignedInCount = rows.filter((row) => !row.status.lastSignInAt).length;
+  const activeCount = rows.filter((row) => row.access?.status === "active").length;
+  const graceCount = rows.filter((row) => row.access?.status === "grace").length;
+  const lockedCount = rows.filter((row) => row.access?.status === "locked").length;
 
   return (
     <main className="min-h-screen bg-slate-100 p-6">
@@ -64,6 +67,13 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
           </div>
           <BackButton href="/admin" label="Admin panel" dark />
         </header>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Total users" value={rows.length} />
+          <StatCard label="Active" value={activeCount} tone="green" />
+          <StatCard label="Grace" value={graceCount} tone="amber" />
+          <StatCard label="Locked" value={lockedCount} tone="red" />
+        </div>
 
         {!admin && (
           <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">
@@ -127,4 +137,9 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
 
 function date(value: string | null) {
   return value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(value)) : "Unavailable";
+}
+
+function StatCard({ label, value, tone }: { label: string; value: number; tone?: "green" | "amber" | "red" }) {
+  const toneClass = tone === "green" ? "text-green-700" : tone === "amber" ? "text-amber-700" : tone === "red" ? "text-red-700" : "text-slate-900";
+  return <div className="rounded-2xl bg-white p-4 shadow"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p><p className={`mt-1 text-3xl font-black ${toneClass}`}>{value}</p></div>;
 }
