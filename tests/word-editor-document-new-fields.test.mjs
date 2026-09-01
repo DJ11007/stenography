@@ -57,3 +57,13 @@ test("a real document built by the current editor (every new field present, matc
   ]);
   assert.doesNotThrow(() => validateWordEditorDocument(realistic));
 });
+
+test("a document is valid whether or not runs carry outline/emboss at all (they are optional, same as smallCaps/allCaps/hidden)", () => {
+  assert.doesNotThrow(() => validateWordEditorDocument(doc([paragraph()])));
+  assert.doesNotThrow(() => validateWordEditorDocument(doc([{ ...paragraph(), runs: [run({ outline: true, emboss: false })] }])));
+});
+
+test("a non-boolean outline/emboss value is rejected", () => {
+  assert.throws(() => validateWordEditorDocument(doc([{ ...paragraph(), runs: [run({ outline: "yes" })] }])), /mark/i);
+  assert.throws(() => validateWordEditorDocument(doc([{ ...paragraph(), runs: [run({ emboss: 1 })] }])), /mark/i);
+});

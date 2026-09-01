@@ -99,6 +99,23 @@ test("small caps, all caps, and hidden run changes are each detected independent
   assert.deepEqual(targets, ["blocks.block-0.runs.0.allCaps", "blocks.block-0.runs.0.hidden", "blocks.block-0.runs.0.smallCaps"]);
 });
 
+test("a run missing outline/emboss entirely is NOT reported as different from a run that has them explicitly false, same as smallCaps/allCaps/hidden", () => {
+  const before = doc([{ id: "block-0", type: "paragraph", alignment: "left", runs: [{ text: "Hello", bold: false, italic: false, underline: false }], attrs: {} }]);
+  const after = doc([{ id: "block-0", type: "paragraph", alignment: "left", runs: [{ text: "Hello", bold: false, italic: false, underline: false, outline: false, emboss: false }], attrs: {} }]);
+  assert.deepEqual(diffWordDocuments(before, after), []);
+  assert.deepEqual(diffWordDocuments(after, before), []);
+});
+
+test("outline and emboss run changes are each detected independently with readable labels", () => {
+  const before = doc([paragraph("block-0", "Hello")]);
+  const after = doc([{ ...paragraph("block-0", "Hello"), runs: [{ text: "Hello", bold: false, italic: false, underline: false, outline: true, emboss: true }] }]);
+  const changes = diffWordDocuments(before, after);
+  const targets = changes.map((change) => change.target).sort();
+  assert.deepEqual(targets, ["blocks.block-0.runs.0.emboss", "blocks.block-0.runs.0.outline"]);
+  assert.ok(changes.some((change) => change.target.endsWith(".outline") && /outline/i.test(change.label)));
+  assert.ok(changes.some((change) => change.target.endsWith(".emboss") && /emboss/i.test(change.label)));
+});
+
 test("a paragraph's special indent (mode and amount) is detected as an attrs change", () => {
   const before = doc([{ ...paragraph("block-1", "Hello"), attrs: {} }]);
   const after = doc([{ ...paragraph("block-1", "Hello"), attrs: { specialIndentMode: "hanging", specialIndentAmount: "0.5in" } }]);

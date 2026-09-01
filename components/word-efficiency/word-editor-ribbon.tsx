@@ -133,7 +133,7 @@ function FontGallery({fonts,preview,onChange,currentFontFamily}:{fonts:string[];
 }
 function FontSection({title,fonts,choose}:{title:string;fonts:readonly string[];choose:(font:string)=>void}){if(!fonts.length)return null;return <section><h3>{title}</h3>{fonts.map(font=><button role="option" type="button" key={font} style={{fontFamily:fontCssName(font)}} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(font)}><span>{font.replace(/ \((?:Headings|Body)\)$/u,"")}</span>{font.endsWith("(Headings)")&&<small>(Headings)</small>}{font.endsWith("(Body)")&&<small>(Body)</small>}</button>)}</section>}
 function fontCssName(font:string){return font.replace(/ \((?:Headings|Body)\)$/u,"")}
-const SAFE_COLORS=["#000000","#7f7f7f","#a6a6a6","#d9d9d9","#ffffff","#c00000","#ff0000","#ffc000","#ffff00","#92d050","#00b050","#00b0f0","#0070c0","#002060","#7030a0","#fff2cc","#f4cccc","#d9ead3","#cfe2f3","#d9d2e9","#ed7d31","#70ad47","#4472c4","#a9d18e","#9dc3e6","#f9cb9c"];
+export const SAFE_COLORS=["#000000","#7f7f7f","#a6a6a6","#d9d9d9","#ffffff","#c00000","#ff0000","#ffc000","#ffff00","#92d050","#00b050","#00b0f0","#0070c0","#002060","#7030a0","#fff2cc","#f4cccc","#d9ead3","#cfe2f3","#d9d2e9","#ed7d31","#70ad47","#4472c4","#a9d18e","#9dc3e6","#f9cb9c"];
 const CLEAR_LABEL:Record<string,string>={fontColor:"Automatic",highlightColor:"No Color",shading:"No Fill"};
 function ColorSplitButton({option,preview,swatch,setSwatch,onChange}:{option:RibbonOption;preview:boolean;swatch:string;setSwatch:(color:string)=>void;onChange?:Props["onColorChange"]}){
   const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});

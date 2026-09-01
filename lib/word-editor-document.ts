@@ -10,7 +10,7 @@ const ROOT_V2 = new Set(["schemaVersion", "blocks", "pageLayout", "operations", 
 const BLOCK_V1 = new Set(["id", "type", "alignment", "runs"]);
 const BLOCK_V2 = new Set(["id", "type", "alignment", "runs", "attrs"]);
 const RUN_V1 = new Set(["text", "bold", "italic", "underline", "strike", "superscript", "subscript", "fontFamily", "fontSize", "color", "highlight"]);
-const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "doubleStrike", "href", "bookmark", "field", "smallCaps", "allCaps", "hidden", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin"]);
+const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "doubleStrike", "href", "bookmark", "field", "smallCaps", "allCaps", "hidden", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin", "outline", "emboss"]);
 const UNDERLINE_STYLES=new Set(["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy","words-only"]);
 const PAGE_LAYOUT_KEYS = new Set(["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"]);
 const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "marginTop", "marginBottom", "border", "backgroundColor", "hyphens"]);
@@ -47,7 +47,7 @@ export function validateWordEditorDocument(value: unknown) {
       text += run.text.length; if (text > 1000000) throw new Error("Structured document is too large.");
       for (const flag of ["bold", "italic", "underline", "strike", "superscript", "subscript"] as const) if (typeof run[flag] !== "boolean") throw new Error("Invalid structured document mark.");
       if (version === "2" && typeof run.doubleStrike !== "boolean") throw new Error("Invalid double-strikethrough mark.");
-      if (version === "2") for (const flag of ["smallCaps", "allCaps", "hidden"] as const) if (flag in run && typeof run[flag] !== "boolean") throw new Error("Invalid structured document mark.");
+      if (version === "2") for (const flag of ["smallCaps", "allCaps", "hidden", "outline", "emboss"] as const) if (flag in run && typeof run[flag] !== "boolean") throw new Error("Invalid structured document mark.");
       if (version === "2" && "kerningEnabled" in run && typeof run.kerningEnabled !== "boolean") throw new Error("Invalid kerning flag.");
       if (version === "2" && "charScale" in run && run.charScale !== null && (typeof run.charScale !== "number" || !Number.isFinite(run.charScale) || run.charScale < 1 || run.charScale > 600)) throw new Error("Invalid character scale.");
       if (version === "2" && "charSpacing" in run && run.charSpacing !== null && (typeof run.charSpacing !== "number" || !Number.isFinite(run.charSpacing) || run.charSpacing < -100 || run.charSpacing > 100)) throw new Error("Invalid character spacing.");
