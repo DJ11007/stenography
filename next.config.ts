@@ -5,6 +5,18 @@ import { fileURLToPath } from "node:url";
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // Next.js defaults every Server Action request body to a 1MB cap. This
+  // app's own code allows a dictation audio upload up to 50MB
+  // (app/admin/tests/actions.ts, MAX_AUDIO_BYTES) and it goes straight
+  // through a Server Action (saveStenographyManagedTest), so without this
+  // the framework rejected any file over ~1MB before that 50MB check ever
+  // ran -- "Body exceeded 1 MB limit". 55mb leaves headroom over the 50MB
+  // audio cap for multipart boundary/field overhead.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "55mb",
+    },
+  },
   serverExternalPackages: ["pdfjs-dist"],
   outputFileTracingIncludes: {
     "/admin/word-efficiency-tests": [
