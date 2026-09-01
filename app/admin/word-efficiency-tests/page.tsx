@@ -19,7 +19,6 @@ import { DeliveryPdfFields } from "./delivery-pdf-fields";
 import { WorkingMatterDocxFields } from "./working-matter-docx-fields";
 import { SaveLocalDraftButton } from "./draft-preserver";
 import{PermanentDeleteDangerZone}from"./permanent-delete-danger-zone";
-import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 export const metadata: Metadata = { title: "Word Efficiency Tests | Admin" };
 
 export default async function Page({
@@ -115,7 +114,6 @@ export default async function Page({
                 ? `Edit ${editing.title}`
                 : "Create Word Efficiency test"}
             </h2>
-            <ExamPatternReference subject="Word" />
             <form action={saveWordEfficiencyTest} className="mt-6 grid gap-5">
               {editing && (
                 <input type="hidden" name="testId" value={editing.id} />
@@ -198,14 +196,12 @@ export default async function Page({
                 }
               />
               <WorkingMatterDocxFields initialSnapshot={current?.working_matter_snapshot??null}/>
-              <fieldset className="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-4">
-                <legend className="px-2 font-black">Real file delivery (optional)</legend>
-                <label className="flex gap-3 text-sm font-bold">
-                  <input type="checkbox" name="deliveryRealFile" defaultChecked={current?.delivery_realfile ?? false} />
-                  Deliver as a real .docx — student downloads the Working Matter above, edits it in their own installed Microsoft Word, and uploads the finished file back for grading.
-                </label>
-                <p className="mt-2 text-xs text-slate-600">Requires the Working Matter above to be uploaded as a real .docx file (not just pasted content) — its original file is what gets handed to students.</p>
-              </fieldset>
+              {/* "Real file delivery (optional)" was removed from this form at the
+                  admin's request. Confirmed zero existing test versions had it
+                  enabled (delivery_realfile=true) before removing the checkbox, so
+                  no already-created test silently loses this setting on its next
+                  edit-save -- form.get("deliveryRealFile") simply always reads
+                  absent now, same as it always defaulted to for every test. */}
               <QuestionEditor initialQuestions={initialQuestions} />
               <div className="grid gap-3 sm:grid-cols-2">
                 <SaveLocalDraftButton />
