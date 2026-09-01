@@ -20,6 +20,15 @@ export const DEFAULT_TYPING_SETTINGS: TypingSettings = {
   maxWords: 1500,
 };
 
+// The duration choices offered to a student picking their own practice
+// duration: every minute from 1-25, then 5-minute steps up to 70. Admin-set
+// exam/learn/stenography durations are unaffected -- this only backs the
+// student-facing picker for tests where duration isn't locked.
+export const PRACTICE_DURATION_MINUTES: readonly number[] = [
+  ...Array.from({ length: 25 }, (_, index) => index + 1),
+  30, 35, 40, 45, 50, 55, 60, 65, 70,
+];
+
 const isBackspaceMode = (value: unknown): value is BackspaceMode =>
   value === "full" || value === "word" || value === "disabled";
 

@@ -36,10 +36,19 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   const isLive = formData.get("isLive") === "on";
   const durationMinutes = text(formData, "durationMinutes");
   const iso = (name: string) => { const value = text(formData, name); const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.toISOString() : value || null; };
+  // Practice (non-live) tests don't ask the admin for a required speed/
+  // accuracy target -- the form doesn't even render those fields for this
+  // mode any more (see test-manager.tsx's showAdminRules). Force the same
+  // fixed 30 WPM / 90% here too, authoritatively, so a tampered or stale
+  // form submission can't sneak in an arbitrary value for a mode where
+  // nothing is meant to be graded against a target.
+  const isPlainPractice = mode === "practice" && !isLive;
   return normalizeManagedTestRules({
     title: text(formData, "title"), description: text(formData, "description"), slug: slugifyTest(text(formData, "slug") || text(formData, "title")), language,
     inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: durationMinutes ? Number(durationMinutes) * 60 : 600,
-    passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"), requiredWpm: Number(formData.get("requiredWpm")), requiredAccuracy: Number(formData.get("requiredAccuracy")),
+    passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"),
+    requiredWpm: isPlainPractice ? 30 : Number(formData.get("requiredWpm")),
+    requiredAccuracy: isPlainPractice ? 90 : Number(formData.get("requiredAccuracy")),
     backspaceMode: (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
     wordMethod: text(formData, "wordMethod") === "spaces" ? "spaces" : "characters",
     highlightMode: (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
