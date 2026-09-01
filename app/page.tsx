@@ -145,25 +145,25 @@ export default async function Home() {
             height={72}
             priority
             className="animate-fade-in-up mx-auto mt-5 h-[72px] w-[72px] rounded-full bg-white object-contain shadow-xl ring-2 ring-white/80"
-            style={{ animationDelay: "80ms" }}
+            style={{ animationDelay: "40ms" }}
           />
           <h1
             className="animate-fade-in-up mt-4 text-4xl font-black tracking-tight sm:text-6xl"
-            style={{ animationDelay: "150ms" }}
+            style={{ animationDelay: "80ms" }}
           >
             SAMRADHI CLASSES
           </h1>
 
           <p
             className="animate-fade-in-up mt-3 text-lg font-bold text-blue-50 sm:text-xl"
-            style={{ animationDelay: "220ms" }}
+            style={{ animationDelay: "120ms" }}
           >
             Typing, Efficiency and Stenography Test
           </p>
 
           <div
             className="animate-fade-in-up mx-auto mt-8 grid max-w-5xl gap-3 text-left sm:grid-cols-2"
-            style={{ animationDelay: "300ms" }}
+            style={{ animationDelay: "160ms" }}
           >
             {EXAM_CATEGORIES.map((category) => (
               <div
@@ -181,7 +181,7 @@ export default async function Home() {
 
           <div
             className="animate-fade-in-up mt-8 flex flex-wrap justify-center gap-4"
-            style={{ animationDelay: "380ms" }}
+            style={{ animationDelay: "200ms" }}
           >
             <Link
               href="/live-test"

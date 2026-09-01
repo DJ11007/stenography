@@ -9,6 +9,7 @@ const groups = [
     items: [
       ["/admin/students", "Students", "See every student's profile, contact details, test results, and access controls; unblock sign-in issues.", "People →"],
       ["/admin/track", "Track", "Live daily activity tracker: who tested today, scores, validity, and access status at a glance.", "Activity →"],
+      ["/admin/recovery-requests", "Account Recovery Requests", "Review students locked out of both email and phone; confirm identity yourself, then approve or reject.", "Review →"],
     ],
   },
   {
