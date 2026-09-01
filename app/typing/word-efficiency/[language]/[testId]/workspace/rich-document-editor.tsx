@@ -238,17 +238,33 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   setQuery(needle);
   const regex=buildFindRegex(needle,options,true);
   if(!regex){setMessage(`"${needle}" was not found.`);return}
+  // A non-collapsed selection inside the editor scopes Replace All to just
+  // that selection (e.g. one selected paragraph) instead of the whole
+  // document -- selecting text first and then choosing "not other
+  // paragraphs" is the expected, safer default for this app's admins.
+  // With nothing selected, it still replaces every occurrence, same as
+  // before.
+  const selection=getSelection();
+  const scopeRange=selection&&selection.rangeCount&&!selection.isCollapsed&&editor.current.contains(selection.anchorNode)&&editor.current.contains(selection.focusNode)?selection.getRangeAt(0):null;
   const walker=document.createTreeWalker(editor.current,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];for(let node=walker.nextNode();node;node=walker.nextNode())nodes.push(node as Text);
   let count=0;
   for(const node of nodes){
    if(options.formatHighlight&&!hasSearchHighlight(node.parentElement))continue;
+   if(scopeRange&&!scopeRange.intersectsNode(node))continue;
    const text=node.textContent??"";
-   regex.lastIndex=0;
-   const replaced=text.replace(regex,()=>{count++;return replacement});
-   if(replaced!==text)node.textContent=replaced;
+   const lo=scopeRange&&node===scopeRange.startContainer?scopeRange.startOffset:0;
+   const hi=scopeRange&&node===scopeRange.endContainer?scopeRange.endOffset:text.length;
+   let result="",lastEnd=0;
+   for(const match of text.matchAll(regex)){
+    const start=match.index??0,end=start+match[0].length;
+    if(start<lo||end>hi)continue;
+    result+=text.slice(lastEnd,start)+replacement;lastEnd=end;count++;
+   }
+   result+=text.slice(lastEnd);
+   if(result!==text)node.textContent=result;
   }
   if(count)changed();
-  setMessage(count?`Replaced ${count} occurrence${count===1?"":"s"}.`:`"${needle}" was not found.`);
+  setMessage(count?`Replaced ${count} occurrence${count===1?"":"s"}${scopeRange?" in the selection":""}.`:`"${needle}" was not found${scopeRange?" in the selection":""}.`);
  };
  const goToTarget=(kind:string,value:string)=>{
   if(!editor.current)return;
