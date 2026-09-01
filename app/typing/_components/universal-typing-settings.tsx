@@ -1,5 +1,5 @@
 import type { TypingScript } from "@/lib/typing-language";
-import type { TypingSettings } from "@/lib/typing-test";
+import { PRACTICE_DURATION_MINUTES, type TypingSettings } from "@/lib/typing-test";
 import type { TypingFontPreferences } from "@/lib/typing-font-preferences";
 import { FontSizeControls } from "./font-size-controls";
 
@@ -13,7 +13,7 @@ type UniversalTypingSettingsProps = {
 
 export function UniversalTypingSettings({ settings, autoScroll, showScrollbar, fonts, script, rulesLocked = false, compact = false, durationMinutes, durationLocked = false, onDurationChange, onSettingsChange, onScrollChange, onScrollbarChange, onFontsChange, onReset }: UniversalTypingSettingsProps) {
   return <div className={compact ? "space-y-3" : "space-y-5"}>
-    {durationMinutes !== undefined && onDurationChange && <label className="block text-sm font-bold">Duration (1–60 minutes)<input type="number" min={1} max={60} disabled={durationLocked} value={durationMinutes} onChange={(event) => { const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= 60) onDurationChange(value); }} className="input mt-2"/></label>}
+    {durationMinutes !== undefined && onDurationChange && <label className="block text-sm font-bold">Duration<select disabled={durationLocked} value={durationMinutes} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">{(PRACTICE_DURATION_MINUTES.includes(durationMinutes) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationMinutes].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}</select></label>}
     <FontSizeControls value={fonts} script={script} compact={compact} onChange={onFontsChange}/>
     <SettingOptions compact={compact} label="Highlight" value={settings.highlightMode} disabled={rulesLocked} values={[["character","Character"],["word","Current Word"],["none","None"]]} onChange={(highlightMode) => onSettingsChange({ highlightMode: highlightMode as TypingSettings["highlightMode"] })}/>
     <SettingOptions compact={compact} label="Backspace" value={settings.backspaceMode} disabled={rulesLocked} values={[["full","Full"],["word","Current Word"],["disabled","Disabled"]]} onChange={(backspaceMode) => onSettingsChange({ backspaceMode: backspaceMode as TypingSettings["backspaceMode"] })}/>

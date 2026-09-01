@@ -60,6 +60,28 @@ test("TestManager locks Language/Input system to hidden inputs (not an editable 
   assert.match(manager, /setLanguage\(test\?\.currentVersion\?\.language\?\?lockedLanguage\?\?"English"\)/);
 });
 
+test("directWorkspace (the practice-hub entry point every student actually uses, which skips ExamStart entirely) still ends up with the correct duration, not the admin's stale default", async () => {
+  const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
+  // timeLeft's own useState always seeds from preset.durationSeconds
+  // (activeDurationSeconds isn't computed yet at that line), so the
+  // directWorkspace-only settings-init effect must correct it once,
+  // otherwise a student who never sees ExamStart (that's the only place
+  // the previous duration fix landed) would still see the admin's fixed
+  // duration regardless of their own preference.
+  assert.match(workspace, /setTimeLeft\(activeDurationSeconds\)/);
+  assert.match(workspace, /\}, \[activeDurationSeconds, directWorkspace, loaded, managedRulesLocked, officialSettings, preferences, preset\.highlightMode, resolvedAttemptVariant\]\);/);
+});
+
+test("duration can be changed from the in-workspace Settings popup too (not just ExamStart, which directWorkspace students never see), and locks once typing has actually started", async () => {
+  const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
+  assert.match(workspace, /const durationLocked = attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\) \|\| timerStarted;/);
+  assert.match(workspace, /const changeDuration = \(minutes: number\) => \{ updatePreferences\(\{ durationMinutes: minutes \}\); if \(!timerStarted\) setTimeLeft\(minutes \* 60\); \};/);
+  assert.match(workspace, /durationMinutes=\{activeDurationSeconds \/ 60\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\}\/>;/);
+  const settingsPanel = await read("app/typing/_components/universal-typing-settings.tsx");
+  assert.doesNotMatch(settingsPanel, /Duration \(1–60 minutes\)/);
+  assert.match(settingsPanel, /PRACTICE_DURATION_MINUTES\.includes\(durationMinutes\)/);
+});
+
 test("the admin Practice Tests page gates entry behind a language picker, then a Hindi input-system picker, before reaching the (now scoped) test list", async () => {
   const page = await read("app/admin/practice-tests/page.tsx");
   assert.match(page, /const language = params\.language === "Hindi" \? "Hindi" as const : params\.language === "English" \? "English" as const : null;/);
