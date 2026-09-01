@@ -148,5 +148,5 @@ export async function setStudentPassword(_: StudentActionState, formData: FormDa
   if (!admin) return { error: "Admin password tools are not configured on this server." };
   const { error } = await admin.auth.admin.updateUserById(studentId, { password });
   if (error) return { error: error.message };
-  return { success: "Password updated. Share it with the student through a secure channel -- it is not shown again here." };
+  return { success: "Password updated -- copy it below and share it with the student through a secure channel." };
 }

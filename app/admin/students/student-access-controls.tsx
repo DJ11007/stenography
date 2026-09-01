@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentPassword, type StudentActionState } from "./actions";
 import { PasswordInput } from "@/app/_components/password-input";
 
@@ -12,6 +12,12 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
   const [clearState, clearAction, clearPending] = useActionState(clearStudentAccessPackage, initial);
   const [classInfoState, classInfoAction, classInfoPending] = useActionState(setStudentClassInfo, initial);
   const [passwordState, passwordAction, passwordPending] = useActionState(setStudentPassword, initial);
+  // Held only in this component's local state, purely so the admin can copy
+  // the password they just typed and hand it to the student -- it is never
+  // sent anywhere except the one submission below, never persisted, and is
+  // gone on refresh. This does NOT let anyone see a password the student
+  // chose themselves; Supabase Auth never returns those to anyone.
+  const [lastSetPassword, setLastSetPassword] = useState<string | null>(null);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -60,7 +66,11 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
       {classInfoState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{classInfoState.error}</p>}
       {classInfoState.success && <p className="mt-2 text-xs font-bold text-green-700">{classInfoState.success}</p>}
 
-      <form action={passwordAction} className="mt-5 border-t border-slate-200 pt-4" onSubmit={(event) => { if (!confirm("Set this student's password directly? This bypasses the reset-link flow -- only use it if they're genuinely locked out of their email too.")) event.preventDefault(); }}>
+      <form action={passwordAction} className="mt-5 border-t border-slate-200 pt-4" onSubmit={(event) => {
+        if (!confirm("Set this student's password directly? This bypasses the reset-link flow -- only use it if they're genuinely locked out of their email too.")) { event.preventDefault(); return; }
+        const typed = new FormData(event.currentTarget).get("password");
+        setLastSetPassword(typeof typed === "string" && typed ? typed : null);
+      }}>
         <input type="hidden" name="studentId" value={studentId} />
         <label className="text-xs font-bold text-slate-600">Set password directly<span className="ml-1 font-normal text-slate-400">(optional -- leave blank to do nothing)</span>
           <div className="mt-1 flex gap-2"><PasswordInput name="password" placeholder="New password (min. 8 characters)" className="input w-full" minLength={8} autoComplete="new-password" /><button disabled={passwordPending} className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-700 disabled:opacity-60">{passwordPending ? "Saving…" : "Set password"}</button></div>
@@ -68,7 +78,12 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
         <p className="mt-1 text-[11px] text-slate-500">Prefer &quot;Send password reset link&quot; above for routine use -- this sets the password immediately without the student confirming it themselves.</p>
       </form>
       {passwordState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{passwordState.error}</p>}
-      {passwordState.success && <p className="mt-2 text-xs font-bold text-green-700">{passwordState.success}</p>}
+      {passwordState.success && (
+        <div className="mt-2 rounded-lg bg-green-50 p-3">
+          <p className="text-xs font-bold text-green-700">{passwordState.success}</p>
+          {lastSetPassword && <p className="mt-1 text-xs text-slate-700">Give the student: <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold text-slate-900 select-all">{lastSetPassword}</code></p>}
+        </div>
+      )}
     </div>
   );
 }
