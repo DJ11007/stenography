@@ -25,7 +25,7 @@ test("setStudentPassword requires a minimum length and calls the service-role up
 
 test("the access-controls panel wires all four new forms: lock/unlock, clear seat, class info, and set password", async () => {
   const controls = await read("app/admin/students/student-access-controls.tsx");
-  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
+  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
   assert.match(controls, /useActionState\(clearStudentAccessPackage, initial\)/);
   assert.match(controls, /useActionState\(setStudentClassInfo, initial\)/);
   assert.match(controls, /useActionState\(setStudentPassword, initial\)/);
@@ -35,7 +35,7 @@ test("the access-controls panel wires all four new forms: lock/unlock, clear sea
 
 test("the student detail page selects class_info and passes it into the access-controls panel", async () => {
   const detail = await read("app/admin/students/[id]/page.tsx");
-  assert.match(detail, /select\("id,email,full_name,phone,role,is_active,created_at,class_info"\)/);
+  assert.match(detail, /select\("id,email,full_name,phone,role,is_active,created_at,class_info,free_practice_test_limit"\)/);
   assert.match(detail, /classInfo=\{student\.class_info\}/);
 });
 

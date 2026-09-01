@@ -18,6 +18,13 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   if (!test || test.status !== "published" || test.visibility !== "public" || test.current_version_id !== v?.id || v.test_id !== test.id) return null;
   const { error: accessError } = await supabase.rpc("assert_student_access_allowed");
   if (accessError) return { status: "locked" as const };
+  // Defense-in-depth backstop for the free-practice-test cap -- the real
+  // gate is PracticeNavigator refusing to even render the workspace once
+  // blocked, this only matters against a direct call to this action.
+  if (v.mode === "practice") {
+    const { error: freeLimitError } = await supabase.rpc("assert_practice_test_allowed");
+    if (freeLimitError) return { status: "locked" as const };
+  }
   if (test.is_live) {
     const now = Date.now(); const starts = new Date(test.live_starts_at ?? "").getTime(); const ends = new Date(test.live_ends_at ?? "").getTime();
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || now < starts || now > ends) return { status: "closed" as const };

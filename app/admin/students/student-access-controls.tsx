@@ -1,16 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentPassword, type StudentActionState } from "./actions";
+import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState } from "./actions";
 import { PasswordInput } from "@/app/_components/password-input";
 
 const initial: StudentActionState = {};
 
-export function StudentAccessControls({ studentId, testLimit, validityDays, graceDays, accessLocked, classInfo }: { studentId: string; testLimit: number | null; validityDays: number | null; graceDays: number; accessLocked: boolean; classInfo: string | null }) {
+export function StudentAccessControls({ studentId, testLimit, validityDays, graceDays, accessLocked, classInfo, freePracticeLimit }: { studentId: string; testLimit: number | null; validityDays: number | null; graceDays: number; accessLocked: boolean; classInfo: string | null; freePracticeLimit: number | null }) {
   const [packageState, packageAction, packagePending] = useActionState(setStudentAccessPackage, initial);
   const [lockState, lockAction, lockPending] = useActionState(setStudentAccessLocked, initial);
   const [clearState, clearAction, clearPending] = useActionState(clearStudentAccessPackage, initial);
   const [classInfoState, classInfoAction, classInfoPending] = useActionState(setStudentClassInfo, initial);
+  const [freePracticeState, freePracticeAction, freePracticePending] = useActionState(setStudentFreePracticeLimit, initial);
   const [passwordState, passwordAction, passwordPending] = useActionState(setStudentPassword, initial);
   // Held only in this component's local state, purely so the admin can copy
   // the password they just typed and hand it to the student -- it is never
@@ -65,6 +66,16 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
       </form>
       {classInfoState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{classInfoState.error}</p>}
       {classInfoState.success && <p className="mt-2 text-xs font-bold text-green-700">{classInfoState.success}</p>}
+
+      <form action={freePracticeAction} className="mt-5 border-t border-slate-200 pt-4">
+        <input type="hidden" name="studentId" value={studentId} />
+        <label className="text-xs font-bold text-slate-600">Free practice tests allowed<span className="ml-1 font-normal text-slate-400">(platform default is 50; blank = unlimited)</span>
+          <div className="mt-1 flex gap-2"><input name="freePracticeLimit" type="number" min="0" defaultValue={freePracticeLimit ?? ""} placeholder="50" className="input w-full" /><button disabled={freePracticePending} className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:opacity-60">{freePracticePending ? "Saving…" : "Save"}</button></div>
+        </label>
+        <p className="mt-1 text-[11px] text-slate-500">Once used up, &quot;Take Tests&quot; (practice mode only -- exam/stenography/learning tests are unaffected) shows a Buy Now paywall instead of the test.</p>
+      </form>
+      {freePracticeState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{freePracticeState.error}</p>}
+      {freePracticeState.success && <p className="mt-2 text-xs font-bold text-green-700">{freePracticeState.success}</p>}
 
       <form action={passwordAction} className="mt-5 border-t border-slate-200 pt-4" onSubmit={(event) => {
         if (!confirm("Set this student's password directly? This bypasses the reset-link flow -- only use it if they're genuinely locked out of their email too.")) { event.preventDefault(); return; }

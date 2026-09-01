@@ -16,7 +16,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at,class_info").eq("id", id).maybeSingle();
+  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at,class_info,free_practice_test_limit").eq("id", id).maybeSingle();
   if (!student) notFound();
 
   const admin = createAdminClient();
@@ -67,7 +67,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
             <StudentActionButtons studentId={student.id} emailConfirmed={emailConfirmed} isActive={student.is_active} />
           </div>
           <div className="mt-5">
-            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} />
+            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} freePracticeLimit={student.free_practice_test_limit} />
           </div>
         </section>
 

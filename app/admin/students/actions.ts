@@ -134,6 +134,23 @@ export async function setStudentClassInfo(_: StudentActionState, formData: FormD
   return { success: "Class info saved." };
 }
 
+// The platform-wide default is 50 free "Take Tests" (practice-mode)
+// attempts before the Buy Now paywall -- this lets an admin raise, lower,
+// or clear (blank = unlimited) that allowance for one student.
+export async function setStudentFreePracticeLimit(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const raw = String(formData.get("freePracticeLimit") ?? "").trim();
+  const limit = raw === "" ? null : Number(raw);
+  if (limit !== null && (!Number.isFinite(limit) || limit < 0)) return { error: "Enter a non-negative number, or leave it blank for unlimited." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_practice_free_limit", { p_student_id: studentId, p_limit: limit });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  return { success: "Free practice test limit saved." };
+}
+
 // This bypasses the "email a reset link" flow entirely and sets a password
 // directly -- meant for the rare case a student is genuinely locked out of
 // their email too, not routine use. The password is never stored or

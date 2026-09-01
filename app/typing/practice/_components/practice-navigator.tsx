@@ -6,12 +6,23 @@ import { getPracticeSelector } from "@/lib/practice-navigator-server";
 import { resolvePracticeSelection } from "@/lib/practice-navigator";
 import { ConfigurableTypingExam, type PracticeNavigation } from "../../_components/configurable-typing-exam";
 import { TypingBrandHeader } from "../../_components/typing-brand";
+import { FreePracticeLimitPaywall } from "./free-limit-paywall";
 
 type Params = { input?: string; test?: string };
 
 export async function PracticeNavigator({ mode = "practice", language, params, requireInput = false }: { mode?: "practice" | "stenography"; language: "English" | "Hindi"; params: Params; requireInput?: boolean }) {
   const inputSystemId = params.input || undefined;
   if (requireInput && !inputSystemId) return null;
+
+  const supabase = await createClient();
+  // "Take Tests" (plain typing practice, this mode) has a free-attempt
+  // cap -- stenography practice (the other mode this component serves)
+  // is untouched. Checked before anything else so a blocked student never
+  // even sees which tests exist, and doesn't burn a query resolving one.
+  if (mode === "practice") {
+    const { data: freeStatus } = await supabase.rpc("practice_test_free_status").single() as { data: { used_count: number; free_limit: number | null; remaining: number | null; blocked: boolean } | null };
+    if (freeStatus?.blocked) return <FreePracticeLimitPaywall used={freeStatus.used_count} limit={freeStatus.free_limit ?? 0} />;
+  }
 
   const items = await getPracticeSelector({ mode, language, inputSystemId });
   const { selectedIndex, selected } = resolvePracticeSelection(items, params.test);
@@ -35,7 +46,6 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
     nextHref: selectedIndex < items.length - 1 ? queryFor(items[selectedIndex + 1].slug) : null,
   };
 
-  const supabase = await createClient();
   let selectedTestQuery = supabase.from("tests").select("id,slug,current_version_id").eq("id", selected.id).eq("mode", mode).eq("language", language).eq("status", "published").eq("visibility", "public").eq("is_live", false);
   if (inputSystemId) selectedTestQuery = selectedTestQuery.eq("input_system_id", inputSystemId);
   const { data: test } = await selectedTestQuery.maybeSingle();
