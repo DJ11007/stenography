@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
-import { normalizeTypingInput } from "@/lib/typing-language";
+import { getInputSystemPassage, normalizeTypingInput } from "@/lib/typing-language";
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories, type HalfErrorCategory } from "@/lib/typing-test";
 
 type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[] };
@@ -45,7 +45,12 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   const scoringProfile = version.audioPath
     ? scoringProfileWithSelectedCategories(preset.scoringProfile, sanitizeSelectedCategories(payload.selectedCategories))
     : preset.scoringProfile;
-  const score = calculateTypingScore({ typedText: normalized.comparisonText, passage: version.passage, elapsedSeconds: Math.min(payload.elapsedSeconds, version.durationSeconds), wordMethod: version.wordMethod, scoringProfile, includeUntypedWords: true });
+  // Route the reference passage through the same NFC-normalizing helper the
+  // client workspace uses (getInputSystemPassage), not the raw DB column --
+  // otherwise a Kruti Dev passage that entered storage NFD-decomposed could
+  // disagree with the (now-normalized) typed side on this authoritative
+  // server recomputation, even though the client-side score agreed.
+  const score = calculateTypingScore({ typedText: normalized.comparisonText, passage: getInputSystemPassage(inputSystem, version.passage), elapsedSeconds: Math.min(payload.elapsedSeconds, version.durationSeconds), wordMethod: version.wordMethod, scoringProfile, includeUntypedWords: true });
   const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)) };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   if (error) return error.code === "23505" && test.is_live ? { status: "already-submitted" as const, resultsPublishAt: test.results_publish_at } : null;
