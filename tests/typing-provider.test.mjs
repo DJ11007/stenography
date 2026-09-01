@@ -79,3 +79,46 @@ test("every typing-platform settings hook consumer is covered by the root layout
     `hook consumers outside the root provider: ${consumers.join(", ")}`,
   );
 });
+
+// Regression test for a real crash: unlike TypingPlatformProvider (mounted
+// once at the root layout, so every route gets it for free),
+// TypingStudentProvider is only mounted by app/typing/layout.tsx --
+// useTypingStudent() (used by TypingBrandHeader, which ConfigurableTypingExam
+// renders in every state) throws "Typing student context is unavailable."
+// anywhere that renders that header outside the /typing route tree.
+// app/tests/[slug]/page.tsx is exactly that: a sibling top-level route that
+// still renders ConfigurableTypingExam for exam/learn/live tests (practice
+// and stenography tests redirect into /typing/practice/... instead, which
+// *is* covered by the layout). Every useTypingStudent() consumer must
+// either live under app/typing/ (covered by that layout) or supply its own
+// TypingStudentProvider, like this route now does.
+test("every useTypingStudent() consumer is covered by app/typing/layout.tsx or supplies its own TypingStudentProvider", async () => {
+  const appFiles = (await filesBelow("app")).filter((file) => /\.tsx$/.test(file));
+  const consumers = [];
+  for (const file of appFiles) {
+    const contents = await source(file);
+    if (contents.includes("useTypingStudent(") && !file.endsWith("typing-student-provider.tsx")) consumers.push(file);
+  }
+  assert.ok(consumers.length > 0, "expected at least one hook consumer");
+  const typingRoot = `app${path.sep}typing${path.sep}`;
+  const outsideTypingLayout = consumers.filter((file) => !file.includes(typingRoot));
+  for (const file of outsideTypingLayout) {
+    const contents = await source(file);
+    assert.match(
+      contents,
+      /TypingStudentProvider/,
+      `${file} renders a useTypingStudent() consumer outside app/typing/ without its own TypingStudentProvider`,
+    );
+  }
+});
+
+test("app/tests/[slug]/page.tsx requires a signed-in user (any role) and wraps the exam workspace in its own TypingStudentProvider", async () => {
+  const page = await source("app/tests/[slug]/page.tsx");
+  assert.match(page, /import \{ TypingStudentProvider \} from "@\/app\/typing\/_components\/typing-student-provider";/);
+  assert.match(page, /if\(!user\)redirect\(`\/login\?next=\$\{encodeURIComponent\(`\/tests\/\$\{slug\}`\)\}`\);/);
+  assert.match(page, /<TypingStudentProvider student=\{\{name:profile\?\.full_name\?\.trim\(\)\|\|"Student",email:user\.email\|\|"",phone:profile\?\.phone\|\|user\.phone\|\|null\}\}>/);
+  // Not requireStudent() -- an admin must still be able to open this exact
+  // link to preview/trial their own just-published test, not get bounced
+  // to /admin.
+  assert.doesNotMatch(page, /requireStudent/);
+});
