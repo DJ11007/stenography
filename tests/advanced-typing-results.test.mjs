@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EXAM_PRESETS, HINDI_KRUTI_DEV } from "../lib/typing-curriculum.ts";
-import { getInputSystemPassage } from "../lib/typing-language.ts";
+import { getInputSystemPassage, getScoringText } from "../lib/typing-language.ts";
 import { buildRequirementResults, buildResultCalculations, buildResultSummary, categoryTotalsReconcile, comparisonWordDisplay, resultCategoryTotals } from "../lib/typing-results.ts";
 import { calculateTypingScore } from "../lib/typing-test.ts";
 
@@ -23,15 +23,24 @@ test("dual result calculations support English and Hindi typing plus English and
   }
 });
 
-test("Kruti Dev results retain raw scoring data and create normalized Unicode display entries", () => {
+test("Kruti Dev results are scored on decoded Unicode text, so score.analysis.entries is already display-ready and the results component must not re-decode it", () => {
+  // Regression guard for a real bug: calculateTypingScore() now receives
+  // getScoringText()-decoded (Unicode) text for Kruti Dev tests, not raw
+  // legacy bytes (see typing-language.ts). If the results component still
+  // ran entry.original/entry.typed through krutiDevToUnicode() a second
+  // time -- the previous behavior -- any legacy-significant character that
+  // survived into the decoded text (e.g. a literal comma, which the legacy
+  // dictionary maps to "ए") gets corrupted: "ज्ञान," becomes "ज्ञानए".
   const preset = EXAM_PRESETS.find((item) => item.id === "rssb-ldc-hindi");
-  const { passage, score } = resultFor(preset, HINDI_KRUTI_DEV);
+  const passage = getInputSystemPassage(HINDI_KRUTI_DEV, preset.passage);
   assert.equal(passage, HINDI_KRUTI_DEV.passageOverride);
+  const decodedPassage = getScoringText(passage, HINDI_KRUTI_DEV);
+  const score = calculateTypingScore({ typedText: decodedPassage, passage: decodedPassage, elapsedSeconds: 60, wordMethod: preset.wordMethod, scoringProfile: preset.scoringProfile, includeUntypedWords: true });
   assert.equal(score.accuracy, 100);
+  assert.match(score.analysis.entries[0].original, /[ऀ-ॿ]/u); // already real Devanagari, not raw legacy bytes
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
-  assert.match(component, /inputEncoding === "krutidev-legacy" \? score\.analysis\.entries\.map/);
-  assert.match(component, /krutiDevToUnicode\(entry\.original\)/);
-  assert.match(component, /krutiDevToUnicode\(entry\.typed\)/);
+  assert.doesNotMatch(component, /krutiDevToUnicode/);
+  assert.match(component, /const displayEntries = score\.analysis\.entries;/);
 });
 
 test("passage-derived analysis values receive the selected font and language explicitly", () => {

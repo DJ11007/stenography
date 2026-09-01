@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ExamPreset } from "@/lib/typing-curriculum";
-import { krutiDevToUnicode } from "@/lib/hindi-font-converter";
 import { segmentGraphemes, type InputSystem } from "@/lib/typing-language";
 import { buildErrorGuide, guidePenaltyTotal, type ErrorGuideDefinition } from "@/lib/typing-error-guide";
 import { buildResultCalculations, buildResultSummary, calculateConfiguredRssbMarks, categoryTotalsReconcile, comparisonWordDisplay, resultCategoryTotals } from "@/lib/typing-results";
@@ -21,7 +20,16 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
   const [selectedError, setSelectedError] = useState<WordAnalysisEntry | null>(null);
   const [practicePassage, setPracticePassage] = useState("");
   const calculations = useMemo(() => buildResultCalculations({ passage, typedText, elapsedSeconds: score.elapsedSeconds, scoringProfile: preset.scoringProfile }), [passage, preset.scoringProfile, score.elapsedSeconds, typedText]);
-  const displayEntries = useMemo(() => inputSystem.inputEncoding === "krutidev-legacy" ? score.analysis.entries.map((entry) => ({ ...entry, original: entry.original ? krutiDevToUnicode(entry.original) : undefined, typed: entry.typed ? krutiDevToUnicode(entry.typed) : undefined })) : score.analysis.entries, [inputSystem.inputEncoding, score.analysis.entries]);
+  // score.analysis.entries is already display-ready Unicode for every input
+  // encoding, Kruti Dev included: calculateTypingScore() itself now receives
+  // decoded text for Kruti Dev tests (see getScoringText() in
+  // typing-language.ts), so entry.original/entry.typed are the actual
+  // Devanagari words, not raw legacy bytes any more. Re-decoding them here a
+  // second time (the previous behavior) would corrupt anything that
+  // survived into the decoded text but is also a legacy-significant
+  // character on its own -- e.g. a literal comma, which the legacy
+  // dictionary maps to "ए", turning "ज्ञान," into "ज्ञानए".
+  const displayEntries = score.analysis.entries;
   const categories = useMemo(() => buildCategories(displayEntries, preset.scoringProfile.fullErrorPenalty, preset.scoringProfile.halfErrorPenalty), [displayEntries, preset.scoringProfile]);
   const totals = resultCategoryTotals(score, backspaces, preset.scoringProfile);
   const mistakes = useMemo(() => displayEntries.filter((entry) => entry.status !== "correct" && entry.status !== "remaining"), [displayEntries]);
