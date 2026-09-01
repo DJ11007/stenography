@@ -62,7 +62,16 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   };
   const seek = (fraction: number) => { const audio = audioRef.current; if (audio && duration) audio.currentTime = fraction * duration; };
 
-  const availableCategories = preset.language === "English" ? ALL_HALF_ERROR_CATEGORIES : ALL_HALF_ERROR_CATEGORIES.filter((category) => category !== "capitalization");
+  // capitalization is meaningless for Hindi (Devanagari has no case);
+  // halant (viram) is meaningless for English (a Latin-script concept has
+  // no such thing) -- each is only ever offered for the language it
+  // actually applies to.
+  const availableCategories = ALL_HALF_ERROR_CATEGORIES.filter((category) => preset.language === "English" ? category !== "halant" : category !== "capitalization");
+  // Comma is the punctuation mark that actually matters in Hindi
+  // dictation -- relabeling the existing punctuation checkbox for Hindi
+  // tests is simpler and clearer than adding a whole separate category
+  // that would only ever catch commas anyway.
+  const categoryLabel = (category: HalfErrorCategory) => category === "punctuation" && preset.language !== "English" ? "Comma Count" : HALF_ERROR_CATEGORY_LABELS[category];
   const toggle = (category: HalfErrorCategory) => onCategoriesChange(selectedCategories.includes(category) ? selectedCategories.filter((item) => item !== category) : [...selectedCategories, category]);
 
   return <main className="min-h-screen bg-slate-100">
@@ -107,7 +116,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           <div className="grid gap-2 sm:grid-cols-2">
             {availableCategories.map((category) => <label key={category} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-800">
               <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggle(category)}/>
-              {HALF_ERROR_CATEGORY_LABELS[category]}
+              {categoryLabel(category)}
             </label>)}
           </div>
         </fieldset>

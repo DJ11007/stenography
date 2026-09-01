@@ -91,7 +91,11 @@ export type HalfErrorCategory =
   | "capitalization"
   | "punctuation"
   | "spacing"
-  | "minorSpelling";
+  | "minorSpelling"
+  | "matra"
+  | "halant"
+  | "gender"
+  | "vachan";
 
 export type WordAnalysisEntry = {
   id: string;
@@ -114,6 +118,9 @@ export type ScoringProfile = {
   punctuationErrors?: boolean;
   spacingErrors?: boolean;
   minorSpellingErrors?: boolean;
+  // matra/gender/vachan have no toggle here on purpose -- see
+  // ALL_HALF_ERROR_CATEGORIES's comment below.
+  halantErrors?: boolean;
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -124,17 +131,28 @@ export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
   passAccuracy: 90,
 };
 
-// The four half-error categories a stenography dictation attempt lets the
+// The half-error categories a stenography dictation attempt lets the
 // student choose to have graded (missing/extra/repeated/substituted "full"
 // word errors are never optional -- a wrong word is always wrong). Shared
 // between the student-facing selection UI, the server-side re-scoring in
 // app/tests/actions.ts, and the results-page "graded for this attempt"
-// banner, so all three always agree on the same four names/labels.
-export const ALL_HALF_ERROR_CATEGORIES: HalfErrorCategory[] = ["capitalization", "punctuation", "spacing", "minorSpelling"];
-export const HALF_ERROR_CATEGORY_LABELS: Record<HalfErrorCategory, string> = { capitalization: "Capitalization", punctuation: "Punctuation", spacing: "Spacing", minorSpelling: "Minor spelling" };
+// banner, so all three always agree on the same names/labels.
+//
+// matra/gender/vachan are deliberately NOT in this list -- they're always
+// computed and always shown in results, never a pre-test checkbox. Real
+// Hindi grammatical gender/number agreement depends on a word's
+// relationship to the rest of the sentence, which this word-by-word
+// comparison against a fixed reference passage can't see; gender/vachan
+// here are an honest, narrower signal (a typed word's ending matches a
+// well-known Hindi gender/number swap pattern against the reference word),
+// not real grammar-checking, so they're never presented as something a
+// student can choose to switch off -- there's no meaningful "off" state
+// for an informational label like that.
+export const ALL_HALF_ERROR_CATEGORIES: HalfErrorCategory[] = ["capitalization", "punctuation", "spacing", "minorSpelling", "halant"];
+export const HALF_ERROR_CATEGORY_LABELS: Record<HalfErrorCategory, string> = { capitalization: "Capitalization", punctuation: "Punctuation", spacing: "Spacing", minorSpelling: "Minor spelling", matra: "Matra (vowel sign)", halant: "Halant (viram)", gender: "Gender", vachan: "Vachan (number)" };
 
 export function scoringProfileWithSelectedCategories(base: ScoringProfile, selected: HalfErrorCategory[]): ScoringProfile {
-  return { ...base, capitalizationErrors: selected.includes("capitalization"), punctuationErrors: selected.includes("punctuation"), spacingErrors: selected.includes("spacing"), minorSpellingErrors: selected.includes("minorSpelling") };
+  return { ...base, capitalizationErrors: selected.includes("capitalization"), punctuationErrors: selected.includes("punctuation"), spacingErrors: selected.includes("spacing"), minorSpellingErrors: selected.includes("minorSpelling"), halantErrors: selected.includes("halant") };
 }
 
 // Defaults to every category (today's unrestricted-grading behavior) for
@@ -148,7 +166,7 @@ export function sanitizeSelectedCategories(value: unknown): HalfErrorCategory[] 
 }
 
 export function activeHalfErrorCategories(profile: ScoringProfile): HalfErrorCategory[] {
-  const flags: Record<HalfErrorCategory, boolean | undefined> = { capitalization: profile.capitalizationErrors, punctuation: profile.punctuationErrors, spacing: profile.spacingErrors, minorSpelling: profile.minorSpellingErrors };
+  const flags: Record<HalfErrorCategory, boolean | undefined> = { capitalization: profile.capitalizationErrors, punctuation: profile.punctuationErrors, spacing: profile.spacingErrors, minorSpelling: profile.minorSpellingErrors, halant: profile.halantErrors, matra: undefined, gender: undefined, vachan: undefined };
   return ALL_HALF_ERROR_CATEGORIES.filter((category) => flags[category] !== false);
 }
 
@@ -161,6 +179,10 @@ export type ErrorCategoryCounts = {
   punctuation: number;
   spacing: number;
   minorSpelling: number;
+  matra: number;
+  halant: number;
+  gender: number;
+  vachan: number;
 };
 
 export type RepeatedMistake = {
@@ -240,23 +262,106 @@ function editDistance(left: string, right: string) {
 }
 
 // Whether a word-pair belongs to the "half-error" family at all -- same
-// normalized core, or within the minor-spelling edit-distance threshold --
-// independent of which of its specific differences (capitalization,
-// punctuation, ...) are actually being graded right now. Used to tell
-// "this word has no differences in a graded category, so it's simply
-// correct" apart from "this word is a real full-error substitution" --
-// see halfErrorCategories()'s doc comment for why that distinction matters.
+// normalized core, within the minor-spelling edit-distance threshold, or
+// recognized by the Devanagari-specific matra/halant/gender/vachan
+// classifier below -- independent of which of its specific differences
+// (capitalization, punctuation, ...) are actually being graded right now.
+// Used to tell "this word has no differences in a graded category, so
+// it's simply correct" apart from "this word is a real full-error
+// substitution" -- see halfErrorCategories()'s doc comment for why that
+// distinction matters.
+//
+// The Devanagari classifier check is not redundant with the edit-distance
+// check above it: a halant difference typically changes how many
+// grapheme clusters the word has at all (it merges or splits a
+// conjunct), so the generic grapheme-based edit distance between two
+// halant-different words can easily exceed maxDistance even though
+// classifyDevanagariDifference() correctly recognizes them as a single,
+// forgivable halant difference -- without this, toggling halant grading
+// off would wrongly escalate a halant mistake to a full "substituted"
+// error instead of forgiving it.
 function isWithinHalfErrorFamily(original: WordToken, typed: WordToken, maxDistance: number) {
-  return original.normalizedCore === typed.normalizedCore || editDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance;
+  return original.normalizedCore === typed.normalizedCore
+    || editDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance
+    || classifyDevanagariDifference(original, typed) !== null;
+}
+
+const isDevanagariWord = (text: string) => /\p{Script=Devanagari}/u.test(text);
+const DEVANAGARI_HALANT = "्"; // halant/virama -- joins consonants into a conjunct, or suppresses the inherent vowel
+// The full set of Devanagari dependent vowel signs (matra) -- everything
+// that can attach to a consonant to change which vowel sound it carries.
+// Deliberately excludes the halant (handled as its own case) and marks
+// like anusvara/visarga/nukta, which aren't vowel signs.
+const DEVANAGARI_VOWEL_SIGNS = new Set([..."ािीुूृॄॅॆेैॉॊोौॕॖॗ"]);
+// Word-final swaps (removed codepoints on the left of "|", inserted
+// codepoints on the right) that most commonly mark Hindi grammatical
+// gender agreement (masculine <-> feminine adjective/verb endings) or
+// number/vachan agreement (singular <-> plural) -- the empty string on one
+// side of the anusvara entries is the anusvara added for a plural verb
+// form (e.g. is/are). This is a small, curated heuristic on the word's
+// ending only -- not real morphological analysis, and it can't know
+// whether the reference passage's own grammar was "correct"; it just
+// flags when a typed word's ending matches one of these well-known swap
+// patterns against the reference word, checked BEFORE the generic matra
+// case so a recognized pair gets the more specific label. Deliberately
+// not exhaustive.
+const GENDER_SWAP_PAIRS = new Set(["ा|ी", "ी|ा", "आ|ई", "ई|आ"]); // aa-matra|ii-matra, ii-matra|aa-matra, AA|II, II|AA
+const VACHAN_SWAP_PAIRS = new Set(["ा|े", "े|ा", "|ं", "ं|"]); // aa-matra|e-matra, e-matra|aa-matra, (nothing)|anusvara, anusvara|(nothing)
+
+// Trims the common prefix/suffix off two codepoint arrays and returns just
+// the differing middle region from each side -- a minimal, dependency-free
+// diff (not a full edit-distance alignment) that's enough to answer "is
+// the *entire* difference between these two words a single removed and/or
+// inserted codepoint", which is exactly the shape a matra or halant
+// mistake takes. Also reports whether that differing region reaches the
+// end of the word (needed for the gender/vachan word-final check).
+function trimCodepoints(a: string[], b: string[]) {
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start += 1;
+  let endA = a.length, endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA -= 1; endB -= 1; }
+  return { removed: a.slice(start, endA), inserted: b.slice(start, endB), wordFinal: endA === a.length && endB === b.length };
+}
+
+// The core of this feature: reduces the difference between two Devanagari
+// words to "what codepoints were removed, and what were inserted" (via
+// trimCodepoints above), then checks that reduced difference against
+// halant/gender/vachan/matra shapes, in that priority order. Deliberately
+// does NOT reuse segmentGraphemes()'s grapheme clusters here -- a halant
+// difference typically changes how many graphemes the word even has (it
+// merges or splits a conjunct), so comparing cluster-by-cluster would miss
+// almost every real halant mistake; comparing raw codepoints after
+// trimming the identical prefix/suffix catches it regardless of how the
+// surrounding text re-clusters. Runs only when both words contain
+// Devanagari script; English-script word pairs never reach this function,
+// so English scoring is completely unaffected by any of this.
+function classifyDevanagariDifference(original: WordToken, typed: WordToken): "matra" | "halant" | "gender" | "vachan" | null {
+  if (!isDevanagariWord(original.core) || !isDevanagariWord(typed.core)) return null;
+  const a = [...original.core.normalize("NFC")];
+  const b = [...typed.core.normalize("NFC")];
+  const { removed, inserted, wordFinal } = trimCodepoints(a, b);
+  if (removed.length === 0 && inserted.length === 0) return null;
+  if (removed.length === 1 && inserted.length === 0 && removed[0] === DEVANAGARI_HALANT) return "halant";
+  if (inserted.length === 1 && removed.length === 0 && inserted[0] === DEVANAGARI_HALANT) return "halant";
+  if (wordFinal) {
+    const key = `${removed.join("")}|${inserted.join("")}`;
+    if (GENDER_SWAP_PAIRS.has(key)) return "gender";
+    if (VACHAN_SWAP_PAIRS.has(key)) return "vachan";
+  }
+  const isVowelSignOrEmpty = (codepoints: string[]) => codepoints.length <= 1 && codepoints.every((codepoint) => DEVANAGARI_VOWEL_SIGNS.has(codepoint));
+  if (isVowelSignOrEmpty(removed) && isVowelSignOrEmpty(inserted)) return "matra";
+  return null;
 }
 
 // Returns only the categories that are BOTH actually present as a
-// difference AND currently graded (profile.<category>Errors !== false).
-// A category being toggled off must mean "forgive this difference", not
-// "this difference doesn't count as this category but still counts as
-// something else" -- callers combine this with isWithinHalfErrorFamily()
-// to tell "no graded difference" (forgiven, status "correct") apart from
-// "genuinely a different word" (status "substituted").
+// difference AND currently graded (profile.<category>Errors !== false --
+// except matra/gender/vachan, which are always graded, see
+// ALL_HALF_ERROR_CATEGORIES's comment). A category being toggled off must
+// mean "forgive this difference", not "this difference doesn't count as
+// this category but still counts as something else" -- callers combine
+// this with isWithinHalfErrorFamily() to tell "no graded difference"
+// (forgiven, status "correct") apart from "genuinely a different word"
+// (status "substituted").
 function halfErrorCategories(
   original: WordToken,
   typed: WordToken,
@@ -265,6 +370,17 @@ function halfErrorCategories(
   const categories: HalfErrorCategory[] = [];
   if (original.normalizedCore === typed.normalizedCore) {
     if (profile.capitalizationErrors !== false && original.core !== typed.core) categories.push("capitalization");
+    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
+    return categories;
+  }
+  const devanagariCategory = classifyDevanagariDifference(original, typed);
+  if (devanagariCategory === "halant") {
+    if (profile.halantErrors !== false) categories.push("halant");
+    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
+    return categories;
+  }
+  if (devanagariCategory) {
+    categories.push(devanagariCategory);
     if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
     return categories;
   }
@@ -478,7 +594,7 @@ export function analyzeTyping(
   includeUntypedWords = true,
 ): TypingAnalysis {
   const entries = alignWords(passage, typedText, profile, includeUntypedWords);
-  const categoryCounts: ErrorCategoryCounts = { missing: 0, extra: 0, repeated: 0, substituted: 0, capitalization: 0, punctuation: 0, spacing: 0, minorSpelling: 0 };
+  const categoryCounts: ErrorCategoryCounts = { missing: 0, extra: 0, repeated: 0, substituted: 0, capitalization: 0, punctuation: 0, spacing: 0, minorSpelling: 0, matra: 0, halant: 0, gender: 0, vachan: 0 };
   const counts = { correct: 0, substituted: 0, missing: 0, remaining: 0, extra: 0, repeated: 0, halfError: 0 };
   const repeated = new Map<string, number>();
 
@@ -498,7 +614,7 @@ export function analyzeTyping(
   }
 
   const fullErrors = counts.missing + counts.extra + counts.repeated + counts.substituted;
-  const halfErrors = categoryCounts.capitalization + categoryCounts.punctuation + categoryCounts.spacing + categoryCounts.minorSpelling;
+  const halfErrors = categoryCounts.capitalization + categoryCounts.punctuation + categoryCounts.spacing + categoryCounts.minorSpelling + categoryCounts.matra + categoryCounts.halant + categoryCounts.gender + categoryCounts.vachan;
   const remainingEntries = entries.filter((entry) => entry.status === "remaining");
   return {
     entries,

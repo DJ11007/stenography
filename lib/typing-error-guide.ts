@@ -24,12 +24,17 @@ const HALF_DEFINITIONS = [
   { key: "capitalization", label: "Capitalization error", explanation: "An incorrect capital or lowercase letter was typed.", decoration: "pair", typed: "Typed", expected: "typed" },
   { key: "spacing", label: "Spacing error", explanation: "A required space is missing, or an unnecessary space splits a word.", decoration: "pair", typed: "Ihope", expected: "I hope" },
   { key: "punctuation", label: "Punctuation error", explanation: "Punctuation was omitted, added, or substituted.", decoration: "pair", typed: "word", expected: "word," },
+  { key: "matra", label: "Matra error", explanation: "The vowel sign (matra) attached to a consonant was typed incorrectly -- the rest of the word matches.", decoration: "pair", typed: "कि", expected: "की" },
+  { key: "halant", label: "Halant (viram) error", explanation: "A halant (् , which joins consonants into a conjunct or suppresses the inherent vowel) was added or omitted.", decoration: "pair", typed: "करता", expected: "कर्ता" },
+  { key: "gender", label: "Gender error", explanation: "The word's ending matches a well-known Hindi masculine/feminine agreement swap against the reference word. This flags the pattern, not full grammatical agreement -- it can't verify whether the reference passage's own grammar applies here.", decoration: "pair", typed: "अच्छा", expected: "अच्छी" },
+  { key: "vachan", label: "Vachan (number) error", explanation: "The word's ending matches a well-known Hindi singular/plural agreement swap against the reference word. Same caveat as gender: this flags the pattern, not full grammatical agreement.", decoration: "pair", typed: "लड़का", expected: "लड़के" },
 ] as const;
 
 export function buildErrorGuide(profile: ScoringProfile, language: "en" | "hi") {
   const full = FULL_DEFINITIONS.map(({key,label,explanation,...example}): ErrorGuideDefinition => ({ key,label,explanation,example,kind: "full", penalty: profile.fullErrorPenalty }));
   const half = HALF_DEFINITIONS
     .filter((definition) => language === "en" || definition.key !== "capitalization")
+    .filter((definition) => language === "hi" || !["matra", "halant", "gender", "vachan"].includes(definition.key))
     .map(({key,label,explanation,...example}): ErrorGuideDefinition => ({
       key,label,example,
       kind: key === "minorSpelling" && profile.minorSpellingMaxDistance < 1 ? "full" : "half",

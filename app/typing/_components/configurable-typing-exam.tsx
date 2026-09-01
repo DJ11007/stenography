@@ -24,7 +24,7 @@ const backspaceLabel = (mode: BackspaceMode) => mode === "full" ? "Full backspac
 // Devanagari has no case, so capitalization is never a meaningful category
 // for Hindi -- matches managedVersionToPreset()'s existing
 // capitalizationErrors: language === "English" default exactly.
-const defaultCategoriesFor = (language: string): HalfErrorCategory[] => language === "English" ? [...ALL_HALF_ERROR_CATEGORIES] : ALL_HALF_ERROR_CATEGORIES.filter((category) => category !== "capitalization");
+const defaultCategoriesFor = (language: string): HalfErrorCategory[] => ALL_HALF_ERROR_CATEGORIES.filter((category) => language === "English" ? category !== "halant" : category !== "capitalization");
 // Tailwind class discovery for the result legend: bg-green-500 bg-red-500 bg-orange-500 bg-blue-500 bg-purple-500
 
 export function ConfigurableTypingExam({ preset, mode, customPreset = false, matterPreset = false, directWorkspace = false, managedTest, practiceNavigation }: { preset: ExamPreset; mode: ExamMode; customPreset?: boolean; matterPreset?: boolean; directWorkspace?: boolean; managedTest?: {testId:string;versionId:string;mode:"learn"|"practice"|"exam"|"stenography";isLive?:boolean;resultsPublishAt?:string|null}; practiceNavigation?:PracticeNavigation }) {

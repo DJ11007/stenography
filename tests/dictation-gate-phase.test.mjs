@@ -54,9 +54,14 @@ test("the dictation gate hides the audio player, shows the category checkboxes, 
   assert.match(gate, /HALF_ERROR_CATEGORY_LABELS\[category\]/);
 });
 
-test("capitalization is not offered as a selectable category for non-English (Devanagari has no case)", async () => {
+test("capitalization is not offered for non-English (Devanagari has no case), and halant is not offered for English (a Latin-script pair has no such concept)", async () => {
   const gate = await read(GATE_PATH);
-  assert.match(gate, /const availableCategories = preset\.language === "English" \? ALL_HALF_ERROR_CATEGORIES : ALL_HALF_ERROR_CATEGORIES\.filter\(\(category\) => category !== "capitalization"\)/);
+  assert.match(gate, /const availableCategories = ALL_HALF_ERROR_CATEGORIES\.filter\(\(category\) => preset\.language === "English" \? category !== "halant" : category !== "capitalization"\)/);
+});
+
+test("punctuation is relabeled Comma Count for Hindi tests, matching what comma-focused dictation checking actually catches", async () => {
+  const gate = await read(GATE_PATH);
+  assert.match(gate, /const categoryLabel = \(category: HalfErrorCategory\) => category === "punctuation" && preset\.language !== "English" \? "Comma Count" : HALF_ERROR_CATEGORY_LABELS\[category\]/);
 });
 
 test("the server-side re-scoring in recordManagedAttempt folds in the same sanitized category selection, and only for versions that actually have dictation audio configured", async () => {

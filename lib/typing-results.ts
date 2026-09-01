@@ -45,7 +45,7 @@ export function buildResultSummary(passage: string, score: TypingScore, backspac
     fullMistakes: score.analysis.fullErrors,
     halfMistakes: score.analysis.halfErrors,
     fullCategories: { omissions: counts.missing, substitutions: counts.substituted, additions: counts.extra, repetitions: counts.repeated },
-    halfCategories: { capitalization: categoryCounts.capitalization, punctuation: categoryCounts.punctuation, spacing: categoryCounts.spacing, spelling: categoryCounts.minorSpelling },
+    halfCategories: { capitalization: categoryCounts.capitalization, punctuation: categoryCounts.punctuation, spacing: categoryCounts.spacing, spelling: categoryCounts.minorSpelling, matra: categoryCounts.matra, halant: categoryCounts.halant, gender: categoryCounts.gender, vachan: categoryCounts.vachan },
     remainingWords: score.analysis.remainingWords,
     remainingCharacters: score.analysis.remainingCharacters,
     passed: score.passed,
@@ -122,6 +122,10 @@ export function resultCategoryTotals(score: TypingScore, backspaces: number, pro
     { key: "punctuation", label: "Punctuation", count: categoryCounts.punctuation, penalty: categoryCounts.punctuation * profile.halfErrorPenalty, tone: "purple" },
     { key: "spacing", label: "Spacing", count: categoryCounts.spacing, penalty: categoryCounts.spacing * profile.halfErrorPenalty, tone: "purple" },
     { key: "minorSpelling", label: "Minor spelling", count: categoryCounts.minorSpelling, penalty: categoryCounts.minorSpelling * profile.halfErrorPenalty, tone: "purple" },
+    { key: "matra", label: "Matra (vowel sign)", count: categoryCounts.matra, penalty: categoryCounts.matra * profile.halfErrorPenalty, tone: "purple" },
+    { key: "halant", label: "Halant (viram)", count: categoryCounts.halant, penalty: categoryCounts.halant * profile.halfErrorPenalty, tone: "purple" },
+    { key: "gender", label: "Gender", count: categoryCounts.gender, penalty: categoryCounts.gender * profile.halfErrorPenalty, tone: "purple" },
+    { key: "vachan", label: "Vachan (number)", count: categoryCounts.vachan, penalty: categoryCounts.vachan * profile.halfErrorPenalty, tone: "purple" },
     { key: "backspaces", label: "Backspaces", count: backspaces, penalty: 0, tone: "slate" },
   ] as const;
 }
