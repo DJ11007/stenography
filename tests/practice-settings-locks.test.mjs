@@ -41,9 +41,9 @@ test("practice runtime resolves student preferences instead of version defaults"
   assert.equal(resolved.autoScroll,false);
 });
 
-test("Practice admin forms hide rule controls while general Exam and Live modes reveal them", async () => {
+test("Practice and Exam admin forms hide rule controls while Live mode reveals them", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
-  assert.match(manager,/const showAdminRules = formMode !== "practice" \|\| isLive/);
+  assert.match(manager,/const showAdminRules = \(formMode !== "practice" && formMode !== "exam"\) \|\| isLive;/);
   assert.match(manager,/Practice settings are controlled by the student\./);
   assert.match(manager,/showAdminRules \? <>/);
   assert.match(manager,/name="isLive" checked=\{isLive\}/);

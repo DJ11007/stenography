@@ -37,22 +37,30 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   const isLive = formData.get("isLive") === "on";
   const durationMinutes = text(formData, "durationMinutes");
   const iso = (name: string) => { const value = text(formData, name); const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.toISOString() : value || null; };
-  // Practice (non-live) tests don't ask the admin for a required speed/
-  // accuracy target -- the form doesn't even render those fields for this
-  // mode any more (see test-manager.tsx's showAdminRules). Force the same
-  // fixed 30 WPM / 90% here too, authoritatively, so a tampered or stale
-  // form submission can't sneak in an arbitrary value for a mode where
-  // nothing is meant to be graded against a target.
-  const isPlainPractice = mode === "practice" && !isLive;
+  // Practice (non-live) and Exam (non-live) tests don't ask the admin to
+  // configure typing-behaviour settings at all any more -- the form
+  // doesn't even render duration/required-speed/accuracy/backspace/word-
+  // method/highlight fields for these modes (see test-manager.tsx's
+  // showAdminRules). Force the same fixed platform defaults here too,
+  // authoritatively, so a tampered or stale form submission can't sneak in
+  // an arbitrary value where nothing is meant to be admin-configurable.
+  // These values are exactly what this form's own defaultValues already
+  // were before the fields were removed (DEFAULT_TYPING_SETTINGS' full
+  // backspace / 5-character words / character highlighting, plus the same
+  // 30 WPM / 90% reference target plain Practice already used) -- so no
+  // existing test's stored settings change on its next save, and Exam-mode
+  // students see exactly the same defaults the exam simulator's own
+  // built-in presets already use.
+  const forcedDefaultRules = (mode === "practice" || mode === "exam") && !isLive;
   return normalizeManagedTestRules({
     title: text(formData, "title"), description: text(formData, "description"), slug: slugifyTest(text(formData, "slug") || text(formData, "title")), language,
-    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: durationMinutes ? Number(durationMinutes) * 60 : 600,
+    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: forcedDefaultRules ? 600 : (durationMinutes ? Number(durationMinutes) * 60 : 600),
     passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"),
-    requiredWpm: isPlainPractice ? 30 : Number(formData.get("requiredWpm")),
-    requiredAccuracy: isPlainPractice ? 90 : Number(formData.get("requiredAccuracy")),
-    backspaceMode: (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
-    wordMethod: text(formData, "wordMethod") === "spaces" ? "spaces" : "characters",
-    highlightMode: (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
+    requiredWpm: forcedDefaultRules ? 30 : Number(formData.get("requiredWpm")),
+    requiredAccuracy: forcedDefaultRules ? 90 : Number(formData.get("requiredAccuracy")),
+    backspaceMode: forcedDefaultRules ? "full" : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
+    wordMethod: forcedDefaultRules ? "characters" : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
+    highlightMode: forcedDefaultRules ? "character" : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
   });

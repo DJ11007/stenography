@@ -10,19 +10,37 @@ test("PRACTICE_DURATION_MINUTES is 1-25 in 1-minute steps then 30-70 in 5-minute
   assert.deepEqual(PRACTICE_DURATION_MINUTES, expected);
 });
 
-test("Practice Tests admin form no longer asks for Description or Required WPM/Accuracy, and explains duration is student-chosen; Exam/Live still ask for all of it", async () => {
+test("Practice Tests admin form no longer asks for Description or Required WPM/Accuracy, and explains duration is student-chosen; Live still asks for all of it", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
-  assert.match(manager, /\{showAdminRules && <Field label="Description">/);
+  assert.match(manager, /\{descriptionVisible && <Field label="Description">/);
   assert.match(manager, /\{showAdminRules && <div className="grid grid-cols-2 gap-3"><Field label="Required WPM">/);
-  assert.match(manager, /Practice tests aren&apos;t graded against a target -- required speed\/accuracy default to 30 WPM \/ 90%/);
+  assert.match(manager, /Practice tests aren't graded against a target -- required speed\/accuracy default to 30 WPM \/ 90%/);
   assert.match(manager, /Duration is picked by the student \(1–25 min, then 5-min steps to 70\)/);
 });
 
-test("the server hardcodes 30 WPM / 90% accuracy for plain practice tests, ignoring whatever the form submits", async () => {
+// Real requested change: creating an Exam test used to ask the admin to
+// separately configure duration/required WPM/accuracy/backspace/word
+// method/highlighting, when these only ever reproduced this platform's own
+// fixed defaults anyway -- pure duplicate work. Exam (non-live) now hides
+// these fields exactly like plain Practice already did, with its own
+// explanatory copy, and the admin supplies only title/language/passage.
+test("Exam Tests admin form (non-live) hides the same typing-behaviour fields as Practice, with exam-specific explanatory copy", async () => {
+  const manager = await read("app/admin/tests/test-manager.tsx");
+  assert.match(manager, /const showAdminRules = \(formMode !== "practice" && formMode !== "exam"\) \|\| isLive;/);
+  assert.match(manager, /formMode==="exam"\?"Duration follows this platform's official exam-simulator default \(10 minutes\) and can't be changed here/);
+  assert.match(manager, /formMode==="exam"\?"Exam tests use this platform's official target of 30 WPM \/ 90% accuracy/);
+  assert.match(manager, /formMode==="exam"\?"Backspace, word calculation, and highlighting follow this platform's official exam-simulator defaults/);
+});
+
+test("the server hardcodes the platform defaults for plain Practice AND Exam tests, ignoring whatever a stale or tampered form submits", async () => {
   const actions = await read("app/admin/tests/actions.ts");
-  assert.match(actions, /const isPlainPractice = mode === "practice" && !isLive;/);
-  assert.match(actions, /requiredWpm: isPlainPractice \? 30 : Number\(formData\.get\("requiredWpm"\)\),/);
-  assert.match(actions, /requiredAccuracy: isPlainPractice \? 90 : Number\(formData\.get\("requiredAccuracy"\)\),/);
+  assert.match(actions, /const forcedDefaultRules = \(mode === "practice" \|\| mode === "exam"\) && !isLive;/);
+  assert.match(actions, /durationSeconds: forcedDefaultRules \? 600 : \(durationMinutes \? Number\(durationMinutes\) \* 60 : 600\),/);
+  assert.match(actions, /requiredWpm: forcedDefaultRules \? 30 : Number\(formData\.get\("requiredWpm"\)\),/);
+  assert.match(actions, /requiredAccuracy: forcedDefaultRules \? 90 : Number\(formData\.get\("requiredAccuracy"\)\),/);
+  assert.match(actions, /backspaceMode: forcedDefaultRules \? "full" : /);
+  assert.match(actions, /wordMethod: forcedDefaultRules \? "characters" : /);
+  assert.match(actions, /highlightMode: forcedDefaultRules \? "character" : /);
 });
 
 test("a practice-mode managed test's duration is no longer forced to the admin's fixed value (real fix -- it used to be, even though the UI showed it as editable)", async () => {
