@@ -155,8 +155,11 @@ const preset = (value: Omit<ExamPreset, "script" | "inputEncoding" | "fontLabel"
   return { ...value, scoringProfile: { ...value.scoringProfile, capitalizationErrors: value.language === "English" }, script: system.script, inputEncoding: system.inputEncoding, fontLabel: system.fontLabel, fontStack: system.fontStack, fontClassName: "font-sans", layoutLabel: system.keyboardLayout, keyboardLayout: system.keyboardLayout };
 };
 
-const RSSB_ENGLISH_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 9, marksPerCorrectWord: 0.05, requiredDurationSeconds: 600, passageWordLimit: 500 } as const;
-const RSSB_HINDI_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 9, marksPerCorrectWord: 0.0625, requiredDurationSeconds: 600, passageWordLimit: 400 } as const;
+// Exported so an admin-managed exam test tied to the "rajasthan-ldc"
+// category can carry the exact same marks scheme as the hardcoded preset
+// for that category -- see managedVersionToPreset() in lib/admin-tests.ts.
+export const RSSB_ENGLISH_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 9, marksPerCorrectWord: 0.05, requiredDurationSeconds: 600, passageWordLimit: 500 } as const;
+export const RSSB_HINDI_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 9, marksPerCorrectWord: 0.0625, requiredDurationSeconds: 600, passageWordLimit: 400 } as const;
 
 export const EXAM_PRESETS: ExamPreset[] = [
   preset({ id: "rssb-ldc-english", slug: "english-typing", title: "English Typing", subtitle: "Independent typing practice simulation", category: "typing", language: "English", durationSeconds: 600, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, 500), inputSystems: [ENGLISH_QWERTY], speedRequirement: 35, accuracyRequirement: 90, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(35), marksMethod: RSSB_ENGLISH_MARKS_METHOD }),

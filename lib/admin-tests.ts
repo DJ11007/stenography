@@ -1,5 +1,5 @@
 import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
-import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, type ExamPreset } from "./typing-curriculum.ts";
+import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
 import { EXAM_CATEGORIES } from "./exam-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
@@ -82,5 +82,15 @@ export function managedVersionToPreset(version: ManagedTestVersion): ExamPreset 
     examCategorySlug: examCategory?.slug,
     instructionNotes: examCategory?.patternNotes,
     patternSourced: examCategory?.patternSourced,
+    // Real bug: an admin exercise linked to Rajasthan LDC showed the RSSB
+    // marks-based instructions (25 max, 9 to qualify, 0.05/0.0625 marks per
+    // correct word -- see instructionNotes above) but was still scored by
+    // plain WPM/accuracy pass-fail, because marksMethod was never attached
+    // here even though categoryPreset() already attaches it for the
+    // hardcoded preset of the same category. calculateConfiguredRssbMarks
+    // caps marksObtained at maximumMarks (Math.min), so this stays correct
+    // even for a passage longer than the category's own 500/400-word
+    // pattern -- a student just reaches the cap before the passage ends.
+    marksMethod: examCategory?.slug === "rajasthan-ldc" ? (version.language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD) : undefined,
   };
 }
