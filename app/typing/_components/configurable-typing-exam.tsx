@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Noto_Serif } from "next/font/google";
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, scoringProfileWithSelectedCategories, ALL_HALF_ERROR_CATEGORIES, PRACTICE_DURATION_MINUTES, type BackspaceMode, type HalfErrorCategory, type TypingSettings } from "@/lib/typing-test";
 import type { ExamPreset } from "@/lib/typing-curriculum";
@@ -13,6 +14,12 @@ import { UniversalTypingSettings } from "./universal-typing-settings";
 import { useTypingPlatformSettings } from "./typing-platform-provider";
 import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
 import { BackButton } from "../../_components/back-button";
+
+// Formal serif face used only for the exam-mode ("Simulation") pre-start
+// screen -- an "admit card" look, distinct from the plain sans-serif UI used
+// everywhere else in the app (practice/learn keep the original ExamStart
+// layout entirely, see the mode === "exam" branch below).
+const examSerif = Noto_Serif({ subsets: ["latin"], weight: ["600", "700", "900"], variable: "--font-exam-serif" });
 
 function InputSystemOptions({ systems, value, onChange }: { systems: InputSystem[]; value: string; onChange: (id: string) => void }) { return <fieldset className="mt-6"><legend className="mb-2 text-sm font-black text-slate-900">Language and input system</legend><div className="grid gap-2 sm:grid-cols-2">{systems.map((system) => <button key={system.id} type="button" aria-pressed={value === system.id} onClick={() => onChange(system.id)} className={`rounded-xl border p-3 text-left text-sm font-bold ${value === system.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-slate-50 text-slate-800"}`}><span aria-hidden>{value === system.id ? "●" : "○"}</span> {system.label}<small className="mt-1 block font-normal opacity-80">{system.keyboardLayout}</small></button>)}</div></fieldset>; }
 
@@ -193,7 +200,70 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
 
 function LiveSubmissionReceipt({status,resultsPublishAt}:{status:"idle"|"saving"|"submitted"|"already-submitted"|"closed"|"failed";resultsPublishAt?:string|null}) { const release=resultsPublishAt?new Date(resultsPublishAt).toLocaleString():"the scheduled publication time"; const message=status==="saving"||status==="idle"?"Securely saving your submission…":status==="submitted"?`Submission received. Your result will unlock on ${release}.`:status==="already-submitted"?`Your live-test attempt was already submitted. Results unlock on ${release}.`:status==="closed"?"The live-test window has closed, so this submission was not accepted.":"We could not confirm the submission. Please contact support."; return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4"><section className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-xl"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-3xl" aria-hidden>{status==="submitted"||status==="already-submitted"?"✓":"⏳"}</span><h1 className="mt-5 text-3xl font-black text-slate-900">Live test submission</h1><p className="mt-4 leading-7 text-slate-600">{message}</p><p className="mt-3 text-sm font-bold text-blue-700">Scores are hidden from everyone until the scheduled release.</p><a href="/live-test" className="mt-6 inline-block rounded-xl bg-blue-700 px-6 py-3 font-black text-white">Live test centre</a></section></main>; }
 
-function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChange, fontAvailable, attemptVariant, customPreset, durationSeconds, durationLocked, onDurationChange, onStart }: { preset: ExamPreset; mode: ExamMode; inputSystem: InputSystem; inputSystemId: string; onInputSystemChange: (id: string) => void; fontAvailable: boolean | null; attemptVariant: AttemptVariant; customPreset: boolean; durationSeconds: number; durationLocked: boolean; onDurationChange: (value: number) => void; onStart: () => void }) { const specs = [["Duration", formatTime(durationSeconds)], ["Language", inputSystem.language], ["Font", inputSystem.fontLabel], ["Layout", inputSystem.keyboardLayout], ["Required speed", `${preset.speedRequirement} WPM`], ["Required accuracy", `${preset.accuracyRequirement}%`], ["Backspace", backspaceLabel(preset.backspaceMode)]]; const blocked = Boolean(inputSystem.requiredFontAsset) && fontAvailable !== true; return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto max-w-5xl px-4 py-10"><div className="rounded-3xl bg-white p-6 shadow-xl sm:p-10"><span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">{mode === "exam" ? "Independent practice simulation" : "Practice mode"}</span><h1 className="mt-5 text-4xl font-black text-slate-900">{preset.title}</h1><p className="mt-2 text-slate-600">{preset.subtitle}. This is a practice experience and not an official examination portal.</p>{preset.inputSystems.length > 1 && <InputSystemOptions systems={preset.inputSystems} value={inputSystemId} onChange={onInputSystemChange}/>}{!durationLocked && <label className="mt-6 block max-w-xs text-sm font-bold">Duration<select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">{(PRACTICE_DURATION_MINUTES.includes(durationSeconds / 60) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationSeconds / 60].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}</select></label>}<div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{specs.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-black text-slate-900">{value}</p></div>)}</div>{blocked && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 font-bold text-red-800">{fontAvailable === null ? "Checking the licensed Kruti Dev 010 font…" : <>Kruti Dev 010 is unavailable. The project owner must provide the licensed font at <code>{inputSystem.requiredFontAsset}</code>. This legacy passage will not be shown with a fallback font.</>}</p>}<div className={`mt-7 rounded-xl p-5 text-sm ${mode === "exam" ? "bg-amber-50 text-amber-900" : "bg-blue-50 text-blue-900"}`}><strong>{customPreset ? "Locked Custom Preset:" : attemptVariant === "official" ? "Official preset lock:" : "Custom Simulation:"}</strong> {customPreset ? "Uploaded exam rules are locked; visual and accessibility settings stay editable." : attemptVariant === "official" ? "Exam rules lock when you begin; visual and accessibility settings stay editable." : "Rule changes use your universal defaults and clearly mark this as a custom simulation."}</div><button type="button" disabled={blocked} onClick={onStart} className="mt-8 w-full rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">Start {mode === "exam" ? "Simulation" : "Practice"}</button></div></section></main>; }
+function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChange, fontAvailable, attemptVariant, customPreset, durationSeconds, durationLocked, onDurationChange, onStart }: { preset: ExamPreset; mode: ExamMode; inputSystem: InputSystem; inputSystemId: string; onInputSystemChange: (id: string) => void; fontAvailable: boolean | null; attemptVariant: AttemptVariant; customPreset: boolean; durationSeconds: number; durationLocked: boolean; onDurationChange: (value: number) => void; onStart: () => void }) {
+  const specs = [["Duration", formatTime(durationSeconds)], ["Language", inputSystem.language], ["Font", inputSystem.fontLabel], ["Layout", inputSystem.keyboardLayout], ["Required speed", `${preset.speedRequirement} WPM`], ["Required accuracy", `${preset.accuracyRequirement}%`], ["Backspace", backspaceLabel(preset.backspaceMode)]];
+  const blocked = Boolean(inputSystem.requiredFontAsset) && fontAvailable !== true;
+  const lockNote = customPreset ? "Uploaded exam rules are locked; visual and accessibility settings stay editable." : attemptVariant === "official" ? "Exam rules lock when you begin; visual and accessibility settings stay editable." : "Rule changes use your universal defaults and clearly mark this as a custom simulation.";
+  const lockLabel = customPreset ? "Locked Custom Preset" : attemptVariant === "official" ? "Official preset lock" : "Custom Simulation";
+  const fontWarning = fontAvailable === null ? "Checking the licensed Kruti Dev 010 font…" : <>Kruti Dev 010 is unavailable. The project owner must provide the licensed font at <code>{inputSystem.requiredFontAsset}</code>. This legacy passage will not be shown with a fallback font.</>;
+
+  // Practice mode keeps the original plain layout, byte-for-byte -- this
+  // redesign is deliberately scoped to mode === "exam" only (see below), so
+  // Practice/Learn/Word-Efficiency (which all share ExamStart) are
+  // completely unaffected.
+  if (mode !== "exam") return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto max-w-5xl px-4 py-10"><div className="rounded-3xl bg-white p-6 shadow-xl sm:p-10"><span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">Practice mode</span><h1 className="mt-5 text-4xl font-black text-slate-900">{preset.title}</h1><p className="mt-2 text-slate-600">{preset.subtitle}. This is a practice experience and not an official examination portal.</p>{preset.inputSystems.length > 1 && <InputSystemOptions systems={preset.inputSystems} value={inputSystemId} onChange={onInputSystemChange}/>}{!durationLocked && <label className="mt-6 block max-w-xs text-sm font-bold">Duration<select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">{(PRACTICE_DURATION_MINUTES.includes(durationSeconds / 60) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationSeconds / 60].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}</select></label>}<div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{specs.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 font-black text-slate-900">{value}</p></div>)}</div>{blocked && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 font-bold text-red-800">{fontWarning}</p>}<div className="mt-7 rounded-xl bg-blue-50 p-5 text-sm text-blue-900"><strong>{lockLabel}:</strong> {lockNote}</div><button type="button" disabled={blocked} onClick={onStart} className="mt-8 w-full rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">Start Practice</button></div></section></main>;
+
+  // Exam mode: a formal "admit card" / official-notice look -- the user
+  // explicitly asked for this to feel like a real government job exam
+  // rather than a plain generic card. The disclaimer that this is an
+  // independent, unaffiliated practice simulation is kept (made MORE
+  // prominent, as its own ribbon) precisely because the visual design now
+  // leans authoritative -- looking official must never be mistaken for
+  // being official.
+  return <main className={`min-h-screen bg-[#eee9db] ${examSerif.variable}`}>
+    <TypingBrandHeader/>
+    <section className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
+      <p className="mb-5 rounded-md border border-amber-400 bg-amber-50 px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-amber-900 sm:text-xs">
+        Independent practice simulation by Samradhi Classes — not affiliated with, endorsed by, or an official product of any recruitment or examination authority.
+      </p>
+      <div className="overflow-hidden rounded-sm border-[3px] border-double border-slate-800 bg-[#fffdf7] shadow-2xl">
+        <div className="border-b-[3px] border-double border-slate-800 bg-gradient-to-b from-slate-900 to-slate-800 px-6 py-7 text-center text-white sm:px-10">
+          <span aria-hidden className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border-2 border-amber-400 text-lg font-black tracking-tight text-amber-400">SC</span>
+          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-amber-300">Samradhi Classes · Practice Simulator</p>
+          <h1 style={{ fontFamily: "var(--font-exam-serif)" }} className="mt-3 text-2xl font-black uppercase tracking-wide sm:text-4xl">{preset.title}</h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-slate-300">{preset.subtitle}</p>
+        </div>
+        <div className="px-6 py-8 sm:px-10">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-300 pb-3 text-xs">
+            <span className="font-bold uppercase tracking-widest text-slate-500">Simulation Code</span>
+            <span className="font-mono font-black tracking-wider text-slate-800">{preset.id.toUpperCase()}</span>
+          </div>
+          {preset.inputSystems.length > 1 && <InputSystemOptions systems={preset.inputSystems} value={inputSystemId} onChange={onInputSystemChange}/>}
+          {!durationLocked && <label className="mt-6 block max-w-xs text-sm font-bold text-slate-800">Duration<select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">{(PRACTICE_DURATION_MINUTES.includes(durationSeconds / 60) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationSeconds / 60].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}</select></label>}
+
+          <h2 style={{ fontFamily: "var(--font-exam-serif)" }} className="mt-8 border-b-2 border-slate-800 pb-1.5 text-sm font-black uppercase tracking-widest text-slate-800">Particulars of Simulation</h2>
+          <dl className="grid grid-cols-2 sm:grid-cols-4">
+            {specs.map(([label, value], index) => <div key={label} className={`border-b border-slate-300 px-1 py-3 sm:px-2 ${index % 4 !== 0 ? "sm:border-l" : ""} ${index % 2 !== 0 ? "border-l" : ""}`}><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-0.5 font-black tabular-nums text-slate-900">{value}</dd></div>)}
+          </dl>
+
+          {blocked && <p role="alert" className="mt-6 rounded border border-red-300 bg-red-50 p-4 font-bold text-red-800">{fontWarning}</p>}
+
+          <div className="mt-8 rounded border border-slate-300 bg-slate-50 p-5">
+            <h2 style={{ fontFamily: "var(--font-exam-serif)" }} className="text-sm font-black uppercase tracking-widest text-slate-800">Instructions to Candidate</h2>
+            <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm leading-6 text-slate-700">
+              <li>The timer begins the instant you click <strong>Begin Simulation</strong> below — there is no separate start signal.</li>
+              <li>Do not refresh, close, or navigate away from this window once the simulation has started.</li>
+              <li>{lockLabel}: {lockNote}</li>
+              <li>Full-screen mode is available from the toolbar for a distraction-free, exam-like environment.</li>
+            </ol>
+          </div>
+
+          <button type="button" disabled={blocked} onClick={onStart} className="mt-8 w-full rounded-sm border-2 border-slate-900 bg-slate-900 py-4 text-lg font-black uppercase tracking-widest text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-400 disabled:bg-slate-400">Begin Simulation</button>
+        </div>
+      </div>
+    </section>
+  </main>;
+}
 
 type WorkspaceProps = { preset: ExamPreset; passage: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; rulesLocked: boolean; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void; durationMinutes: number; durationLocked: boolean; onDurationChange: (value: number) => void };
 
