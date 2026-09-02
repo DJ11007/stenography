@@ -65,6 +65,36 @@ test("classifies changed inter-word whitespace as a half error", () => {
   assert.equal(analysis.halfErrors, 1);
 });
 
+// Real bug reported live: the passage's paragraph breaks are stored as a
+// blank line ("\n\n" -- what pasting from Word/Docs naturally produces),
+// but a student reasonably presses Enter exactly once per paragraph,
+// producing a single "\n". Comparing separators for exact string equality
+// flagged the last word of every single paragraph in every passage as a
+// spacing mistake -- not a real typing error, just a mismatch between how
+// many blank lines the source document happened to have and how many
+// times a normal typist presses Enter.
+test("pressing Enter once at a paragraph break is not a spacing error, even when the source passage used a blank line (two newlines)", () => {
+  const analysis = analyzeTyping("...with determination.\n\nMathematics and science...", "...with determination.\nMathematics and science...");
+  assert.equal(analysis.categoryCounts.spacing, 0);
+  assert.equal(analysis.halfErrors, 0);
+});
+
+test("any number of newlines on both sides still counts as a match -- only whether a line break happened matters, not how many", () => {
+  const analysis = analyzeTyping("one.\n\n\ntwo", "one.\ntwo");
+  assert.equal(analysis.categoryCounts.spacing, 0);
+});
+
+test("running two paragraphs together (typing no Enter at all where the passage has one) is still a genuine spacing error", () => {
+  const analysis = analyzeTyping("one.\n\ntwo", "one. two");
+  assert.equal(analysis.categoryCounts.spacing, 1);
+  assert.equal(analysis.halfErrors, 1);
+});
+
+test("inserting an unwanted line break where the passage has none is still a genuine spacing error", () => {
+  const analysis = analyzeTyping("one two three", "one\ntwo three");
+  assert.equal(analysis.categoryCounts.spacing, 1);
+});
+
 test("preserves character-level comparison for a minor spelling error", () => {
   const analysis = analyzeTyping("typing practice", "typng practice");
   assert.equal(analysis.categoryCounts.minorSpelling, 1);

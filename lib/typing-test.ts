@@ -228,6 +228,27 @@ type WordToken = {
   separatorAfter: string;
 };
 
+// Real bug reported live: the passage's own paragraph breaks are stored as
+// a blank line (two newlines, "\n\n" -- what pasting from Word/Docs
+// naturally produces), but a student reasonably presses Enter exactly
+// once per paragraph, producing a single "\n". That exact-string
+// separator comparison flagged the last word of every single paragraph in
+// every passage as a "spacing" mistake -- not a real typing error, just a
+// mismatch between how many blank lines the source document happened to
+// have and how many times a normal typist presses Enter. Two separators
+// that both represent "a line break" (any amount of surrounding
+// whitespace, any number of newlines) are treated as equivalent here --
+// this still catches a *genuine* spacing mistake: a missing/extra space
+// between two words on the same line (no newline on either side), or a
+// student running two paragraphs together without pressing Enter at all
+// (a newline on one side but not the other).
+function separatorsEquivalent(original: string, typed: string) {
+  if (original === typed) return true;
+  const originalHasBreak = /\n/.test(original);
+  const typedHasBreak = /\n/.test(typed);
+  return originalHasBreak && typedHasBreak;
+}
+
 function tokenizeWords(text: string): WordToken[] {
   const matches = [...text.matchAll(/\S+/g)];
   return matches.map((match, index) => {
@@ -580,7 +601,7 @@ export function alignWords(
       entry.originalIndex !== undefined && entry.typedIndex !== undefined &&
       next.originalIndex === entry.originalIndex + 1 &&
       next.typedIndex === entry.typedIndex + 1 &&
-      originalWords[entry.originalIndex].separatorAfter !== typedWords[entry.typedIndex].separatorAfter &&
+      !separatorsEquivalent(originalWords[entry.originalIndex].separatorAfter, typedWords[entry.typedIndex].separatorAfter) &&
       profile.spacingErrors !== false
     ) {
       entry.halfErrorCategories = [...entry.halfErrorCategories, "spacing"];
