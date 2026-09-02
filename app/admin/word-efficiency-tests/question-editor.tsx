@@ -13,7 +13,17 @@ const fresh=(number:number):EditorQuestion=>({clientId:crypto.randomUUID(),selec
 const normalize=(items:EditorQuestion[])=>items.map((item,index)=>({...item,display_order:index+1}));
 
 export function QuestionEditor({initialQuestions}:{initialQuestions:WordQuestion[]}){
- const[questions,setQuestions]=useState<EditorQuestion[]>(()=>normalize((initialQuestions.length?initialQuestions:[fresh(1)]).map((question,index)=>({...question,clientId:crypto.randomUUID(),selected:false,display_order:index+1}))));
+ // clientId must be deterministic here, not crypto.randomUUID() -- this
+ // initializer runs once during the server's SSR pass of this Client
+ // Component and again during browser hydration, both starting from the
+ // same initialQuestions prop. A random id would compute a different value
+ // each time, silently desyncing every <article key={question.clientId}>
+ // between server and client and forcing React to remount every existing
+ // question's card (and its focus/scroll state) right after hydration.
+ // Existing DB questions already have a stable id; only the synthetic
+ // fresh(1) placeholder (shown when a test has no questions yet) needs a
+ // fallback, which is derived from its index so it's still deterministic.
+ const[questions,setQuestions]=useState<EditorQuestion[]>(()=>normalize((initialQuestions.length?initialQuestions:[fresh(1)]).map((question,index)=>({...question,clientId:question.id??`new-${index}`,selected:false,display_order:index+1}))));
  const[bulkMarks,setBulkMarks]=useState("1");const[preview,setPreview]=useState(false);const[dragged,setDragged]=useState<number|null>(null);
  useEffect(()=>{const receive=(event:Event)=>{const{mode,questions:extracted}=(event as CustomEvent<{mode:"append"|"replace";questions:ExtractedWordQuestion[]}>).detail;setQuestions(current=>{const fingerprints=new Set(current.map(item=>item.source_fingerprint).filter(Boolean));const imported=extracted.filter(item=>!fingerprints.has(item.fingerprint)).map((item,index):EditorQuestion=>({clientId:crypto.randomUUID(),selected:false,source_fingerprint:item.fingerprint,number:item.number,instruction:item.text,marks:Number.NaN,section:item.section,display_order:index+1,is_visible:true}));if(!imported.length){alert("These extracted questions are already present.");return current}return normalize(mode==="replace"?imported:[...current,...imported])})};window.addEventListener("word-efficiency:questions-import",receive);return()=>window.removeEventListener("word-efficiency:questions-import",receive)},[]);
  useEffect(()=>{const restore=(event:Event)=>{const raw=(event as CustomEvent<Record<string,string|string[]>>).detail.questions;if(typeof raw!=="string")return;try{const parsed=JSON.parse(raw)as WordQuestion[];if(parsed.length)setQuestions(normalize(parsed.map(question=>({...question,marks:question.marks===null?Number.NaN:Number(question.marks),clientId:crypto.randomUUID(),selected:false}))))}catch{}};window.addEventListener("word-efficiency:draft-restored",restore);return()=>window.removeEventListener("word-efficiency:draft-restored",restore)},[]);
