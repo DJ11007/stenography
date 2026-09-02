@@ -165,7 +165,23 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   if (!started) return <ExamStart preset={preset} mode={mode} inputSystem={inputSystem} inputSystemId={inputSystemId} onInputSystemChange={(id) => { setInputSystemId(id); updatePreferences({ inputSystemId: id }); }} fontAvailable={fontAvailable} attemptVariant={attemptVariant} customPreset={customPreset} durationSeconds={activeDurationSeconds} durationLocked={durationLocked} onDurationChange={changeDuration} onAttemptVariantChange={setAttemptVariant} onStart={start}/>;
   if (started && preset.audioUrl && !dictationReady) return <DictationGate preset={preset} url={preset.audioUrl} selectedCategories={selectedCategories} onCategoriesChange={setSelectedCategories} onStartTyping={() => { beginTiming(); setDictationReady(true); }}/>;
   if (finished && finalScore && managedTest?.isLive) return <LiveSubmissionReceipt status={liveSubmission} resultsPublishAt={managedTest.resultsPublishAt}/>;
-  if (finished && finalScore) return <AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={passage} typedText={normalizedInput.comparisonText}/>;
+  // "Return to Tests" used to always point at /typing/exams (Exam
+  // Simulators) no matter what kind of test was actually taken -- wrong
+  // for the far more common Practice/Learn/Stenography paths. Route it
+  // back to wherever this attempt actually came from.
+  const returnHref = managedTest
+    ? managedTest.mode === "practice" ? `/typing/practice/${inputSystem.language === "Hindi" ? "hindi" : "english"}`
+    : managedTest.mode === "learn" ? `/typing/learn/${inputSystem.language === "Hindi" ? "hindi" : "english"}`
+    : managedTest.mode === "stenography" ? "/typing/practice/stenography"
+    : "/typing/exams"
+    : "/typing/exams";
+  const returnLabel = managedTest
+    ? managedTest.mode === "practice" ? "Return to Practice Tests"
+    : managedTest.mode === "learn" ? "Return to Learn Typing"
+    : managedTest.mode === "stenography" ? "Return to Stenography"
+    : "Return to Tests"
+    : "Return to Tests";
+  if (finished && finalScore) return <AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={passage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel}/>;
   return <ExamWorkspace preset={scoredPreset} passage={passage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} attemptVariant={attemptVariant} rulesLocked={attemptVariant === "official" || managedRulesLocked || (customPreset && !managedTest)} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration}/>;
 }
 
