@@ -1,5 +1,21 @@
 import { krutiDevToUnicode } from "./hindi-font-converter.ts";
 
+// Real bug reported live: an admin-authored/pasted passage used a curly
+// apostrophe (’ U+2019, "smart quotes") in a possessive like "India's" --
+// no physical keyboard can type that exact codepoint, only a straight
+// apostrophe ('  U+0027), so that single word was permanently unscoreable
+// as correct for every student, forever, no matter how perfectly they
+// typed it. Straightening both the passage and what the student typed to
+// the same plain-ASCII quote characters before comparison fixes every
+// existing passage immediately (no re-save needed) and any future one.
+// Kruti Dev passages are untouched -- that's a legacy byte encoding where
+// these codepoints don't carry the same meaning, and it already has its
+// own, separate normalization path (see the krutidev-legacy branches
+// below).
+function straightenQuotes(text: string) {
+  return text.replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"');
+}
+
 export type TypingLanguage = "English" | "Hindi";
 export type TypingScript = "Latin" | "Devanagari";
 export type InputEncoding = "unicode" | "krutidev-legacy";
@@ -65,7 +81,7 @@ export function normalizeTypingInput(
     };
   }
 
-  const comparisonText = lineNormalized.normalize("NFC");
+  const comparisonText = straightenQuotes(lineNormalized.normalize("NFC"));
   const latinWords = comparisonText.match(/[A-Za-z]{3,}/g)?.length ?? 0;
   const devanagariCharacters = comparisonText.match(/\p{Script=Devanagari}/gu)?.length ?? 0;
   return {
@@ -88,7 +104,7 @@ export function getInputSystemPassage(system: InputSystem, presetPassage: string
     // through the Kruti Dev font.
     return system.passageOverride.normalize("NFC");
   }
-  return presetPassage.normalize("NFC");
+  return straightenQuotes(presetPassage.normalize("NFC"));
 }
 
 // The comparison text actually used to decide right/wrong. For Kruti Dev,

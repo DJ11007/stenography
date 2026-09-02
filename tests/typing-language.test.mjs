@@ -80,3 +80,29 @@ test("getScoringText passes non-Kruti-Dev text through unchanged", () => {
   assert.equal(getScoringText("hello world", HINDI_UNICODE_INSCRIPT), "hello world");
   assert.equal(getScoringText("भारत", HINDI_UNICODE_INSCRIPT), "भारत");
 });
+
+// Real bug reported live on an admin-managed exam test: the passage read
+// "India’s admired scientist-president" (a curly "smart quote"
+// apostrophe, ’ -- what pasting from Word/Docs or AI-generated text
+// commonly produces), but no physical keyboard can type that exact
+// codepoint; every keyboard's apostrophe key produces '. That one word
+// was therefore permanently unscoreable as correct, no matter how
+// perfectly a student typed it. Fixed by straightening both the resolved
+// passage and the student's typed input to the same plain-ASCII quote
+// characters before comparison -- this repairs every already-published
+// passage immediately (no re-save needed), not just future ones.
+test("getInputSystemPassage straightens curly quotes/apostrophes to their plain-ASCII keyboard equivalents", () => {
+  assert.equal(getInputSystemPassage(HINDI_UNICODE_INSCRIPT, "India’s “great” journey"), "India's \"great\" journey");
+});
+
+test("normalizeTypingInput straightens curly quotes/apostrophes in what the student typed too, so a device's own autocorrect can't cause a false mismatch", () => {
+  assert.equal(normalizeTypingInput("India’s “great” journey", HINDI_UNICODE_INSCRIPT).comparisonText, "India's \"great\" journey");
+});
+
+test("a passage with a curly apostrophe and a plainly-typed straight one now score as an exact match, end to end", () => {
+  const passage = getInputSystemPassage(HINDI_UNICODE_INSCRIPT, "India’s admired scientist-president.");
+  const typed = normalizeTypingInput("India's admired scientist-president.", HINDI_UNICODE_INSCRIPT).comparisonText;
+  const score = calculateTypingScore({ typedText: typed, passage, elapsedSeconds: 60, wordMethod: "characters" });
+  assert.equal(score.accuracy, 100);
+  assert.equal(score.analysis.entries.every((entry) => entry.status === "correct"), true);
+});
