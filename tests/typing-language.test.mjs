@@ -106,3 +106,16 @@ test("a passage with a curly apostrophe and a plainly-typed straight one now sco
   assert.equal(score.accuracy, 100);
   assert.equal(score.analysis.entries.every((entry) => entry.status === "correct"), true);
 });
+
+// Same failure mode as the curly-apostrophe bug, different punctuation:
+// Word/Google Docs/AI-generated text also commonly produces em/en dashes
+// (–/—) and an ellipsis character (…) that no physical keyboard types.
+// Widened proactively so this class of error can't recur for any future
+// passage, not just the one reported live.
+test("getInputSystemPassage straightens em/en dashes and the ellipsis character to their plain-ASCII keyboard equivalents", () => {
+  assert.equal(getInputSystemPassage(HINDI_UNICODE_INSCRIPT, "well–known idea — and so on…"), "well-known idea - and so on...");
+});
+
+test("normalizeTypingInput straightens em/en dashes and the ellipsis character in what the student typed too", () => {
+  assert.equal(normalizeTypingInput("well–known idea — and so on…", HINDI_UNICODE_INSCRIPT).comparisonText, "well-known idea - and so on...");
+});

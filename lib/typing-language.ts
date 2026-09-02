@@ -6,14 +6,25 @@ import { krutiDevToUnicode } from "./hindi-font-converter.ts";
 // apostrophe ('  U+0027), so that single word was permanently unscoreable
 // as correct for every student, forever, no matter how perfectly they
 // typed it. Straightening both the passage and what the student typed to
-// the same plain-ASCII quote characters before comparison fixes every
-// existing passage immediately (no re-save needed) and any future one.
-// Kruti Dev passages are untouched -- that's a legacy byte encoding where
-// these codepoints don't carry the same meaning, and it already has its
-// own, separate normalization path (see the krutidev-legacy branches
-// below).
-function straightenQuotes(text: string) {
-  return text.replace(/[‘’‚‛]/g, "'").replace(/[“”„‟]/g, '"');
+// the same plain-ASCII equivalents before comparison fixes every existing
+// passage immediately (no re-save needed) and any future one, for every
+// caller of getInputSystemPassage/normalizeTypingInput below -- every
+// hardcoded exam category, every admin-managed test in any mode, both
+// client display and server-side authoritative re-scoring (recordManagedAttempt
+// in app/tests/actions.ts) -- so this exact class of typographic-character
+// mismatch is prevented by construction, not just patched for one passage.
+// Also widened to em/en dashes and the ellipsis character -- the same
+// "Word/Google Docs/AI-generated text produces it, no physical key types
+// it" failure mode, just for different punctuation. Kruti Dev passages are
+// untouched -- that's a legacy byte encoding where these codepoints don't
+// carry the same meaning, and it already has its own, separate
+// normalization path (see the krutidev-legacy branches below).
+function straightenTypography(text: string) {
+  return text
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...");
 }
 
 export type TypingLanguage = "English" | "Hindi";
@@ -81,7 +92,7 @@ export function normalizeTypingInput(
     };
   }
 
-  const comparisonText = straightenQuotes(lineNormalized.normalize("NFC"));
+  const comparisonText = straightenTypography(lineNormalized.normalize("NFC"));
   const latinWords = comparisonText.match(/[A-Za-z]{3,}/g)?.length ?? 0;
   const devanagariCharacters = comparisonText.match(/\p{Script=Devanagari}/gu)?.length ?? 0;
   return {
@@ -104,7 +115,7 @@ export function getInputSystemPassage(system: InputSystem, presetPassage: string
     // through the Kruti Dev font.
     return system.passageOverride.normalize("NFC");
   }
-  return straightenQuotes(presetPassage.normalize("NFC"));
+  return straightenTypography(presetPassage.normalize("NFC"));
 }
 
 // The comparison text actually used to decide right/wrong. For Kruti Dev,
