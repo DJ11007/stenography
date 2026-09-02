@@ -103,7 +103,12 @@ export type ExamPreset = {
   };
 };
 
-function repeatPassageToExactWordCount(passage: string, wordCount: number) {
+// Exported so a student's chosen passage-length preference can resample any
+// resolved passage (hardcoded or admin-authored) client-side in
+// ConfigurableTypingExam -- works generically on arbitrary text, already
+// proven below on both ENGLISH_PASSAGE/HINDI_PASSAGE and an unrelated Kruti
+// Dev legacy-encoded string.
+export function repeatPassageToExactWordCount(passage: string, wordCount: number) {
   const sourceWords = passage.trim().split(/\s+/u);
   if (!sourceWords.length) throw new Error("A configured typing passage cannot be empty.");
   return Array.from({ length: wordCount }, (_, index) => sourceWords[index % sourceWords.length]).join(" ");
@@ -164,12 +169,19 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
   const id = examCategoryPresetId(category.slug, language);
   const durationSeconds = category.durationMinutes * 60;
   const subtitle = `${category.fullName} (${category.patternSourced ? "researched exam pattern" : "estimated baseline — verify official pattern"})`;
+  // Rajasthan LDC/RSMSSB is the one category with a genuinely confirmed,
+  // exact marks scheme (25 max, 9 to qualify, 0.05/0.0625 marks per correct
+  // word) -- reusing the same RSSB_*_MARKS_METHOD constants the generic
+  // english-typing/hindi-typing presets already use, since this category's
+  // own duration (10 min) and word-count formula already produce exactly
+  // 500 English / 400 Hindi words, satisfying preset()'s build-time check.
+  const marksMethod = category.slug === "rajasthan-ldc" ? (language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD) : undefined;
   if (language === "English") {
     const wordCount = Math.max(50, Math.round(500 * (category.durationMinutes / 10)));
-    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedEnglish), instructionNotes: category.patternNotes, patternSourced: category.patternSourced });
+    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedEnglish), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
   }
   const wordCount = Math.max(50, Math.round(400 * (category.durationMinutes / 10)));
-  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedHindi), instructionNotes: category.patternNotes, patternSourced: category.patternSourced });
+  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedHindi), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
 }
 
 export const EXAM_CATEGORY_PRESETS: ExamPreset[] = EXAM_CATEGORIES.flatMap((category) => [categoryPreset(category, "English"), categoryPreset(category, "Hindi")]);

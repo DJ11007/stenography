@@ -103,7 +103,7 @@ test("duration can be changed from the in-workspace Settings popup too (not just
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(workspace, /const durationLocked = attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\) \|\| timerStarted;/);
   assert.match(workspace, /const changeDuration = \(minutes: number\) => \{ updatePreferences\(\{ durationMinutes: minutes \}\); if \(!timerStarted\) setTimeLeft\(minutes \* 60\); \};/);
-  assert.match(workspace, /durationMinutes=\{activeDurationSeconds \/ 60\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\}\/>;/);
+  assert.match(workspace, /durationMinutes=\{activeDurationSeconds \/ 60\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\}/);
   const settingsPanel = await read("app/typing/_components/universal-typing-settings.tsx");
   assert.doesNotMatch(settingsPanel, /Duration \(1–60 minutes\)/);
   assert.match(settingsPanel, /PRACTICE_DURATION_MINUTES\.includes\(durationMinutes\)/);

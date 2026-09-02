@@ -2,10 +2,11 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
+import { repeatPassageToExactWordCount } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/lib/typing-language";
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories, type HalfErrorCategory } from "@/lib/typing-test";
 
-type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[] };
+type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[]; passageWordCount?: number | null };
 
 export async function recordManagedAttempt(payload: AttemptPayload) {
   const supabase = await createClient();
@@ -52,7 +53,20 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // Dev has genuine typist shortcuts (one key standing in for two or more
   // ordinary keystrokes) that only a full decode reliably resolves as
   // equal on both sides.
-  const score = calculateTypingScore({ typedText: getScoringText(normalized.comparisonText, inputSystem), passage: getScoringText(getInputSystemPassage(inputSystem, version.passage), inputSystem), elapsedSeconds: Math.min(payload.elapsedSeconds, version.durationSeconds), wordMethod: version.wordMethod, scoringProfile, includeUntypedWords: true });
+  // Word-count customization is only ever legitimate for a plain
+  // (non-live) Practice test, outside Stenography -- independently
+  // re-derived here from the trusted server-side version/test rows, not
+  // the client's own claim, exactly matching managedTestSettingsLocks'
+  // unlocked case. This is what stops a tampered payload.passageWordCount
+  // from silently shrinking/repeating an Exam/Learn/live/Stenography
+  // test's real passage before scoring it.
+  const wordCountCustomizable = version.mode === "practice" && !test.is_live && preset.category !== "stenography";
+  const resolvedPassage = getInputSystemPassage(inputSystem, version.passage);
+  const requestedWordCount = payload.passageWordCount;
+  const effectivePassage = wordCountCustomizable && typeof requestedWordCount === "number" && Number.isInteger(requestedWordCount) && requestedWordCount >= 150 && requestedWordCount <= 700
+    ? repeatPassageToExactWordCount(resolvedPassage, requestedWordCount)
+    : resolvedPassage;
+  const score = calculateTypingScore({ typedText: getScoringText(normalized.comparisonText, inputSystem), passage: getScoringText(effectivePassage, inputSystem), elapsedSeconds: Math.min(payload.elapsedSeconds, version.durationSeconds), wordMethod: version.wordMethod, scoringProfile, includeUntypedWords: true });
   const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)) };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   if (error) return error.code === "23505" && test.is_live ? { status: "already-submitted" as const, resultsPublishAt: test.results_publish_at } : null;

@@ -13,6 +13,12 @@ export type UniversalTypingPreferences = {
   showScrollbar: boolean;
   inputSystemId: string;
   durationMinutes: number;
+  /** A student-chosen passage length (150-700 words), applied by resampling
+   * whatever passage a test would otherwise show -- null means "use that
+   * test's own natural length" (today's behaviour, unchanged). Ignored
+   * wherever typing rules are officially locked, and never offered at all
+   * for Stenography (its passage is paired to a fixed audio recording). */
+  passageWordCount: number | null;
   fonts: Record<FontPreferenceContext, TypingFontPreferences>;
 };
 export type TypingPlatformSettingsStore = { version: typeof TYPING_PLATFORM_SETTINGS_VERSION; preferences: UniversalTypingPreferences };
@@ -28,6 +34,7 @@ export const DEFAULT_PLATFORM_PREFERENCES: UniversalTypingPreferences = {
   showScrollbar: true,
   inputSystemId: "",
   durationMinutes: 10,
+  passageWordCount: null,
   fonts: { latin: defaultTypingFontPreferences("Latin"), devanagari: defaultTypingFontPreferences("Devanagari"), krutidev: defaultTypingFontPreferences("Devanagari") },
 };
 
@@ -46,6 +53,7 @@ export function parsePlatformPreferences(value: unknown): UniversalTypingPrefere
     showScrollbar: typeof data.showScrollbar === "boolean" ? data.showScrollbar : DEFAULT_PLATFORM_PREFERENCES.showScrollbar,
     inputSystemId: typeof data.inputSystemId === "string" ? data.inputSystemId : "",
     durationMinutes: typeof data.durationMinutes === "number" && Number.isInteger(data.durationMinutes) && data.durationMinutes >= 1 && data.durationMinutes <= 60 ? data.durationMinutes : 10,
+    passageWordCount: typeof data.passageWordCount === "number" && Number.isInteger(data.passageWordCount) && data.passageWordCount >= 150 && data.passageWordCount <= 700 ? data.passageWordCount : null,
     fonts: {
       latin: parseTypingFontPreferences(fonts.latin, "Latin"),
       devanagari: parseTypingFontPreferences(fonts.devanagari, "Devanagari"),

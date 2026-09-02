@@ -7,3 +7,18 @@ test("invalid universal settings safely use defaults",()=>{const parsed=parsePla
 test("scrollbar visibility is stored as a student preference",()=>{assert.equal(parsePlatformPreferences({showScrollbar:false}).showScrollbar,false);assert.equal(parsePlatformPreferences({}).showScrollbar,true)});
 test("saved custom duration is restricted to one through sixty minutes",()=>{assert.equal(parsePlatformPreferences({durationMinutes:1}).durationMinutes,1);assert.equal(parsePlatformPreferences({durationMinutes:60}).durationMinutes,60);assert.equal(parsePlatformPreferences({durationMinutes:0}).durationMinutes,10);assert.equal(parsePlatformPreferences({durationMinutes:61}).durationMinutes,10);assert.equal(parsePlatformPreferences({durationMinutes:2.5}).durationMinutes,10)});
 test("official preset rules remain isolated from global defaults",()=>{const global={...DEFAULT_PLATFORM_PREFERENCES,backspaceMode:"disabled",wordMethod:"spaces"};const official=resolveAttemptSettings(global,{backspaceMode:"full",wordMethod:"characters"},"official");const custom=resolveAttemptSettings(global,{backspaceMode:"full",wordMethod:"characters"},"custom");assert.equal(official.backspaceMode,"full");assert.equal(official.wordMethod,"characters");assert.equal(custom.backspaceMode,"disabled");assert.equal(custom.wordMethod,"spaces");assert.equal(official.highlightMode,global.highlightMode)});
+// Real requested feature: a student-chosen passage length (150-700 words),
+// null meaning "use this test's own natural length" (today's behaviour,
+// unchanged) -- clamped the same defensive way every other numeric
+// preference in this file already is (see durationMinutes above).
+test("passage word count defaults to null and only accepts a valid integer in 150-700",()=>{
+  assert.equal(DEFAULT_PLATFORM_PREFERENCES.passageWordCount,null);
+  assert.equal(parsePlatformPreferences({}).passageWordCount,null);
+  assert.equal(parsePlatformPreferences({passageWordCount:500}).passageWordCount,500);
+  assert.equal(parsePlatformPreferences({passageWordCount:150}).passageWordCount,150);
+  assert.equal(parsePlatformPreferences({passageWordCount:700}).passageWordCount,700);
+  assert.equal(parsePlatformPreferences({passageWordCount:149}).passageWordCount,null);
+  assert.equal(parsePlatformPreferences({passageWordCount:701}).passageWordCount,null);
+  assert.equal(parsePlatformPreferences({passageWordCount:400.5}).passageWordCount,null);
+  assert.equal(parsePlatformPreferences({passageWordCount:"500"}).passageWordCount,null);
+});

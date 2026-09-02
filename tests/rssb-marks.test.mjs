@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { EXAM_PRESETS } from "../lib/typing-curriculum.ts";
+import { EXAM_PRESETS, getExamPreset } from "../lib/typing-curriculum.ts";
 import { getInputSystemPassage } from "../lib/typing-language.ts";
 import { calculateConfiguredRssbMarks } from "../lib/typing-results.ts";
 import { calculateTypingScore, countSpaceWords } from "../lib/typing-test.ts";
@@ -63,6 +63,30 @@ test("half errors, full errors, and remaining words receive no marks", () => {
   const result = calculateConfiguredRssbMarks(score, english.marksMethod);
   assert.equal(result.correctWords, score.analysis.counts.correct);
   assert.equal(result.marksObtained, score.analysis.counts.correct * 0.05);
+});
+
+// Real requested fix: the "Rajasthan LDC" exam-category simulator (the one
+// students actually click into from /typing/exams) never carried RSSB's own
+// marking scheme, even though its patternNotes already described it in
+// prose -- only the generic, differently-named english-typing/hindi-typing
+// presets above had it. Reuses the exact same marksMethod constants and the
+// same calculateConfiguredRssbMarks already proven above -- this just
+// confirms the category preset now genuinely carries them too.
+test("the Rajasthan LDC exam-category presets (not just the generic english-typing/hindi-typing ones) carry the real RSSB marks scheme, word-separated counting, and no highlight", () => {
+  const categoryEnglish = getExamPreset("exam-cat-rajasthan-ldc-english");
+  const categoryHindi = getExamPreset("exam-cat-rajasthan-ldc-hindi");
+  assert.ok(categoryEnglish?.marksMethod);
+  assert.ok(categoryHindi?.marksMethod);
+  assert.deepEqual(categoryEnglish.marksMethod, english.marksMethod);
+  assert.deepEqual(categoryHindi.marksMethod, hindi.marksMethod);
+  assert.equal(countSpaceWords(categoryEnglish.passage), 500);
+  assert.equal(countSpaceWords(categoryHindi.passage), 400);
+  assert.equal(categoryEnglish.wordMethod, "spaces");
+  assert.equal(categoryHindi.wordMethod, "spaces");
+  assert.equal(categoryEnglish.highlightMode, "none");
+  assert.equal(categoryHindi.highlightMode, "none");
+  assert.equal(categoryEnglish.backspaceMode, "word");
+  assert.equal(categoryHindi.backspaceMode, "word");
 });
 
 test("marks qualification is independent of WPM and accuracy thresholds", () => {

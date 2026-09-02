@@ -44,7 +44,7 @@ test("the student's category selection is folded into the scoring profile only f
   assert.match(editor, /const effectiveScoringProfile = useMemo\(\(\) => preset\.audioUrl \? scoringProfileWithSelectedCategories\(preset\.scoringProfile, selectedCategories\) : preset\.scoringProfile/);
   assert.match(editor, /const scoredPreset = useMemo\(\(\) => preset\.audioUrl \? \{ \.\.\.preset, scoringProfile: effectiveScoringProfile \} : preset/);
   assert.match(editor, /scoringProfile: effectiveScoringProfile, includeUntypedWords: true \}\) : null/);
-  assert.match(editor, /recordManagedAttempt\(\{testId:managedTest\.testId,versionId:managedTest\.versionId,startedAt:startedAt\.current,typedText,elapsedSeconds:finalScore\.elapsedSeconds,backspaces,selectedCategories\}\)/);
+  assert.match(editor, /recordManagedAttempt\(\{testId:managedTest\.testId,versionId:managedTest\.versionId,startedAt:startedAt\.current,typedText,elapsedSeconds:finalScore\.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable\?preferences\.passageWordCount:null\}\)/);
 });
 
 test("the dictation gate hides the audio player, shows the category checkboxes, and keeps Start Typing disabled until the audio has played through once", async () => {

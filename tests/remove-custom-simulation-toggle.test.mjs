@@ -29,5 +29,10 @@ test("attemptVariant still exists and still governs rule-locking internally -- o
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(workspace, /const \[attemptVariant\] = useState<AttemptVariant>\(mode === "practice" \|\| customPreset \? "custom" : "official"\);/);
   assert.match(workspace, /const durationLocked = attemptVariant === "official"/);
-  assert.match(workspace, /rulesLocked=\{attemptVariant === "official" \|\| managedRulesLocked \|\| \(customPreset && !managedTest\)\}/);
+  // rulesLocked is now hoisted into its own named const (reused by the new
+  // passage-word-count feature's lock computation too) instead of being
+  // computed inline at the ExamWorkspace call site -- same expression, same
+  // behavior, just no longer duplicated.
+  assert.match(workspace, /const rulesLocked = attemptVariant === "official" \|\| managedRulesLocked \|\| \(customPreset && !managedTest\);/);
+  assert.match(workspace, /rulesLocked=\{rulesLocked\}/);
 });
