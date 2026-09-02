@@ -148,32 +148,56 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     return { available, defaults };
   })() : null;
   const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null };
-  const { error } = lockedMode
-    ? await supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish, p_mode: lockedMode })
+  const runSave = (attemptPayload: typeof payload) => lockedMode
+    ? supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: attemptPayload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive
-    ? await supabase.rpc("save_scheduled_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish })
-    : await supabase.rpc("save_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish });
+    ? supabase.rpc("save_scheduled_managed_test", { p_test_id: id, p_payload: attemptPayload, p_publish: publish })
+    : supabase.rpc("save_managed_test", { p_test_id: id, p_payload: attemptPayload, p_publish: publish });
+  let { error } = await runSave(payload);
+  let finalSlug = draft.slug;
+  // Real friction hit live, twice, by the same admin: creating a new test
+  // whose title happens to match another in spirit (e.g. a Hindi
+  // "EXERCISE-2" alongside an existing English "EXERCISE - 2") derives
+  // the exact same slug and gets hard-blocked, even though the admin
+  // never typed a URL slug themselves -- the collision is purely an
+  // artifact of deriving one from the title. Auto-resolve it here
+  // (WordPress-style "-2", "-3" suffixing) instead of making the admin
+  // manually retry, but ONLY when creating a brand-new test (id is null)
+  // and the admin left the "URL slug" field's own value empty -- an
+  // admin who explicitly typed a slug into that field gets the
+  // informative error below instead, since silently overriding their
+  // explicit choice would be more surprising than helpful.
+  const explicitSlug = text(formData, "slug");
+  if (error?.code === "23505" && !id && !explicitSlug) {
+    for (let suffix = 2; error?.code === "23505" && suffix <= 20; suffix += 1) {
+      finalSlug = `${draft.slug}-${suffix}`;
+      ({ error } = await runSave({ ...payload, slug: finalSlug }));
+    }
+  }
   if (error) {
-    // A test's URL slug is silently derived from its title only once, when
-    // it's first created (the slug field itself is never shown to the
-    // admin) -- renaming a test afterward does NOT regenerate it. Over time
-    // that lets an old, renamed test quietly keep holding a slug that a
-    // brand new, differently-titled test collides with, with nothing in
-    // the admin UI to explain why. Rather than leave the admin guessing at
-    // a bare "already in use", look up which test actually holds this slug
-    // today and name it -- this is exactly the confusion a real admin hit.
+    // A test's URL slug is derived from its title only once, when it's
+    // first created -- renaming a test afterward does NOT regenerate it
+    // unless the admin also edits the "URL slug" field directly. Over
+    // time that lets an old, renamed test quietly keep holding a slug
+    // that a brand new, differently-titled test collides with, with
+    // nothing in the admin UI to explain why. Rather than leave the
+    // admin guessing at a bare "already in use", look up which test
+    // actually holds this slug today and name it -- this is exactly the
+    // confusion a real admin hit. (Only reached here if auto-resolving
+    // above didn't apply or ran out of attempts.)
     if (error.code === "23505") {
-      const { data: conflict } = await supabase.from("tests").select("title,mode,status").eq("slug", draft.slug).maybeSingle();
+      const { data: conflict } = await supabase.from("tests").select("title,mode,status").eq("slug", finalSlug).maybeSingle();
       return { error: conflict
-        ? `The web address "/tests/${draft.slug}" is already used by another test, currently titled "${conflict.title}" (${conflict.mode}, ${conflict.status}). A test's address comes from its title only when it's first created and doesn't change if you rename it later -- rename that other test, or change this test's title so its address doesn't collide.`
-        : `The web address "/tests/${draft.slug}" is already in use by another test.` };
+        ? `The web address "/tests/${finalSlug}" is already used by another test, currently titled "${conflict.title}" (${conflict.mode}, ${conflict.status}). A test's address comes from its title only when it's first created and doesn't change if you rename it later -- rename that other test, or type a different address into this test's own "URL slug" field.`
+        : `The web address "/tests/${finalSlug}" is already in use by another test.` };
     }
     if (error.message?.toLowerCase().includes("aal2") || error.message?.toLowerCase().includes("authorized")) return { error: "Please verify admin MFA and sign in again before saving this test." };
     if (error.code === "PGRST202" || error.message?.toLowerCase().includes("schema cache")) return { error: "The required admin test migration has not been applied to Supabase yet." };
     return { error: `The test could not be saved (${error.code || "database error"}).` };
   }
   revalidateTestRoutes(draft.mode, draft.isLive);
-  return { success: publish ? "A new immutable version was saved and published." : "A new immutable draft version was saved." };
+  const slugNote = finalSlug !== draft.slug ? ` "${draft.slug}" was already taken by another test, so this one was saved at /tests/${finalSlug} instead.` : "";
+  return { success: (publish ? "A new immutable version was saved and published." : "A new immutable draft version was saved.") + slugNote };
 }
 
 export async function saveManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { return persistManagedTest(formData); }
