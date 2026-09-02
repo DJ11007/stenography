@@ -186,12 +186,14 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     ? managedTest.mode === "practice" ? `/typing/practice/${inputSystem.language === "Hindi" ? "hindi" : "english"}`
     : managedTest.mode === "learn" ? `/typing/learn/${inputSystem.language === "Hindi" ? "hindi" : "english"}`
     : managedTest.mode === "stenography" ? "/typing/practice/stenography"
+    : managedTest.mode === "exam" && preset.examCategorySlug ? `/typing/exams/category/${preset.examCategorySlug}/${inputSystem.language === "Hindi" ? "hindi" : "english"}`
     : "/typing/exams"
     : "/typing/exams";
   const returnLabel = managedTest
     ? managedTest.mode === "practice" ? "Return to Practice Tests"
     : managedTest.mode === "learn" ? "Return to Learn Typing"
     : managedTest.mode === "stenography" ? "Return to Stenography"
+    : managedTest.mode === "exam" && preset.examCategorySlug ? "Return to Exercises"
     : "Return to Tests"
     : "Return to Tests";
   if (finished && finalScore) return <AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={passage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel}/>;

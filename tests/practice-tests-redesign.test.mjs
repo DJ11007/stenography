@@ -27,20 +27,29 @@ test("Practice Tests admin form no longer asks for Description or Required WPM/A
 test("Exam Tests admin form (non-live) hides the same typing-behaviour fields as Practice, with exam-specific explanatory copy", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
   assert.match(manager, /const showAdminRules = \(formMode !== "practice" && formMode !== "exam"\) \|\| isLive;/);
-  assert.match(manager, /formMode==="exam"\?"Duration follows this platform's official exam-simulator default \(10 minutes\) and can't be changed here/);
-  assert.match(manager, /formMode==="exam"\?"Exam tests use this platform's official target of 30 WPM \/ 90% accuracy/);
-  assert.match(manager, /formMode==="exam"\?"Backspace, word calculation, and highlighting follow this platform's official exam-simulator defaults/);
+  assert.match(manager, /formMode==="exam"\?\(selectedExamCategory\?`Duration follows \$\{selectedExamCategory\.name\}'s official pattern/);
+  assert.match(manager, /formMode==="exam"\?\(selectedExamCategory\?`This test uses \$\{selectedExamCategory\.name\}'s official target of/);
+  assert.match(manager, /formMode==="exam"\?\(selectedExamCategory\?`Backspace follows \$\{selectedExamCategory\.name\}'s official policy/);
 });
 
-test("the server hardcodes the platform defaults for plain Practice AND Exam tests, ignoring whatever a stale or tampered form submits", async () => {
+// Real requested follow-up: an admin exam test now belongs to one of the 25
+// hardcoded exam categories, and that category's OWN researched pattern
+// (not a flat generic default) is what actually gets saved -- this is what
+// caught and fixed the earlier Rajasthan LDC "backspace disabled" bug for
+// good, since the admin form's copy and the stored value can no longer
+// silently drift apart the way they did when both were separately hardcoded.
+test("the server derives duration/wpm/accuracy/backspace from the chosen exam category (falling back to the flat Practice default only for Practice)", async () => {
   const actions = await read("app/admin/tests/actions.ts");
   assert.match(actions, /const forcedDefaultRules = \(mode === "practice" \|\| mode === "exam"\) && !isLive;/);
-  assert.match(actions, /durationSeconds: forcedDefaultRules \? 600 : \(durationMinutes \? Number\(durationMinutes\) \* 60 : 600\),/);
-  assert.match(actions, /requiredWpm: forcedDefaultRules \? 30 : Number\(formData\.get\("requiredWpm"\)\),/);
-  assert.match(actions, /requiredAccuracy: forcedDefaultRules \? 90 : Number\(formData\.get\("requiredAccuracy"\)\),/);
-  assert.match(actions, /backspaceMode: forcedDefaultRules \? "full" : /);
+  assert.match(actions, /const examCategory = mode === "exam" && !isLive \? \(text\(formData, "examCategory"\) \|\| null\) : null;/);
+  assert.match(actions, /const examCategoryDefinition = examCategory \? EXAM_CATEGORIES\.find\(\(category\) => category\.slug === examCategory\) : undefined;/);
+  assert.match(actions, /durationSeconds: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.durationMinutes \* 60 : 600\) : /);
+  assert.match(actions, /requiredWpm: forcedDefaultRules \? \(examCategoryDefinition \? \(language === "Hindi" \? examCategoryDefinition\.speedHindi : examCategoryDefinition\.speedEnglish\) : 30\) : /);
+  assert.match(actions, /requiredAccuracy: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.accuracy : 90\) : /);
+  assert.match(actions, /backspaceMode: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.backspaceMode : "full"\) : /);
   assert.match(actions, /wordMethod: forcedDefaultRules \? "characters" : /);
   assert.match(actions, /highlightMode: forcedDefaultRules \? "character" : /);
+  assert.match(actions, /exam_category: draft\.examCategory \?\? null/);
 });
 
 test("a practice-mode managed test's duration is no longer forced to the admin's fixed value (real fix -- it used to be, even though the UI showed it as editable)", async () => {

@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizeManagedTestRules, slugifyTest, validateManagedTest, type ManagedTestDraft, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
+import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { ALL_HALF_ERROR_CATEGORIES } from "@/lib/typing-test";
 
 export type TestFormState = { error?: string; success?: string };
@@ -52,17 +53,26 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   // students see exactly the same defaults the exam simulator's own
   // built-in presets already use.
   const forcedDefaultRules = (mode === "practice" || mode === "exam") && !isLive;
+  // Exam (non-live) tests must belong to one of the 25 real exam categories
+  // -- once chosen, that category's OWN researched pattern (duration/speed/
+  // accuracy/backspace) is forced instead of the flat generic default plain
+  // Practice uses; wordMethod/highlightMode stay flat since no category
+  // varies those two. Practice mode is completely unaffected -- it never
+  // had an examCategory and its own forcedDefaultRules branch is unchanged.
+  const examCategory = mode === "exam" && !isLive ? (text(formData, "examCategory") || null) : null;
+  const examCategoryDefinition = examCategory ? EXAM_CATEGORIES.find((category) => category.slug === examCategory) : undefined;
   return normalizeManagedTestRules({
     title: text(formData, "title"), description: text(formData, "description"), slug: slugifyTest(text(formData, "slug") || text(formData, "title")), language,
-    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: forcedDefaultRules ? 600 : (durationMinutes ? Number(durationMinutes) * 60 : 600),
+    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.durationMinutes * 60 : 600) : (durationMinutes ? Number(durationMinutes) * 60 : 600),
     passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"),
-    requiredWpm: forcedDefaultRules ? 30 : Number(formData.get("requiredWpm")),
-    requiredAccuracy: forcedDefaultRules ? 90 : Number(formData.get("requiredAccuracy")),
-    backspaceMode: forcedDefaultRules ? "full" : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
+    requiredWpm: forcedDefaultRules ? (examCategoryDefinition ? (language === "Hindi" ? examCategoryDefinition.speedHindi : examCategoryDefinition.speedEnglish) : 30) : Number(formData.get("requiredWpm")),
+    requiredAccuracy: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.accuracy : 90) : Number(formData.get("requiredAccuracy")),
+    backspaceMode: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.backspaceMode : "full") : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
     wordMethod: forcedDefaultRules ? "characters" : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
     highlightMode: forcedDefaultRules ? "character" : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
+    examCategory,
   });
 }
 
@@ -131,7 +141,7 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     const defaults = parse("dictationDefaults").filter((item) => available.includes(item));
     return { available, defaults };
   })() : null;
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName };
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null };
   const { error } = lockedMode
     ? await supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive

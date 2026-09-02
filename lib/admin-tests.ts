@@ -1,5 +1,6 @@
 import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
 import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, type ExamPreset } from "./typing-curriculum.ts";
+import { EXAM_CATEGORIES } from "./exam-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
 
@@ -16,6 +17,12 @@ export type ManagedTestDraft = Partial<LiveTestSchedule> & {
   pdfPath?: string | null;
   pdfFileName?: string | null;
   dictationCategories?: { available: HalfErrorCategory[]; defaults: HalfErrorCategory[] } | null;
+  /** Slug into EXAM_CATEGORIES (lib/exam-categories.ts) -- required for
+   * mode==="exam" && !isLive, always null/undefined otherwise. Ties an
+   * admin-uploaded exercise to one of the 25 real exam patterns so it
+   * inherits that category's own speed/duration/backspace rules and shows
+   * up on that category's student-facing exercise-selection page. */
+  examCategory?: string | null;
 };
 
 export type ManagedTestVersion = ManagedTestDraft & { id: string; testId: string; versionNumber: number };
@@ -41,6 +48,7 @@ export function validateManagedTest(input: ManagedTestDraft) {
   if (!Number.isFinite(input.requiredAccuracy) || input.requiredAccuracy < 0 || input.requiredAccuracy > 100) errors.push("Required accuracy must be between 0 and 100.");
   const system = INPUT_SYSTEMS.find((candidate) => candidate.id === input.inputSystemId && candidate.language === input.language);
   if (!system) errors.push("Choose an input system matching the selected language.");
+  if (input.mode === "exam" && !input.isLive && !EXAM_CATEGORIES.some((category) => category.slug === input.examCategory)) errors.push("Choose the exam category this test belongs to.");
   const matter = validateMatterText(input.passage, input.language, input.inputSystemId);
   errors.push(...matter.errors);
   errors.push(...validateLiveSchedule({ isLive: input.isLive ?? false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, resultsPublishAt: input.resultsPublishAt ?? null }));
@@ -51,6 +59,11 @@ export function validateManagedTest(input: ManagedTestDraft) {
 export function managedVersionToPreset(version: ManagedTestVersion): ExamPreset {
   const system = INPUT_SYSTEMS.find((candidate) => candidate.id === version.inputSystemId) ?? ENGLISH_QWERTY;
   const inputSystem = system.inputEncoding === "krutidev-legacy" ? { ...system, passageOverride: version.passage } : system;
+  // When this exercise is tied to one of the 25 hardcoded exam categories,
+  // it inherits that category's own researched instructions/badge on
+  // ExamStart -- the exact same content the hardcoded preset for that
+  // category shows, for free.
+  const examCategory = version.examCategory ? EXAM_CATEGORIES.find((category) => category.slug === version.examCategory) : undefined;
   return {
     id: version.testId, slug: version.slug, title: version.title,
     subtitle: version.description || "Samradhi Classes managed test",
@@ -66,5 +79,8 @@ export function managedVersionToPreset(version: ManagedTestVersion): ExamPreset 
     pdfUrl: null,
     pdfFileName: version.pdfFileName ?? null,
     dictationCategories: version.dictationCategories ?? undefined,
+    examCategorySlug: examCategory?.slug,
+    instructionNotes: examCategory?.patternNotes,
+    patternSourced: examCategory?.patternSourced,
   };
 }

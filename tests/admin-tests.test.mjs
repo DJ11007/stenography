@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { slugifyTest, validateManagedTest } from "../lib/admin-tests.ts";
 
-const base={title:"Production Test",description:"Description",slug:"production-test",language:"English",inputSystemId:"english-qwerty",mode:"exam",durationSeconds:600,passage:"This is a sufficiently long English typing passage for validation.",requiredWpm:30,requiredAccuracy:90,backspaceMode:"full",wordMethod:"characters",highlightMode:"character",visibility:"public"};
+const base={title:"Production Test",description:"Description",slug:"production-test",language:"English",inputSystemId:"english-qwerty",mode:"exam",durationSeconds:600,passage:"This is a sufficiently long English typing passage for validation.",requiredWpm:30,requiredAccuracy:90,backspaceMode:"full",wordMethod:"characters",highlightMode:"character",visibility:"public",examCategory:"rajasthan-ldc"};
 test("managed test validation accepts a complete configuration",()=>assert.deepEqual(validateManagedTest(base).errors,[]));
 test("test links are generated automatically from English and Hindi titles",()=>{assert.equal(slugifyTest("English Speed Test"),"english-speed-test");assert.equal(slugifyTest("हिंदी टाइपिंग टेस्ट"),"हिंदी-टाइपिंग-टेस्ट")});
 test("managed tests enforce duration and encoding",()=>{assert.match(validateManagedTest({...base,durationSeconds:3660}).errors.join(" "),/1 and 60/);assert.match(validateManagedTest({...base,language:"Hindi",inputSystemId:"hindi-krutidev-010",passage:"यह यूनिकोड हिन्दी का पर्याप्त लंबा परीक्षण पाठ है।"}).errors.join(" "),/Convert to Kruti Dev/)});

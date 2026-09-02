@@ -86,6 +86,12 @@ export type ExamPreset = {
    * reasoned estimate because no confirmed official pattern was found (false). Undefined
    * alongside instructionNotes for non-category presets. */
   patternSourced?: boolean;
+  /** For an admin-managed exam test tied to one of the 25 hardcoded exam categories
+   * (lib/exam-categories.ts) -- the category slug, used by ConfigurableTypingExam's
+   * returnHref to route "Return to Tests" back to that category's exercise-selection
+   * page instead of the generic Exam Simulators catalogue. Undefined for every
+   * hardcoded preset and for any admin-managed test not tied to a category. */
+  examCategorySlug?: string;
   scoringProfile: ScoringProfile;
   marksMethod?: {
     id: "configured-rssb-ldc";

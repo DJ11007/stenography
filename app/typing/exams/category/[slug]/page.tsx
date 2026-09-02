@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getExamCategory, examCategoryPresetId, defaultExamCategoryRules } from "@/lib/exam-categories";
+import { getExamCategory, defaultExamCategoryRules } from "@/lib/exam-categories";
 import { TypingBrandHeader } from "../../../_components/typing-brand";
 import { BackButton } from "../../../../_components/back-button";
 import { ExamCategoryIcon } from "../../_components/exam-category-icon";
@@ -14,8 +14,6 @@ export async function generateMetadata({ params }: PageProps<"/typing/exams/cate
 export default async function ExamCategoryRulesPage({ params }: PageProps<"/typing/exams/category/[slug]">) {
   const category = getExamCategory((await params).slug);
   if (!category) notFound();
-  const englishPresetId = examCategoryPresetId(category.slug, "English");
-  const hindiPresetId = examCategoryPresetId(category.slug, "Hindi");
   const englishRules = defaultExamCategoryRules(category, "English");
   const hindiRules = defaultExamCategoryRules(category, "Hindi");
 
@@ -50,7 +48,7 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
             <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {englishRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
-            <Link href={`/typing/exams/${englishPresetId}`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
+            <Link href={`/typing/exams/category/${category.slug}/english`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
               Start in English
             </Link>
           </div>
@@ -59,7 +57,7 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
             <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {hindiRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
-            <Link href={`/typing/exams/${hindiPresetId}`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
+            <Link href={`/typing/exams/category/${category.slug}/hindi`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
               हिंदी में शुरू करें (Start in Hindi)
             </Link>
           </div>

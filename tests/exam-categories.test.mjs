@@ -86,7 +86,7 @@ test("the category rules page shows English and Hindi rules with distinct start 
   assert.match(page, /if \(!category\) notFound\(\)/);
   assert.match(page, /Start in English/);
   assert.match(page, /Start in Hindi/);
-  assert.match(page, /examCategoryPresetId\(category\.slug, "English"\)/);
-  assert.match(page, /examCategoryPresetId\(category\.slug, "Hindi"\)/);
+  assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/english`\}/);
+  assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/hindi`\}/);
   assert.match(page, /<BackButton href="\/typing\/exams" label="Exam Categories" \/>/);
 });
