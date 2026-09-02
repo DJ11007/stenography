@@ -21,7 +21,7 @@ test("official links module exposes every official Samradhi Classes HTTPS destin
 });
 
 test("the header Connect button is a plain link to a dedicated /connect page, not an inline dropdown of every channel", () => {
-  assert.match(siteHeader, /<Link href="\/connect"[^>]*>\s*Connect\s*<\/Link>/);
+  assert.match(siteHeader, /<Link href="\/connect"[^>]*>[\s\S]*?Connect\s*<\/Link>/);
   assert.doesNotMatch(siteHeader, /OFFICIAL_LINKS/);
   assert.doesNotMatch(siteHeader, /<details className="group relative">/);
 });

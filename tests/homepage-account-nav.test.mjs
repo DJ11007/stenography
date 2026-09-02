@@ -35,14 +35,23 @@ test("logged-in visitors see a profile badge with their name instead of the Stud
   assert.match(nav, /form action=\{signOut\}/);
 });
 
-test("Connect, Student Portal, and Call Now share the same rounded-full pill shape and sizing, so the nav bar doesn't look like a grab-bag of mismatched buttons (Buy Now stays visually distinct on purpose)", () => {
-  const header = read("app/_components/site-header.tsx");
+test("Student Portal and Call Now share the same rounded-full pill shape and sizing, so they don't look like mismatched buttons", () => {
   const nav = read("app/_components/access-navigation.tsx");
-  assert.match(header, /href="\/connect" className="whitespace-nowrap rounded-full/);
   assert.match(nav, /href="\/login" className=\{`whitespace-nowrap rounded-full border-2/);
   assert.match(nav, /rounded-full bg-emerald-600 px-3\.5 py-2 text-xs font-black/);
-  // all three use the same px-3.5/py-2 base size stepping up at sm:
-  for (const source of [header, nav]) assert.match(source, /px-3\.5 py-2 text-xs font-black[^"]*sm:px-4 sm:text-sm/);
+  // both use the same px-3.5/py-2 base size stepping up at sm:
+  assert.match(nav, /px-3\.5 py-2 text-xs font-black[^"]*sm:px-4 sm:text-sm/);
+});
+
+test("Connect deliberately matches Buy Now's premium gradient/shimmer CTA treatment (icon, shimmer sweep, hover-lift shadow), but in its own distinct teal/cyan color so it isn't a literal clone", () => {
+  const header = read("app/_components/site-header.tsx");
+  const buyNow = read("app/_components/buy-now-button.tsx");
+  assert.match(header, /href="\/connect" className="group relative inline-flex items-center gap-1\.5 overflow-hidden whitespace-nowrap rounded-full bg-gradient-to-r from-teal-500 via-cyan-500 to-sky-500/);
+  assert.match(header, /<ConnectIcon className="h-4 w-4" \/>/);
+  assert.match(header, /-translate-x-full bg-white\/25 transition-transform duration-700 group-hover:translate-x-full/);
+  // same shimmer-sweep technique as Buy Now, not the same color
+  assert.match(buyNow, /-translate-x-full bg-white\/25 transition-transform duration-700 group-hover:translate-x-full/);
+  assert.doesNotMatch(header, /from-indigo-600 via-violet-600 to-fuchsia-600/); // not a literal clone of Buy Now's palette
 });
 
 test("proxy refreshes the session on /typing routes too, not just everywhere else -- this is the actual fix for the 'logged out after clicking the logo' bug", () => {
