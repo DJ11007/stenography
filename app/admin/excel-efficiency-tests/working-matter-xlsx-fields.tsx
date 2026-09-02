@@ -34,7 +34,7 @@ export function WorkingMatterXlsxFields({ initialSnapshot }: { initialSnapshot: 
           <input type="hidden" name="workingMatterSnapshot" value={JSON.stringify(snapshot)} />
           <div className="grid gap-2 text-sm sm:grid-cols-4">
             <Meta label="Filename" value={snapshot.source?.fileName ?? "Saved snapshot"} />
-            <Meta label="Size" value={snapshot.source ? `${snapshot.source.sizeBytes.toLocaleString()} bytes` : "Stored version"} />
+            <Meta label="Size" value={snapshot.source ? `${snapshot.source.sizeBytes.toLocaleString("en-IN")} bytes` : "Stored version"} />
             <Meta label="Rows × columns" value={`${snapshot.rows} × ${snapshot.cols}`} />
             <Meta label="Populated cells" value={String(Object.keys(snapshot.cells).length)} />
             <label className="grid gap-1 text-xs font-bold text-slate-500"><span className="uppercase">Sheet language</span><select className="input" value={snapshot.language} onChange={(event) => setSnapshot((current) => current ? { ...current, language: event.target.value as WorkingSheetSnapshot["language"] } : current)}><option>English</option><option>Hindi</option></select></label>
