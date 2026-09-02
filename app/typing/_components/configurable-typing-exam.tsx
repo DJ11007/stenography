@@ -238,6 +238,7 @@ function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChan
             <span className="font-bold uppercase tracking-widest text-slate-500">Simulation Code</span>
             <span className="font-mono font-black tracking-wider text-slate-800">{preset.id.toUpperCase()}</span>
           </div>
+          {preset.patternSourced !== undefined && <p className={`mt-3 text-xs font-bold ${preset.patternSourced ? "text-emerald-700" : "text-amber-700"}`}>{preset.patternSourced ? "✓ Pattern researched from this board's published exam-pattern / typing-test guidance." : "⚠ No confirmed official pattern was found for this exact post — the figures below are a reasoned baseline. Verify against the current notification."}</p>}
           {preset.inputSystems.length > 1 && <InputSystemOptions systems={preset.inputSystems} value={inputSystemId} onChange={onInputSystemChange}/>}
           {!durationLocked && <label className="mt-6 block max-w-xs text-sm font-bold text-slate-800">Duration<select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">{(PRACTICE_DURATION_MINUTES.includes(durationSeconds / 60) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationSeconds / 60].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}</select></label>}
 
@@ -251,8 +252,9 @@ function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChan
           <div className="mt-8 rounded border border-slate-300 bg-slate-50 p-5">
             <h2 style={{ fontFamily: "var(--font-exam-serif)" }} className="text-sm font-black uppercase tracking-widest text-slate-800">Instructions to Candidate</h2>
             <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm leading-6 text-slate-700">
-              <li>The timer begins the instant you click <strong>Begin Simulation</strong> below — there is no separate start signal.</li>
+              <li>The timer begins the moment you type your first keystroke in the workspace — not when this page loads, and not the instant you click Begin Simulation.</li>
               <li>Do not refresh, close, or navigate away from this window once the simulation has started.</li>
+              {preset.instructionNotes?.map((note) => <li key={note}>{note}</li>)}
               <li>{lockLabel}: {lockNote}</li>
               <li>Full-screen mode is available from the toolbar for a distraction-free, exam-like environment.</li>
             </ol>

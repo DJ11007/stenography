@@ -75,6 +75,17 @@ export type ExamPreset = {
    * is the same as today's behavior for every test an admin hasn't set
    * this for. */
   dictationCategories?: { available: HalfErrorCategory[]; defaults: HalfErrorCategory[] };
+  /** For exam-category presets only: the board-specific typing rules researched for this
+   * post (marking scheme, right/wrong-word grading, backspace policy, on-screen highlighting
+   * behaviour), shown on the exam simulator's start screen. Undefined for the four base
+   * presets and every stenography preset, which have no specific recruiting-authority pattern
+   * to cite and keep the generic instructions instead. */
+  instructionNotes?: string[];
+  /** Mirrors ExamCategoryDefinition.patternSourced for the same category -- whether
+   * instructionNotes above are researched from published exam-pattern guidance (true) or a
+   * reasoned estimate because no confirmed official pattern was found (false). Undefined
+   * alongside instructionNotes for non-category presets. */
+  patternSourced?: boolean;
   scoringProfile: ScoringProfile;
   marksMethod?: {
     id: "configured-rssb-ldc";
@@ -149,10 +160,10 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
   const subtitle = `${category.fullName} (${category.patternSourced ? "researched exam pattern" : "estimated baseline — verify official pattern"})`;
   if (language === "English") {
     const wordCount = Math.max(50, Math.round(500 * (category.durationMinutes / 10)));
-    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedEnglish) });
+    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedEnglish), instructionNotes: category.patternNotes, patternSourced: category.patternSourced });
   }
   const wordCount = Math.max(50, Math.round(400 * (category.durationMinutes / 10)));
-  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedHindi) });
+  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: "characters", scoringProfile: profile(category.speedHindi), instructionNotes: category.patternNotes, patternSourced: category.patternSourced });
 }
 
 export const EXAM_CATEGORY_PRESETS: ExamPreset[] = EXAM_CATEGORIES.flatMap((category) => [categoryPreset(category, "English"), categoryPreset(category, "Hindi")]);

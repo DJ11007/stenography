@@ -32,10 +32,16 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
           </div>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-          Terms &amp; conditions and exact exam rules for this category have not been finalized yet. The rules below are
-          generic placeholders and will be replaced once the administrator configures the official pattern for{" "}
-          {category.name}.
+        {/* Per-category sourced/estimated framing already lives inside
+            defaultExamCategoryRules() itself (its second and third bullets),
+            so this box only needs to add emphasis, not duplicate it -- and
+            it must reflect this specific category's real research state,
+            not a blanket "nothing is finalized yet" claim that would be
+            false for every category with patternSourced: true. */}
+        <div className={`mt-8 rounded-2xl border p-5 text-sm ${category.patternSourced ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+          {category.patternSourced
+            ? <>The rules below (marking scheme, backspace policy, and screen behaviour) are researched from {category.name}&apos;s published exam-pattern guidance. Government exam patterns can change between recruitment cycles — always cross-check against the current official notification before your real exam.</>
+            : <>No confirmed official notification was found for {category.name}&apos;s exact typing-test pattern. The rules below are a reasoned baseline from the closest comparable exam family, not a verified official pattern — please tell us the real pattern if you have the official notification, and we will update it.</>}
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
