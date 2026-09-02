@@ -138,7 +138,20 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     ? await supabase.rpc("save_scheduled_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish })
     : await supabase.rpc("save_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish });
   if (error) {
-    if (error.code === "23505") return { error: "That URL slug is already in use." };
+    // A test's URL slug is silently derived from its title only once, when
+    // it's first created (the slug field itself is never shown to the
+    // admin) -- renaming a test afterward does NOT regenerate it. Over time
+    // that lets an old, renamed test quietly keep holding a slug that a
+    // brand new, differently-titled test collides with, with nothing in
+    // the admin UI to explain why. Rather than leave the admin guessing at
+    // a bare "already in use", look up which test actually holds this slug
+    // today and name it -- this is exactly the confusion a real admin hit.
+    if (error.code === "23505") {
+      const { data: conflict } = await supabase.from("tests").select("title,mode,status").eq("slug", draft.slug).maybeSingle();
+      return { error: conflict
+        ? `The web address "/tests/${draft.slug}" is already used by another test, currently titled "${conflict.title}" (${conflict.mode}, ${conflict.status}). A test's address comes from its title only when it's first created and doesn't change if you rename it later -- rename that other test, or change this test's title so its address doesn't collide.`
+        : `The web address "/tests/${draft.slug}" is already in use by another test.` };
+    }
     if (error.message?.toLowerCase().includes("aal2") || error.message?.toLowerCase().includes("authorized")) return { error: "Please verify admin MFA and sign in again before saving this test." };
     if (error.code === "PGRST202" || error.message?.toLowerCase().includes("schema cache")) return { error: "The required admin test migration has not been applied to Supabase yet." };
     return { error: `The test could not be saved (${error.code || "database error"}).` };
