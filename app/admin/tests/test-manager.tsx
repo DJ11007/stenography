@@ -25,7 +25,14 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   const [preview,setPreview] = useState(false);
   const [query,setQuery] = useState("");
   const [status,setStatus] = useState("all");
-  const [kind,setKind] = useState(effectiveMode ?? "all");
+  // Two separate filters, not one combined dropdown -- "Hindi" (a language)
+  // and "Hindi Unicode"/"Kruti Dev" (encodings) sitting in the same flat
+  // list as "learn"/"practice"/"exam" (modes) made it unclear which kind of
+  // thing you were even filtering by. filterLanguage/filterMode are
+  // deliberately NOT named language/setLanguage -- that pair already exists
+  // above for the create/edit form's own Language field.
+  const [filterLanguage,setFilterLanguage] = useState("all");
+  const [filterMode,setFilterMode] = useState(effectiveMode ?? "all");
   const [sort,setSort] = useState("updated");
   const [passage,setPassage] = useState("");
   const [language,setLanguage] = useState<"English"|"Hindi">(lockedLanguage ?? "English");
@@ -48,7 +55,7 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   const [dictationAvailable,setDictationAvailable] = useState<Set<HalfErrorCategory>>(new Set(ALL_HALF_ERROR_CATEGORIES));
   const [dictationDefaults,setDictationDefaults] = useState<Set<HalfErrorCategory>>(new Set(ALL_HALF_ERROR_CATEGORIES));
   const [state,action,pending] = useActionState(saveAction,initialState);
-  const filtered = useMemo(() => tests.filter((item) => { const q=query.toLowerCase(); const kindMatch=kind==="all"||item.mode===kind||item.language===kind||item.input_system_id.includes(kind)||(kind==="typing"&&item.mode!=="stenography"); return (!q||`${item.title} ${item.slug}`.toLowerCase().includes(q))&&(status==="all"||item.status===status)&&kindMatch; }).sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="attempts"?b.attempts-a.attempts:new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime()), [tests,query,status,kind,sort]);
+  const filtered = useMemo(() => tests.filter((item) => { const q=query.toLowerCase(); const languageMatch=filterLanguage==="all"||item.language===filterLanguage||item.input_system_id.includes(filterLanguage); const modeMatch=filterMode==="all"||item.mode===filterMode||(filterMode==="typing"&&item.mode!=="stenography"); return (!q||`${item.title} ${item.slug}`.toLowerCase().includes(q))&&(status==="all"||item.status===status)&&languageMatch&&modeMatch; }).sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="attempts"?b.attempts-a.attempts:new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime()), [tests,query,status,filterLanguage,filterMode,sort]);
   const choose = (test:ManagedTestRow|null) => {
     setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(test?.currentVersion?.language??lockedLanguage??"English"); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??"english-qwerty"); setFormMode(effectiveMode??test?.currentVersion?.mode??"practice"); setIsLive(Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
     setExamCategorySlug((test?.currentVersion?.configuration?.exam_category as string|undefined) ?? "");
@@ -83,7 +90,7 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
 
   return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
     <section className="rounded-2xl bg-white p-5 shadow">
-      <div className="grid gap-3 md:grid-cols-4"><input aria-label="Search tests" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search title or slug" className="input"/><select aria-label="Filter status" value={status} onChange={(event)=>setStatus(event.target.value)} className="input"><option value="all">All statuses</option>{["draft","published","unpublished","archived"].map((value)=><option key={value}>{value}</option>)}</select><select aria-label="Filter language or mode" value={kind} onChange={(event)=>setKind(event.target.value)} className="input"><option value="all">All languages and modes</option><option>English</option><option>Hindi</option><option value="unicode">Hindi Unicode</option><option value="krutidev">Kruti Dev</option><option value="typing">Typing</option>{["learn","practice","exam","stenography"].map((value)=><option key={value}>{value}</option>)}</select><select aria-label="Sort tests" value={sort} onChange={(event)=>setSort(event.target.value)} className="input"><option value="updated">Recently updated</option><option value="title">Title</option><option value="attempts">Attempts</option></select></div>
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5"><input aria-label="Search tests" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search title or slug" className="input"/><select aria-label="Filter status" value={status} onChange={(event)=>setStatus(event.target.value)} className="input"><option value="all">All statuses</option>{["draft","published","unpublished","archived"].map((value)=><option key={value}>{value}</option>)}</select><select aria-label="Filter language" value={filterLanguage} onChange={(event)=>setFilterLanguage(event.target.value)} className="input"><option value="all">All languages</option><option>English</option><option>Hindi</option><option value="unicode">Hindi Unicode</option><option value="krutidev">Kruti Dev</option></select><select aria-label="Filter mode" value={filterMode} onChange={(event)=>setFilterMode(event.target.value)} className="input"><option value="all">All modes</option><option value="typing">Typing</option>{["learn","practice","exam","stenography"].map((value)=><option key={value}>{value}</option>)}</select><select aria-label="Sort tests" value={sort} onChange={(event)=>setSort(event.target.value)} className="input"><option value="updated">Recently updated</option><option value="title">Title</option><option value="attempts">Attempts</option></select></div>
       <div className="mt-5 space-y-3">{filtered.length ? filtered.map((test)=><TestRow key={test.id} test={test} learningOnly={learningOnly} onEdit={()=>choose(test)}/>) : <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">No tests match these filters.</p>}</div>
     </section>
     <aside className="rounded-2xl bg-white p-5 shadow xl:sticky xl:top-5 xl:self-start">
