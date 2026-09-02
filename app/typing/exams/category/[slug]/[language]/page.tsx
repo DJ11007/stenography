@@ -75,7 +75,7 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
               {items.map((item, index) => (
                 <Link key={item.id} href={`/tests/${item.slug}`} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{(page - 1) * 50 + index + 1}</span>
-                  <span className="min-w-0"><span className="block truncate font-black text-slate-800">{item.title}</span><span className="block text-xs text-slate-500">Exercise {(page - 1) * 50 + index + 1}</span></span>
+                  <span className="min-w-0 truncate font-black text-slate-800">{item.title}</span>
                 </Link>
               ))}
             </div>}
