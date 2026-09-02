@@ -58,7 +58,8 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   });
 }
 
-const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 150 * 1024 * 1024;
+const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 async function resolveAudioPath(formData: FormData, testId: string | null, supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ audioPath: string | null; error?: string }> {
   const removeAudio = formData.get("removeAudio") === "on";
@@ -66,13 +67,34 @@ async function resolveAudioPath(formData: FormData, testId: string | null, supab
   const upload = formData.get("audioFile");
   if (!(upload instanceof File) || !upload.size) return { audioPath: removeAudio ? null : existing };
   if (!upload.type.startsWith("audio/")) return { audioPath: existing, error: "The dictation audio file must be an audio format." };
-  if (upload.size > MAX_AUDIO_BYTES) return { audioPath: existing, error: "Dictation audio must be under 50 MB." };
+  if (upload.size > MAX_AUDIO_BYTES) return { audioPath: existing, error: "Dictation audio must be under 150 MB." };
   const bytes = new Uint8Array(await upload.arrayBuffer());
   const safeName = upload.name.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
   const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`;
   const { error } = await supabase.storage.from("stenography-audio").upload(path, bytes, { contentType: upload.type, upsert: false });
   if (error) return { audioPath: existing, error: `Audio upload failed: ${error.message}` };
   return { audioPath: path };
+}
+
+// Available for every managed test mode (not just stenography) -- a
+// ready-made question-paper PDF is useful regardless of mode, distinct
+// from the Print/PDF toolbar button which prints the typed passage text
+// itself rather than an admin-uploaded file.
+async function resolvePdfPath(formData: FormData, testId: string | null, supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ pdfPath: string | null; pdfFileName: string | null; error?: string }> {
+  const removePdf = formData.get("removePdf") === "on";
+  const existingPath = text(formData, "existingPdfPath") || null;
+  const existingName = text(formData, "existingPdfFileName") || null;
+  const upload = formData.get("pdfFile");
+  if (!(upload instanceof File) || !upload.size) return removePdf ? { pdfPath: null, pdfFileName: null } : { pdfPath: existingPath, pdfFileName: existingName };
+  if (upload.type !== "application/pdf") return { pdfPath: existingPath, pdfFileName: existingName, error: "The question paper must be a PDF file." };
+  if (upload.size > MAX_PDF_BYTES) return { pdfPath: existingPath, pdfFileName: existingName, error: "The question paper PDF must be under 20 MB." };
+  const bytes = new Uint8Array(await upload.arrayBuffer());
+  if (new TextDecoder("latin1").decode(bytes.slice(0, 5)) !== "%PDF-") return { pdfPath: existingPath, pdfFileName: existingName, error: "Invalid PDF file signature." };
+  const safeName = upload.name.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
+  const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await supabase.storage.from("managed-test-pdfs").upload(path, bytes, { contentType: "application/pdf", upsert: false });
+  if (error) return { pdfPath: existingPath, pdfFileName: existingName, error: `PDF upload failed: ${error.message}` };
+  return { pdfPath: path, pdfFileName: safeName };
 }
 
 async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode): Promise<TestFormState> {
@@ -86,6 +108,8 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     if (resolved.error) return { error: resolved.error };
     audioPath = resolved.audioPath;
   }
+  const resolvedPdf = await resolvePdfPath(formData, id, supabase);
+  if (resolvedPdf.error) return { error: resolvedPdf.error };
   const taskCategory = draft.mode === "stenography" ? (text(formData, "taskCategory") || "Task") : null;
   // "Offer to student" categories not in ALL_HALF_ERROR_CATEGORIES (a
   // tampered form field, or a category name from a future/older client)
@@ -99,7 +123,7 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     const defaults = parse("dictationDefaults").filter((item) => available.includes(item));
     return { available, defaults };
   })() : null;
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories };
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName };
   const { error } = lockedMode
     ? await supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: payload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive
@@ -133,22 +157,24 @@ export async function setManagedTestStatus(formData: FormData) { await requireAd
 export async function duplicateManagedTest(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); if(!id)return; const supabase=await createClient(); await supabase.rpc("duplicate_managed_test",{p_test_id:id}); revalidateTestRoutes(); }
 export async function deleteManagedTest(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); if(!id)return; const supabase=await createClient(); await supabase.rpc("delete_managed_test_if_safe",{p_test_id:id}); revalidateTestRoutes(); }
 
-export type PermanentDeleteState = { error?: string; result?: { title: string; mode: string; versionCount: number; attemptCount: number; audioFileCount: number; cleanupJobs: { id: string; bucket: string; path: string; status: string; attempt_count: number }[] } };
+export type PermanentDeleteState = { error?: string; result?: { title: string; mode: string; versionCount: number; attemptCount: number; audioFileCount: number; pdfFileCount: number; cleanupJobs: { id: string; bucket: string; path: string; status: string; attempt_count: number }[] } };
 type CleanupJob = { id: string; bucket: string; path: string; status: string; attempt_count: number };
 
-// The only bucket a general managed test's audio ever lives in
-// (test_versions.configuration->>'audio_path', stenography dictation
-// only) -- mirrors word-efficiency's cleanup-job processor, narrower
-// because there's just the one bucket here.
+// The two buckets a general managed test's files ever live in:
+// stenography-audio (test_versions.configuration->>'audio_path',
+// stenography dictation only) and managed-test-pdfs
+// (->>'pdf_path', any mode) -- mirrors word-efficiency's cleanup-job
+// processor, narrower because there are only these two buckets here.
 async function processTestCleanupJob(job: CleanupJob): Promise<{ failed: boolean }> {
   const admin = createAdminClient();
   if (!admin) return { failed: true };
-  const safeBucket = job.bucket === "stenography-audio";
+  const safeBucket = job.bucket === "stenography-audio" || job.bucket === "managed-test-pdfs";
   const safePath = Boolean(job.path) && !job.path.startsWith("/") && !job.path.includes("\\") && !job.path.split("/").includes("..");
+  const configKey = job.bucket === "managed-test-pdfs" ? "pdf_path" : "audio_path";
   let status: "removed" | "failed" | "retained_shared" = "failed"; let cleanupError: string | null = null;
   if (!safeBucket || !safePath) cleanupError = "Cleanup job failed application scope validation.";
   else {
-    const { data: references, error: referenceError } = await admin.from("test_versions").select("id").contains("configuration", { audio_path: job.path }).limit(1);
+    const { data: references, error: referenceError } = await admin.from("test_versions").select("id").contains("configuration", { [configKey]: job.path }).limit(1);
     if (referenceError) cleanupError = `Reference check failed: ${referenceError.message}`;
     else if (references?.length) status = "retained_shared";
     else { const { error: removeError } = await admin.storage.from(job.bucket).remove([job.path]); cleanupError = removeError?.message ?? null; status = cleanupError ? "failed" : "removed"; }
@@ -165,8 +191,8 @@ export async function permanentlyDeleteManagedTest(_: PermanentDeleteState, form
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("permanently_delete_managed_test", { p_test_id: testId, p_typed_title: typedTitle, p_acknowledged: true, p_request_id: requestId });
   if (error || !data) return { error: error?.message ?? "Permanent deletion failed." };
-  const result = data as { title: string; mode: string; version_count: number; attempt_count: number; audio_file_count: number; cleanup_jobs?: CleanupJob[] };
+  const result = data as { title: string; mode: string; version_count: number; attempt_count: number; audio_file_count: number; pdf_file_count: number; cleanup_jobs?: CleanupJob[] };
   for (const job of result.cleanup_jobs ?? []) { if (job.status === "removed" || job.status === "retained_shared") continue; await processTestCleanupJob(job); }
   revalidateTestRoutes();
-  return { result: { title: result.title, mode: result.mode, versionCount: result.version_count, attemptCount: result.attempt_count, audioFileCount: result.audio_file_count, cleanupJobs: result.cleanup_jobs ?? [] } };
+  return { result: { title: result.title, mode: result.mode, versionCount: result.version_count, attemptCount: result.attempt_count, audioFileCount: result.audio_file_count, pdfFileCount: result.pdf_file_count, cleanupJobs: result.cleanup_jobs ?? [] } };
 }

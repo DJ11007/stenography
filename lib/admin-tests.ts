@@ -13,6 +13,8 @@ export type ManagedTestDraft = Partial<LiveTestSchedule> & {
   requiredWpm: number; requiredAccuracy: number; backspaceMode: BackspaceMode;
   wordMethod: WordMethod; highlightMode: HighlightMode; visibility: ManagedTestVisibility;
   audioPath?: string | null;
+  pdfPath?: string | null;
+  pdfFileName?: string | null;
   dictationCategories?: { available: HalfErrorCategory[]; defaults: HalfErrorCategory[] } | null;
 };
 
@@ -61,6 +63,8 @@ export function managedVersionToPreset(version: ManagedTestVersion): ExamPreset 
     wordMethod: version.wordMethod, highlightMode: version.highlightMode,
     scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: version.requiredWpm, passAccuracy: version.requiredAccuracy, capitalizationErrors: version.language === "English" },
     audioUrl: null,
+    pdfUrl: null,
+    pdfFileName: version.pdfFileName ?? null,
     dictationCategories: version.dictationCategories ?? undefined,
   };
 }

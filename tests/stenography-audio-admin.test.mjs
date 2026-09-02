@@ -17,7 +17,7 @@ test("saving a managed test validates and uploads dictation audio only in stenog
   const actions = await read("app/admin/tests/actions.ts");
   assert.match(actions, /async function resolveAudioPath/);
   assert.match(actions, /upload\.type\.startsWith\("audio\/"\)/);
-  assert.match(actions, /MAX_AUDIO_BYTES = 50 \* 1024 \* 1024/);
+  assert.match(actions, /MAX_AUDIO_BYTES = 150 \* 1024 \* 1024/);
   assert.match(actions, /removeAudio.*=== "on"/);
   assert.match(actions, /if \(draft\.mode === "stenography"\)/);
   assert.match(actions, /audio_path: audioPath/);

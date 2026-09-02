@@ -28,7 +28,7 @@ const sections = [
     tone: "bg-violet-600",
   },
   {
-    title: "Exam Simulators",
+    title: "Typing Exam Simulator",
     description: "Independent practice simulations with transparent preset rules and locked exam settings.",
     href: "/typing/exams",
     action: "View simulators",

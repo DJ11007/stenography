@@ -3,7 +3,26 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { resolvePracticeSelection } from "../lib/practice-navigator.ts";
 const read=(path)=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
-test("direct selector uses real compatible test metadata and stable ordering",async()=>{const server=await read("lib/practice-navigator-server.ts"),page=await read("app/typing/practice/_components/practice-navigator.tsx");for(const expected of [/getPracticeSelector/,/\.eq\("mode",filters\.mode\)/,/\.eq\("status","published"\)/,/\.eq\("visibility","public"\)/,/\.eq\("is_live",false\)/,/\.eq\("language",filters\.language\)/,/\.eq\("input_system_id",filters\.inputSystemId\)/,/\.order\("published_at",\{ascending:false\}\)\.order\("id",\{ascending:true\}\)/])assert.match(server,expected);assert.match(page,/items\.length/);assert.match(page,/Test \$\{index \+ 1\} of \$\{items\.length\}/);assert.doesNotMatch(page,/500/);});
+test("direct selector uses real compatible test metadata and stable ordering",async()=>{const server=await read("lib/practice-navigator-server.ts"),page=await read("app/typing/practice/_components/practice-navigator.tsx");for(const expected of [/getPracticeSelector/,/\.eq\("mode",filters\.mode\)/,/\.eq\("status","published"\)/,/\.eq\("visibility","public"\)/,/\.eq\("is_live",false\)/,/\.eq\("language",filters\.language\)/,/\.eq\("input_system_id",filters\.inputSystemId\)/,/\.order\("published_at",\{ascending:oldest\}\)\.order\("id",\{ascending:true\}\)/])assert.match(server,expected);assert.match(page,/items\.length/);assert.match(page,/Test \$\{index \+ 1\} of \$\{items\.length\}/);assert.doesNotMatch(page,/500/);});
+
+test("students can explicitly sort the practice test picker by newest or oldest, not just whatever order the admin happened to publish tests in", async () => {
+  const server = await read("lib/practice-navigator-server.ts");
+  const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
+  const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
+  assert.match(server, /sort\?:"newest"\|"oldest"/);
+  assert.match(server, /const oldest=filters\.sort==="oldest";/);
+  assert.match(navigator, /const sort = params\.sort === "oldest" \? "oldest" : "newest";/);
+  assert.match(navigator, /if \(forSort === "oldest"\) query\.set\("sort", "oldest"\);/);
+  // reuses the already-fetched, already-ordered list's own endpoints instead
+  // of a second query -- which endpoint is "newest" depends on which
+  // direction is currently active.
+  assert.match(navigator, /const newestSlug = sort === "newest" \? items\[0\]\.slug : items\[items\.length - 1\]\.slug;/);
+  assert.match(navigator, /const oldestSlug = sort === "newest" \? items\[items\.length - 1\]\.slug : items\[0\]\.slug;/);
+  assert.match(workspace, /aria-pressed=\{practiceNavigation\.sort==="newest"\}/);
+  assert.match(workspace, /aria-pressed=\{practiceNavigation\.sort==="oldest"\}/);
+  assert.match(workspace, /onClick=\{\(\)=>onNavigateTest\(practiceNavigation\.newestHref\)\}/);
+  assert.match(workspace, /onClick=\{\(\)=>onNavigateTest\(practiceNavigation\.oldestHref\)\}/);
+});
 test("valid URL selections are retained and invalid selections fall back to the first stable item",()=>{const items=[{slug:"first"},{slug:"second"}];assert.deepEqual(resolvePracticeSelection(items,"second"),{selectedIndex:1,selected:items[1],fellBack:false});assert.deepEqual(resolvePracticeSelection(items,"missing"),{selectedIndex:0,selected:items[0],fellBack:true});assert.deepEqual(resolvePracticeSelection(items),{selectedIndex:0,selected:items[0],fellBack:true});assert.deepEqual(resolvePracticeSelection([],"missing"),{selectedIndex:0,selected:undefined,fellBack:true});});
 test("English typing opens a canonical selected workspace without the pre-start page",async()=>{const route=await read("app/typing/practice/english/page.tsx"),navigator=await read("app/typing/practice/_components/practice-navigator.tsx"),workspace=await read("app/typing/_components/configurable-typing-exam.tsx");assert.match(route,/<PracticeNavigator language="English"/);assert.match(navigator,/if \(params\.test !== selected\.slug\) redirect\(queryFor\(selected\.slug\)\)/);assert.match(navigator,/customPreset directWorkspace/);assert.match(workspace,/useState\(directWorkspace\)/);assert.match(workspace,/if \(!started\) return <ExamStart/);});
 test("Hindi requires input selection while both stenography routes use direct workspaces after selection",async()=>{const hindi=await read("app/typing/practice/hindi/page.tsx"),englishSteno=await read("app/typing/practice/english-stenography/page.tsx"),hindiSteno=await read("app/typing/practice/hindi-stenography/page.tsx");assert.match(hindi,/params\.input\?<PracticeNavigator[\s\S]*:<HindiCatalogue/);assert.match(englishSteno,/<PracticeNavigator mode="stenography" language="English"/);assert.match(hindiSteno,/params\.input\?<PracticeNavigator mode="stenography" language="Hindi"[\s\S]*:<HindiCatalogue/);});

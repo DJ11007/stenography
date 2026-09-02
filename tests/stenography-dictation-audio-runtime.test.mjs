@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 const migrationPath = new URL("../supabase/migrations/202608270034_stenography_dictation_audio.sql", import.meta.url);
+const sizeLimitMigrationPath = new URL("../supabase/migrations/202609020054_raise_stenography_audio_size_limit.sql", import.meta.url);
 
 async function database() {
   const db = new PGlite();
@@ -21,14 +22,15 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
 alter table storage.objects enable row level security;
 `);
   await db.exec(await readFile(migrationPath, "utf8"));
+  await db.exec(await readFile(sizeLimitMigrationPath, "utf8"));
   return db;
 }
 
-test("the stenography-audio bucket is private, audio-only, and capped at 50MB", async () => {
+test("the stenography-audio bucket is private, audio-only, and (after the size-limit follow-up migration) capped at 150MB", async () => {
   const db = await database();
   const { rows: [bucket] } = await db.query("select * from storage.buckets where id='stenography-audio'");
   assert.equal(bucket.public, false);
-  assert.equal(bucket.file_size_limit, 52428800);
+  assert.equal(bucket.file_size_limit, 157286400);
   assert.ok(bucket.allowed_mime_types.includes("audio/mpeg"));
   await db.close();
 });

@@ -61,6 +61,12 @@ export type ExamPreset = {
    * workspace plays this audio (with adjustable speed) instead of showing the Original Passage
    * panel; the passage text is still used for scoring exactly as before. */
   audioUrl?: string | null;
+  /** Signed, time-limited URL for an admin-uploaded question-paper PDF, plus
+   * its original file name for the download link's label. Distinct from the
+   * Print/PDF toolbar button (which prints the typed passage text itself,
+   * generated on the fly) -- this is a ready-made file the admin attached. */
+  pdfUrl?: string | null;
+  pdfFileName?: string | null;
   /** Admin-configured menu for the dictation gate's pre-typing checklist:
    * which half-error categories are offered to the student at all
    * (`available`), and which start pre-checked (`defaults`, always a
