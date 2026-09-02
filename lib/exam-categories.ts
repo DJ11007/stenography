@@ -1,3 +1,5 @@
+import type { BackspaceMode } from "./typing-test.ts";
+
 export type ExamCategoryIconKind = "commission" | "medical" | "train" | "police" | "scales" | "book" | "flask" | "monitor";
 
 export type ExamCategoryDefinition = {
@@ -14,7 +16,12 @@ export type ExamCategoryDefinition = {
   speedHindi: number;
   durationMinutes: number;
   accuracy: number;
-  backspaceMode: "full" | "disabled";
+  // Widened from "full" | "disabled" to the app's real BackspaceMode when
+  // the Rajasthan LDC / RSMSSB category's genuine word-level-lock rule
+  // (correct freely within the current word, locked forever once you press
+  // Space or Enter -- see its patternNotes) needed the "word" value this
+  // type had never allowed for any category before.
+  backspaceMode: BackspaceMode;
   /** true = based on a specific recruiting authority's published pattern found during research;
    * false = no confirmed pattern found for this exact post, using a reasoned baseline from the
    * closest comparable exam family. Either way, always verify against the current notification. */
@@ -68,8 +75,8 @@ const RAW_CATEGORIES: Array<Omit<ExamCategoryDefinition, "tone" | "toneDark">> =
     speedEnglish: 30, speedHindi: 25, durationMinutes: 10, accuracy: 90, backspaceMode: "full", patternSourced: false,
     patternNotes: ["No confirmed pattern found for this exact post; using a typical subordinate-court clerk baseline (35 WPM English / 30 WPM Hindi-family benchmark and ~95% accuracy are common across comparable subordinate courts, so treat this simulation's numbers as a gentler starting point, not the ceiling).", "Backspace policy for subordinate-court clerk exams varies significantly by court and notification — some allow free correction, others lock text in permanently. We could not locate a published typing-specific rulebook from Bihar's own recruiting body; verify against the latest Bihar Civil Court recruitment notification."] },
   { slug: "rajasthan-ldc", name: "RAJASTHAN LDC", badge: "RSMSSB", fullName: "Rajasthan Subordinate & Ministerial Services Selection Board — Lower Division Clerk", iconKind: "commission",
-    speedEnglish: 40, speedHindi: 35, durationMinutes: 10, accuracy: 95, backspaceMode: "disabled", patternSourced: true,
-    patternNotes: ["Modelled on the RSSB/RSMSSB LDC & Junior Assistant pattern: a 500-word English and 400-word Hindi passage in 10 minutes, marks-based (25 maximum, 9 to qualify), and backspace is strictly not allowed. Hindi font: DevLys 010 with the Remington Gail layout.", "Marks are earned per correct word only — 0.05 marks/word in English (need 180 of 500 words correct, 36%, for the 9-mark minimum) and 0.0625 marks/word in Hindi (need 144 of 400 words correct, also 36%). There is no negative marking for wrong words — an incorrect word simply earns nothing.", "The moment you press Space or Enter, the word you just typed is locked forever — backspace only works within the word currently being typed, never on a completed one."] },
+    speedEnglish: 40, speedHindi: 35, durationMinutes: 10, accuracy: 95, backspaceMode: "word", patternSourced: true,
+    patternNotes: ["Modelled on the RSSB/RSMSSB LDC & Junior Assistant pattern: a 500-word English and 400-word Hindi passage in 10 minutes, marks-based (25 maximum, 9 to qualify). Hindi font: DevLys 010 with the Remington Gail layout.", "Marks are earned per correct word only — 0.05 marks/word in English (need 180 of 500 words correct, 36%, for the 9-mark minimum) and 0.0625 marks/word in Hindi (need 144 of 400 words correct, also 36%). There is no negative marking for wrong words — an incorrect word simply earns nothing.", "The moment you press Space or Enter, the word you just typed is locked forever — backspace only works within the word currently being typed, never on a completed one."] },
   { slug: "upsssc-assistants", name: "UPSSSC Assistants", badge: "UPSSSC", fullName: "UP Subordinate Services Selection Commission — Junior Assistant", iconKind: "commission",
     speedEnglish: 30, speedHindi: 25, durationMinutes: 5, accuracy: 90, backspaceMode: "full", patternSourced: true,
     patternNotes: ["English and Hindi are tested separately, 5 minutes each, in the real exam (this simulation runs one language for the full duration).", "Backspace may correct only the current word and the one word immediately before it — a maximum of two words in total; you cannot go back further to fix an earlier mistake. Hindi is typed in Kruti Dev 010 or Mangal, per the notification.", "Each word in the passage is highlighted one at a time as you type it, moving to the next word once you press Space. A grace of up to 5 mistakes is given — if you make 5 or fewer, your speed is calculated on the full word count typed."] },
