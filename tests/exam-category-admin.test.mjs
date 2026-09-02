@@ -29,6 +29,19 @@ test("validateManagedTest requires a real EXAM_CATEGORIES slug for exam-mode non
   assert.deepEqual(validateManagedTest({ ...base, mode: "practice", examCategory: null }).errors, []);
 });
 
+// Real bug reported live: an admin exercise linked to Rajasthan LDC showed
+// Highlight=Character and Word calculation=5 Characters in its own Settings
+// popup, instead of the category's real None/Space-separated -- because
+// parseDraft's category-derivation only ever forced duration/speed/
+// accuracy/backspace from the chosen category, deliberately leaving
+// wordMethod/highlightMode flat (a reasonable call at the time, before any
+// category varied those two fields -- Rajasthan LDC now does).
+test("parseDraft derives wordMethod/highlightMode from the chosen exam category too, not just duration/speed/accuracy/backspace", async () => {
+  const actions = await read("app/admin/tests/actions.ts");
+  assert.match(actions, /wordMethod: forcedDefaultRules \? \(examCategoryDefinition\?\.wordMethod \?\? "characters"\) : /);
+  assert.match(actions, /highlightMode: forcedDefaultRules \? \(examCategoryDefinition\?\.highlightMode \?\? "character"\) : /);
+});
+
 test("managedVersionToPreset attaches examCategorySlug/instructionNotes/patternSourced from EXAM_CATEGORIES when configured, and leaves them undefined otherwise", async () => {
   const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
   const base = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 600, passage: "passage text long enough", requiredWpm: 40, requiredAccuracy: 95, backspaceMode: "word", wordMethod: "characters", highlightMode: "character", visibility: "public" };

@@ -47,8 +47,8 @@ test("the server derives duration/wpm/accuracy/backspace from the chosen exam ca
   assert.match(actions, /requiredWpm: forcedDefaultRules \? \(examCategoryDefinition \? \(language === "Hindi" \? examCategoryDefinition\.speedHindi : examCategoryDefinition\.speedEnglish\) : 30\) : /);
   assert.match(actions, /requiredAccuracy: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.accuracy : 90\) : /);
   assert.match(actions, /backspaceMode: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.backspaceMode : "full"\) : /);
-  assert.match(actions, /wordMethod: forcedDefaultRules \? "characters" : /);
-  assert.match(actions, /highlightMode: forcedDefaultRules \? "character" : /);
+  assert.match(actions, /wordMethod: forcedDefaultRules \? \(examCategoryDefinition\?\.wordMethod \?\? "characters"\) : /);
+  assert.match(actions, /highlightMode: forcedDefaultRules \? \(examCategoryDefinition\?\.highlightMode \?\? "character"\) : /);
   assert.match(actions, /exam_category: draft\.examCategory \?\? null/);
 });
 

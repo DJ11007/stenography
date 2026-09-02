@@ -55,10 +55,16 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   const forcedDefaultRules = (mode === "practice" || mode === "exam") && !isLive;
   // Exam (non-live) tests must belong to one of the 25 real exam categories
   // -- once chosen, that category's OWN researched pattern (duration/speed/
-  // accuracy/backspace) is forced instead of the flat generic default plain
-  // Practice uses; wordMethod/highlightMode stay flat since no category
-  // varies those two. Practice mode is completely unaffected -- it never
-  // had an examCategory and its own forcedDefaultRules branch is unchanged.
+  // accuracy/backspace/wordMethod/highlightMode) is forced instead of the
+  // flat generic default plain Practice uses. wordMethod/highlightMode fall
+  // back to the flat "characters"/"character" default for any category that
+  // doesn't specify its own (every category except Rajasthan LDC, today) --
+  // this must mirror categoryPreset()'s own fallback in
+  // lib/typing-curriculum.ts exactly, or an admin-managed exercise linked to
+  // a category ends up with different typing behaviour than that same
+  // category's own hardcoded "Official Pattern" preset. Practice mode is
+  // completely unaffected -- it never had an examCategory and its own
+  // forcedDefaultRules branch is unchanged.
   const examCategory = mode === "exam" && !isLive ? (text(formData, "examCategory") || null) : null;
   const examCategoryDefinition = examCategory ? EXAM_CATEGORIES.find((category) => category.slug === examCategory) : undefined;
   return normalizeManagedTestRules({
@@ -68,8 +74,8 @@ function parseDraft(formData: FormData): ManagedTestDraft {
     requiredWpm: forcedDefaultRules ? (examCategoryDefinition ? (language === "Hindi" ? examCategoryDefinition.speedHindi : examCategoryDefinition.speedEnglish) : 30) : Number(formData.get("requiredWpm")),
     requiredAccuracy: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.accuracy : 90) : Number(formData.get("requiredAccuracy")),
     backspaceMode: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.backspaceMode : "full") : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
-    wordMethod: forcedDefaultRules ? "characters" : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
-    highlightMode: forcedDefaultRules ? "character" : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
+    wordMethod: forcedDefaultRules ? (examCategoryDefinition?.wordMethod ?? "characters") : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
+    highlightMode: forcedDefaultRules ? (examCategoryDefinition?.highlightMode ?? "character") : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
     examCategory,
