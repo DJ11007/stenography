@@ -43,12 +43,20 @@ test("the server derives duration/wpm/accuracy/backspace from the chosen exam ca
   assert.match(actions, /const forcedDefaultRules = \(mode === "practice" \|\| mode === "exam"\) && !isLive;/);
   assert.match(actions, /const examCategory = mode === "exam" && !isLive \? \(text\(formData, "examCategory"\) \|\| null\) : null;/);
   assert.match(actions, /const examCategoryDefinition = examCategory \? EXAM_CATEGORIES\.find\(\(category\) => category\.slug === examCategory\) : undefined;/);
-  assert.match(actions, /durationSeconds: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.durationMinutes \* 60 : 600\) : /);
-  assert.match(actions, /requiredWpm: forcedDefaultRules \? \(examCategoryDefinition \? \(language === "Hindi" \? examCategoryDefinition\.speedHindi : examCategoryDefinition\.speedEnglish\) : 30\) : /);
-  assert.match(actions, /requiredAccuracy: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.accuracy : 90\) : /);
-  assert.match(actions, /backspaceMode: forcedDefaultRules \? \(examCategoryDefinition \? examCategoryDefinition\.backspaceMode : "full"\) : /);
-  assert.match(actions, /wordMethod: forcedDefaultRules \? \(examCategoryDefinition\?\.wordMethod \?\? "characters"\) : /);
-  assert.match(actions, /highlightMode: forcedDefaultRules \? \(examCategoryDefinition\?\.highlightMode \?\? "character"\) : /);
+  // durationSeconds/requiredWpm/requiredAccuracy/backspaceMode/wordMethod/
+  // highlightMode all derive from a shared examCategoryTypingRules() helper
+  // (lib/admin-tests.ts) rather than repeating the category math inline --
+  // this is what stops managedVersionToPreset()'s own, separate
+  // category-derivation (used when a Rajasthan LDC exercise is viewed
+  // through a different category's page) from ever drifting apart from
+  // this save-time one again.
+  assert.match(actions, /const categoryRules = examCategoryDefinition \? examCategoryTypingRules\(examCategoryDefinition, language\) : null;/);
+  assert.match(actions, /durationSeconds: forcedDefaultRules \? \(categoryRules\?\.durationSeconds \?\? 600\) : /);
+  assert.match(actions, /requiredWpm: forcedDefaultRules \? \(categoryRules\?\.requiredWpm \?\? 30\) : /);
+  assert.match(actions, /requiredAccuracy: forcedDefaultRules \? \(categoryRules\?\.requiredAccuracy \?\? 90\) : /);
+  assert.match(actions, /backspaceMode: forcedDefaultRules \? \(categoryRules\?\.backspaceMode \?\? "full"\) : /);
+  assert.match(actions, /wordMethod: forcedDefaultRules \? \(categoryRules\?\.wordMethod \?\? "characters"\) : /);
+  assert.match(actions, /highlightMode: forcedDefaultRules \? \(categoryRules\?\.highlightMode \?\? "character"\) : /);
   assert.match(actions, /exam_category: draft\.examCategory \?\? null/);
 });
 

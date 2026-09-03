@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normalizeManagedTestRules, slugifyTest, validateManagedTest, type ManagedTestDraft, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
+import { examCategoryTypingRules, normalizeManagedTestRules, slugifyTest, validateManagedTest, type ManagedTestDraft, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { ALL_HALF_ERROR_CATEGORIES } from "@/lib/typing-test";
 
@@ -67,15 +67,19 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   // forcedDefaultRules branch is unchanged.
   const examCategory = mode === "exam" && !isLive ? (text(formData, "examCategory") || null) : null;
   const examCategoryDefinition = examCategory ? EXAM_CATEGORIES.find((category) => category.slug === examCategory) : undefined;
+  // Shared with managedVersionToPreset()'s own category-derivation (see
+  // lib/admin-tests.ts) so the two can never drift apart again -- they
+  // already did once this session.
+  const categoryRules = examCategoryDefinition ? examCategoryTypingRules(examCategoryDefinition, language) : null;
   return normalizeManagedTestRules({
     title: text(formData, "title"), description: text(formData, "description"), slug: slugifyTest(text(formData, "slug") || text(formData, "title")), language,
-    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.durationMinutes * 60 : 600) : (durationMinutes ? Number(durationMinutes) * 60 : 600),
+    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: forcedDefaultRules ? (categoryRules?.durationSeconds ?? 600) : (durationMinutes ? Number(durationMinutes) * 60 : 600),
     passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"),
-    requiredWpm: forcedDefaultRules ? (examCategoryDefinition ? (language === "Hindi" ? examCategoryDefinition.speedHindi : examCategoryDefinition.speedEnglish) : 30) : Number(formData.get("requiredWpm")),
-    requiredAccuracy: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.accuracy : 90) : Number(formData.get("requiredAccuracy")),
-    backspaceMode: forcedDefaultRules ? (examCategoryDefinition ? examCategoryDefinition.backspaceMode : "full") : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
-    wordMethod: forcedDefaultRules ? (examCategoryDefinition?.wordMethod ?? "characters") : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
-    highlightMode: forcedDefaultRules ? (examCategoryDefinition?.highlightMode ?? "character") : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
+    requiredWpm: forcedDefaultRules ? (categoryRules?.requiredWpm ?? 30) : Number(formData.get("requiredWpm")),
+    requiredAccuracy: forcedDefaultRules ? (categoryRules?.requiredAccuracy ?? 90) : Number(formData.get("requiredAccuracy")),
+    backspaceMode: forcedDefaultRules ? (categoryRules?.backspaceMode ?? "full") : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
+    wordMethod: forcedDefaultRules ? (categoryRules?.wordMethod ?? "characters") : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
+    highlightMode: forcedDefaultRules ? (categoryRules?.highlightMode ?? "character") : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
     examCategory,

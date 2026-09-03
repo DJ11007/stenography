@@ -6,8 +6,14 @@ import { liveTestState } from "@/lib/live-tests";
 import { ConfigurableTypingExam } from "@/app/typing/_components/configurable-typing-exam";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 
-export default async function PublishedTestPage({params}:PageProps<"/tests/[slug]">){
+export default async function PublishedTestPage({params,searchParams}:PageProps<"/tests/[slug]">){
   const slug=(await params).slug; const supabase=await createClient();
+  // Set only by a shared-exercise link on a non-Rajasthan-LDC category
+  // page (see app/typing/exams/category/[slug]/[language]/page.tsx) --
+  // managedVersionToPreset() below only ever honors this when the test's
+  // real, stored category is Rajasthan LDC, so an invalid/absent/tampered
+  // value just falls back to today's exact native behaviour.
+  const viewAsRaw=(await searchParams)?.viewAs; const viewAs=typeof viewAsRaw==="string"?viewAsRaw:undefined;
   const[{data:test},{data:{user}}]=await Promise.all([
     supabase.from("tests").select("id,slug,current_version_id,status,visibility,mode,language,input_system_id,is_live,live_starts_at,live_ends_at,results_publish_at").eq("slug",slug).maybeSingle(),
     supabase.auth.getUser(),
@@ -38,7 +44,7 @@ export default async function PublishedTestPage({params}:PageProps<"/tests/[slug
   const{data:v}=await supabase.from("test_versions").select("*").eq("id",test.current_version_id).maybeSingle();if(!v)notFound();
   const configuration=v.configuration as Record<string,unknown>|null;
   const version:ManagedTestVersion={id:v.id,testId:v.test_id,versionNumber:v.version_number,title:v.title,description:v.description??"",slug:test.slug,language:v.language,inputSystemId:v.input_system_id,mode:v.mode,durationSeconds:v.duration_seconds,passage:v.passage,requiredWpm:Number(v.required_wpm),requiredAccuracy:Number(v.required_accuracy),backspaceMode:v.backspace_mode,wordMethod:v.word_method,highlightMode:v.highlight_mode,visibility:v.visibility,audioPath:configuration?.audio_path as string|null??null,pdfPath:configuration?.pdf_path as string|null??null,pdfFileName:configuration?.pdf_file_name as string|null??null,dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"]??null,examCategory:configuration?.exam_category as string|null??null};
-  const preset=managedVersionToPreset(version);
+  const preset=managedVersionToPreset(version,viewAs);
   if(version.audioPath){const{data:signed}=await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath,3600);preset.audioUrl=signed?.signedUrl??null;}
   if(version.pdfPath){const{data:signed}=await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath,3600);preset.pdfUrl=signed?.signedUrl??null;}
   return <TypingStudentProvider student={{name:profile?.full_name?.trim()||"Student",email:user.email||"",phone:profile?.phone||user.phone||null}}>

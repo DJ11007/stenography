@@ -73,7 +73,13 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
           ? <p className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">No additional exercises have been published yet for {category.name} in {language}. Practice with the Official Pattern above, or check back soon.</p>
           : <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {items.map((item, index) => (
-                <Link key={item.id} href={`/tests/${item.slug}`} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+                // Rajasthan LDC's own list only ever contains its own
+                // native uploads (see getExamCategoryNavigator), so the
+                // param is skipped there -- every other category's list
+                // can include shared Rajasthan LDC exercises, and this
+                // tells managedVersionToPreset() to render/score them with
+                // THIS category's own rules instead of Rajasthan LDC's.
+                <Link key={item.id} href={slug==="rajasthan-ldc"?`/tests/${item.slug}`:`/tests/${item.slug}?viewAs=${slug}`} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{(page - 1) * 50 + index + 1}</span>
                   <span className="min-w-0 truncate font-black text-slate-800">{item.title}</span>
                 </Link>

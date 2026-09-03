@@ -14,7 +14,21 @@ export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"
 // first place in this codebase's JS (not raw SQL) that uses one.
 export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilters){
  const supabase=await createClient();const oldest=filters.sort==="oldest";
- const query=supabase.from("tests").select("id,slug,title,published_at",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language).eq("settings->>exam_category",filters.categorySlug);
+ let query=supabase.from("tests").select("id,slug,title,published_at",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
+ // Every Rajasthan LDC exercise the admin uploads is shared into every
+ // other category's own list automatically (one-directional -- Rajasthan
+ // LDC's own list stays exactly its own uploads, never broadened, so this
+ // branch is skipped there). exam_category is a single scalar string per
+ // test, so a row can never match both sides of the .or() and duplicate
+ // itself in the result set. This is a live query (no caching on this
+ // route -- createClient() forces dynamic rendering), so it's retroactive:
+ // already-published Rajasthan LDC exercises appear here immediately, no
+ // admin re-save needed. See managedVersionToPreset()'s viewAsCategorySlug
+ // parameter (lib/admin-tests.ts) for how the shared exercise then renders
+ // with THIS category's own rules, not Rajasthan LDC's.
+ query=filters.categorySlug==="rajasthan-ldc"
+   ?query.eq("settings->>exam_category","rajasthan-ldc")
+   :query.or(`settings->>exam_category.eq.${filters.categorySlug},settings->>exam_category.eq.rajasthan-ldc`);
  const requested=normalizeExamCategoryPage(filters.page);const from=(requested-1)*EXAM_CATEGORY_PAGE_SIZE;const{data,error,count}=await query.order("published_at",{ascending:oldest}).order("id",{ascending:true}).range(from,from+EXAM_CATEGORY_PAGE_SIZE-1);
  if(error){console.error("Exam category navigator query failed",{code:error.code,message:error.message});throw new Error(`Exam exercises could not be loaded (${error.code||"database error"}).`);}
  const total=count??0;const bounds=examCategoryPageBounds(requested,total);

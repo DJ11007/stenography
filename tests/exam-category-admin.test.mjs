@@ -38,8 +38,9 @@ test("validateManagedTest requires a real EXAM_CATEGORIES slug for exam-mode non
 // category varied those two fields -- Rajasthan LDC now does).
 test("parseDraft derives wordMethod/highlightMode from the chosen exam category too, not just duration/speed/accuracy/backspace", async () => {
   const actions = await read("app/admin/tests/actions.ts");
-  assert.match(actions, /wordMethod: forcedDefaultRules \? \(examCategoryDefinition\?\.wordMethod \?\? "characters"\) : /);
-  assert.match(actions, /highlightMode: forcedDefaultRules \? \(examCategoryDefinition\?\.highlightMode \?\? "character"\) : /);
+  assert.match(actions, /const categoryRules = examCategoryDefinition \? examCategoryTypingRules\(examCategoryDefinition, language\) : null;/);
+  assert.match(actions, /wordMethod: forcedDefaultRules \? \(categoryRules\?\.wordMethod \?\? "characters"\) : /);
+  assert.match(actions, /highlightMode: forcedDefaultRules \? \(categoryRules\?\.highlightMode \?\? "character"\) : /);
 });
 
 test("managedVersionToPreset attaches examCategorySlug/instructionNotes/patternSourced from EXAM_CATEGORIES when configured, and leaves them undefined otherwise", async () => {
@@ -77,6 +78,72 @@ test("managedVersionToPreset attaches the real RSSB marks scheme when linked to 
   assert.equal(unlinked.marksMethod, undefined);
 });
 
+// Real feature: every Rajasthan LDC exercise the admin uploads is shared
+// across all 24 other exam categories automatically -- viewed through a
+// different category's own page, it must render/score with THAT
+// category's own real rules, not Rajasthan LDC's (this is what actually
+// determines Pass/Fail, so passNetWpm/passAccuracy inside scoringProfile
+// must move too, not just the display-only speedRequirement/
+// accuracyRequirement fields).
+test("managedVersionToPreset's viewAsCategorySlug overrides duration/speed/accuracy/backspace/wordMethod/highlightMode/instructions/scoringProfile with the VIEWING category's own values, when the exercise's real stored category is Rajasthan LDC", async () => {
+  const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
+  const base = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 600, passage: "passage text long enough", requiredWpm: 40, requiredAccuracy: 95, backspaceMode: "word", wordMethod: "spaces", highlightMode: "none", visibility: "public", examCategory: "rajasthan-ldc" };
+  const native = managedVersionToPreset(base);
+  const viewedAsSscChsl = managedVersionToPreset(base, "ssc-chsl");
+  // SSC CHSL's own real values (lib/exam-categories.ts): 15 min, 35 WPM
+  // English, 90% accuracy, full backspace, no category-specific word
+  // method/highlight (falls back to characters/character).
+  assert.equal(viewedAsSscChsl.durationSeconds, 15 * 60);
+  assert.equal(viewedAsSscChsl.speedRequirement, 35);
+  assert.equal(viewedAsSscChsl.accuracyRequirement, 90);
+  assert.equal(viewedAsSscChsl.backspaceMode, "full");
+  assert.equal(viewedAsSscChsl.wordMethod, "characters");
+  assert.equal(viewedAsSscChsl.highlightMode, "character");
+  assert.equal(viewedAsSscChsl.examCategorySlug, "ssc-chsl");
+  assert.notDeepEqual(viewedAsSscChsl.instructionNotes, native.instructionNotes);
+  // The actual scoring thresholds, not just the displayed target.
+  assert.equal(viewedAsSscChsl.scoringProfile.passNetWpm, 35);
+  assert.equal(viewedAsSscChsl.scoringProfile.passAccuracy, 90);
+  // Confirms native (no override) is unaffected and still Rajasthan LDC's own.
+  assert.equal(native.durationSeconds, 600);
+  assert.equal(native.speedRequirement, 40);
+});
+
+test("managedVersionToPreset's marksMethod (RSSB marks scheme) turns off when a Rajasthan LDC exercise is viewed as a different category, and stays on for Rajasthan LDC's own native page", async () => {
+  const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
+  const base = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 600, passage: "passage text long enough", requiredWpm: 40, requiredAccuracy: 95, backspaceMode: "word", wordMethod: "spaces", highlightMode: "none", visibility: "public", examCategory: "rajasthan-ldc" };
+  assert.ok(managedVersionToPreset(base).marksMethod);
+  assert.equal(managedVersionToPreset(base, "ssc-chsl").marksMethod, undefined);
+  assert.ok(managedVersionToPreset(base, "rajasthan-ldc").marksMethod);
+});
+
+// Tamper-gate regression test: viewAsCategorySlug must be silently
+// ignored -- not just for a missing native category, but for ANY native
+// category other than Rajasthan LDC -- so a hand-edited URL/payload can
+// never rescore a non-Rajasthan-LDC test under a different category's
+// rules. Checked against server-trusted version.examCategory, never
+// client input.
+test("managedVersionToPreset ignores viewAsCategorySlug entirely when the exercise's real stored category is not Rajasthan LDC (or has none) -- the tamper-resistance gate", async () => {
+  const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
+  const sscNative = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 900, passage: "passage text long enough", requiredWpm: 35, requiredAccuracy: 90, backspaceMode: "full", wordMethod: "characters", highlightMode: "character", visibility: "public", examCategory: "ssc-chsl" };
+  const attemptedOverride = managedVersionToPreset(sscNative, "rajasthan-ldc");
+  assert.equal(attemptedOverride.durationSeconds, sscNative.durationSeconds);
+  assert.equal(attemptedOverride.speedRequirement, sscNative.requiredWpm);
+  assert.equal(attemptedOverride.examCategorySlug, "ssc-chsl");
+  assert.equal(attemptedOverride.marksMethod, undefined);
+  const unlinked = { ...sscNative, examCategory: null };
+  assert.equal(managedVersionToPreset(unlinked, "rajasthan-ldc").examCategorySlug, undefined);
+});
+
+// Regression safety: omitting viewAsCategorySlug entirely (every existing
+// call site except the two new ones this feature adds) reproduces
+// today's exact output, byte for byte.
+test("managedVersionToPreset without viewAsCategorySlug behaves identically to before this feature existed", async () => {
+  const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
+  const base = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 600, passage: "passage text long enough", requiredWpm: 40, requiredAccuracy: 95, backspaceMode: "word", wordMethod: "spaces", highlightMode: "none", visibility: "public", examCategory: "rajasthan-ldc" };
+  assert.deepEqual(managedVersionToPreset(base), managedVersionToPreset(base, undefined));
+});
+
 test("the exam simulator's returnHref routes back to the category's exercise page for a category-linked exam test, not the generic catalogue", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(workspace, /managedTest\.mode === "exam" && preset\.examCategorySlug \? `\/typing\/exams\/category\/\$\{preset\.examCategorySlug\}\/\$\{inputSystem\.language === "Hindi" \? "hindi" : "english"\}`/);
@@ -88,4 +155,23 @@ test("the category rules page's Start links lead to the new per-language exercis
   assert.doesNotMatch(page, /examCategoryPresetId/);
   assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/english`\}/);
   assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/hindi`\}/);
+});
+
+test("the category exercise page reads a ?viewAs= query param and passes it into managedVersionToPreset, so a shared Rajasthan LDC exercise renders with the viewing category's own rules", async () => {
+  const page = await read("app/tests/[slug]/page.tsx");
+  assert.match(page, /const viewAsRaw=\(await searchParams\)\?\.viewAs; const viewAs=typeof viewAsRaw==="string"\?viewAsRaw:undefined;/);
+  assert.match(page, /const preset=managedVersionToPreset\(version,viewAs\);/);
+});
+
+// The read/display path alone isn't enough -- recordManagedAttempt is what
+// actually computes the AUTHORITATIVE, saved score once a student submits.
+// Without threading examCategorySlug through here too, a shared Rajasthan
+// LDC exercise would show the right instructions/timer on screen but get
+// silently scored against Rajasthan LDC's own native duration/wordMethod/
+// thresholds the moment the server responds.
+test("recordManagedAttempt reads the exercise's real stored category, honors the client's claimed viewing category (gated server-side by managedVersionToPreset itself), and scores against the EFFECTIVE (possibly overridden) duration/wordMethod, not the raw stored version", async () => {
+  const actions = await read("app/tests/actions.ts");
+  assert.match(actions, /examCategory: \(v\.configuration as Record<string, unknown> \| null\)\?\.exam_category as string \| null \?\? null \};/);
+  assert.match(actions, /const preset = managedVersionToPreset\(version, payload\.examCategorySlug \?\? undefined\);/);
+  assert.match(actions, /elapsedSeconds: Math\.min\(payload\.elapsedSeconds, preset\.durationSeconds\), wordMethod: preset\.wordMethod,/);
 });
