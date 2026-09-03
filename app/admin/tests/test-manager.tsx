@@ -34,6 +34,13 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   const [filterLanguage,setFilterLanguage] = useState("all");
   const [filterMode,setFilterMode] = useState(effectiveMode ?? "all");
   const [sort,setSort] = useState("updated");
+  // How many rows show per page, and which page -- the admin asked for
+  // this explicitly (previously every matching test rendered in one long
+  // list with no count or paging at all). 20/30 are the two sizes
+  // requested; page resets to 1 whenever the filtered set could change
+  // shape under it, so you never land on a page that's gone empty.
+  const [pageSize,setPageSize] = useState(20);
+  const [page,setPage] = useState(1);
   const [passage,setPassage] = useState("");
   const [language,setLanguage] = useState<"English"|"Hindi">(lockedLanguage ?? "English");
   const [inputSystem,setInputSystem] = useState(lockedInputSystemId ?? "english-qwerty");
@@ -56,6 +63,13 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   const [dictationDefaults,setDictationDefaults] = useState<Set<HalfErrorCategory>>(new Set(ALL_HALF_ERROR_CATEGORIES));
   const [state,action,pending] = useActionState(saveAction,initialState);
   const filtered = useMemo(() => tests.filter((item) => { const q=query.toLowerCase(); const languageMatch=filterLanguage==="all"||item.language===filterLanguage||item.input_system_id.includes(filterLanguage); const modeMatch=filterMode==="all"||item.mode===filterMode||(filterMode==="typing"&&item.mode!=="stenography"); return (!q||`${item.title} ${item.slug}`.toLowerCase().includes(q))&&(status==="all"||item.status===status)&&languageMatch&&modeMatch; }).sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="attempts"?b.attempts-a.attempts:new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime()), [tests,query,status,filterLanguage,filterMode,sort]);
+  useEffect(()=>{setPage(1);},[query,status,filterLanguage,filterMode,sort,pageSize]);
+  const pageCount = Math.max(1,Math.ceil(filtered.length/pageSize));
+  const safePage = Math.min(page,pageCount);
+  const pageStart = (safePage-1)*pageSize;
+  const pageItems = filtered.slice(pageStart,pageStart+pageSize);
+  const rangeStart = filtered.length ? pageStart+1 : 0;
+  const rangeEnd = Math.min(filtered.length,pageStart+pageSize);
   const choose = (test:ManagedTestRow|null) => {
     setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(test?.currentVersion?.language??lockedLanguage??"English"); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??"english-qwerty"); setFormMode(effectiveMode??test?.currentVersion?.mode??"practice"); setIsLive(Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
     setExamCategorySlug((test?.currentVersion?.configuration?.exam_category as string|undefined) ?? "");
@@ -90,8 +104,11 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
 
   return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
     <section className="rounded-2xl bg-white p-5 shadow">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className="inline-flex rounded-full bg-slate-900 px-3 py-1.5 text-sm font-black text-white">{tests.length.toLocaleString("en-IN")} test{tests.length===1?"":"s"} total</span>{filtered.length!==tests.length && <span className="text-xs font-bold text-slate-500">{filtered.length.toLocaleString("en-IN")} match the filters below</span>}</div>
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5"><input aria-label="Search tests" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search title or slug" className="input"/><select aria-label="Filter status" value={status} onChange={(event)=>setStatus(event.target.value)} className="input"><option value="all">All statuses</option>{["draft","published","unpublished","archived"].map((value)=><option key={value}>{value}</option>)}</select><select aria-label="Filter language" value={filterLanguage} onChange={(event)=>setFilterLanguage(event.target.value)} className="input"><option value="all">All languages</option><option>English</option><option>Hindi</option><option value="unicode">Hindi Unicode</option><option value="krutidev">Kruti Dev</option></select><select aria-label="Filter mode" value={filterMode} onChange={(event)=>setFilterMode(event.target.value)} className="input"><option value="all">All modes</option><option value="typing">Typing</option>{["learn","practice","exam","stenography"].map((value)=><option key={value}>{value}</option>)}</select><select aria-label="Sort tests" value={sort} onChange={(event)=>setSort(event.target.value)} className="input"><option value="updated">Recently updated</option><option value="title">Title</option><option value="attempts">Attempts</option></select></div>
-      <div className="mt-5 space-y-3">{filtered.length ? filtered.map((test)=><TestRow key={test.id} test={test} learningOnly={learningOnly} onEdit={()=>choose(test)}/>) : <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">No tests match these filters.</p>}</div>
+      <Pagination page={safePage} pageCount={pageCount} pageSize={pageSize} rangeStart={rangeStart} rangeEnd={rangeEnd} total={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} position="top"/>
+      <div className="mt-3 space-y-3">{pageItems.length ? pageItems.map((test)=><TestRow key={test.id} test={test} learningOnly={learningOnly} onEdit={()=>choose(test)}/>) : <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">No tests match these filters.</p>}</div>
+      <Pagination page={safePage} pageCount={pageCount} pageSize={pageSize} rangeStart={rangeStart} rangeEnd={rangeEnd} total={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} position="bottom"/>
     </section>
     <aside className="rounded-2xl bg-white p-5 shadow xl:sticky xl:top-5 xl:self-start">
       <div className="flex justify-between"><h2 className="text-xl font-black">{editing ? "Edit and create version" : "Create test"}</h2>{editing&&<button type="button" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800" onClick={()=>choose(null)}>+ Create a new test instead</button>}</div>
@@ -147,4 +164,24 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
 
 function TestRow({test,onEdit,learningOnly}:{test:ManagedTestRow;onEdit:()=>void;learningOnly:boolean}) { const version=test.currentVersion; return <article className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{test.title}</h3><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold">{test.status}</span>{test.is_live&&<span className="rounded-full bg-red-100 px-2 py-1 text-xs font-black text-red-700">FREE LIVE</span>}<span className="text-xs">v{test.current_version_number}</span></div><p className="mt-1 text-sm text-slate-600">{test.language} · {test.input_system_id} · {test.mode} · {Math.round((test.duration_seconds??0)/60)} min</p><p className="mt-1 text-xs text-slate-500">{version?.passage_characters??0} characters · {version?.passage_words??0} words · {test.attempts} attempts · {test.visibility}</p>{test.is_live&&<p className="mt-1 text-xs font-bold text-blue-700">{new Date(test.live_starts_at??"").toLocaleString("en-IN")} → {new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results {new Date(test.results_publish_at??"").toLocaleString("en-IN")}</p>}</div><div className="flex gap-2"><Link className="rounded-lg border px-3 py-2 text-sm font-bold" href={`/tests/${test.slug}`}>View</Link><button className="rounded-lg border px-3 py-2 text-sm font-bold" onClick={onEdit}>Edit</button></div></div><div className="mt-3 flex flex-wrap gap-2"><Status test={test} status={test.status==="published"?"unpublished":"published"} label={test.status==="published"?"Unpublish":"Publish"}/>{test.status!=="archived"&&<Status test={test} status="archived" label="Archive"/>}{!learningOnly&&<form action={duplicateManagedTest}><input type="hidden" name="testId" value={test.id}/><button className="rounded-lg border px-3 py-2 text-sm font-bold">Duplicate</button></form>}<form action={deleteManagedTest} onSubmit={(event)=>{if(!confirm(test.attempts?"This test has attempts and cannot be deleted. Archive it instead.":`Permanently delete ${test.title}?`))event.preventDefault();}}><input type="hidden" name="testId" value={test.id}/><button disabled={test.attempts>0} title={test.attempts>0?"Has attempts -- use Permanently delete below instead":undefined} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-40">Delete</button></form></div>{test.attempts>0 && <PermanentDeleteDangerZone testId={test.id} title={test.title} attemptCount={test.attempts}/>}</article>; }
 function Status({test,status,label}:{test:ManagedTestRow;status:ManagedTestStatus;label:string}) { return <form action={setManagedTestStatus}><input type="hidden" name="testId" value={test.id}/><input type="hidden" name="status" value={status}/><button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white">{label}</button></form>; }
+// Shared page-size + page-number bar, rendered once above the list and
+// once below it (the admin asked for navigation in both places, plus a
+// running "showing X-Y of Z" count) -- both renders share the exact same
+// state, so paging from either one keeps the other in sync.
+function Pagination({page,pageCount,pageSize,rangeStart,rangeEnd,total,onPageChange,onPageSizeChange,position}:{page:number;pageCount:number;pageSize:number;rangeStart:number;rangeEnd:number;total:number;onPageChange:(page:number)=>void;onPageSizeChange:(size:number)=>void;position:"top"|"bottom"}) {
+  const btn = "rounded-lg border px-3 py-1.5 text-xs font-bold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
+  return <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm ${position==="top"?"mt-3":"mt-4"}`}>
+    <span className="font-bold text-slate-700">{total ? `Showing ${rangeStart.toLocaleString("en-IN")}–${rangeEnd.toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")}` : "No tests match these filters"}</span>
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="flex items-center gap-2 font-bold text-slate-600">Per page<select aria-label="Tests per page" className="input !w-auto !py-1.5" value={pageSize} onChange={(event)=>onPageSizeChange(Number(event.target.value))}><option value={20}>20</option><option value={30}>30</option></select></label>
+      <div className="flex items-center gap-1">
+        <button type="button" disabled={page<=1} onClick={()=>onPageChange(1)} className={btn}>« First</button>
+        <button type="button" disabled={page<=1} onClick={()=>onPageChange(page-1)} className={btn}>‹ Prev</button>
+        <span className="px-2 font-black text-slate-800">Page {page} of {pageCount}</span>
+        <button type="button" disabled={page>=pageCount} onClick={()=>onPageChange(page+1)} className={btn}>Next ›</button>
+        <button type="button" disabled={page>=pageCount} onClick={()=>onPageChange(pageCount)} className={btn}>Last »</button>
+      </div>
+    </div>
+  </div>;
+}
 function Field({label,children}:{label:string;children:React.ReactNode}) { if(label==="URL slug")return <span hidden>{children}</span>; return <label className="block text-sm font-bold text-slate-700"><span className="mb-1 block">{label}</span>{children}</label>; }
