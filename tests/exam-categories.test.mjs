@@ -110,6 +110,16 @@ test("a custom hand-designed badge (built from a real logo, redrawn faithfully) 
   assert.match(badges, /"csir-jsa": CsirJsaBadge/);
   assert.match(badges, /"ssb-hcm": SsbHcmBadge/);
   assert.match(badges, /"aiims-cre-ldc": AiimsBadge/);
+  assert.match(badges, /"ncert-ldc": NcertLdcBadge/);
+  assert.match(badges, /"bsf-hcm": BsfHcmBadge/);
+  assert.match(badges, /"delhi-hc-jja": DelhiHcJjaBadge/);
+  assert.match(badges, /"bombay-hc-clerk": BombayHcClerkBadge/);
+  assert.match(badges, /"mp-cpct": MpCpctBadge/);
+  assert.match(badges, /"kvs-jsa": KvsJsaBadge/);
+  assert.match(badges, /"patna-hc-computer-operator": PatnaHcComputerOperatorBadge/);
+  assert.match(badges, /"supreme-court-jca": SupremeCourtJcaBadge/);
+  assert.match(badges, /"allahabad-hc-ro-aro": AllahabadHcRoAroBadge/);
+  assert.match(badges, /"allahabad-hc-ps": AllahabadHcPsBadge/);
   assert.doesNotMatch(badges, /<img /);
   assert.doesNotMatch(badges, /\.(png|jpe?g)"/i);
 });
