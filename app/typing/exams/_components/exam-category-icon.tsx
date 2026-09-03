@@ -1,8 +1,9 @@
 "use client";
 import { useId } from "react";
 import type { ExamCategoryIconKind } from "@/lib/exam-categories";
+import { CUSTOM_EXAM_BADGES } from "./custom-exam-badges";
 
-type IconableCategory = { tone: string; toneDark: string; iconKind: ExamCategoryIconKind; badge?: string };
+type IconableCategory = { slug: string; tone: string; toneDark: string; iconKind: ExamCategoryIconKind; badge?: string };
 
 function Glyph({ kind }: { kind: ExamCategoryIconKind }) {
   const common = { fill: "none", stroke: "white", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -31,6 +32,11 @@ function Glyph({ kind }: { kind: ExamCategoryIconKind }) {
 const TICK_COUNT = 24;
 
 export function ExamCategoryIcon({ category, size = 84 }: { category: IconableCategory; size?: number }) {
+  // A hand-designed badge for this exact board (built from a real logo
+  // the admin provided, redrawn -- see custom-exam-badges.tsx) takes
+  // priority over the generic shared-per-iconKind glyph below. Falls
+  // through to the generic badge for every category without one yet.
+  const CustomBadge = CUSTOM_EXAM_BADGES[category.slug];
   const uid = useId().replace(/[:]/g, "");
   const gradientId = `exam-cat-gradient-${uid}`;
   const arcId = `exam-cat-arc-${uid}`;
@@ -42,6 +48,13 @@ export function ExamCategoryIcon({ category, size = 84 }: { category: IconableCa
       x2: 50 + outer * Math.cos(angle), y2: 50 + outer * Math.sin(angle),
     };
   });
+  if (CustomBadge) {
+    return (
+      <span className="relative flex shrink-0 items-center justify-center drop-shadow-md" style={{ width: size, height: size }} aria-hidden="true">
+        <CustomBadge />
+      </span>
+    );
+  }
   return (
     <span className="relative flex shrink-0 items-center justify-center drop-shadow-md" style={{ width: size, height: size }} aria-hidden="true">
       <svg viewBox="0 0 100 100" width={size} height={size}>
