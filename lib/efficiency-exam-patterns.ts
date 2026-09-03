@@ -79,4 +79,16 @@ export const EFFICIENCY_EXAM_PATTERNS: EfficiencyExamPattern[] = [
     sourced: false,
     notes: ["Found in only one source during this research pass, not independently cross-verified -- treat every figure here as provisional.", "That source's own numbers don't fully reconcile (15+15 minutes of typing plus this component were described as summing to 45 minutes total, and the 100-mark ceiling wasn't clearly separated between typing and Excel), so confirm the actual task list and scoring split against the current official notification before using this as an authoritative reference.", "See the \"rajasthan-tax-assistant\" typing exam category for the corresponding (also unconfirmed) Hindi/English typing pattern for this same post."],
   },
+  {
+    id: "rhc-system-assistant",
+    board: "Rajasthan High Court",
+    examName: "System Assistant (Word + Excel component)",
+    subject: "Both",
+    durationMinutes: "10 minutes MS Word + 10 minutes MS Excel (after a separate 5+2+5-minute speed test)",
+    maximumMarks: "50 (efficiency component only; the speed test carries a separate 50)",
+    taskFocus: ["Text/paragraph/page/table/letter formatting (Word)", "Spreadsheet operations (Excel -- exact task list not itemised in sources found)"],
+    font: "Calibri (English), Kruti Dev 010 (Hindi)",
+    sourced: true,
+    notes: ["Corroborated across two independent sources with matching numbers for duration and total marks.", "Unlike the plain Rajasthan High Court LDC pattern above (Word only), System Assistant's computer test includes BOTH a Word and an Excel efficiency paper, each 10 minutes.", "See the \"rajasthan-hc-system-assistant\" typing exam category for the corresponding, also-sourced speed-test pattern for this same post."],
+  },
 ];

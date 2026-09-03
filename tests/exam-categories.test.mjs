@@ -206,3 +206,35 @@ test("Rajasthan DEO is researched with its real 1250-word, 15-minute, marks-base
   assert.ok(taxEnglish);
   assert.equal(taxEnglish.marksMethod, undefined);
 });
+
+// Real requested follow-up: two more genuine Rajasthan/RSSB gaps the admin
+// pointed out directly (both surfaced in the earlier research pass's own
+// search results, but weren't added yet at that point) -- System Assistant
+// (Rajasthan High Court) and Informatics Assistant (RSSB), both
+// cross-verified across two independent sources each.
+test("Rajasthan High Court System Assistant and RSSB Informatics Assistant are researched and cross-verified (8000 KDPH / word-locked backspace for System Assistant; 15-minute qualifying-only 20 WPM for Informatics Assistant)", () => {
+  const systemAssistant = getExamCategory("rajasthan-hc-system-assistant");
+  assert.ok(systemAssistant);
+  assert.equal(systemAssistant.durationMinutes, 5);
+  assert.equal(systemAssistant.speedEnglish, 27);
+  assert.equal(systemAssistant.speedHindi, 27);
+  assert.equal(systemAssistant.backspaceMode, "word");
+  assert.equal(systemAssistant.patternSourced, true);
+  assert.ok(systemAssistant.patternNotes.some((note) => /8,000 KDPH/.test(note)));
+
+  const informaticsAssistant = getExamCategory("rssb-informatics-assistant");
+  assert.ok(informaticsAssistant);
+  assert.equal(informaticsAssistant.durationMinutes, 15);
+  assert.equal(informaticsAssistant.speedEnglish, 20);
+  assert.equal(informaticsAssistant.speedHindi, 20);
+  assert.equal(informaticsAssistant.patternSourced, true);
+  assert.ok(informaticsAssistant.patternNotes.some((note) => /qualifying only/i.test(note)));
+
+  // Both resolve to a working preset in both languages, like every category.
+  for (const slug of ["rajasthan-hc-system-assistant", "rssb-informatics-assistant"]) {
+    const english = getExamPreset(examCategoryPresetId(slug, "English"));
+    const hindi = getExamPreset(examCategoryPresetId(slug, "Hindi"));
+    assert.ok(english, `missing English preset for ${slug}`);
+    assert.ok(hindi, `missing Hindi preset for ${slug}`);
+  }
+});
