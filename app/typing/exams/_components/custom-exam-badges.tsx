@@ -2,90 +2,45 @@
 // opposed to exam-category-icon.tsx's generic per-iconKind glyph (shared
 // across every category of that kind, e.g. every "commission"-type
 // category reuses the same shield). Built from a real logo the admin
-// provided for that specific board, redrawn (not reproduced) to keep the
-// board's own real colour palette and every generic/decorative motif
-// (laurel wreaths, ribbons, zigzag rims, mottoes) faithfully, while
-// deliberately excluding two specific things Indian law restricts from
-// private/commercial reproduction regardless of who authorises it: the
-// State Emblem of India (the Lion Capital -- State Emblem of India
-// (Prohibition of Improper Use) Act, 2005) and the national flag (Flag
-// Code of India / Prevention of Insults to National Honour Act) -- both
-// get generic stand-ins (a star medallion, or a plain wheel/pennant
-// motif) where the source logo had them. Every other element -- text,
-// colours, wreath shape, ribbon/banner layout, zigzag rims -- is drawn to
-// match the real source logo as closely as possible, per explicit
-// admin request. Add one entry per slug as the admin provides more
-// reference logos; every category without an entry here keeps using the
-// generic iconKind-based badge, unaffected.
+// provided for that specific board. Where the source logo carries a
+// protected government symbol (the State Emblem of India -- State Emblem
+// of India (Prohibition of Improper Use) Act, 2005 -- or the national
+// flag -- Flag Code of India), a generic stand-in is used instead,
+// regardless of who authorises it; that isn't the case for any badge
+// below -- every one of these is redrawn from a generic "exam
+// preparation" style reference logo (no government emblem, no flag; each
+// source image even labels itself "UNOFFICIAL EDUCATIONAL CONTENT"), so
+// each is reproduced closely. Add one entry per slug as the admin
+// provides more reference logos; every category without an entry here
+// keeps using the generic iconKind-based badge, unaffected.
 import type { JSX } from "react";
 
 export const CUSTOM_EXAM_BADGES: Partial<Record<string, () => JSX.Element>> = {
-  // Redrawn from a later, cleaner reference the admin sent specifically
-  // for SSC CHSL -- a generic "exam preparation" badge with no government
-  // emblem or flag in it at all (it even says "UNOFFICIAL EDUCATIONAL
-  // CONTENT" on itself), so unlike the seal-style badges below this one
-  // is reproduced closely, not redrawn around a legal substitution.
   "ssc-chsl": SscChslBadge,
-  "ssc-cgl": () => <SscSealBadge code="SSC CGL" />,
+  "ssc-cgl": SscCglBadge,
+  "rrb-ntpc": RrbNtpcBadge,
   "crpf-hcm": CrpfHcmBadge,
+  "dsssb-ldc": DsssbLdcBadge,
+  "up-police-computer-operator": UpPoliceComputerOperatorBadge,
+  "rajasthan-high-court-ldc": RajasthanHighCourtLdcBadge,
+  "delhi-police-hcm": DelhiPoliceHcmBadge,
+  "csir-jsa": CsirJsaBadge,
+  "ssb-hcm": SsbHcmBadge,
+  "aiims-cre-ldc": AiimsBadge,
 };
 
-// Precomputed (not runtime-generated) 32-point zigzag/sunburst ring, matching
-// the gold triangular rim around the SSC seal's outer edge. Static points
-// keep this identical every render and avoid any client-side generation step.
-const ZIGZAG_RIM_POINTS = [
-  "94.50,50.00 99.26,54.85 93.64,58.68", "93.64,58.68 97.37,64.37 91.11,67.03", "91.11,67.03 93.66,73.33 87.00,74.72", "87.00,74.72 88.26,81.40 81.47,81.47",
-  "81.47,81.47 81.40,88.26 74.72,87.00", "74.72,87.00 73.33,93.66 67.03,91.11", "67.03,91.11 64.37,97.37 58.68,93.64", "58.68,93.64 54.85,99.26 50.00,94.50",
-  "50.00,94.50 45.15,99.26 41.32,93.64", "41.32,93.64 35.63,97.37 32.97,91.11", "32.97,91.11 26.67,93.66 25.28,87.00", "25.28,87.00 18.60,88.26 18.53,81.47",
-  "18.53,81.47 11.74,81.40 13.00,74.72", "13.00,74.72 6.34,73.33 8.89,67.03", "8.89,67.03 2.63,64.37 6.36,58.68", "6.36,58.68 0.74,54.85 5.50,50.00",
-  "5.50,50.00 0.74,45.15 6.36,41.32", "6.36,41.32 2.63,35.63 8.89,32.97", "8.89,32.97 6.34,26.67 13.00,25.28", "13.00,25.28 11.74,18.60 18.53,18.53",
-  "18.53,18.53 18.60,11.74 25.28,13.00", "25.28,13.00 26.67,6.34 32.97,8.89", "32.97,8.89 35.63,2.63 41.32,6.36", "41.32,6.36 45.15,0.74 50.00,5.50",
-  "50.00,5.50 54.85,0.74 58.68,6.36", "58.68,6.36 64.37,2.63 67.03,8.89", "67.03,8.89 73.33,6.34 74.72,13.00", "74.72,13.00 81.40,11.74 81.47,18.53",
-  "81.47,18.53 88.26,18.60 87.00,25.28", "87.00,25.28 93.66,26.67 91.11,32.97", "91.11,32.97 97.37,35.63 93.64,41.32", "93.64,41.32 99.26,45.15 94.50,50.00",
-];
-
-// Shared by SSC CHSL and SSC CGL -- same seal, same layout, only the
-// bottom bar's exam code differs (matching how the two real logos you
-// sent are identical except for that one line of text).
-function SscSealBadge({ code }: { code: string }) {
-  const gradId = `ssc-seal-bg-${code.replace(/\s+/g, "")}`;
-  const arcId = `ssc-seal-arc-${code.replace(/\s+/g, "")}`;
+// Shared bottom section (the "EXAM PREPARATION" pill + "UNOFFICIAL
+// EDUCATIONAL CONTENT" subtitle) every one of these reference logos
+// carries. Geometry proven safe against the circle's r=49 boundary (see
+// SSC CHSL's own badge, which caught and fixed a real clipping bug at
+// exactly this spot) -- reused as-is rather than re-derived per badge.
+function ExamPrepFooter({ pillFill, pillText, subColor }: { pillFill: string; pillText: string; subColor: string }) {
   return (
-    <svg viewBox="0 0 100 100" width="100%" height="100%">
-      <defs>
-        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#dc2626" />
-          <stop offset="100%" stopColor="#a11d1d" />
-        </linearGradient>
-        <path id={arcId} d="M 15 50 A 35 35 0 0 1 85 50" fill="none" />
-      </defs>
-      <circle cx="50" cy="50" r="49" fill="#d4af37" />
-      <circle cx="50" cy="50" r="43.5" fill={`url(#${gradId})`} />
-      <g fill="#d4af37" stroke="#a16207" strokeWidth="0.25">
-        {ZIGZAG_RIM_POINTS.map((points) => <polygon key={points} points={points} />)}
-      </g>
-      <g stroke="#d4af37" strokeWidth="1.5" fill="none" strokeLinecap="round">
-        <path d="M20 58 C15 50 15 38 21 29" />
-        <path d="M18 54 l-4.3 -1.1" /><path d="M17.2 49 l-4.4 -0.2" /><path d="M17 44 l-4.4 0.7" />
-        <path d="M17.5 39 l-4.2 1.6" /><path d="M19 34.5 l-3.8 2.4" /><path d="M21 30.5 l-3.4 3" />
-        <path d="M80 58 C85 50 85 38 79 29" />
-        <path d="M82 54 l4.3 -1.1" /><path d="M82.8 49 l4.4 -0.2" /><path d="M83 44 l4.4 0.7" />
-        <path d="M82.5 39 l4.2 1.6" /><path d="M81 34.5 l3.8 2.4" /><path d="M79 30.5 l3.4 3" />
-      </g>
-      {/* Generic star medallion in place of the State Emblem of India */}
-      <g transform="translate(50,22)">
-        <path d="M0 -6.4 L1.9 -2 L6.4 -1.8 L2.8 1.1 L4 5.6 L0 3 L-4 5.6 L-2.8 1.1 L-6.4 -1.8 L-1.9 -2 Z" fill="#d4af37" stroke="#78350f" strokeWidth="0.3" />
-      </g>
-      <text x="50" y="30.5" fontSize="3.6" fontWeight="700" fill="#fef9c3" textAnchor="middle">सत्यमेव जयते</text>
-      <text fontSize="5" fontWeight="800" letterSpacing="0.2" fill="#fef9c3">
-        <textPath href={`#${arcId}`} startOffset="50%" textAnchor="middle">STAFF SELECTION COMMISSION</textPath>
-      </text>
-      <path d="M17 68 L83 68 L83 78 Q50 83 17 78 Z" fill="#d4af37" stroke="#a16207" strokeWidth="0.6" />
-      <text x="50" y="74.5" fontSize="6" fontWeight="800" fill="#7f1d1d" textAnchor="middle">कर्मचारी चयन आयोग</text>
-      <text x="50" y="80" fontSize="4" fontWeight="700" fill="#7f1d1d" textAnchor="middle">भारत सरकार</text>
-      <path d="M20 84 L80 84 L80 89 Q50 92.5 20 89 Z" fill="#991b1b" />
-      <text x="50" y="88.5" fontSize={code.length > 8 ? 5.6 : 6.6} fontWeight="900" letterSpacing="0.5" fill="white" textAnchor="middle">{code}</text>
-    </svg>
+    <>
+      <path d="M22 74 L78 74 L78 80.5 Q50 84.5 22 80.5 Z" fill={pillFill} />
+      <text x="50" y="79" fontSize="4.6" fontWeight="800" letterSpacing="0.1" fill={pillText} textAnchor="middle">EXAM PREPARATION</text>
+      <text x="50" y="89.5" fontSize="2.7" fontWeight="700" letterSpacing="0.2" fill={subColor} textAnchor="middle">UNOFFICIAL EDUCATIONAL CONTENT</text>
+    </>
   );
 }
 
@@ -140,9 +95,59 @@ function SscChslBadge() {
       </g>
       <circle cx="50" cy="61.5" r="5" fill="white" stroke="#0f766e" strokeWidth="1.3" />
       <path d="M47.4 61.6 L49.3 63.6 L52.8 59.5" fill="none" stroke="#0f766e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M22 74 L78 74 L78 80.5 Q50 84.5 22 80.5 Z" fill="#f59e0b" />
-      <text x="50" y="79" fontSize="4.6" fontWeight="800" letterSpacing="0.1" fill="#16305c" textAnchor="middle">EXAM PREPARATION</text>
-      <text x="50" y="89.5" fontSize="2.7" fontWeight="700" letterSpacing="0.2" fill="#cbd5e1" textAnchor="middle">UNOFFICIAL EDUCATIONAL CONTENT</text>
+      <ExamPrepFooter pillFill="#f59e0b" pillText="#16305c" subColor="#cbd5e1" />
+    </svg>
+  );
+}
+
+function SscCglBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="white" stroke="#6d28d9" strokeWidth="1.4" />
+      <path d="M50 3 A47 47 0 0 1 92 30" fill="none" stroke="#6d28d9" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M92 30 A47 47 0 0 1 78 84" fill="none" stroke="#f87171" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M78 84 A47 47 0 0 1 22 92" fill="none" stroke="#9ca3af" strokeWidth="2.4" strokeLinecap="round" />
+      {/* bar chart + magnifying glass + pencil */}
+      <g>
+        <rect x="34" y="46" width="4.5" height="12" fill="#9ca3af" />
+        <rect x="40.5" y="40" width="4.5" height="18" fill="#f87171" />
+        <rect x="47" y="34" width="4.5" height="24" fill="#6d28d9" />
+        <line x1="30" y1="58" x2="58" y2="58" stroke="#374151" strokeWidth="1" />
+      </g>
+      <circle cx="38" cy="47" r="7.5" fill="none" stroke="#6d28d9" strokeWidth="2" />
+      <line x1="43.3" y1="52.3" x2="48" y2="57" stroke="#6d28d9" strokeWidth="2.2" strokeLinecap="round" />
+      <g transform="translate(60,34) rotate(45)">
+        <rect x="-1.6" y="0" width="3.2" height="16" fill="#f87171" />
+        <polygon points="-1.6,16 1.6,16 0,20" fill="#f87171" />
+        <rect x="-1.6" y="-3" width="3.2" height="3" fill="#374151" />
+      </g>
+      <text x="50" y="68" fontSize="8.4" fontWeight="900" fill="#6d28d9" textAnchor="middle">SSC CGL</text>
+      <ExamPrepFooter pillFill="none" pillText="#f87171" subColor="#6d28d9" />
+    </svg>
+  );
+}
+
+function RrbNtpcBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#f5efdc" stroke="#16305c" strokeWidth="3" />
+      <path d="M4 50 A46 46 0 0 1 50 4 V12 A38 38 0 0 0 12 50 Z" fill="#16305c" opacity="0.9" />
+      {/* route + clock + pin, generic */}
+      <g fill="none" stroke="#16305c" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M28 44 L38 44 L44 34 L54 34 L60 44 L70 44" />
+      </g>
+      <circle cx="28" cy="44" r="2" fill="#7dd3c0" /><circle cx="70" cy="44" r="2" fill="#7dd3c0" /><circle cx="49" cy="34" r="2" fill="#e8823c" />
+      <circle cx="46" cy="52" r="9" fill="white" stroke="#16305c" strokeWidth="1.6" />
+      <line x1="46" y1="52" x2="46" y2="46.5" stroke="#16305c" strokeWidth="1.3" strokeLinecap="round" />
+      <line x1="46" y1="52" x2="50" y2="52" stroke="#e8823c" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M64 30 c0-3.3 2.7-6 6-6s6 2.7 6 6c0 4.5-6 10-6 10s-6-5.5-6-10Z" fill="#e8823c" />
+      <circle cx="70" cy="30" r="2" fill="white" />
+      <path d="M22 68 L78 68 L78 74.5 Q50 78.5 22 74.5 Z" fill="#16305c" />
+      <text x="38" y="73.3" fontSize="6.6" fontWeight="900" fill="#7dd3c0" textAnchor="middle">RRB</text>
+      <text x="63" y="73.3" fontSize="6.6" fontWeight="900" fill="#e8823c" textAnchor="middle">NTPC</text>
+      <text x="50" y="83.5" fontSize="4.4" fontWeight="800" fill="#16305c" textAnchor="middle">EXAM PREPARATION</text>
+      <path d="M28 87 L72 87 L72 91 Q50 93.5 28 91 Z" fill="#7dd3c0" />
+      <text x="50" y="90.5" fontSize="2.5" fontWeight="700" fill="#16305c" textAnchor="middle">UNOFFICIAL EDUCATIONAL CONTENT</text>
     </svg>
   );
 }
@@ -150,35 +155,171 @@ function SscChslBadge() {
 function CrpfHcmBadge() {
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%">
-      <circle cx="50" cy="50" r="49" fill="#fdfdfb" stroke="#eab308" strokeWidth="1.4" />
-      {/* Generic crossed pennants in place of the national flag */}
-      <g stroke="#92400e" strokeWidth="1.1">
-        <line x1="38" y1="38" x2="30" y2="18" />
-        <line x1="62" y1="38" x2="70" y2="18" />
+      <circle cx="50" cy="50" r="49" fill="#111827" stroke="white" strokeWidth="0.5" strokeDasharray="1.6 2.2" />
+      <circle cx="50" cy="50" r="46" fill="#111827" />
+      <path d="M12 30 L26 30 L20 42 Z" fill="#2563eb" opacity="0.5" />
+      <path d="M88 30 L74 30 L80 42 Z" fill="#2563eb" opacity="0.5" />
+      {/* stacked documents + hourglass */}
+      <g>
+        <rect x="40" y="26" width="18" height="24" rx="1.4" fill="#e5e7eb" transform="translate(4,-2) rotate(6 49 38)" />
+        <rect x="36" y="28" width="18" height="24" rx="1.4" fill="white" stroke="#9ca3af" strokeWidth="0.6" />
+        <line x1="39" y1="33" x2="51" y2="33" stroke="#2563eb" strokeWidth="1.2" />
+        <line x1="39" y1="37" x2="51" y2="37" stroke="#6b7280" strokeWidth="0.9" />
+        <line x1="39" y1="40" x2="51" y2="40" stroke="#6b7280" strokeWidth="0.9" />
+        <line x1="39" y1="43" x2="47" y2="43" stroke="#84cc16" strokeWidth="1.4" />
       </g>
-      <path d="M30 18 L42 21 L34 25 Z" fill="#ca8a04" />
-      <path d="M70 18 L58 21 L66 25 Z" fill="#ca8a04" />
-      {/* laurel wreath, opening at the top where the pennants cross */}
-      <g stroke="#d4af37" strokeWidth="1.6" fill="none" strokeLinecap="round">
-        <path d="M22 40 C15 48 15 62 23 70 C29 75 38 77 46 76" />
-        <path d="M24 44 l-4.6 0.6" /><path d="M23 49 l-4.6 1.2" /><path d="M23.4 54.5 l-4.4 1.8" />
-        <path d="M25 60 l-4 2.4" /><path d="M28 65 l-3.4 3" /><path d="M32.5 69.5 l-2.6 3.4" />
-        <path d="M78 40 C85 48 85 62 77 70 C71 75 62 77 54 76" />
-        <path d="M76 44 l4.6 0.6" /><path d="M77 49 l4.6 1.2" /><path d="M76.6 54.5 l4.4 1.8" />
-        <path d="M75 60 l4 2.4" /><path d="M72 65 l3.4 3" /><path d="M67.5 69.5 l2.6 3.4" />
+      <g stroke="white" strokeWidth="1.2" fill="none">
+        <path d="M62 30 h8 M62 46 h8 M62.5 30 L69.5 46 M69.5 30 L62.5 46" />
       </g>
-      {/* Generic multi-spoke wheel in place of the Ashoka Chakra */}
-      <circle cx="50" cy="52" r="16" fill="none" stroke="#1e3a8a" strokeWidth="3" />
-      <g stroke="#1e3a8a" strokeWidth="1.1">
+      <text x="50" y="63" fontSize="7.6" fontWeight="900" fill="#4ade80" textAnchor="middle">CRPF</text>
+      <text x="50" y="72" fontSize="6.4" fontWeight="900" fill="white" textAnchor="middle">HCM</text>
+      <path d="M20 78 L80 78 L80 84.5 Q50 88.5 20 84.5 Z" fill="#2563eb" />
+      <text x="50" y="83" fontSize="4.3" fontWeight="800" fill="white" textAnchor="middle">EXAM PREPARATION</text>
+      <text x="50" y="93.5" fontSize="2.6" fontWeight="700" fill="#cbd5e1" textAnchor="middle">UNOFFICIAL EDUCATIONAL CONTENT</text>
+    </svg>
+  );
+}
+
+function DsssbLdcBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#fdf3e7" stroke="#0f766e" strokeWidth="2" />
+      <g fill="#0f766e"><circle cx="20" cy="42" r="1" /><circle cx="20" cy="47" r="1" /><circle cx="20" cy="52" r="1" /><circle cx="80" cy="42" r="1" /><circle cx="80" cy="47" r="1" /><circle cx="80" cy="52" r="1" /></g>
+      {/* file tray with cards */}
+      <g>
+        <rect x="38" y="26" width="20" height="10" rx="1.5" fill="#e07a5f" />
+        <rect x="36" y="32" width="24" height="10" rx="1.5" fill="#f2c8a4" />
+        <rect x="34" y="38" width="28" height="12" rx="1.5" fill="white" stroke="#0f766e" strokeWidth="0.8" />
+        <line x1="42" y1="42" x2="42" y2="47" stroke="#e07a5f" strokeWidth="1.4" />
+        <line x1="46" y1="43" x2="56" y2="43" stroke="#6b7280" strokeWidth="0.8" />
+        <line x1="46" y1="46" x2="54" y2="46" stroke="#6b7280" strokeWidth="0.8" />
+        <path d="M28 50 h44 v9 q-22 4 -44 0 Z" fill="#0f766e" />
+      </g>
+      <text x="50" y="70" fontSize="7.6" fontWeight="900" fill="#0f766e" textAnchor="middle">DSSSB LDC</text>
+      <ExamPrepFooter pillFill="#e07a5f" pillText="white" subColor="#0f766e" />
+    </svg>
+  );
+}
+
+function UpPoliceComputerOperatorBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="white" stroke="#1e1b4b" strokeWidth="2.4" />
+      <g>
+        <rect x="30" y="28" width="24" height="17" rx="1.4" fill="white" stroke="#1e1b4b" strokeWidth="1.4" />
+        <g fill="#312e81">
+          <rect x="32.5" y="30" width="2.6" height="2.6" /><rect x="35.5" y="30" width="2.6" height="2.6" fill="#db2777" /><rect x="38.5" y="30" width="2.6" height="2.6" />
+          <rect x="32.5" y="33" width="2.6" height="2.6" fill="#a78bfa" /><rect x="35.5" y="33" width="2.6" height="2.6" /><rect x="38.5" y="33" width="2.6" height="2.6" fill="#db2777" />
+        </g>
+        <line x1="42.5" y1="30.5" x2="51" y2="30.5" stroke="#1e1b4b" strokeWidth="0.8" />
+        <line x1="42.5" y1="33.5" x2="49" y2="33.5" stroke="#1e1b4b" strokeWidth="0.8" />
+        <circle cx="58" cy="41" r="4.4" fill="none" stroke="#a78bfa" strokeWidth="2" />
+        <circle cx="58" cy="41" r="1.4" fill="#db2777" />
+      </g>
+      <text x="50" y="60.5" fontSize="6.2" fontWeight="900" fill="#1e1b4b" textAnchor="middle">POLICE</text>
+      <path d="M28 62.5 L72 62.5 L72 69 L28 69 Z" fill="#db2777" />
+      <text x="50" y="67.7" fontSize="5.6" fontWeight="900" fill="white" textAnchor="middle">COMPUTER</text>
+      <text x="50" y="72.5" fontSize="6.2" fontWeight="900" fill="#1e1b4b" textAnchor="middle">OPERATOR</text>
+      <ExamPrepFooter pillFill="#a78bfa" pillText="#1e1b4b" subColor="#1e1b4b" />
+    </svg>
+  );
+}
+
+function RajasthanHighCourtLdcBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#4c1d95" stroke="#1e293b" strokeWidth="2" />
+      <path d="M50 1 A49 49 0 0 1 84.7 84.7 L15.3 84.7 Z" fill="#d4a72c" />
+      <g stroke="#eab308" strokeWidth="1.2" strokeLinecap="round">
         {Array.from({ length: 24 }, (_, i) => {
           const a = (i / 24) * 2 * Math.PI;
-          return <line key={i} x1={50 + 4 * Math.cos(a)} y1={52 + 4 * Math.sin(a)} x2={50 + 15 * Math.cos(a)} y2={52 + 15 * Math.sin(a)} />;
+          return <line key={i} x1={50 + 44 * Math.cos(a)} y1={50 + 44 * Math.sin(a)} x2={50 + 47.5 * Math.cos(a)} y2={50 + 47.5 * Math.sin(a)} />;
         })}
       </g>
-      <circle cx="50" cy="52" r="4" fill="#1e3a8a" />
-      <path d="M22 76 L78 76 L78 82.5 Q50 86 22 82.5 Z" fill="#fdf6e3" stroke="#92400e" strokeWidth="0.6" />
-      <text x="50" y="81" fontSize="4.4" fontWeight="800" fill="#1e293b" textAnchor="middle">CENTRAL RESERVE POLICE FORCE</text>
-      <text x="50" y="94.5" fontSize="8" fontWeight="900" letterSpacing="0.6" fill="#f97316" textAnchor="middle">HCM</text>
+      <g fill="white">
+        <path d="M39 38 a11 11 0 0 1 22 0 v3 h-22 Z" />
+        <rect x="37" y="41" width="4" height="16" /><rect x="59" y="41" width="4" height="16" />
+        <rect x="47" y="41" width="6" height="26" fill="#e5e7eb" stroke="#4c1d95" strokeWidth="0.6" />
+        <circle cx="50" cy="45" r="1.4" fill="#4c1d95" />
+      </g>
+      <rect x="35" y="61" width="30" height="2.6" fill="white" /><rect x="35" y="65" width="30" height="2.6" fill="white" />
+      <text x="50" y="72" fontSize="7.4" fontWeight="900" fill="white" textAnchor="middle">RHC LDC</text>
+      <ExamPrepFooter pillFill="#1e293b" pillText="white" subColor="white" />
+    </svg>
+  );
+}
+
+function DelhiPoliceHcmBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#fdf6e3" stroke="#166534" strokeWidth="2.4" />
+      <circle cx="50" cy="50" r="44.5" fill="none" stroke="#e8823c" strokeWidth="1" strokeDasharray="2.4 2" />
+      <g>
+        <path d="M38 26 h20 a2 2 0 0 1 2 2 v18 l-4 4 h-16 l-4 -4 v-18 a2 2 0 0 1 2 -2 Z" fill="white" stroke="#166534" strokeWidth="1.2" />
+        <line x1="38" y1="32" x2="58" y2="32" stroke="#166534" strokeWidth="1" />
+        <circle cx="42" cy="24" r="1.6" fill="none" stroke="#166534" strokeWidth="1" /><circle cx="48" cy="24" r="1.6" fill="none" stroke="#166534" strokeWidth="1" /><circle cx="54" cy="24" r="1.6" fill="none" stroke="#166534" strokeWidth="1" />
+      </g>
+      <path d="M30 46 a5 5 0 0 1 5 -5 h6 a5 5 0 0 1 0 10 h-8 l-3 3 v-3 a5 5 0 0 1 0 -5Z" fill="#e8823c" />
+      <path d="M70 46 a5 5 0 0 0 -5 -5 h-6 a5 5 0 0 0 0 10 h8 l3 3 v-3 a5 5 0 0 0 0 -5Z" fill="#7fb8d8" />
+      <g fill="none" stroke="#166534" strokeWidth="1.4" strokeLinecap="round"><circle cx="38" cy="59" r="2.6" /><path d="M36.5 59 l1 1 2 -2.2" /></g>
+      <g fill="none" stroke="#166534" strokeWidth="1.4" strokeLinecap="round"><circle cx="50" cy="59" r="2.6" /><path d="M48.5 59 l1 1 2 -2.2" /></g>
+      <g fill="none" stroke="#166534" strokeWidth="1.4" strokeLinecap="round"><circle cx="62" cy="59" r="2.6" /><path d="M60.5 59 l1 1 2 -2.2" /></g>
+      <text x="50" y="70" fontSize="6.4" fontWeight="900" fill="#166534" textAnchor="middle">DELHI POLICE HCM</text>
+      <ExamPrepFooter pillFill="#78350f" pillText="white" subColor="#166534" />
+    </svg>
+  );
+}
+
+function CsirJsaBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="white" stroke="#4c1d95" strokeWidth="2" />
+      <circle cx="50" cy="50" r="45" fill="none" stroke="#a3a3a3" strokeWidth="0.7" strokeDasharray="3 2.4" />
+      <polygon points="34,48 44,28 44,48" fill="#4c1d95" />
+      <polygon points="44,28 44,48 50,44" fill="#e5e7eb" />
+      <g stroke="#bef264" strokeWidth="1"><line x1="44" y1="34" x2="60" y2="26" /></g>
+      <g stroke="#93c5fd" strokeWidth="1"><line x1="44" y1="38" x2="60" y2="38" /></g>
+      <g stroke="#a78bfa" strokeWidth="1"><line x1="44" y1="42" x2="60" y2="48" /></g>
+      <rect x="60" y="22" width="8" height="8" rx="1.2" fill="#bef264" /><rect x="70" y="22" width="8" height="8" rx="1.2" fill="#93c5fd" />
+      <rect x="60" y="32" width="8" height="8" rx="1.2" fill="#a78bfa" /><rect x="70" y="32" width="8" height="8" rx="1.2" fill="#bef264" />
+      <rect x="60" y="42" width="8" height="8" rx="1.2" fill="#93c5fd" /><rect x="70" y="42" width="8" height="8" rx="1.2" fill="#a78bfa" />
+      <text x="50" y="66" fontSize="7.6" fontWeight="900" fill="#4c1d95" textAnchor="middle">CSIR JSA</text>
+      <ExamPrepFooter pillFill="#4c1d95" pillText="white" subColor="#4c1d95" />
+    </svg>
+  );
+}
+
+function SsbHcmBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#f2e8d5" stroke="#1c1917" strokeWidth="2.2" />
+      <circle cx="50" cy="33" r="8" fill="#ea580c" />
+      <polygon points="50,26 62,50 38,50" fill="#4d7c0f" />
+      <polygon points="35,50 47,32 59,50" fill="#3f6212" opacity="0.85" />
+      <polygon points="41,50 50,36 66,50" fill="#65a30d" opacity="0.8" />
+      <rect x="46" y="52" width="4" height="8" fill="#f2e8d5" /><rect x="51" y="46" width="4" height="14" fill="#a3a3a3" /><rect x="56" y="41" width="4" height="19" fill="#ea580c" />
+      <polygon points="40,60 44,50 48,60" fill="white" opacity="0.9" />
+      <text x="30" y="72" fontSize="7.6" fontWeight="900" fill="#1c1917" textAnchor="middle">SSB</text>
+      <text x="66" y="72" fontSize="7.6" fontWeight="900" fill="#ea580c" textAnchor="middle">HCM</text>
+      <ExamPrepFooter pillFill="#3f6212" pillText="white" subColor="#1c1917" />
+    </svg>
+  );
+}
+
+function AiimsBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#fdf3e7" stroke="#7f1d3a" strokeWidth="2" />
+      <g stroke="#7f1d3a" strokeWidth="1" strokeLinecap="round">
+        <line x1="50" y1="20" x2="50" y2="26" /><line x1="44" y1="22" x2="47" y2="27" /><line x1="56" y1="22" x2="53" y2="27" />
+      </g>
+      <path d="M46 30 h8 v9 l7 12 a4 4 0 0 1 -3.4 6 h-15.2 a4 4 0 0 1 -3.4 -6 l7 -12 Z" fill="none" stroke="#7f1d3a" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M39 48 h22 l3.5 6 a2.2 2.2 0 0 1 -1.9 3.4 h-24.2 a2.2 2.2 0 0 1 -1.9 -3.4 Z" fill="#b91c3c" />
+      <circle cx="30" cy="38" r="3.4" fill="#f9a8c4" /><circle cx="70" cy="38" r="3.4" fill="#7fd8c8" />
+      <line x1="33" y1="39" x2="43" y2="43" stroke="#7f1d3a" strokeWidth="0.9" />
+      <line x1="67" y1="39" x2="57" y2="43" stroke="#7f1d3a" strokeWidth="0.9" />
+      <text x="50" y="70" fontSize="8.4" fontWeight="900" fill="#7f1d3a" textAnchor="middle">AIIMS</text>
+      <ExamPrepFooter pillFill="#7f1d3a" pillText="white" subColor="#7f1d3a" />
     </svg>
   );
 }

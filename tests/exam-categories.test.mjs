@@ -100,8 +100,16 @@ test("a custom hand-designed badge (built from a real logo, redrawn faithfully) 
   assert.match(icon, /if \(CustomBadge\) \{/);
   const badges = await read("app/typing/exams/_components/custom-exam-badges.tsx");
   assert.match(badges, /"ssc-chsl": SscChslBadge/);
-  assert.match(badges, /"ssc-cgl": \(\) => <SscSealBadge code="SSC CGL" \/>/);
+  assert.match(badges, /"ssc-cgl": SscCglBadge/);
+  assert.match(badges, /"rrb-ntpc": RrbNtpcBadge/);
   assert.match(badges, /"crpf-hcm": CrpfHcmBadge/);
+  assert.match(badges, /"dsssb-ldc": DsssbLdcBadge/);
+  assert.match(badges, /"up-police-computer-operator": UpPoliceComputerOperatorBadge/);
+  assert.match(badges, /"rajasthan-high-court-ldc": RajasthanHighCourtLdcBadge/);
+  assert.match(badges, /"delhi-police-hcm": DelhiPoliceHcmBadge/);
+  assert.match(badges, /"csir-jsa": CsirJsaBadge/);
+  assert.match(badges, /"ssb-hcm": SsbHcmBadge/);
+  assert.match(badges, /"aiims-cre-ldc": AiimsBadge/);
   assert.doesNotMatch(badges, /<img /);
   assert.doesNotMatch(badges, /\.(png|jpe?g)"/i);
 });
