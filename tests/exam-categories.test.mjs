@@ -90,3 +90,34 @@ test("the category rules page shows English and Hindi rules with distinct start 
   assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/hindi`\}/);
   assert.match(page, /<BackButton href="\/typing\/exams" label="Exam Categories" \/>/);
 });
+
+// Real requested addition: NCERT LDC, researched (35 WPM English / 30 WPM
+// Hindi, 10 minutes, 10,500/9,000 KDPH -- the same standardised
+// government pattern DDA's Junior Secretariat Assistant post uses, since
+// NCERT's own notification wasn't directly available), full backspace,
+// and real word-level (green/red) highlighting on the live exam screen --
+// a genuine deviation from this platform's character-highlight default,
+// so it's encoded as an explicit highlightMode override rather than only
+// narrated in prose (unlike the real (gross/5 - mistakes*10)/minutes
+// scoring formula, which -- like every other non-Rajasthan-LDC category's
+// own more nuanced real rule -- is approximated with the platform's
+// standard flat accuracy target and explained honestly in patternNotes,
+// not a bespoke scoring engine).
+test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace, word-highlighted pattern, and resolves to a working preset in both languages", () => {
+  const category = getExamCategory("ncert-ldc");
+  assert.ok(category);
+  assert.equal(category.speedEnglish, 35);
+  assert.equal(category.speedHindi, 30);
+  assert.equal(category.durationMinutes, 10);
+  assert.equal(category.backspaceMode, "full");
+  assert.equal(category.highlightMode, "word");
+  assert.equal(category.patternSourced, true);
+  assert.ok(category.patternNotes.some((note) => note.includes("10,500")));
+  assert.ok(category.patternNotes.some((note) => note.includes("gross keystrokes")));
+  const english = getExamPreset(examCategoryPresetId("ncert-ldc", "English"));
+  const hindi = getExamPreset(examCategoryPresetId("ncert-ldc", "Hindi"));
+  assert.equal(english.speedRequirement, 35);
+  assert.equal(hindi.speedRequirement, 30);
+  assert.equal(english.durationSeconds, 600);
+  assert.equal(english.highlightMode, "word");
+});
