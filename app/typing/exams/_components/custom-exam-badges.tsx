@@ -37,6 +37,11 @@ export const CUSTOM_EXAM_BADGES: Partial<Record<string, () => JSX.Element>> = {
   "supreme-court-jca": SupremeCourtJcaBadge,
   "allahabad-hc-ro-aro": AllahabadHcRoAroBadge,
   "allahabad-hc-ps": AllahabadHcPsBadge,
+  "bihar-civil-court-clerk": BiharCivilCourtClerkBadge,
+  "upsssc-assistants": UpssscAssistantsBadge,
+  "rajasthan-ldc": RajasthanLdcBadge,
+  "jharkhand-hc-assistant": JharkhandHcAssistantBadge,
+  "emrs-jsa": EmrsJsaBadge,
 };
 
 // Shared bottom section (the "EXAM PREPARATION" pill + "UNOFFICIAL
@@ -602,6 +607,139 @@ function AllahabadHcPsBadge() {
         <line x1="62" y1="65" x2="62" y2="70" /><line x1="66" y1="64" x2="66" y2="71" /><line x1="70" y1="66" x2="70" y2="69" />
       </g>
       <ExamPrepFooterText examColor="#c2477a" subColor="#1e293b" />
+    </svg>
+  );
+}
+
+function BiharCivilCourtClerkBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <defs><clipPath id="bihar-clip"><circle cx="50" cy="50" r="49" /></clipPath></defs>
+      <circle cx="50" cy="50" r="49" fill="#fdf6ec" />
+      <g clipPath="url(#bihar-clip)">
+        <rect x="1" y="63" width="98" height="40" fill="#1e3a6e" />
+      </g>
+      <path d="M17 21 A47 47 0 0 1 39 4" fill="none" stroke="#1e3a6e" strokeWidth="3" strokeLinecap="round" />
+      <path d="M41 4 A47 47 0 0 1 64 5" fill="none" stroke="#7f1d3a" strokeWidth="3" strokeLinecap="round" />
+      <path d="M66 5 A47 47 0 0 1 87 22" fill="none" stroke="#e8a33d" strokeWidth="3" strokeLinecap="round" />
+      <rect x="27" y="33" width="15" height="26" rx="1.5" fill="#1e3a6e" /><line x1="30" y1="39" x2="39" y2="39" stroke="white" strokeWidth="1" />
+      <rect x="42" y="27" width="16" height="32" rx="1.5" fill="#a8c8b8" /><line x1="45" y1="34" x2="55" y2="34" stroke="#1e3a6e" strokeWidth="1" />
+      <rect x="58" y="24" width="16" height="35" rx="1.5" fill="#7f1d3a" /><line x1="61" y1="31" x2="71" y2="31" stroke="white" strokeWidth="1" /><line x1="61" y1="36" x2="69" y2="36" stroke="white" strokeWidth="1" />
+      <rect x="24" y="58" width="54" height="5" rx="2" fill="#1e3a6e" />
+      <circle cx="72" cy="60.5" r="4" fill="white" stroke="#1e3a6e" strokeWidth="1.4" /><circle cx="72" cy="60.5" r="1.6" fill="#a8c8b8" />
+      <text x="50" y="76" fontSize="6.6" fontWeight="900" fill="white" textAnchor="middle">BIHAR CIVIL</text>
+      <text x="50" y="85" fontSize="6.6" fontWeight="900" fill="white" textAnchor="middle">COURT CLERK</text>
+      <line x1="30" y1="89" x2="70" y2="89" stroke="#e8a33d" strokeWidth="0.6" /><circle cx="50" cy="89" r="1" fill="#e8a33d" />
+      <text x="50" y="92.5" fontSize="3.6" fontWeight="800" letterSpacing="0.2" fill="#a8c8b8" textAnchor="middle">EXAM PREPARATION</text>
+    </svg>
+  );
+}
+
+function UpssscAssistantsBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#fdf6ec" />
+      <path d="M50 2 A48 48 0 0 1 96 47" fill="none" stroke="#e8746a" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M96 53 A48 48 0 0 1 50 98" fill="none" stroke="#8faa5c" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M50 98 A48 48 0 0 1 4 53" fill="none" stroke="#e8a33d" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4 47 A48 48 0 0 1 50 2" fill="none" stroke="#1e3a6e" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="50" cy="50" r="41" fill="#fbeee0" opacity="0.6" />
+      <path d="M38 30 a9 9 0 0 0 0 18 v-6 a3 3 0 0 1 0 -6 Z" fill="#1e3a6e" />
+      <path d="M62 30 a9 9 0 0 1 0 18 v-6 a3 3 0 0 0 0 -6 Z" fill="#e8746a" />
+      <circle cx="50" cy="34" r="2.2" fill="#e8746a" /><circle cx="50" cy="45" r="3" fill="#8faa5c" /><circle cx="50" cy="56" r="2.2" fill="#1e3a6e" />
+      <line x1="44" y1="39" x2="56" y2="39" stroke="#8faa5c" strokeWidth="1.4" />
+      <text x="50" y="65" fontSize="8" fontWeight="900" fill="#1e3a6e" textAnchor="middle">UPSSSC</text>
+      <text x="50" y="73.5" fontSize="7" fontWeight="900" fill="#e8746a" textAnchor="middle">ASSISTANT</text>
+      <ExamPrepFooterText examColor="#1e3a6e" subColor="#1e3a6e" />
+    </svg>
+  );
+}
+
+function RajasthanLdcBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <defs><clipPath id="rssb-clip"><circle cx="50" cy="50" r="49" /></clipPath></defs>
+      <circle cx="50" cy="50" r="49" fill="#3a2a1e" />
+      <circle cx="50" cy="50" r="44" fill="#fdf3e2" />
+      <g clipPath="url(#rssb-clip)">
+        <rect x="1" y="66" width="98" height="34" fill="#3a2a1e" />
+      </g>
+      <g stroke="#3a2a1e" strokeWidth="2" strokeLinecap="round">
+        {Array.from({ length: 32 }, (_, i) => {
+          const a = (i / 32) * 2 * Math.PI;
+          const colors = ["#b91c3c", "#e8a33d", "#0f766e"];
+          return (
+            <line key={i} x1={50 + 45.5 * Math.cos(a)} y1={50 + 45.5 * Math.sin(a)} x2={50 + 48.5 * Math.cos(a)} y2={50 + 48.5 * Math.sin(a)} stroke={colors[i % 3]} />
+          );
+        })}
+      </g>
+      <path d="M28 33 h20 l8 8 v4 h-28 a2 2 0 0 1 -2 -2 v-8 a2 2 0 0 1 2 -2 Z" fill="#0f766e" />
+      <path d="M24 45 h44 v10 a2 2 0 0 1 -2 2 h-40 a2 2 0 0 1 -2 -2 Z" fill="#0f766e" />
+      <path d="M56 50 l14 -3 v3.5 l6 -0.5 v6 l-6 -0.5 v3.5 Z" fill="#1c1917" />
+      <rect x="68" y="47" width="4" height="4" rx="0.6" fill="#e8a33d" />
+      <circle cx="26" cy="59" r="1.6" fill="#0f766e" /><circle cx="32" cy="61" r="1.6" fill="#0f766e" /><circle cx="38" cy="63" r="1.6" fill="#0f766e" />
+      <text x="35" y="79" fontSize="8.6" fontWeight="900" fontStyle="italic" fill="white" textAnchor="middle">RSSB</text>
+      <text x="66" y="79" fontSize="8.6" fontWeight="900" fontStyle="italic" fill="#0f766e" textAnchor="middle">LDC</text>
+      <path d="M22 82 L78 82 L78 88 Q50 91.5 22 88 Z" fill="#3a2a1e" stroke="#e8a33d" strokeWidth="0.5" />
+      <text x="50" y="87" fontSize="4.4" fontWeight="800" letterSpacing="0.1" fill="#e8a33d" textAnchor="middle">EXAM PREPARATION</text>
+      <text x="50" y="93" fontSize="2.3" fontWeight="700" fill="white" textAnchor="middle">UNOFFICIAL EDUCATIONAL CONTENT</text>
+    </svg>
+  );
+}
+
+function JharkhandHcAssistantBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <defs><path id="jha-top" d="M 12 50 A 38 38 0 0 1 88 50" fill="none" /></defs>
+      <circle cx="50" cy="50" r="49" fill="#fdf6ec" stroke="#241b3a" strokeWidth="2" />
+      <circle cx="50" cy="50" r="45" fill="none" stroke="#a78bd6" strokeWidth="0.8" />
+      <path d="M6 46 Q28 38 50 46 T94 46 V60 H6 Z" fill="#a78bd6" opacity="0.28" />
+      <path d="M6 52 Q28 45 50 52 T94 52 V62 H6 Z" fill="#8faa5c" opacity="0.3" />
+      <text fontSize="6.6" fontWeight="900" letterSpacing="0.1" fill="#241b3a">
+        <textPath href="#jha-top" startOffset="50%" textAnchor="middle">JHARKHAND HIGH COURT</textPath>
+      </text>
+      <g stroke="#a78bd6" strokeWidth="2.4" strokeLinecap="round">
+        <line x1="50" y1="42" x2="36" y2="60" />
+      </g>
+      <g stroke="#8faa5c" strokeWidth="2.4" strokeLinecap="round">
+        <line x1="50" y1="42" x2="64" y2="60" />
+      </g>
+      <line x1="36" y1="60" x2="64" y2="60" stroke="#241b3a" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="50" cy="42" r="3.4" fill="#241b3a" stroke="white" strokeWidth="1" />
+      <circle cx="36" cy="60" r="3.4" fill="#241b3a" stroke="white" strokeWidth="1" />
+      <circle cx="64" cy="60" r="3.4" fill="#241b3a" stroke="white" strokeWidth="1" />
+      <rect x="46.5" y="56.5" width="7" height="7" rx="1.4" fill="#8faa5c" stroke="#241b3a" strokeWidth="1" />
+      <text x="50" y="73" fontSize="7.2" fontWeight="900" fill="#241b3a" textAnchor="middle">ASSISTANT</text>
+      <ExamPrepFooterText examColor="#8a6fc2" subColor="#241b3a" />
+    </svg>
+  );
+}
+
+function EmrsJsaBadge() {
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="50" r="49" fill="#fdf6ec" stroke="#1e3a6e" strokeWidth="2" />
+      <g stroke="#1e3a6e" strokeWidth="1.4" strokeLinecap="round">
+        {Array.from({ length: 40 }, (_, i) => {
+          const a = (i / 40) * 2 * Math.PI;
+          const colors = ["#1e3a6e", "#1e3a6e", "#e8746a", "#0f766e"];
+          return i % 2 === 0 ? (
+            <line key={i} x1={50 + 45 * Math.cos(a)} y1={50 + 45 * Math.sin(a)} x2={50 + 47.5 * Math.cos(a)} y2={50 + 47.5 * Math.sin(a)} stroke={colors[i % 4]} />
+          ) : (
+            <circle key={i} cx={50 + 46.2 * Math.cos(a)} cy={50 + 46.2 * Math.sin(a)} r="0.6" fill="#1c1917" />
+          );
+        })}
+      </g>
+      <path d="M25 32 Q30 22 37 30 Q43 21 50 30 Q57 21 63 30 Q70 22 75 32 Z" fill="#1e3a6e" />
+      <rect x="33" y="38" width="8" height="8" rx="1.6" fill="#e8746a" /><path d="M37 32 v6" stroke="#1e3a6e" strokeWidth="1.2" />
+      <rect x="46" y="38" width="8" height="8" rx="1.6" fill="#0f766e" /><path d="M50 32 v6" stroke="#1e3a6e" strokeWidth="1.2" />
+      <rect x="59" y="38" width="8" height="8" rx="1.6" fill="#1e3a6e" /><path d="M63 32 v6" stroke="#1e3a6e" strokeWidth="1.2" />
+      <g stroke="#1c1917" strokeWidth="0.8" strokeDasharray="1.2 1.2">
+        <path d="M37 46 L50 55" /><path d="M50 46 L50 55" /><path d="M63 46 L50 55" />
+      </g>
+      <circle cx="50" cy="55" r="3" fill="none" stroke="#1c1917" strokeWidth="1.2" /><circle cx="50" cy="55" r="1.3" fill="#e8746a" />
+      <text x="50" y="70" fontSize="7.4" fontWeight="900" fill="#1e3a6e" textAnchor="middle">EMRS JSA</text>
+      <ExamPrepFooterText examColor="#e8746a" subColor="#1c1917" />
     </svg>
   );
 }

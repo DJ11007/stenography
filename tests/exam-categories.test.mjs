@@ -120,6 +120,11 @@ test("a custom hand-designed badge (built from a real logo, redrawn faithfully) 
   assert.match(badges, /"supreme-court-jca": SupremeCourtJcaBadge/);
   assert.match(badges, /"allahabad-hc-ro-aro": AllahabadHcRoAroBadge/);
   assert.match(badges, /"allahabad-hc-ps": AllahabadHcPsBadge/);
+  assert.match(badges, /"bihar-civil-court-clerk": BiharCivilCourtClerkBadge/);
+  assert.match(badges, /"upsssc-assistants": UpssscAssistantsBadge/);
+  assert.match(badges, /"rajasthan-ldc": RajasthanLdcBadge/);
+  assert.match(badges, /"jharkhand-hc-assistant": JharkhandHcAssistantBadge/);
+  assert.match(badges, /"emrs-jsa": EmrsJsaBadge/);
   assert.doesNotMatch(badges, /<img /);
   assert.doesNotMatch(badges, /\.(png|jpe?g)"/i);
 });
