@@ -82,21 +82,26 @@ test("the exam category icon renders an original medallion-style graphic per ins
 
 // Real request: the admin is sending real board logos to have hand-designed
 // per-category badges made from them, one at a time, starting with SSC
-// CHSL. A custom badge (keyed by slug) takes priority over the generic
-// shared-per-iconKind glyph when one exists; every category without an
-// entry keeps rendering the generic badge, completely unaffected. The
-// custom badge itself must redraw each logo's real palette/motifs rather
-// than reproduce the source image or any protected government emblem
-// (the State Emblem of India, specifically, for SSC's own logo) --
-// asserted here the same way the generic-badge test above already checks
-// for no scraped image files.
-test("a custom hand-designed badge (built from a real logo, redrawn) takes priority over the generic per-iconKind badge for the categories that have one, and does not embed the source image or any state emblem", async () => {
+// CHSL, then SSC CGL and CRPF HCM the same way. A custom badge (keyed by
+// slug) takes priority over the generic shared-per-iconKind glyph when
+// one exists; every category without an entry keeps rendering the
+// generic badge, completely unaffected. The custom badge itself must
+// redraw each logo's real palette/layout/motifs (the admin explicitly
+// asked for close fidelity, not a restyled reinterpretation) while never
+// embedding the source image file itself, and never reproducing two
+// specific things Indian law restricts regardless of who authorises it:
+// the State Emblem of India (the Lion Capital, in SSC's and many other
+// boards' logos) and the national flag (in CRPF's crossed-flags logo) --
+// both get a generic stand-in instead.
+test("a custom hand-designed badge (built from a real logo, redrawn faithfully) takes priority over the generic per-iconKind badge for the categories that have one, and never embeds the source image, the State Emblem, or the national flag", async () => {
   const icon = await read("app/typing/exams/_components/exam-category-icon.tsx");
   assert.match(icon, /import \{ CUSTOM_EXAM_BADGES \} from "\.\/custom-exam-badges";/);
   assert.match(icon, /const CustomBadge = CUSTOM_EXAM_BADGES\[category\.slug\];/);
   assert.match(icon, /if \(CustomBadge\) \{/);
   const badges = await read("app/typing/exams/_components/custom-exam-badges.tsx");
   assert.match(badges, /"ssc-chsl": SscChslBadge/);
+  assert.match(badges, /"ssc-cgl": \(\) => <SscSealBadge code="SSC CGL" \/>/);
+  assert.match(badges, /"crpf-hcm": CrpfHcmBadge/);
   assert.doesNotMatch(badges, /<img /);
   assert.doesNotMatch(badges, /\.(png|jpe?g)"/i);
 });
