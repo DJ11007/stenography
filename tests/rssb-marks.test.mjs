@@ -99,3 +99,34 @@ test("marks qualification is independent of WPM and accuracy thresholds", () => 
   assert.equal(result.marksObtained, 9);
   assert.equal(result.qualified, true);
 });
+
+// Real requested addition: Rajasthan DEO (Data Entry Operator) -- a
+// genuinely separate RSSB post from Rajasthan LDC, researched and added
+// alongside it: a 1250-word passage in EACH language (not LDC's differing
+// 500/400 split), 15 minutes, 25 max marks per language, 10.5 to qualify
+// (0.02 marks per correct word -- 525 correct words, i.e. 35 WPM, gives
+// exactly the 10.5-mark minimum, matching the sourced qualifying speed).
+test("the Rajasthan DEO exam-category presets carry the real RSSB DEO marks scheme (1250-word passages, 15 minutes, 0.02 marks/word, 10.5 to qualify) in both languages", () => {
+  const deoEnglish = getExamPreset("exam-cat-rajasthan-deo-english");
+  const deoHindi = getExamPreset("exam-cat-rajasthan-deo-hindi");
+  assert.ok(deoEnglish?.marksMethod);
+  assert.ok(deoHindi?.marksMethod);
+  assert.deepEqual(deoEnglish.marksMethod, deoHindi.marksMethod);
+  assert.equal(deoEnglish.marksMethod.maximumMarks, 25);
+  assert.equal(deoEnglish.marksMethod.minimumPassingMarks, 10.5);
+  assert.equal(deoEnglish.marksMethod.marksPerCorrectWord, 0.02);
+  assert.equal(deoEnglish.marksMethod.requiredDurationSeconds, 900);
+  assert.equal(deoEnglish.marksMethod.passageWordLimit, 1250);
+  assert.equal(deoEnglish.durationSeconds, 900);
+  assert.equal(deoHindi.durationSeconds, 900);
+  assert.equal(countSpaceWords(deoEnglish.passage), 1250);
+  assert.equal(countSpaceWords(deoHindi.passage), 1250);
+
+  const belowQualifying = calculateConfiguredRssbMarks(scoreWithCorrectWords(524, 900), deoEnglish.marksMethod);
+  const atQualifying = calculateConfiguredRssbMarks(scoreWithCorrectWords(525, 900), deoEnglish.marksMethod);
+  const fullMarks = calculateConfiguredRssbMarks(scoreWithCorrectWords(1250, 900), deoEnglish.marksMethod);
+  assert.equal(belowQualifying.qualified, false);
+  assert.equal(atQualifying.marksObtained.toFixed(2), "10.50");
+  assert.equal(atQualifying.qualified, true);
+  assert.equal(fullMarks.marksObtained.toFixed(2), "25.00");
+});

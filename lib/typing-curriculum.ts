@@ -120,8 +120,24 @@ export const HINDI_UNICODE_REMINGTON: InputSystem = { ...HINDI_UNICODE_MANGAL, i
 export const HINDI_UNICODE_REMINGTON_GAIL: InputSystem = { ...HINDI_UNICODE_MANGAL, id: "hindi-unicode-remington-gail", label: "Remington GAIL", keyboardLayout: "Remington GAIL Unicode layout" };
 export const HINDI_UNICODE_REMINGTON_CBI: InputSystem = { ...HINDI_UNICODE_MANGAL, id: "hindi-unicode-remington-cbi", label: "Remington CBI", keyboardLayout: "Remington CBI Unicode layout" };
 export const HINDI_UNICODE_INSCRIPT: InputSystem = { ...HINDI_UNICODE_MANGAL, id: "hindi-unicode-inscript", label: "Hindi Unicode — InScript layout", keyboardLayout: "InScript Unicode layout" };
-export const HINDI_KRUTI_DEV: InputSystem = { id: "hindi-krutidev-010", label: "Kruti Dev 010 — legacy encoding", language: "Hindi", script: "Devanagari", inputEncoding: "krutidev-legacy", fontLabel: "Kruti Dev 010 (licensed asset required)", fontStack: '"Kruti Dev 010", sans-serif', keyboardLayout: "Remington / Kruti Dev legacy layout", requiredFontAsset: KRUTI_DEV_FONT_ASSET, passageOverride: repeatPassageToExactWordCount("f'k{kk O;fDr ds thou esa egRoiw.kZ Hkwfedk fuHkkrh gSA fu;fer vH;kl ls Vkbfiax dh xfr vkSj 'kq)rk esa lq/kkj gksrk gSA", 400) };
+// Shared source text for the Kruti Dev legacy-encoded passage override --
+// pulled out so it can be resampled to a different word count (see
+// krutiDevInputSystemForWordCount below) without duplicating the raw
+// encoded string. 400 words matches the LDC/RSSB-family word count every
+// category has needed until Rajasthan DEO's genuinely longer 1250-word
+// passage.
+const KRUTI_DEV_SOURCE_TEXT = "f'k{kk O;fDr ds thou esa egRoiw.kZ Hkwfedk fuHkkrh gSA fu;fer vH;kl ls Vkbfiax dh xfr vkSj 'kq)rk esa lq/kkj gksrk gSA";
+export const HINDI_KRUTI_DEV: InputSystem = { id: "hindi-krutidev-010", label: "Kruti Dev 010 — legacy encoding", language: "Hindi", script: "Devanagari", inputEncoding: "krutidev-legacy", fontLabel: "Kruti Dev 010 (licensed asset required)", fontStack: '"Kruti Dev 010", sans-serif', keyboardLayout: "Remington / Kruti Dev legacy layout", requiredFontAsset: KRUTI_DEV_FONT_ASSET, passageOverride: repeatPassageToExactWordCount(KRUTI_DEV_SOURCE_TEXT, 400) };
 export const HINDI_INPUT_SYSTEMS = [HINDI_KRUTI_DEV, HINDI_UNICODE_MANGAL, HINDI_UNICODE_REMINGTON_GAIL, HINDI_UNICODE_REMINGTON_CBI, HINDI_UNICODE_INSCRIPT, HINDI_UNICODE_REMINGTON];
+// Rajasthan DEO's Hindi passage is 1250 words, not the 400 every other
+// Hindi category (including Rajasthan LDC) has used -- Kruti Dev's
+// passageOverride is otherwise a single fixed 400-word constant shared by
+// every Hindi category, so a longer category needs its own resampled
+// variant of the same source text rather than reusing HINDI_KRUTI_DEV
+// as-is (which would fail preset()'s build-time word-count check).
+function krutiDevInputSystemForWordCount(wordCount: number): InputSystem {
+  return { ...HINDI_KRUTI_DEV, passageOverride: repeatPassageToExactWordCount(KRUTI_DEV_SOURCE_TEXT, wordCount) };
+}
 
 // At the admin's explicit request: the general Typing section (Learn Typing
 // and Practice Tests) offers Kruti Dev 010 only for Hindi -- Mangal/InScript/
@@ -160,6 +176,12 @@ const preset = (value: Omit<ExamPreset, "script" | "inputEncoding" | "fontLabel"
 // for that category -- see managedVersionToPreset() in lib/admin-tests.ts.
 export const RSSB_ENGLISH_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 9, marksPerCorrectWord: 0.05, requiredDurationSeconds: 600, passageWordLimit: 500 } as const;
 export const RSSB_HINDI_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 9, marksPerCorrectWord: 0.0625, requiredDurationSeconds: 600, passageWordLimit: 400 } as const;
+// Rajasthan DEO's real pattern (see lib/exam-categories.ts's "rajasthan-deo"
+// patternNotes): a 1250-word passage in EACH language, 15 minutes, 25 max
+// marks per language, 10.5 to qualify -- symmetric across English and
+// Hindi, unlike Rajasthan LDC's differing 500/400-word split, so this is
+// one shared constant rather than an English/Hindi pair.
+export const RSSB_DEO_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 10.5, marksPerCorrectWord: 0.02, requiredDurationSeconds: 900, passageWordLimit: 1250 } as const;
 
 export const EXAM_PRESETS: ExamPreset[] = [
   preset({ id: "rssb-ldc-english", slug: "english-typing", title: "English Typing", subtitle: "Independent typing practice simulation", category: "typing", language: "English", durationSeconds: 600, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, 500), inputSystems: [ENGLISH_QWERTY], speedRequirement: 35, accuracyRequirement: 90, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(35), marksMethod: RSSB_ENGLISH_MARKS_METHOD }),
@@ -178,13 +200,30 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
   // english-typing/hindi-typing presets already use, since this category's
   // own duration (10 min) and word-count formula already produce exactly
   // 500 English / 400 Hindi words, satisfying preset()'s build-time check.
-  const marksMethod = category.slug === "rajasthan-ldc" ? (language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD) : undefined;
+  // Rajasthan DEO is the second category with a genuinely confirmed marks
+  // scheme (see its patternNotes) -- symmetric across languages, so the
+  // same constant covers both, unlike Rajasthan LDC's English/Hindi pair.
+  const marksMethod = category.slug === "rajasthan-ldc" ? (language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD)
+    : category.slug === "rajasthan-deo" ? RSSB_DEO_MARKS_METHOD
+    : undefined;
   if (language === "English") {
-    const wordCount = Math.max(50, Math.round(500 * (category.durationMinutes / 10)));
+    // Rajasthan DEO's real passage is 1250 words regardless of the
+    // 500-words-per-10-minutes scaling every other category uses (its own
+    // 15-minute duration would otherwise only produce 750) -- required for
+    // preset()'s build-time check against RSSB_DEO_MARKS_METHOD's
+    // passageWordLimit to pass.
+    const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(500 * (category.durationMinutes / 10)));
     return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedEnglish), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
   }
-  const wordCount = Math.max(50, Math.round(400 * (category.durationMinutes / 10)));
-  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedHindi), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
+  const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(400 * (category.durationMinutes / 10)));
+  // Kruti Dev's passageOverride is otherwise a fixed 400-word constant
+  // (see HINDI_KRUTI_DEV) -- Rajasthan DEO needs its own 1250-word variant
+  // of the same source text, or preset()'s build-time word-count check
+  // against RSSB_DEO_MARKS_METHOD.passageWordLimit fails for that one system.
+  const hindiInputSystems = category.slug === "rajasthan-deo"
+    ? [krutiDevInputSystemForWordCount(wordCount), HINDI_UNICODE_MANGAL, HINDI_UNICODE_REMINGTON_GAIL, HINDI_UNICODE_REMINGTON_CBI, HINDI_UNICODE_INSCRIPT, HINDI_UNICODE_REMINGTON]
+    : HINDI_INPUT_SYSTEMS;
+  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: hindiInputSystems, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedHindi), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
 }
 
 export const EXAM_CATEGORY_PRESETS: ExamPreset[] = EXAM_CATEGORIES.flatMap((category) => [categoryPreset(category, "English"), categoryPreset(category, "Hindi")]);

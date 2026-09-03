@@ -170,3 +170,39 @@ test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace
   assert.equal(english.durationSeconds, 600);
   assert.equal(english.highlightMode, "word");
 });
+
+// Real requested research: which Rajasthan/RSSB posts beyond the existing
+// "Rajasthan LDC" category genuinely need their own typing exam category.
+// Clerk/Clerk Grade-II and Personal Assistant Grade-II turned out to be the
+// SAME recruitment as, respectively, Rajasthan LDC and the stenography
+// module's existing "RSMSSB Stenographer" category -- confirmed via
+// research, not assumed -- so no new category for either. Data Entry
+// Operator is a genuinely separate, well-corroborated pattern; Tax
+// Assistant is genuinely separate but only weakly sourced (one
+// uncross-verified source), so it's added with patternSourced: false, same
+// honesty convention as every other under-confirmed category in this file.
+test("Rajasthan DEO is researched with its real 1250-word, 15-minute, marks-based pattern (genuinely different from Rajasthan LDC's 500/400-word pattern), and Rajasthan Tax Assistant exists but is honestly flagged as unconfirmed", () => {
+  const deo = getExamCategory("rajasthan-deo");
+  assert.ok(deo);
+  assert.equal(deo.durationMinutes, 15);
+  assert.equal(deo.speedEnglish, 83);
+  assert.equal(deo.speedHindi, 83);
+  assert.equal(deo.wordMethod, "spaces");
+  assert.equal(deo.highlightMode, "none");
+  assert.equal(deo.patternSourced, true);
+  const deoEnglish = getExamPreset(examCategoryPresetId("rajasthan-deo", "English"));
+  const deoHindi = getExamPreset(examCategoryPresetId("rajasthan-deo", "Hindi"));
+  assert.equal(deoEnglish.durationSeconds, 900);
+  assert.ok(deoEnglish.marksMethod);
+  assert.equal(deoEnglish.marksMethod.passageWordLimit, 1250);
+  assert.ok(deoHindi.marksMethod);
+  assert.equal(deoHindi.marksMethod.passageWordLimit, 1250);
+
+  const taxAssistant = getExamCategory("rajasthan-tax-assistant");
+  assert.ok(taxAssistant);
+  assert.equal(taxAssistant.patternSourced, false);
+  assert.ok(taxAssistant.patternNotes.some((note) => /only one source/i.test(note)));
+  const taxEnglish = getExamPreset(examCategoryPresetId("rajasthan-tax-assistant", "English"));
+  assert.ok(taxEnglish);
+  assert.equal(taxEnglish.marksMethod, undefined);
+});

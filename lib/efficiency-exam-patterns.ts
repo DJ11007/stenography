@@ -68,4 +68,15 @@ export const EFFICIENCY_EXAM_PATTERNS: EfficiencyExamPattern[] = [
     sourced: false,
     notes: ["This task list is reported consistently across coaching platforms (e.g. exam-practice academies), but was not found stated in an official RSMSSB notification during this research pass -- treat duration and marks as an estimate, not a confirmed figure.", "Use this as a reasonable starting task set for an Excel Efficiency test rather than an exact reproduction of a scored exam."],
   },
+  {
+    id: "rsmssb-tax-assistant-excel",
+    board: "RSMSSB (Rajasthan Subordinate & Ministerial Services Board)",
+    examName: "Tax Assistant (Excel component)",
+    subject: "Excel",
+    durationMinutes: "Reported as ~15 minutes, alongside 15 min each for the Hindi and English typing components (Paper 4 overall)",
+    maximumMarks: "100 (reported as covering the whole Computer Proficiency Test -- typing in both languages plus this Excel component together, not this component alone; 40 to qualify)",
+    taskFocus: ["Not itemised in the one source found for this pattern"],
+    sourced: false,
+    notes: ["Found in only one source during this research pass, not independently cross-verified -- treat every figure here as provisional.", "That source's own numbers don't fully reconcile (15+15 minutes of typing plus this component were described as summing to 45 minutes total, and the 100-mark ceiling wasn't clearly separated between typing and Excel), so confirm the actual task list and scoring split against the current official notification before using this as an authoritative reference.", "See the \"rajasthan-tax-assistant\" typing exam category for the corresponding (also unconfirmed) Hindi/English typing pattern for this same post."],
+  },
 ];

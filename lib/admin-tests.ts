@@ -1,5 +1,5 @@
 import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
-import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
+import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, RSSB_DEO_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
 import { EXAM_CATEGORIES, type ExamCategoryDefinition } from "./exam-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
@@ -140,6 +140,8 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     // moment it's viewed through a different category's own page -- that
     // category's real pass/fail rules apply instead, per the feature's
     // whole point.
-    marksMethod: effectiveCategory?.slug === "rajasthan-ldc" ? (version.language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD) : undefined,
+    marksMethod: effectiveCategory?.slug === "rajasthan-ldc" ? (version.language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD)
+      : effectiveCategory?.slug === "rajasthan-deo" ? RSSB_DEO_MARKS_METHOD
+      : undefined,
   };
 }
