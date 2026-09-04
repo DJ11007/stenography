@@ -17,7 +17,7 @@ const DEFAULT_VIEW:ViewState={zoom:100,ruler:true,gridlines:false,documentMap:fa
 const TABLE_TOOL_ACTIONS:[string,string][]=[["add-row-above","Insert Above"],["add-row-below","Insert Below"],["add-column-left","Insert Left"],["add-column-right","Insert Right"],["remove-row","Delete Row"],["remove-column","Delete Column"],["remove-table","Delete Table"]];
 const BORDER_SIDE_KEYWORDS=new Set(["all","outside","top","bottom","left","right"]);const BORDER_CSS="1px solid #0e7490";
 function applyBorderStyle(html:HTMLElement,kind:string){html.style.borderTop=html.style.borderRight=html.style.borderBottom=html.style.borderLeft=html.style.border="";if(kind==="all"||kind==="outside")html.style.border=BORDER_CSS;else if(kind==="top")html.style.borderTop=BORDER_CSS;else if(kind==="bottom")html.style.borderBottom=BORDER_CSS;else if(kind==="left")html.style.borderLeft=BORDER_CSS;else if(kind==="right")html.style.borderRight=BORDER_CSS;else html.style.border=kind}
-type DialogState={kind:"symbol"}|{kind:"insertTable"}|{kind:"insertTableCustom"}|{kind:"tableEdit"}|{kind:"margins";top:string;right:string;bottom:string;left:string}|{kind:"watermark";text:string}|{kind:"pageColor";value:string}|{kind:"columns";value:string}|{kind:"pageSize";value:string}|{kind:"lineSpacingOptions";before:string;after:string;specialIndentMode:string;specialIndentAmount:string}|{kind:"findReplace";mode:"find"|"replace"|"goto";query:string;replacement:string;matchCase:boolean;wholeWord:boolean;wildcards:boolean;matchPrefix:boolean;matchSuffix:boolean;ignorePunctuation:boolean;ignoreWhitespace:boolean;formatHighlight:boolean;bookmarks:string[]}|{kind:"zoom";value:string}|{kind:"sort";value:string}|{kind:"pageNumber";position:string;alignment:string;style:string;format:string;startAt:string}|{kind:"headerFooterGallery";which:"header"|"footer";hasExisting:boolean;customStyles:{name:string;preview:string;html:string}[]}|{kind:"dropCapOptions";position:string;fontFamily:string;lines:string;distance:string}|{kind:"font";bold:boolean;italic:boolean;fontFamily:string;fontSize:string;color:string;underlineStyle:string;underlineColor:string;strike:boolean;doubleStrike:boolean;superscript:boolean;subscript:boolean;smallCaps:boolean;allCaps:boolean;hidden:boolean;outline:boolean;emboss:boolean;charScale:string;charSpacing:string;charPosition:string;kerningEnabled:boolean;kerningMin:string}|{kind:"paragraph";alignment:string;marginLeft:string;marginRight:string;specialIndentMode:string;specialIndentAmount:string;spaceBefore:string;spaceAfter:string;lineSpacing:string;hyphens:boolean;lineNumbers:boolean};
+type DialogState={kind:"symbol"}|{kind:"insertTable"}|{kind:"insertTableCustom"}|{kind:"tableEdit"}|{kind:"margins";top:string;right:string;bottom:string;left:string}|{kind:"watermark";text:string}|{kind:"pageColor";value:string}|{kind:"columns";value:string}|{kind:"pageSize";value:string}|{kind:"lineSpacingOptions";before:string;after:string;specialIndentMode:string;specialIndentAmount:string}|{kind:"findReplace";mode:"find"|"replace"|"goto";query:string;replacement:string;matchCase:boolean;wholeWord:boolean;wildcards:boolean;matchPrefix:boolean;matchSuffix:boolean;ignorePunctuation:boolean;ignoreWhitespace:boolean;formatHighlight:boolean;bookmarks:string[];hadSelection:boolean}|{kind:"zoom";value:string}|{kind:"sort";value:string}|{kind:"pageNumber";position:string;alignment:string;style:string;format:string;startAt:string}|{kind:"headerFooterGallery";which:"header"|"footer";hasExisting:boolean;customStyles:{name:string;preview:string;html:string}[]}|{kind:"dropCapOptions";position:string;fontFamily:string;lines:string;distance:string}|{kind:"font";bold:boolean;italic:boolean;fontFamily:string;fontSize:string;color:string;underlineStyle:string;underlineColor:string;strike:boolean;doubleStrike:boolean;superscript:boolean;subscript:boolean;smallCaps:boolean;allCaps:boolean;hidden:boolean;outline:boolean;emboss:boolean;charScale:string;charSpacing:string;charPosition:string;kerningEnabled:boolean;kerningMin:string}|{kind:"paragraph";alignment:string;marginLeft:string;marginRight:string;specialIndentMode:string;specialIndentAmount:string;spaceBefore:string;spaceAfter:string;lineSpacing:string;hyphens:boolean;lineNumbers:boolean};
 function hasSearchHighlight(element:Element|null){if(!element)return false;const color=getComputedStyle(element).backgroundColor;return Boolean(color)&&color!=="rgba(0, 0, 0, 0)"&&color!=="transparent"}
 // Next.js rotates the id every Server Action is called by at each deploy
 // (see node_modules/next/dist/docs/01-app/02-guides/server-actions.md,
@@ -76,6 +76,14 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  const capabilities=useMemo(()=>normalizeWordEditorCapabilities(rawCapabilities),[rawCapabilities]);
  const visibleTabs=WORD_EDITOR_RIBBON.filter(tab=>capabilities.tabs[tab.id].enabled);
  const editor=useRef<HTMLDivElement>(null),imageInput=useRef<HTMLInputElement>(null),autosaveTimer=useRef<ReturnType<typeof setTimeout>|null>(null),lastAutosave=useRef<ReturnType<typeof toSnapshot>|null>(null),savedRange=useRef<Range|null>(null),paintStyle=useRef<EditorRunStyles|null>(null),viewport=useRef<HTMLElement>(null),dialogTableRef=useRef<{table:HTMLTableElement;rowIndex:number;cellIndex:number}|null>(null),runRef=useRef<(id:string)=>void>(()=>{}),marginClick=useRef<{count:number;time:number;y:number}>({count:0,time:0,y:-9999});
+ // Captured once, the moment the Find and Replace dialog opens (while the
+ // document selection is still live) -- distinct from savedRange, which
+ // serves toolbar formatting actions and can be overwritten while the
+ // dialog is open. Typing into the dialog's own "Find what"/"Replace with"
+ // inputs moves focus (and getSelection()) away from the document, so
+ // find/replace must remember the scope up front rather than re-reading
+ // getSelection() when Find Next/Replace/Replace All are actually clicked.
+ const findScopeRange=useRef<Range|null>(null);
  const[tab,setTab]=useState<WordEditorTab>(visibleTabs.find(item=>item.id==="Home")?.id??visibleTabs[0]?.id??"Home"),[status,setStatus]=useState("Ready"),[submitted,setSubmitted]=useState(locked),[view,setView]=useState<ViewState>(DEFAULT_VIEW),[message,setMessage]=useState(""),[showOriginal,setShowOriginal]=useState(false),[query,setQuery]=useState(""),[thumbnails,setThumbnails]=useState<{id:string;targetId:string;nodes:HTMLElement[]}[]>([]),[dialog,setDialog]=useState<DialogState|null>(null),[currentFont,setCurrentFont]=useState<string|undefined>(undefined),[insideTable,setInsideTable]=useState(false),[paintMode,setPaintMode]=useState<"off"|"once"|"sticky">("off"),[insideHeaderFooter,setInsideHeaderFooter]=useState<"header"|"footer"|null>(null),[showDocumentText,setShowDocumentText]=useState(true),[headerFooterToolsSelected,setHeaderFooterToolsSelected]=useState(false),[staleDeploy,setStaleDeploy]=useState(false);
  // Real Word: entering a header/footer automatically switches the ribbon to
  // Header & Footer Tools > Design; leaving it (Close, or clicking into the
@@ -214,38 +222,47 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  const replaceSelection=(text:string)=>exec("insertText",text);const toggleEditorClass=(name:string)=>{const blocks=selectedBlocks();for(const block of blocks)block.classList.toggle(name);if(blocks.length)changed()};const pageStyle=(key:keyof CSSStyleDeclaration,value:string)=>{if(editor.current)(editor.current.style[key] as string)=value;changed()};const toggleStyle=(key:keyof CSSStyleDeclaration,value:string)=>{const blocks=selectedBlocks();for(const block of blocks)(block.style[key]as string)=(block.style[key]as string)?"":value;if(blocks.length)changed()};
  const measure=(key:"marginLeft"|"marginRight"|"lineHeight",label:string,fallback:number)=>{const value=bounded(promptValue(label,String(fallback)),key==="lineHeight"?.5:0,key==="lineHeight"?5:10),blocks=selectedBlocks();for(const block of blocks)block.style[key]=key==="lineHeight"?String(value):`${value}in`;if(blocks.length)changed()};
  const color=(command:string)=>{const value=promptValue("Enter a safe hex color:","#fff59d");if(/^#[0-9a-f]{6}$/i.test(value))exec(command,value)};
- const findNext=(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS)=>{
+ const findNext=(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"|"document"="document")=>{
   if(!editor.current)return false;
   const regex=buildFindRegex(needle,options);
   if(!regex)return false;
-  const walker=document.createTreeWalker(editor.current,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];for(let node=walker.nextNode();node;node=walker.nextNode())nodes.push(node as Text);
+  const scopeRange=scope==="selection"?findScopeRange.current:null;
+  const walker=document.createTreeWalker(editor.current,NodeFilter.SHOW_TEXT);const allNodes:Text[]=[];for(let node=walker.nextNode();node;node=walker.nextNode())allNodes.push(node as Text);
+  const nodes=scopeRange?allNodes.filter(node=>scopeRange.intersectsNode(node)):allNodes;
   if(!nodes.length)return false;
+  const bounds=(index:number)=>{const text=nodes[index].textContent??"";const lo=scopeRange&&nodes[index]===scopeRange.startContainer?scopeRange.startOffset:0;const hi=scopeRange&&nodes[index]===scopeRange.endContainer?scopeRange.endOffset:text.length;return{lo,hi}};
   const selection=getSelection();const active=selection?.rangeCount&&editor.current.contains(selection.anchorNode)?selection.getRangeAt(0):null;
-  let startIndex=0,startOffset=0;if(active){const at=nodes.indexOf(active.endContainer as Text);if(at>=0){startIndex=at;startOffset=active.endOffset}}
-  const searchNode=(index:number,fromOffset:number)=>{const text=nodes[index].textContent??"";let offset=fromOffset;while(offset<=text.length){const found=regex.exec(text.slice(offset));if(!found)return null;const at=offset+found.index;if(!options.formatHighlight||hasSearchHighlight(nodes[index].parentElement))return{at,length:found[0].length};offset=at+Math.max(1,found[0].length)}return null};
-  const search=(from:number,fromOffset:number,to:number)=>{for(let index=from;index<to;index++){const found=searchNode(index,index===from?fromOffset:0);if(found)return{index,...found}}return null};
-  const match=search(startIndex,startOffset,nodes.length)??search(0,0,startIndex+1);
+  let startIndex=0,startOffset=bounds(0).lo;if(active){const at=nodes.indexOf(active.endContainer as Text);if(at>=0){startIndex=at;startOffset=Math.max(active.endOffset,bounds(at).lo)}}
+  const searchNode=(index:number,fromOffset:number)=>{const text=nodes[index].textContent??"";const{lo,hi}=bounds(index);let offset=Math.max(fromOffset,lo);while(offset<=hi){const found=regex.exec(text.slice(offset,hi));if(!found)return null;const at=offset+found.index;if(at+found[0].length>hi)return null;if(!options.formatHighlight||hasSearchHighlight(nodes[index].parentElement))return{at,length:found[0].length};offset=at+Math.max(1,found[0].length)}return null};
+  const search=(from:number,fromOffset:number,to:number)=>{for(let index=from;index<to;index++){const found=searchNode(index,index===from?fromOffset:bounds(index).lo);if(found)return{index,...found}}return null};
+  const match=search(startIndex,startOffset,nodes.length)??search(0,bounds(0).lo,startIndex+1);
   if(!match)return false;
   const range=document.createRange();range.setStart(nodes[match.index],match.at);range.setEnd(nodes[match.index],match.at+match.length);
   selection?.removeAllRanges();selection?.addRange(range);savedRange.current=range;range.startContainer.parentElement?.scrollIntoView({block:"center"});
   return true;
  };
- const find=(replace:boolean)=>{const bookmarks=editor.current?[...editor.current.querySelectorAll("[data-bookmark]")].map(element=>(element as HTMLElement).dataset.bookmark).filter((value):value is string=>Boolean(value)):[];setDialog({kind:"findReplace",mode:replace?"replace":"find",query,replacement:"",matchCase:false,wholeWord:false,wildcards:false,matchPrefix:false,matchSuffix:false,ignorePunctuation:false,ignoreWhitespace:false,formatHighlight:false,bookmarks})};
- const runFindNext=(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS)=>{if(!needle){setMessage("Type something in Find what.");return}setQuery(needle);const found=findNext(needle,options);setMessage(found?`Found "${needle}".`:`"${needle}" was not found.`)};
- const runReplaceOne=(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS)=>{if(!needle)return;setQuery(needle);const selection=getSelection();const regex=buildFindRegex(needle,options);if(regex&&selection?.rangeCount&&!selection.isCollapsed){const text=selection.toString();const found=regex.exec(text);if(found&&found.index===0&&found[0].length===text.length)exec("insertText",replacement)}runFindNext(needle,options)};
- const runReplaceAll=(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS)=>{
+ const find=(replace:boolean)=>{
+  const bookmarks=editor.current?[...editor.current.querySelectorAll("[data-bookmark]")].map(element=>(element as HTMLElement).dataset.bookmark).filter((value):value is string=>Boolean(value)):[];
+  // Captured now, while the document's own selection is still live -- by
+  // the time the admin types into this dialog's inputs and clicks Find
+  // Next/Replace/Replace All, getSelection() no longer reflects it.
+  const selection=getSelection();
+  const scopeRange=selection&&selection.rangeCount&&!selection.isCollapsed&&editor.current&&editor.current.contains(selection.anchorNode)&&editor.current.contains(selection.focusNode)?selection.getRangeAt(0).cloneRange():null;
+  findScopeRange.current=scopeRange;
+  setDialog({kind:"findReplace",mode:replace?"replace":"find",query,replacement:"",matchCase:false,wholeWord:false,wildcards:false,matchPrefix:false,matchSuffix:false,ignorePunctuation:false,ignoreWhitespace:false,formatHighlight:false,bookmarks,hadSelection:Boolean(scopeRange)});
+ };
+ const runFindNext=(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"|"document"="document")=>{if(!needle){setMessage("Type something in Find what.");return}setQuery(needle);const found=findNext(needle,options,scope);setMessage(found?`Found "${needle}"${scope==="selection"?" in the selection":""}.`:`"${needle}" was not found${scope==="selection"?" in the selection":""}.`)};
+ const runReplaceOne=(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"|"document"="document")=>{if(!needle)return;setQuery(needle);const selection=getSelection();const regex=buildFindRegex(needle,options);if(regex&&selection?.rangeCount&&!selection.isCollapsed){const text=selection.toString();const found=regex.exec(text);if(found&&found.index===0&&found[0].length===text.length)exec("insertText",replacement)}runFindNext(needle,options,scope)};
+ const runReplaceAll=(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"|"document"="document")=>{
   if(!needle||!editor.current)return;
   setQuery(needle);
   const regex=buildFindRegex(needle,options,true);
   if(!regex){setMessage(`"${needle}" was not found.`);return}
-  // A non-collapsed selection inside the editor scopes Replace All to just
-  // that selection (e.g. one selected paragraph) instead of the whole
-  // document -- selecting text first and then choosing "not other
-  // paragraphs" is the expected, safer default for this app's admins.
-  // With nothing selected, it still replaces every occurrence, same as
-  // before.
-  const selection=getSelection();
-  const scopeRange=selection&&selection.rangeCount&&!selection.isCollapsed&&editor.current.contains(selection.anchorNode)&&editor.current.contains(selection.focusNode)?selection.getRangeAt(0):null;
+  // scope comes from the "Find in" choice in the dialog, backed by the
+  // range captured once when the dialog was opened (findScopeRange) --
+  // not a fresh getSelection() read, which by now reflects the dialog's
+  // own inputs, not the document. See findScopeRange's own comment.
+  const scopeRange=scope==="selection"?findScopeRange.current:null;
   const walker=document.createTreeWalker(editor.current,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];for(let node=walker.nextNode();node;node=walker.nextNode())nodes.push(node as Text);
   let count=0;
   for(const node of nodes){
@@ -557,7 +574,7 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
 }
 
 function active(id:string,view:ViewState){return(id==="ruler"&&view.ruler)||(id==="gridlines"&&view.gridlines)||(id==="documentMap"&&view.documentMap)||(id==="thumbnails"&&view.thumbnails)||(["formattingMarks","viewFormattingMarks"].includes(id)&&view.formattingMarks)||(id==="statusBar"&&view.statusBar)||(id==="printLayout"&&view.mode==="print")||(id==="fullScreenReading"&&view.mode==="reading")||(id==="webLayout"&&view.mode==="web")||(id==="outlineView"&&view.mode==="outline")||(id==="draftView"&&view.mode==="draft")}
-function CommandDialog({dialog,onClose,onOpenCustomTable,onInsertTable,onSymbol,onMargins,onWatermark,onPageColor,onColumns,onPageSize,onTableEdit,onLineSpacingOptions,onFindNext,onReplaceOne,onReplaceAll,onGoTo,onZoom,onSort,onPageNumber,onRemovePageNumbers,onFont,onParagraph,onHeaderFooterPick,onHeaderFooterEdit,onHeaderFooterRemove,onHeaderFooterSave,onDropCap}:{dialog:DialogState;onClose:()=>void;onOpenCustomTable:()=>void;onInsertTable:(rows:number,cols:number,layout?:string)=>void;onSymbol:(value:string)=>void;onMargins:(top:string,right:string,bottom:string,left:string)=>void;onWatermark:(value:string)=>void;onPageColor:(value:string)=>void;onColumns:(value:string)=>void;onPageSize:(value:string)=>void;onTableEdit:(action:string)=>void;onLineSpacingOptions:(before:string,after:string,specialIndentMode:string,specialIndentAmount:string)=>void;onFindNext:(needle:string,options:FindOptions)=>void;onReplaceOne:(needle:string,replacement:string,options:FindOptions)=>void;onReplaceAll:(needle:string,replacement:string,options:FindOptions)=>void;onGoTo:(kind:string,value:string)=>void;onZoom:(value:string)=>void;onSort:(value:string)=>void;onPageNumber:(position:string,alignment:string,style:string,format:string,startAt:string)=>void;onRemovePageNumbers:()=>void;onFont:(values:Extract<DialogState,{kind:"font"}>)=>void;onParagraph:(values:Extract<DialogState,{kind:"paragraph"}>)=>void;onHeaderFooterPick:(which:"header"|"footer",innerHtml:string)=>void;onHeaderFooterEdit:(which:"header"|"footer")=>void;onHeaderFooterRemove:(which:"header"|"footer")=>void;onHeaderFooterSave:(which:"header"|"footer")=>void;onDropCap:(mode:string,fontFamily:string,lines:string,distance:string)=>void}){
+function CommandDialog({dialog,onClose,onOpenCustomTable,onInsertTable,onSymbol,onMargins,onWatermark,onPageColor,onColumns,onPageSize,onTableEdit,onLineSpacingOptions,onFindNext,onReplaceOne,onReplaceAll,onGoTo,onZoom,onSort,onPageNumber,onRemovePageNumbers,onFont,onParagraph,onHeaderFooterPick,onHeaderFooterEdit,onHeaderFooterRemove,onHeaderFooterSave,onDropCap}:{dialog:DialogState;onClose:()=>void;onOpenCustomTable:()=>void;onInsertTable:(rows:number,cols:number,layout?:string)=>void;onSymbol:(value:string)=>void;onMargins:(top:string,right:string,bottom:string,left:string)=>void;onWatermark:(value:string)=>void;onPageColor:(value:string)=>void;onColumns:(value:string)=>void;onPageSize:(value:string)=>void;onTableEdit:(action:string)=>void;onLineSpacingOptions:(before:string,after:string,specialIndentMode:string,specialIndentAmount:string)=>void;onFindNext:(needle:string,options:FindOptions,scope:"selection"|"document")=>void;onReplaceOne:(needle:string,replacement:string,options:FindOptions,scope:"selection"|"document")=>void;onReplaceAll:(needle:string,replacement:string,options:FindOptions,scope:"selection"|"document")=>void;onGoTo:(kind:string,value:string)=>void;onZoom:(value:string)=>void;onSort:(value:string)=>void;onPageNumber:(position:string,alignment:string,style:string,format:string,startAt:string)=>void;onRemovePageNumbers:()=>void;onFont:(values:Extract<DialogState,{kind:"font"}>)=>void;onParagraph:(values:Extract<DialogState,{kind:"paragraph"}>)=>void;onHeaderFooterPick:(which:"header"|"footer",innerHtml:string)=>void;onHeaderFooterEdit:(which:"header"|"footer")=>void;onHeaderFooterRemove:(which:"header"|"footer")=>void;onHeaderFooterSave:(which:"header"|"footer")=>void;onDropCap:(mode:string,fontFamily:string,lines:string,distance:string)=>void}){
  if(typeof document==="undefined")return null;
  // Real Word dialogs are movable by holding their title bar. Every dialog
  // here shares this one drag handle instead of each Form implementing its
@@ -819,10 +836,14 @@ const FORMAT_ITEMS:{label:string;action?:"highlight";disabledReason?:string}[]=[
 const GOTO_KINDS:{id:string;label:string;working:boolean}[]=[
  {id:"page",label:"Page",working:true},{id:"section",label:"Section",working:false},{id:"line",label:"Line",working:false},{id:"bookmark",label:"Bookmark",working:true},{id:"comment",label:"Comment",working:false},{id:"footnote",label:"Footnote",working:false},{id:"endnote",label:"Endnote",working:false},{id:"field",label:"Field",working:false},{id:"table",label:"Table",working:true},{id:"graphic",label:"Graphic",working:false},{id:"equation",label:"Equation",working:false},{id:"object",label:"Object",working:false},{id:"heading",label:"Heading",working:false},
 ];
-function FindReplaceForm({dialog,onFindNext,onReplaceOne,onReplaceAll,onGoTo}:{dialog:Extract<DialogState,{kind:"findReplace"}>;onFindNext:(needle:string,options:FindOptions)=>void;onReplaceOne:(needle:string,replacement:string,options:FindOptions)=>void;onReplaceAll:(needle:string,replacement:string,options:FindOptions)=>void;onGoTo:(kind:string,value:string)=>void}){
+function FindReplaceForm({dialog,onFindNext,onReplaceOne,onReplaceAll,onGoTo}:{dialog:Extract<DialogState,{kind:"findReplace"}>;onFindNext:(needle:string,options:FindOptions,scope:"selection"|"document")=>void;onReplaceOne:(needle:string,replacement:string,options:FindOptions,scope:"selection"|"document")=>void;onReplaceAll:(needle:string,replacement:string,options:FindOptions,scope:"selection"|"document")=>void;onGoTo:(kind:string,value:string)=>void}){
  const[tab,setTab]=useState(dialog.mode);
  const[query,setQuery]=useState(dialog.query),[replacement,setReplacement]=useState(dialog.replacement);
  const[showMore,setShowMore]=useState(false);
+ // Only offered when text was actually selected before Find and Replace
+ // was opened (dialog.hadSelection) -- with nothing selected there is no
+ // "selection" to scope to, so it's always "Whole document" in that case.
+ const[scope,setScope]=useState<"selection"|"document">(dialog.hadSelection?"selection":"document");
  const[options,setOptions]=useState<FindOptions>({matchCase:dialog.matchCase,wholeWord:dialog.wholeWord,wildcards:dialog.wildcards,matchPrefix:dialog.matchPrefix,matchSuffix:dialog.matchSuffix,ignorePunctuation:dialog.ignorePunctuation,ignoreWhitespace:dialog.ignoreWhitespace,formatHighlight:dialog.formatHighlight});
  const[specialOpen,setSpecialOpen]=useState(false),[formatOpen,setFormatOpen]=useState(false);
  const[gotoKind,setGotoKind]=useState("page"),[gotoValue,setGotoValue]=useState("");
@@ -837,6 +858,13 @@ function FindReplaceForm({dialog,onFindNext,onReplaceOne,onReplaceAll,onGoTo}:{d
   {tab!=="goto"&&<div className="mt-4">
    <label className="block text-xs font-bold">Find what:<input autoFocus className="input mt-1 w-full" value={query} onChange={event=>setQuery(event.target.value)}/></label>
    {tab==="replace"&&<label className="mt-3 block text-xs font-bold">Replace with:<input className="input mt-1 w-full" value={replacement} onChange={event=>setReplacement(event.target.value)}/></label>}
+   {dialog.hadSelection&&<div className="mt-3">
+    <p className="text-xs font-bold">Find in:</p>
+    <div className="mt-1 flex gap-2">
+     <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>setScope("selection")} aria-pressed={scope==="selection"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${scope==="selection"?"border-blue-700 bg-blue-50 text-blue-800":"border-slate-300 text-slate-600"}`}>Selected text</button>
+     <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>setScope("document")} aria-pressed={scope==="document"} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${scope==="document"?"border-blue-700 bg-blue-50 text-blue-800":"border-slate-300 text-slate-600"}`}>Whole document</button>
+    </div>
+   </div>}
    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>setShowMore(value=>!value)} className="mt-3 text-xs font-black text-blue-800">{showMore?"<< Less":"More >>"}</button>
    {showMore&&<div className="mt-3 rounded-lg border border-slate-200 p-3">
     <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Search Options</p>
@@ -860,8 +888,8 @@ function FindReplaceForm({dialog,onFindNext,onReplaceOne,onReplaceAll,onGoTo}:{d
     {options.formatHighlight&&<p className="mt-2 text-[11px] font-bold text-cyan-800">Format: Highlight — only matches with a highlight color applied will be found.</p>}
    </div>}
    <div className="mt-4 flex flex-wrap gap-2">
-    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onFindNext(query,options)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white">Find Next</button>
-    {tab==="replace"&&<><button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onReplaceOne(query,replacement,options)} className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-black text-blue-800">Replace</button><button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onReplaceAll(query,replacement,options)} className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-black text-blue-800">Replace All</button></>}
+    <button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onFindNext(query,options,scope)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white">Find Next</button>
+    {tab==="replace"&&<><button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onReplaceOne(query,replacement,options,scope)} className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-black text-blue-800">Replace</button><button type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>onReplaceAll(query,replacement,options,scope)} className="rounded-lg border border-blue-700 px-4 py-2 text-sm font-black text-blue-800">Replace All</button></>}
    </div>
   </div>}
   {tab==="goto"&&<div className="mt-4 grid grid-cols-[128px_1fr] gap-3">

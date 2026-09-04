@@ -62,6 +62,6 @@ test("Find, Replace, and Go To all route through the shared FindOptions matcher 
   const [editor, lib] = await Promise.all([read(EDITOR), read("lib/word-find-replace.ts")]);
   assert.match(lib, /export function buildFindRegex/);
   assert.match(editor, /import \{ buildFindRegex, DEFAULT_FIND_OPTIONS, type FindOptions \} from "@\/lib\/word-find-replace";/);
-  assert.match(editor, /const findNext=\(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS\)=>\{/);
-  assert.match(editor, /const runReplaceAll=\(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS\)=>\{/);
+  assert.match(editor, /const findNext=\(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"\|"document"="document"\)=>\{/);
+  assert.match(editor, /const runReplaceAll=\(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"\|"document"="document"\)=>\{/);
 });
