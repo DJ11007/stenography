@@ -1,4 +1,4 @@
-import assert from"node:assert/strict";import test from"node:test";import{Window}from"happy-dom";import{adjustParagraphIndent,applyParagraphStyle,changeEditorRangeCase,clearEditorRangeFormatting,replaceEditorText,selectedEditorBlocks,snapshotPaintStyle,wrapEditorRange}from"../lib/word-editor-dom.ts";
+import assert from"node:assert/strict";import test from"node:test";import{Window}from"happy-dom";import{adjustParagraphIndent,applyParagraphStyle,changeEditorRangeCase,clearEditorRangeFormatting,parseInches,replaceEditorText,selectedEditorBlocks,snapshotPaintStyle,wrapEditorRange}from"../lib/word-editor-dom.ts";
 
 function documentWithMatter(){const window=new Window(),document=window.document;document.body.innerHTML='<div id="editor" contenteditable="true"><p id="p1" style="margin-right:0in">Alpha beta</p><p id="p2" style="margin-right:0in">Gamma delta</p><p id="p3">Omega</p></div>';return{window,document,editor:document.querySelector("#editor")}}
 
@@ -19,6 +19,27 @@ test("a collapsed cursor (no real selection) resolves to exactly the one block i
 });
 
 test("applying line spacing to a collapsed cursor's paragraph never touches the next paragraph",()=>{const{document,editor}=documentWithMatter(),cursor=document.createRange();cursor.setStart(document.querySelector("#p1").firstChild,10);cursor.collapse(true);const blocks=selectedEditorBlocks(editor,cursor);assert.equal(applyParagraphStyle(blocks,{lineHeight:"2.5"}),true);assert.equal(document.querySelector("#p1").style.lineHeight,"2.5");assert.equal(document.querySelector("#p2").style.lineHeight,"")});
+
+// Real reported bug, traced live: reopening the Paragraph dialog on a
+// paragraph whose margin happens to be stored in "pt" (or "px") -- e.g.
+// leftover data from before this app's own collapsed-cursor selection fix,
+// or any pt-native source -- showed the RAW number as if it were already
+// inches (Number.parseFloat("88.56pt") = 88.56), not the correct
+// 88.56/72 = 1.23 inches. parseInches() is the one place every "give me
+// this stored length as inches" call must go through instead of a bare
+// parseFloat, mirroring the exact px-taken-as-pt bug already fixed once
+// for font size.
+test("parseInches converts pt and px lengths to inches, and treats a bare number or missing unit as already-inches",()=>{
+ assert.equal(parseInches("88.56pt"),1.23);
+ assert.equal(parseInches("117.36pt"),1.63);
+ assert.equal(parseInches("96px"),1);
+ assert.equal(parseInches("1.23in"),1.23);
+ assert.equal(parseInches("1.23"),1.23);
+ assert.equal(parseInches(""),0);
+ assert.equal(parseInches(null),0);
+ assert.equal(parseInches(undefined),0);
+ assert.equal(parseInches("not a length"),0);
+});
 
 test("exact point styles wrap only selected characters and preserve paragraph margins",()=>{const{document}=documentWithMatter(),paragraph=document.querySelector("#p1"),range=document.createRange();range.setStart(paragraph.firstChild,0);range.setEnd(paragraph.firstChild,5);const wrapped=wrapEditorRange(range,{fontFamily:"Arial",fontSize:"14pt",fontWeight:"700",color:"rgb(192, 0, 0)"});assert.ok(wrapped);assert.equal(paragraph.textContent,"Alpha beta");assert.equal(wrapped.span.textContent,"Alpha");assert.equal(wrapped.span.style.fontSize,"14pt");assert.equal(wrapped.span.style.fontFamily,"Arial");assert.equal(paragraph.style.marginRight,"0in")});
 

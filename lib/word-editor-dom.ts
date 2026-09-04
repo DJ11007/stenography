@@ -41,4 +41,13 @@ export function clearEditorRangeFormatting(range:Range){const value=range.toStri
 
 export function replaceEditorText(root:HTMLElement,needle:string,replacement:string){if(!needle)return 0;let count=0;const document=root.ownerDocument,walker=document.createTreeWalker(root,4);for(let node=walker.nextNode();node;node=walker.nextNode()){const text=node.textContent??"",parts=text.split(needle);if(parts.length>1){count+=parts.length-1;node.textContent=parts.join(replacement)}}return count}
 
-export function adjustParagraphIndent(blocks:HTMLElement[],direction:-1|1,stepInches=.25){for(const block of blocks){const raw=block.style.marginLeft.trim(),match=raw.match(/^(-?\d+(?:\.\d+)?)\s*(in|pt|px)?$/i);let inches=0;if(match){const amount=Number(match[1]),unit=(match[2]??"in").toLowerCase();inches=unit==="pt"?amount/72:unit==="px"?amount/96:amount}block.style.marginLeft=`${Math.max(0,inches+direction*stepInches)}in`}return blocks.length>0}
+// A stored CSS length can be in any unit -- most of this app writes "in",
+// but some paths (and any pt-native source, like a real .docx import)
+// write "pt", and the browser's own getComputedStyle always reports "px".
+// A bare Number.parseFloat() on a value like "88.56pt" silently returns
+// 88.56 as if it were already inches -- the exact bug already fixed once
+// for font size (px taken literally as pt) -- so every place that needs a
+// stored length AS INCHES must go through this, never parseFloat directly.
+export function parseInches(raw:string|null|undefined):number{const match=(raw??"").trim().match(/^(-?\d+(?:\.\d+)?)\s*(in|pt|px)?$/i);if(!match)return 0;const amount=Number(match[1]),unit=(match[2]??"in").toLowerCase();return unit==="pt"?amount/72:unit==="px"?amount/96:amount}
+
+export function adjustParagraphIndent(blocks:HTMLElement[],direction:-1|1,stepInches=.25){for(const block of blocks){const inches=parseInches(block.style.marginLeft);block.style.marginLeft=`${Math.max(0,inches+direction*stepInches)}in`}return blocks.length>0}
