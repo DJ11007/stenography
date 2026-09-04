@@ -405,18 +405,19 @@ main > section.bg-slate-950 a[href="/typing/learn"]:hover {
 .word-underline-colors { position: absolute; left: 174px; bottom: 0; display: grid; grid-template-columns: repeat(4,24px); gap: 4px; border: 1px solid #aaa; background: #fff; padding: 7px; box-shadow: 0 3px 8px rgb(0 0 0 / .25); }
 .word-underline-colors button { width: 24px; height: 24px; border: 1px solid #777; }
 .word-ribbon-select { display: flex; height: 27px; align-items: center; }
-.word-ribbon-select select { height: 24px; border: 1px solid #aaa; border-radius: 0; background: #fff; padding: 0 3px; color: #222; font-size: 10px; }
+.word-ribbon-select select, .word-ribbon-select input { height: 24px; border: 1px solid #aaa; border-radius: 0; background: #fff; padding: 0 3px; color: #222; font-size: 10px; }
 .word-ribbon-font select { width: 96px; }
 .word-font-picker { position: relative; width: 100%; height: 27px; z-index: 4; }
-.word-font-picker > button { display: flex; width: 100%; height: 24px; align-items: center; justify-content: space-between; gap: 4px; border: 1px solid #aaa; background: #fff; padding: 0 4px; color: #222; font-size: 10px; }
-.word-font-picker > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.word-font-picker > input { display: flex; width: 100%; height: 24px; align-items: center; border: 1px solid #aaa; background: #fff; padding: 0 4px; color: #222; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .word-font-gallery { position: absolute; top: 25px; left: 0; width: 286px; max-height: 430px; overflow-y: auto; border: 1px solid #999; background: #fff; color: #222; box-shadow: 0 4px 10px rgb(0 0 0 / .3); }
-.word-font-gallery > input { position: sticky; top: 0; z-index: 1; width: 100%; height: 28px; border: 0; border-bottom: 1px solid #aaa; background: #fff; padding: 3px 7px; font: 12px "Segoe UI",sans-serif; }
 .word-font-gallery section h3 { margin: 0; background: #e7e7e7; padding: 3px 8px; color: #666; font: 600 12px "Segoe UI",sans-serif; }
 .word-font-gallery section > button { display: flex; width: 100%; min-height: 28px; align-items: center; justify-content: space-between; border: 0; background: #fff; padding: 3px 9px 3px 26px; text-align: left; font-size: 15px; }
 .word-font-gallery section > button:hover, .word-font-gallery section > button:focus-visible { background: #dceeff; outline: 1px solid #79a7d3; }
 .word-font-gallery small { font: 11px "Segoe UI",sans-serif; }
-.word-ribbon-size select { width: 48px; }
+.word-ribbon-size select, .word-ribbon-size input { width: 48px; }
+.word-size-gallery { position: fixed; z-index: 5; width: 56px; max-height: 260px; overflow-y: auto; border: 1px solid #999; background: #fff; color: #222; box-shadow: 0 4px 10px rgb(0 0 0 / .3); }
+.word-size-gallery button { display: block; width: 100%; border: 0; background: #fff; padding: 4px 8px; text-align: left; font-size: 12px; }
+.word-size-gallery button:hover, .word-size-gallery button:focus-visible { background: #dceeff; outline: 1px solid #79a7d3; }
 .word-ribbon-color input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .word-ribbon-color-icon { display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .word-ribbon-color-bar { width: 15px; height: 3px; border: 1px solid rgb(0 0 0 / .18); border-radius: 1px; }

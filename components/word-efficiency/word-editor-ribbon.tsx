@@ -94,7 +94,7 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
 function RibbonControl({ option, capabilities, preview, active, onCommand, onFontChange, onFontSizeChange, onColorChange,onUnderlineChange,onValueCommand,currentFontFamily }: { option: RibbonOption; capabilities: HierarchicalEditorCapabilities; preview: boolean; active: boolean; onCommand?: (id: string) => void; onFontChange?: (font: string) => void; onFontSizeChange?: (size: number) => void; onColorChange?: (id: string, color: string) => void;onUnderlineChange?:(style:string,color?:string)=>void;onValueCommand?:(id:string,value:string)=>void;currentFontFamily?:string }) {
   const[swatch,setSwatch]=useState(()=>defaultSwatch(option.id));
   if (option.id === "fontName") return <FontGallery fonts={capabilities.fonts} preview={preview} onChange={onFontChange} currentFontFamily={currentFontFamily}/>;
-  if (option.id === "fontSize") return <label data-ribbon-option={option.id} className="word-ribbon-select word-ribbon-size"><span className="sr-only">{option.label}</span><select aria-label={option.label} disabled={preview} defaultValue="11" onChange={event => {const size=Number(event.target.value);if(!preview)window.dispatchEvent(new CustomEvent("word-editor-font-size",{detail:size}));else onFontSizeChange?.(size)}}>{[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].filter(size => size >= capabilities.fontSizeMin && size <= capabilities.fontSizeMax).map(size => <option key={size}>{size}</option>)}</select></label>;
+  if (option.id === "fontSize") return <FontSizeBox label={option.label} preview={preview} min={capabilities.fontSizeMin} max={capabilities.fontSizeMax} onChange={size => { if (!preview) window.dispatchEvent(new CustomEvent("word-editor-font-size", { detail: size })); else onFontSizeChange?.(size); }}/>;
   if (["highlightColor", "fontColor", "shading"].includes(option.id)) return <ColorSplitButton option={option} preview={preview} swatch={swatch} setSwatch={setSwatch} onChange={onColorChange}/>;
   if (option.id === "pageColor") return <label data-ribbon-option={option.id} className="word-ribbon-tool word-ribbon-color" title={option.label} aria-disabled={preview}><span className="word-ribbon-color-icon"><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></span><span>{option.label}</span><input aria-label={option.label} disabled={preview} type="color" onChange={event => { setSwatch(event.target.value); onColorChange?.(option.id, event.target.value); }}/></label>;
   if(option.id==="underline")return <UnderlineSplitButton preview={preview} active={active} onChange={onUnderlineChange}/>;
@@ -118,18 +118,56 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   const disabled = preview || Boolean(option.unsupported);
   return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-description={option.unsupported} aria-haspopup={option.menu ? "menu" : undefined} aria-pressed={active || undefined} disabled={disabled} title={option.unsupported ?? option.label} onMouseDown={event => { if (!disabled) event.preventDefault(); }} onClick={() => onCommand?.(option.id === "zoom" ? "zoom100" : option.id)}><RibbonIcon id={option.id}/><span>{option.label}{option.menu && <i aria-hidden>▾</i>}</span></button>;
 }
+// Real reported bug: the old font size control was a plain <select> limited
+// to a fixed preset list ([8,9,10,...72]) -- there was literally no way to
+// type an exact or decimal value like 2.5 or 18.5, matching neither this
+// exam tool's own capabilities.fontSizeMin/Max range nor real MS Word,
+// where the size box is an editable combobox: click it, the current value
+// is selected so you can type over it, or open the dropdown for a preset.
+// Typed values are rounded to the nearest half point (2.5, 18.5, 75.5, ...)
+// per the admin's own examples, then clamped to [min,max].
+const FONT_SIZE_PRESETS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
+function FontSizeBox({ label, preview, min, max, onChange }: { label: string; preview: boolean; min: number; max: number; onChange: (size: number) => void }) {
+  const [text, setText] = useState("11");
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<CSSProperties>({});
+  const inputRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => { if (!open) return; const rect = inputRef.current?.getBoundingClientRect(); if (rect) setPosition({ position: "fixed", left: Math.max(4, Math.min(rect.left, window.innerWidth - 70)), top: rect.bottom + 2, right: "auto", bottom: "auto" }); }, [open]);
+  const commit = (raw: string) => {
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed)) { setText("11"); return; }
+    const clamped = Math.round(Math.min(max, Math.max(min, parsed)) * 2) / 2;
+    setText(String(clamped));
+    onChange(clamped);
+  };
+  const presets = FONT_SIZE_PRESETS.filter(size => size >= min && size <= max);
+  const gallery = open && typeof document !== "undefined" ? createPortal(<div className="word-size-gallery" role="listbox" aria-label={`${label} presets`} style={position}>{presets.map(size => <button key={size} type="button" role="option" onMouseDown={event => event.preventDefault()} onClick={() => { commit(String(size)); setOpen(false); }}>{size}</button>)}</div>, document.body) : null;
+  return <label data-ribbon-option="fontSize" className="word-ribbon-select word-ribbon-size">
+    <span className="sr-only">{label}</span>
+    <input ref={inputRef} aria-label={label} role="combobox" aria-haspopup="listbox" aria-expanded={open} disabled={preview} type="text" inputMode="decimal" value={text} onFocus={event => { setOpen(true); event.target.select(); }} onChange={event => setText(event.target.value)} onBlur={event => { commit(event.target.value); setOpen(false); }} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); commit((event.target as HTMLInputElement).value); setOpen(false); (event.target as HTMLInputElement).blur(); } else if (event.key === "Escape") { event.preventDefault(); setOpen(false); (event.target as HTMLInputElement).blur(); } }}/>
+    {gallery}
+  </label>;
+}
 const RECENT_FONTS_KEY="word-efficiency-recent-fonts";
+// Real reported request: the old control was a button showing the current
+// font, which only opened a separate, always-blank "Search fonts" input --
+// clicking into the box itself didn't select the current name or let you
+// type over it, unlike real MS Word's font box (an editable combobox: click
+// it, the current font name is selected so typing immediately searches/
+// replaces it). Now the box itself is the input: `text` is both what's
+// displayed and, while open, the live search query filtering the gallery
+// below it.
 function FontGallery({fonts,preview,onChange,currentFontFamily}:{fonts:string[];preview:boolean;onChange?:(font:string)=>void;currentFontFamily?:string}){
-  const[open,setOpen]=useState(false),[query,setQuery]=useState(""),[selected,setSelected]=useState(currentFontFamily||"Calibri (Body)"),[recent,setRecent]=useState<string[]>([]),[position,setPosition]=useState<CSSProperties>({});
-  const buttonRef=useRef<HTMLButtonElement>(null);
-  useEffect(()=>{if(currentFontFamily&&currentFontFamily!==selected&&!open)setSelected(currentFontFamily)},[currentFontFamily]);
-  useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-290)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
+  const[open,setOpen]=useState(false),[selected,setSelected]=useState(currentFontFamily||"Calibri (Body)"),[text,setText]=useState(selected),[query,setQuery]=useState(""),[recent,setRecent]=useState<string[]>([]),[position,setPosition]=useState<CSSProperties>({});
+  const inputRef=useRef<HTMLInputElement>(null);
+  useEffect(()=>{if(currentFontFamily&&currentFontFamily!==selected&&!open){setSelected(currentFontFamily);setText(currentFontFamily)}},[currentFontFamily]);
+  useLayoutEffect(()=>{if(!open)return;const rect=inputRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-290)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
   useEffect(()=>{try{const value=JSON.parse(localStorage.getItem(RECENT_FONTS_KEY)??"[]");if(Array.isArray(value))setRecent(value.filter((font):font is string=>typeof font==="string"&&fonts.includes(font)).slice(0,8))}catch{}},[fonts]);
-  const choose=(font:string)=>{if(preview||!fonts.includes(font))return;setSelected(font);setOpen(false);setQuery("");const next=[font,...recent.filter(item=>item!==font)].slice(0,8);setRecent(next);try{localStorage.setItem(RECENT_FONTS_KEY,JSON.stringify(next))}catch{}onChange?.(font)};
+  const choose=(font:string)=>{if(preview||!fonts.includes(font))return;setSelected(font);setText(font);setOpen(false);setQuery("");const next=[font,...recent.filter(item=>item!==font)].slice(0,8);setRecent(next);try{localStorage.setItem(RECENT_FONTS_KEY,JSON.stringify(next))}catch{}onChange?.(font)};
   const filter=(items:readonly string[])=>items.filter(font=>fonts.includes(font)&&font.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const theme=filter(WORD_THEME_FONTS),recentFonts=filter(recent),all=filter(fonts.filter(font=>!WORD_THEME_FONTS.includes(font as typeof WORD_THEME_FONTS[number])));
-  const gallery=open&&typeof document!=="undefined"?createPortal(<div className="word-font-gallery" role="listbox" aria-label="Font family" style={position}><input autoFocus aria-label="Search fonts" placeholder="Search fonts" value={query} onChange={event=>setQuery(event.target.value)} onMouseDown={event=>event.stopPropagation()}/><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>,document.body):null;
-  return <div data-ribbon-option="fontName" className="word-font-picker"><button ref={buttonRef} type="button" aria-label="Font family" aria-haspopup="listbox" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span style={{fontFamily:fontCssName(selected)}}>{selected}</span><i aria-hidden>▾</i></button>{gallery}</div>
+  const gallery=open&&typeof document!=="undefined"?createPortal(<div className="word-font-gallery" role="listbox" aria-label="Font family" style={position}><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>,document.body):null;
+  return <div data-ribbon-option="fontName" className="word-font-picker"><input ref={inputRef} aria-label="Font family" role="combobox" aria-haspopup="listbox" aria-expanded={open} disabled={preview} style={{fontFamily:fontCssName(text)}} value={text} onFocus={event=>{setOpen(true);setQuery("");event.target.select();}} onChange={event=>{setText(event.target.value);setQuery(event.target.value);}} onBlur={()=>{setOpen(false);setQuery("");setText(selected);}} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();const exact=fonts.find(font=>font.toLocaleLowerCase()===text.toLocaleLowerCase());if(exact)choose(exact);}else if(event.key==="Escape"){event.preventDefault();(event.target as HTMLInputElement).blur();}}}/>{gallery}</div>
 }
 function FontSection({title,fonts,choose}:{title:string;fonts:readonly string[];choose:(font:string)=>void}){if(!fonts.length)return null;return <section><h3>{title}</h3>{fonts.map(font=><button role="option" type="button" key={font} style={{fontFamily:fontCssName(font)}} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(font)}><span>{font.replace(/ \((?:Headings|Body)\)$/u,"")}</span>{font.endsWith("(Headings)")&&<small>(Headings)</small>}{font.endsWith("(Body)")&&<small>(Body)</small>}</button>)}</section>}
 function fontCssName(font:string){return font.replace(/ \((?:Headings|Body)\)$/u,"")}
