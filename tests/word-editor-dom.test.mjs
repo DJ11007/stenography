@@ -4,6 +4,22 @@ function documentWithMatter(){const window=new Window(),document=window.document
 
 test("multi-paragraph Range scope returns every intersected block and no unrelated block",()=>{const{document,editor}=documentWithMatter(),range=document.createRange();range.setStart(document.querySelector("#p1").firstChild,6);range.setEnd(document.querySelector("#p2").firstChild,5);assert.deepEqual(selectedEditorBlocks(editor,range).map(block=>block.id),["p1","p2"])});
 
+// Real reported bug: setting line spacing (a paragraph-level style applied
+// via selectedBlocks()/selectedEditorBlocks()) on a collapsed cursor placed
+// in paragraph one also applied it to paragraph two. Range.intersectsNode()
+// -- previously used for every case, collapsed or not -- is documented to
+// be ambiguous for a collapsed range sitting at a block boundary; a
+// collapsed cursor must always resolve to exactly the one block it's
+// actually in, regardless of where inside that block it sits.
+test("a collapsed cursor (no real selection) resolves to exactly the one block it's in, never a neighboring block",()=>{const{document,editor}=documentWithMatter();
+ const midP1=document.createRange();midP1.setStart(document.querySelector("#p1").firstChild,5);midP1.collapse(true);assert.deepEqual(selectedEditorBlocks(editor,midP1).map(block=>block.id),["p1"]);
+ const endOfP1Text=document.createRange();endOfP1Text.setStart(document.querySelector("#p1").firstChild,10);endOfP1Text.collapse(true);assert.deepEqual(selectedEditorBlocks(editor,endOfP1Text).map(block=>block.id),["p1"]);
+ const startOfP2=document.createRange();startOfP2.setStart(document.querySelector("#p2").firstChild,0);startOfP2.collapse(true);assert.deepEqual(selectedEditorBlocks(editor,startOfP2).map(block=>block.id),["p2"]);
+ const onP1ElementItself=document.createRange();onP1ElementItself.setStart(document.querySelector("#p1"),1);onP1ElementItself.collapse(true);assert.deepEqual(selectedEditorBlocks(editor,onP1ElementItself).map(block=>block.id),["p1"]);
+});
+
+test("applying line spacing to a collapsed cursor's paragraph never touches the next paragraph",()=>{const{document,editor}=documentWithMatter(),cursor=document.createRange();cursor.setStart(document.querySelector("#p1").firstChild,10);cursor.collapse(true);const blocks=selectedEditorBlocks(editor,cursor);assert.equal(applyParagraphStyle(blocks,{lineHeight:"2.5"}),true);assert.equal(document.querySelector("#p1").style.lineHeight,"2.5");assert.equal(document.querySelector("#p2").style.lineHeight,"")});
+
 test("exact point styles wrap only selected characters and preserve paragraph margins",()=>{const{document}=documentWithMatter(),paragraph=document.querySelector("#p1"),range=document.createRange();range.setStart(paragraph.firstChild,0);range.setEnd(paragraph.firstChild,5);const wrapped=wrapEditorRange(range,{fontFamily:"Arial",fontSize:"14pt",fontWeight:"700",color:"rgb(192, 0, 0)"});assert.ok(wrapped);assert.equal(paragraph.textContent,"Alpha beta");assert.equal(wrapped.span.textContent,"Alpha");assert.equal(wrapped.span.style.fontSize,"14pt");assert.equal(wrapped.span.style.fontFamily,"Arial");assert.equal(paragraph.style.marginRight,"0in")});
 
 test("paragraph formatting applies to all selected blocks without touching the third paragraph",()=>{const{document,editor}=documentWithMatter(),range=document.createRange();range.setStart(document.querySelector("#p1").firstChild,2);range.setEnd(document.querySelector("#p2").firstChild,3);const blocks=selectedEditorBlocks(editor,range);assert.equal(applyParagraphStyle(blocks,{textAlign:"justify",marginLeft:"0.5in",lineHeight:"1.5",backgroundColor:"rgb(255, 255, 0)",border:"1px solid rgb(0, 0, 0)"}),true);for(const block of blocks){assert.equal(block.style.textAlign,"justify");assert.equal(block.style.marginLeft,"0.5in");assert.equal(block.style.lineHeight,"1.5")}assert.equal(document.querySelector("#p3").getAttribute("style"),null)});

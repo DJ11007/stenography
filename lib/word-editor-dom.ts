@@ -1,6 +1,31 @@
 export type EditorRunStyles=Partial<Pick<CSSStyleDeclaration,"fontFamily"|"fontSize"|"fontWeight"|"fontStyle"|"color"|"backgroundColor"|"textDecoration"|"textDecorationLine"|"textDecorationStyle"|"textDecorationColor"|"verticalAlign"|"fontVariant"|"textTransform"|"opacity"|"letterSpacing"|"display"|"transform"|"transformOrigin"|"position"|"top"|"fontKerning"|"webkitTextStroke"|"textShadow">>;
 
-export function selectedEditorBlocks(editor:HTMLElement,range:Range){return[...editor.children].filter((node):node is HTMLElement=>node.nodeType===1&&range.intersectsNode(node))as HTMLElement[]}
+// A COLLAPSED range (just a cursor, no real selection -- the common case
+// for "click into a paragraph, then open the Line Spacing/Paragraph
+// dialog") must resolve to exactly the one block the cursor is actually
+// in. Range.intersectsNode() is designed for genuine spanning selections
+// and is well documented to be ambiguous right at a block boundary --
+// browsers can report a collapsed cursor as intersecting BOTH the block
+// it's in and its neighbor, which silently applied paragraph-level
+// formatting (line spacing, alignment, indent, shading) to an unrelated
+// adjacent paragraph the admin never touched. Walking up from the range's
+// own container to the block that's a direct child of the editor sidesteps
+// that ambiguity entirely -- a collapsed cursor can only ever be inside
+// one such block. A real (non-collapsed) selection still uses
+// intersectsNode, which is the correct check for "every block this
+// selection actually spans".
+export function selectedEditorBlocks(editor:HTMLElement,range:Range){
+ if(range.collapsed){
+  let node:Node|null=range.startContainer;
+  while(node&&node.parentNode!==editor)node=node.parentNode;
+  // nodeType===1, not `instanceof HTMLElement` -- this file also runs
+  // under plain Node.js test environments (happy-dom) where the global
+  // `HTMLElement` constructor isn't the same one happy-dom's nodes are
+  // instances of.
+  return node&&node.nodeType===1?[node as HTMLElement]:[];
+ }
+ return[...editor.children].filter((node):node is HTMLElement=>node.nodeType===1&&range.intersectsNode(node))as HTMLElement[];
+}
 
 export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}){if(range.collapsed)return null;const document=range.startContainer.ownerDocument;if(!document)return null;const span=document.createElement("span");Object.assign(span.style,styles);for(const[name,value]of Object.entries(attributes))span.dataset[name]=value;try{range.surroundContents(span)}catch{span.append(range.extractContents());range.insertNode(span)}const selected=document.createRange();selected.selectNodeContents(span);return{span,range:selected}}
 
