@@ -59,7 +59,7 @@ test("the Model Answer page loads test/version/questions/existing grading rules 
 test("the Model Answer editor shows a question stepper and one Save button, and never renders a detected-changes list or a per-change assign-to-question control", async () => {
   const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
   assert.match(editor, /import \{ diffWordDocuments \} from "@\/lib\/word-document-diff";/);
-  assert.match(editor, /import \{ generateWordEfficiencyGradingRulesFromModelAnswer, saveWordEfficiencyModelAnswer \} from "\.\.\/\.\.\/actions";/);
+  assert.match(editor, /import \{ generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer \} from "\.\.\/\.\.\/actions";/);
   assert.match(editor, /selectQuestion/);
   assert.match(editor, /submitLabel=\{active \? `Save answer for Q\$\{active\.number\}` : "Save Model Answer"\}/);
   assert.match(editor, /submitAction=\{saveActiveAnswer\}/);
@@ -73,6 +73,37 @@ test("saving an answer diffs against that question's checkpoint and regenerates 
   assert.match(editor, /const changes = diffWordDocuments\(before, document\);/);
   assert.match(editor, /questions\.map\(\(question\) => \(\{ questionNumber: question\.number, allocatedMarks: question\.marks, criteria: nextAssignments\[question\.number\] \?\? \[\] \}\)\)/);
   assert.match(editor, /generateWordEfficiencyGradingRulesFromModelAnswer\(versionId, payload\)/);
+});
+
+// A teacher asked for a way to undo a mistake made while solving the
+// paper -- one Reset button that clears everything authored here and
+// starts the paper over, without touching any already-graded student's
+// score (those are frozen at submission, same as every other test-attempt
+// result on this platform).
+test("the Model Answer editor has a confirmed Reset button that clears saved answers via resetWordEfficiencyModelAnswer and reloads", async () => {
+  const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
+  assert.match(editor, /const handleReset = async \(\) => \{/);
+  assert.match(editor, /if \(!confirm\(`Reset the model answer for this test\?/);
+  assert.match(editor, /const result = await resetWordEfficiencyModelAnswer\(versionId\);/);
+  assert.match(editor, /window\.location\.reload\(\);/);
+  assert.match(editor, /disabled=\{resetting \|\| !hasProgress\}/);
+  assert.match(editor, /\{resetting \? "Resetting…" : "Reset"\}/);
+});
+
+test("resetWordEfficiencyModelAnswer is an admin-gated server action calling the matching RPC", async () => {
+  const actions = await read("app/admin/word-efficiency-tests/actions.ts");
+  const resetBody = actions.slice(actions.indexOf("export async function resetWordEfficiencyModelAnswer"));
+  assert.match(resetBody, /requireAdmin\(\)/);
+  assert.match(resetBody, /reset_word_efficiency_model_answer/);
+});
+
+test("the reset RPC clears grading rules and the model answer snapshot for the version, admin-gated, and never touches question scores", async () => {
+  const migration = await read("supabase/migrations/202609040057_word_efficiency_model_answer_reset.sql");
+  assert.match(migration, /create or replace function public\.reset_word_efficiency_model_answer\(p_version_id uuid\)/);
+  assert.match(migration, /if not public\.is_aal2_admin\(\) then raise exception 'not authorized'; end if;/);
+  assert.match(migration, /delete from public\.word_efficiency_grading_rules where version_id=p_version_id;/);
+  assert.match(migration, /update public\.word_efficiency_versions set model_answer_snapshot=null where id=p_version_id;/);
+  assert.match(migration, /grant execute on function public\.reset_word_efficiency_model_answer\(uuid\) to authenticated;/);
 });
 
 test("the migration's additional_criteria column and evaluator ship together with the model answer save RPC", async () => {

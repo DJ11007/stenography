@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { RichDocumentEditor } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor";
 import { diffWordDocuments } from "@/lib/word-document-diff";
-import { generateWordEfficiencyGradingRulesFromModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
+import { generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
 import type { WorkingMatterSnapshot } from "@/lib/word-docx";
 
 type Question = { id: string; number: number; instruction: string; marks: number; existingCriteria: { target: string; expectedValue: string }[] };
@@ -36,9 +36,29 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   const [answeredNumbers, setAnsweredNumbers] = useState<Set<number>>(() => new Set(questions.filter((question) => question.existingCriteria.length > 0).map((question) => question.number)));
   const [activeNumber, setActiveNumber] = useState<number | null>(() => questions.find((question) => question.existingCriteria.length === 0)?.number ?? null);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const ready = latestDocument !== null;
   const active = questions.find((question) => question.number === activeNumber) ?? null;
+  const hasProgress = answeredNumbers.size > 0 || Boolean(initialDocument);
+
+  // Clears the saved model answer and every grading rule generated from it
+  // on the server, then reloads so this page (and RichDocumentEditor's own
+  // internal DOM state) starts over completely fresh, exactly as if the
+  // paper had never been touched. Never affects an already-submitted
+  // student attempt's score -- see resetWordEfficiencyModelAnswer's own comment.
+  const handleReset = async () => {
+    if (!confirm(`Reset the model answer for this test? This clears every question's saved answer and auto-grading rule here — it does not change any student's already-graded result. This can't be undone.`)) return;
+    setResetting(true);
+    setMessage(null);
+    const result = await resetWordEfficiencyModelAnswer(versionId);
+    if (!result.ok) {
+      setResetting(false);
+      setMessage({ text: result.error, ok: false });
+      return;
+    }
+    window.location.reload();
+  };
 
   const selectQuestion = (number: number) => {
     if (!ready) return;
@@ -89,7 +109,18 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   return (
     <div className="mt-6">
       <div className="rounded-3xl bg-white p-5 shadow">
-        <p className="text-xs font-black uppercase tracking-wide text-slate-500">Questions</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Questions</p>
+          <button
+            type="button"
+            disabled={resetting || !hasProgress}
+            onClick={handleReset}
+            title={hasProgress ? "Clear every saved answer and start this paper over" : "Nothing to reset yet"}
+            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {resetting ? "Resetting…" : "Reset"}
+          </button>
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           {questions.map((question) => {
             const status = answeredNumbers.has(question.number) ? "answered" : activeNumber === question.number ? "active" : "pending";

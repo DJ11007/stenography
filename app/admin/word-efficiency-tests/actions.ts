@@ -63,3 +63,18 @@ export async function generateWordEfficiencyGradingRulesFromModelAnswer(versionI
  revalidatePath("/admin/word-efficiency-tests");
  return{ok:true,error:""};
 }
+
+// Clears the saved model answer document and every grading rule generated
+// from it, so a mistake made while solving the paper can be undone by
+// starting over from a clean slate. Never touches an already-submitted
+// student attempt's score -- those are frozen at the moment they were
+// graded, same as every other test-attempt result on this platform, so
+// this only changes how FUTURE submissions are graded.
+export async function resetWordEfficiencyModelAnswer(versionId:string):Promise<{ok:boolean;error:string}>{
+ await requireAdmin();
+ const supabase=await createClient();
+ const{error}=await supabase.rpc("reset_word_efficiency_model_answer",{p_version_id:versionId});
+ if(error)return{ok:false,error:process.env.NODE_ENV==="development"?`Reset failed: ${error.message}`:"Reset failed."};
+ revalidatePath("/admin/word-efficiency-tests");
+ return{ok:true,error:""};
+}
