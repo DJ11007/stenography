@@ -463,7 +463,22 @@ ol[data-list-style="decimal-paren"] > li::marker { content: counter(list-item) "
 ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-item,lower-alpha) ") "; }
 
 /* Word Efficiency document surface: line-number gutter and thumbnail previews. */
-.word-document-page { counter-reset: word-line-number; }
+.word-document-page { counter-reset: word-line-number word-paragraph-number; }
+/* Real reported bug: "Show/hide formatting marks" only ever numbered
+   paragraphs on the very first, unsaved render (built straight from the
+   pristine Working Matter) -- toSnapshot()/renderSnapshot(), used for every
+   reload and every edit after that, never carried a paragraph-number field
+   forward at all, so the numbers a teacher's own instructions reference
+   ("paragraph number six") became unverifiable the moment any work was
+   saved. A CSS counter recomputes the number live from the actual document
+   structure instead of a stored field, so it can never go stale and stays
+   correct if paragraphs are ever added or removed. Direct children only,
+   and only real paragraphs -- word-editor-structure.ts's editorBlockType()
+   only ever leaves data-block-type unset on a genuine "paragraph" block;
+   every other kind (list-item, table, image, header/footer, page/section
+   break, cover page, shape) always carries it. */
+.word-document-page.show-formatting-marks > p:not([data-block-type]) { counter-increment: word-paragraph-number; }
+.word-document-page.show-formatting-marks > p:not([data-block-type])::before { content: "¶" counter(word-paragraph-number) " "; color: #0891b2; font-weight: 700; font-size: .75em; user-select: none; }
 .word-document-page.cursor-format-painter, .word-document-page.cursor-format-painter * { cursor: cell !important; }
 .word-document-page header[data-block-type="header"]:empty::before,
 .word-document-page header[data-block-type="header"]:has(> br:only-child)::before { content: "Header"; color: #94a3b8; font-style: italic; pointer-events: none; }
