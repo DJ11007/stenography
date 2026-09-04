@@ -928,7 +928,20 @@ function measurementUnchanged(key:string,current:string,original:unknown){if(ori
 function underlineCssStyle(style:string):"solid"|"double"|"dotted"|"dashed"|"wavy"{return style==="double"?"double":style==="dotted"||style==="dot-dash"||style==="dot-dot-dash"?"dotted":style==="dashed"?"dashed":style==="wavy"?"wavy":"solid"}
 function textNodes(element:Node){const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];let node=walker.nextNode();while(node&&nodes.length<20000){nodes.push(node as Text);node=walker.nextNode()}return nodes}
 function emptyBlock(){return{id:"block-empty",type:"paragraph",alignment:"left",runs:[emptyRun()],attrs:{} as Record<string,unknown>}}function emptyRun(){return{text:"",bold:false,italic:false,underline:false,underlineStyle:null,underlineColor:null,underlineThickness:null,underlineWordsOnly:false,strike:false,superscript:false,subscript:false,smallCaps:false,allCaps:false,hidden:false,outline:false,emboss:false,fontFamily:null,fontSize:null,color:null,highlight:null,charScale:null,charSpacing:null,charPosition:null,kerningEnabled:false,kerningMin:null}}
-function approvedFont(value:string){const font=value.replace(/["']/g,"").split(",")[0].trim();return(APPROVED_WORD_FONTS as readonly string[]).includes(font)?font:null}function approvedSize(value:string){const size=Number.parseFloat(value);return Number.isFinite(size)&&size>=8&&size<=72?size:null}
+function approvedFont(value:string){const font=value.replace(/["']/g,"").split(",")[0].trim();return(APPROVED_WORD_FONTS as readonly string[]).includes(font)?font:null}
+// getComputedStyle(...).fontSize is always reported in px (the DOM's
+// unconditional unit for computed style), but every run's fontSize is
+// stored and later re-rendered as `${run.fontSize}pt` (see renderSnapshot).
+// This must convert px -> pt (the same *.75 factor already used correctly
+// by fontDialog() and applyFontStep() elsewhere in this file) before
+// storing it -- without it, a run declared at 14pt round-trips through
+// toSnapshot() as literally "18.6667", then gets rendered back as
+// "18.6667pt" the next time the document is loaded/restored (autosave
+// restore, reopening a saved Model Answer, Compare Current) -- ~33%
+// larger every round-trip, compounding on repeated saves. This was the
+// real cause of a reported bug: paragraphs visibly growing/shrinking
+// while working on the Model Answer page.
+function approvedSize(value:string){const size=Math.round(Number.parseFloat(value)*.75);return Number.isFinite(size)&&size>=8&&size<=72?size:null}
 // getComputedStyle().backgroundColor for any element with no background set
 // at all -- which is every run that was never highlighted -- resolves to
 // "rgba(0, 0, 0, 0)" (fully transparent black) in every browser. The old

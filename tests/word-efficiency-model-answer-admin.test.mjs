@@ -26,13 +26,22 @@ test("RichDocumentEditor's authoring-mode props default to exactly the original 
   assert.match(editor, /\(submitAction\?\?submitWordDocument\)/);
 });
 
-test("saveWordEfficiencyModelAnswer and generateWordEfficiencyGradingRulesFromModelAnswer remain admin-gated server actions calling the matching RPCs", async () => {
+// saveWordEfficiencyModelAnswer/generateWordEfficiencyGradingRulesFromModelAnswer
+// deliberately skip requireAdmin() -- the same real bug and fix already
+// shipped for Word/Excel Efficiency's own autosave/submit actions (see
+// tests/efficiency-autosave-latency.test.mjs): a transient hiccup in
+// requireAdmin()'s three network round trips (getUser, profiles lookup,
+// getClaims for AAL2), fired on every 800ms autosave during a long
+// Model Answer authoring session, bounced the admin to the sign-in page --
+// a false "logout". Authorization is still fully enforced by
+// is_aal2_admin() inside each RPC itself.
+test("saveWordEfficiencyModelAnswer and generateWordEfficiencyGradingRulesFromModelAnswer call the matching RPCs but deliberately do not call requireAdmin()", async () => {
   const actions = await read("app/admin/word-efficiency-tests/actions.ts");
   const modelAnswerBody = actions.slice(actions.indexOf("export async function saveWordEfficiencyModelAnswer"), actions.indexOf("export async function generateWordEfficiencyGradingRulesFromModelAnswer"));
-  assert.match(modelAnswerBody, /requireAdmin\(\)/);
+  assert.doesNotMatch(modelAnswerBody, /await requireAdmin\(\)/);
   assert.match(modelAnswerBody, /save_word_efficiency_model_answer/);
-  const generateBody = actions.slice(actions.indexOf("export async function generateWordEfficiencyGradingRulesFromModelAnswer"));
-  assert.match(generateBody, /requireAdmin\(\)/);
+  const generateBody = actions.slice(actions.indexOf("export async function generateWordEfficiencyGradingRulesFromModelAnswer"), actions.indexOf("export async function resetWordEfficiencyModelAnswer"));
+  assert.doesNotMatch(generateBody, /await requireAdmin\(\)/);
   assert.match(generateBody, /save_word_efficiency_grading_rules/);
   assert.match(generateBody, /additionalCriteria:rest/);
 });

@@ -38,8 +38,21 @@ export async function extractWorkingMatterDocx(form:FormData){await requireAdmin
 // version. It reuses the editor's own autosave/submit call shape
 // ((id, document) => {ok, error}) so no editor code needs to know the
 // difference between an attempt and an authoring session.
+//
+// Deliberately does NOT call requireAdmin() -- this fires on every
+// debounced autosave while the admin is solving the paper (every 800ms
+// after any edit, same as a student's typing autosave), and requireAdmin()
+// does THREE extra network round trips (getUser(), a profiles lookup, and
+// getClaims() for AAL2) purely to redirect("/login") if any of them has a
+// transient hiccup. Under a long authoring session that was enough to
+// abruptly bounce the admin to the sign-in page mid-edit -- a false
+// "logout", not a real one, and unsaved work along with it. Matches the
+// exact same fix already shipped for autosaveWordDocument/submitWordDocument
+// (see their own comment in app/typing/word-efficiency/actions.ts).
+// Authorization is still fully enforced -- is_aal2_admin() inside the RPC
+// itself returns a clean {ok:false} error instead of redirecting when
+// something is genuinely wrong.
 export async function saveWordEfficiencyModelAnswer(versionId:string,document:unknown):Promise<{ok:boolean;error:string}>{
- await requireAdmin();
  const supabase=await createClient();
  const{error}=await supabase.rpc("save_word_efficiency_model_answer",{p_version_id:versionId,p_document:document});
  if(error)return{ok:false,error:process.env.NODE_ENV==="development"?`Save failed: ${error.message}`:"Save failed."};
@@ -51,8 +64,11 @@ export async function saveWordEfficiencyModelAnswer(versionId:string,document:un
 // one rule per question, the first assigned change becomes the rule's
 // primary target/expectedValue and the rest become additionalCriteria --
 // every one of them must match for the question to earn full marks.
+//
+// Also deliberately skips requireAdmin() -- called immediately after
+// saveWordEfficiencyModelAnswer on every "Save answer for Q<n>" click, same
+// rationale as that function's own comment above.
 export async function generateWordEfficiencyGradingRulesFromModelAnswer(versionId:string,assignments:{questionNumber:number;allocatedMarks:number;criteria:{target:string;expectedValue:string}[]}[]){
- await requireAdmin();
  const supabase=await createClient();
  const rules=assignments.filter(assignment=>assignment.criteria.length>0).map(assignment=>{
   const[primary,...rest]=assignment.criteria;

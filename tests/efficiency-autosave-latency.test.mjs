@@ -35,3 +35,19 @@ test("Excel Efficiency's autosave and submit actions do not call requireStudent(
   assert.doesNotMatch(autosaveBody, /requireStudent\(\)/);
   assert.doesNotMatch(submitBody, /requireStudent\(\)/);
 });
+
+// The same class of bug, reported for real on the admin side: a long
+// Model Answer authoring session (autosave fires every 800ms on edit,
+// same rhythm as a student's typing autosave) hit the same false-"logout"
+// failure mode via requireAdmin() -- which does THREE round trips
+// (getUser, a profiles lookup, getClaims for AAL2), not just requireUser's
+// two. is_aal2_admin() inside each RPC still fully enforces authorization.
+test("Word Efficiency's Model Answer autosave/save actions do not call requireAdmin(), but the one-time reset action still does", async () => {
+  const actions = await read("app/admin/word-efficiency-tests/actions.ts");
+  const modelAnswerBody = actions.slice(actions.indexOf("export async function saveWordEfficiencyModelAnswer"), actions.indexOf("export async function generateWordEfficiencyGradingRulesFromModelAnswer"));
+  const generateBody = actions.slice(actions.indexOf("export async function generateWordEfficiencyGradingRulesFromModelAnswer"), actions.indexOf("export async function resetWordEfficiencyModelAnswer"));
+  const resetBody = actions.slice(actions.indexOf("export async function resetWordEfficiencyModelAnswer"));
+  assert.doesNotMatch(modelAnswerBody, /await requireAdmin\(\)/);
+  assert.doesNotMatch(generateBody, /await requireAdmin\(\)/);
+  assert.match(resetBody, /requireAdmin\(\)/);
+});
