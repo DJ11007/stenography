@@ -24,9 +24,18 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
       {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}
       <button disabled={pending} type="submit" className="w-full rounded-lg bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">{pending ? "Signing in..." : "Sign in"}</button>
       <nav aria-label="Account recovery" className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
-        <Link className="font-semibold text-blue-700" href="/forgot-password">Forgot Password?</Link>
-        <Link className="font-semibold text-blue-700" href={admin ? "/recover-account?type=admin" : "/recover-account"}>Forgot Email or Mobile?</Link>
-        <Link className="font-semibold text-blue-700" href={admin ? "/recover-account?type=admin" : "/recover-account"}>Recover Account</Link>
+        {admin ? (
+          <>
+            <Link className="font-semibold text-blue-700" href="/forgot-password">Forgot Password?</Link>
+            <Link className="font-semibold text-blue-700" href="/recover-account?type=admin">Forgot Email or Mobile?</Link>
+            <Link className="font-semibold text-blue-700" href="/recover-account?type=admin">Recover Account</Link>
+          </>
+        ) : (
+          <>
+            <Link className="font-semibold text-blue-700" href="/account-help">Forgot Password?</Link>
+            <Link className="font-semibold text-blue-700" href="/account-help">Forgot Email or Mobile?</Link>
+          </>
+        )}
       </nav>
       {!admin && <p className="text-center text-sm text-slate-600">New student? <Link className="font-semibold text-blue-700" href="/signup">Create an account</Link></p>}
     </form>

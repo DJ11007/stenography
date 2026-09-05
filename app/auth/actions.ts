@@ -29,7 +29,7 @@ export async function signIn(_: AuthFormState, formData: FormData): Promise<Auth
 
   const user = signInData.user;
   const { data: profile } = user
-    ? await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle()
+    ? await supabase.from("profiles").select("role, is_active, approved").eq("id", user.id).maybeSingle()
     : { data: null };
 
   if (profile && profile.is_active === false) {
@@ -37,7 +37,12 @@ export async function signIn(_: AuthFormState, formData: FormData): Promise<Auth
     return { error: "Your account has been deactivated. Please contact Samradhi Classes for help." };
   }
 
-  const role = profile?.is_active && (profile.role === "admin" || profile.role === "student")
+  if (profile && profile.role === "student" && profile.approved === false) {
+    await supabase.auth.signOut();
+    return { error: "Your account is pending admin approval. You'll be able to sign in once an admin approves it." };
+  }
+
+  const role = profile?.is_active && profile.approved !== false && (profile.role === "admin" || profile.role === "student")
     ? profile.role
     : null;
   const { data: verifiedToken } = await supabase.auth.getClaims(signInData.session?.access_token);
@@ -74,13 +79,15 @@ export async function signUp(_: AuthFormState, formData: FormData): Promise<Auth
   });
 
   if (error) return { error: error.message };
-  // When email confirmations are turned off in Supabase, signUp() returns an
-  // active session immediately instead of requiring a confirmation click.
+  // New profiles default to unapproved (see the admin-approval migration), so
+  // sign-in is blocked either way. If Supabase's own email-confirmation
+  // setting happens to be off, signUp() would otherwise hand back an active
+  // session immediately -- sign that straight back out so the account still
+  // waits for an admin to approve it before anyone can use it.
   if (data.session) {
-    revalidatePath("/", "layout");
-    redirect("/typing");
+    await supabase.auth.signOut();
   }
-  return { success: "Check your email to confirm your account, then sign in." };
+  redirect("/signup/pending-approval");
 }
 
 export async function signOut() {

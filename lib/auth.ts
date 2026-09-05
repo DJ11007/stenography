@@ -48,10 +48,10 @@ export async function requireStudent() {
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name, is_active")
+    .select("role, full_name, is_active, approved")
     .eq("id", user.id)
     .maybeSingle();
   if (profile?.role === "admin") redirect("/admin");
-  if (profile?.role !== "student" || profile.is_active === false) redirect("/login");
+  if (profile?.role !== "student" || profile.is_active === false || profile.approved === false) redirect("/login");
   return { user, profile };
 }

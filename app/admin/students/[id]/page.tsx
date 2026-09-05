@@ -16,7 +16,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at,class_info,free_practice_test_limit").eq("id", id).maybeSingle();
+  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,approved,created_at,class_info,free_practice_test_limit").eq("id", id).maybeSingle();
   if (!student) notFound();
 
   const admin = createAdminClient();
@@ -56,6 +56,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
                 <Field label="Joined" value={date(student.created_at)} />
                 <Field label="Last sign-in" value={lastSignInAt ? date(lastSignInAt) : "Never"} />
                 <Field label="Account status" value={student.is_active ? "Active" : "Deactivated"} />
+                <Field label="Admin approval" value={student.approved ? "Approved" : "Pending approval"} />
                 <Field label="Email confirmation" value={emailConfirmed ? "Confirmed" : "Not confirmed"} />
                 <Field label="Class info" value={student.class_info || "Not set"} />
                 {bannedUntil && <Field label="Banned until" value={date(bannedUntil)} />}
@@ -64,7 +65,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
               </dl>
               <p className="mt-4 max-w-md text-xs text-slate-500">Passwords are never stored or shown in plain text by this or any secure system — use &quot;Send password reset link&quot; below if this student is locked out.</p>
             </div>
-            <StudentActionButtons studentId={student.id} emailConfirmed={emailConfirmed} isActive={student.is_active} />
+            <StudentActionButtons studentId={student.id} emailConfirmed={emailConfirmed} isActive={student.is_active} approved={student.approved} />
           </div>
           <div className="mt-5">
             <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} freePracticeLimit={student.free_practice_test_limit} />

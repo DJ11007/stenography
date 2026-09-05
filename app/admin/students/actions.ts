@@ -56,6 +56,18 @@ export async function sendStudentPasswordReset(_: StudentActionState, formData: 
   return { success: `Password reset link sent to ${email}.` };
 }
 
+export async function setStudentApproved(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const approved = formData.get("approved") === "true";
+  const supabase = await createClient();
+  const { error } = await supabase.from("profiles").update({ approved }).eq("id", studentId);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  return { success: approved ? "Account approved. The student can sign in now." : "Approval revoked. The student can no longer sign in." };
+}
+
 export async function setStudentActive(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
   await requireAdmin();
   const studentId = String(formData.get("studentId") ?? "");

@@ -9,7 +9,7 @@ import { BackButton } from "../../_components/back-button";
 
 export const metadata: Metadata = { title: "Students | Admin" };
 
-type Profile = { id: string; email: string; full_name: string | null; phone: string | null; role: string; is_active: boolean; created_at: string; class_info: string | null };
+type Profile = { id: string; email: string; full_name: string | null; phone: string | null; role: string; is_active: boolean; approved: boolean; created_at: string; class_info: string | null };
 
 export default async function AdminStudentsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await requireAdmin();
@@ -17,7 +17,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   const search = (params.search ?? "").trim();
 
   const supabase = await createClient();
-  const base = () => supabase.from("profiles").select("id,email,full_name,phone,role,is_active,created_at,class_info").eq("role", "student").order("created_at", { ascending: false });
+  const base = () => supabase.from("profiles").select("id,email,full_name,phone,role,is_active,approved,created_at,class_info").eq("role", "student").order("created_at", { ascending: false });
   let students: Profile[] | null;
   let error: { message: string } | null = null;
   if (search) {
@@ -50,6 +50,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   const accessByStudent = new Map<string, AccessRow>(((accessRows ?? []) as AccessRow[]).map((row) => [row.student_id, row]));
 
   const rows = (students ?? []).map((student) => ({ student, status: authStatus.get(student.id) ?? { emailConfirmed: true, lastSignInAt: null }, access: accessByStudent.get(student.id) ?? null }));
+  const pendingApprovalCount = rows.filter((row) => !row.student.approved).length;
   const unconfirmedCount = rows.filter((row) => !row.status.emailConfirmed).length;
   const neverSignedInCount = rows.filter((row) => !row.status.lastSignInAt).length;
   const activeCount = rows.filter((row) => row.access?.status === "active").length;
@@ -63,13 +64,14 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
           <div>
             <p className="text-sm font-semibold text-blue-300">SAMRADHI CLASSES</p>
             <h1 className="text-2xl font-bold">Students</h1>
-            <p className="mt-1 text-slate-300">{rows.length} student{rows.length === 1 ? "" : "s"} · {unconfirmedCount} unconfirmed · {neverSignedInCount} never signed in</p>
+            <p className="mt-1 text-slate-300">{rows.length} student{rows.length === 1 ? "" : "s"} · {pendingApprovalCount} pending approval · {unconfirmedCount} unconfirmed · {neverSignedInCount} never signed in</p>
           </div>
           <BackButton href="/admin" label="Admin panel" dark />
         </header>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="Total users" value={rows.length} />
+          <StatCard label="Pending approval" value={pendingApprovalCount} tone="amber" />
           <StatCard label="Active" value={activeCount} tone="green" />
           <StatCard label="Grace" value={graceCount} tone="amber" />
           <StatCard label="Locked" value={lockedCount} tone="red" />
@@ -77,7 +79,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
 
         {!admin && (
           <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">
-            Email confirmation status and manual-confirm/resend tools need the SUPABASE_SERVICE_ROLE_KEY environment variable on the server — it is not set, so those columns and actions are hidden below.
+            Email confirmation status and the manual-confirm-email / set-password tools need the SUPABASE_SERVICE_ROLE_KEY environment variable on the server — it is not set, so that column and those specific tools are hidden below.
           </p>
         )}
 
@@ -99,7 +101,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
                 <th className="p-3">Test access</th>
                 <th className="p-3">Joined</th>
                 <th className="p-3">Last sign-in</th>
-                {admin && <th className="p-3">Actions</th>}
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -110,6 +112,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
                   <td className="p-3">{student.phone || <span className="text-slate-400">Not provided</span>}</td>
                   <td className="p-3">
                     <div className="flex flex-col gap-1">
+                      {!student.approved && <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">Pending approval</span>}
                       <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${student.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{student.is_active ? "Active" : "Deactivated"}</span>
                       {admin && <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${status.emailConfirmed ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>{status.emailConfirmed ? "Email confirmed" : "Email not confirmed"}</span>}
                     </div>
@@ -123,7 +126,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
                   </td>
                   <td className="p-3">{date(student.created_at)}</td>
                   <td className="p-3">{status.lastSignInAt ? date(status.lastSignInAt) : <span className="text-slate-400">Never</span>}</td>
-                  {admin && <td className="p-3"><StudentActionButtons studentId={student.id} emailConfirmed={status.emailConfirmed} isActive={student.is_active} /></td>}
+                  <td className="p-3"><StudentActionButtons studentId={student.id} emailConfirmed={status.emailConfirmed} isActive={student.is_active} approved={student.approved} /></td>
                 </tr>
               ))}
               {!rows.length && <tr><td colSpan={9} className="p-6 text-center text-slate-500">No students match this search.</td></tr>}
