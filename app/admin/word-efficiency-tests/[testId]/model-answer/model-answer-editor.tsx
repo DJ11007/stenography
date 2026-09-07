@@ -67,8 +67,21 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
     setMessage(null);
   };
 
+  // selectQuestion seeds a checkpoint (the document as it stood right
+  // before that question was opened) for every question switch -- but the
+  // question that's active from the very first render (the initial
+  // useState above) never goes through selectQuestion, so it never got a
+  // checkpoint. saveActiveAnswer then fell back to `checkpoints[activeNumber]
+  // ?? document`, i.e. diffing the just-saved document against itself,
+  // which always produces zero changes -- the first question authored on
+  // any fresh version could never be auto-graded, no matter what was
+  // typed. Seed that same checkpoint here, once, from the pristine
+  // as-rendered baseline this fires with.
   const handleReady = (snapshot: unknown) => {
-    if (latestDocument === null) setLatestDocument(snapshot);
+    if (latestDocument === null) {
+      setLatestDocument(snapshot);
+      if (activeNumber !== null) setCheckpoints((current) => (activeNumber in current ? current : { ...current, [activeNumber]: snapshot }));
+    }
   };
 
   // Passed as RichDocumentEditor's submitAction -- same (id, document) =>
