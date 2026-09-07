@@ -30,11 +30,25 @@ type Criterion = { target: string; expectedValue: string };
 // already saved can pick up those later edits too, matching the known,
 // documented scope of diffWordDocuments itself (see lib/word-document-diff.ts).
 export function ModelAnswerEditor({ versionId, original, initialDocument, capabilities, questions }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; capabilities: unknown; questions: Question[] }) {
+  // The question that starts active (first one with no existing grading
+  // rule) needs a checkpoint -- the document as it stood before THIS
+  // question's edits -- exactly like selectQuestion seeds one for every
+  // later question switch. Computed once, up front, so both initializers
+  // below can use it without an effect (an effect only runs after the
+  // first paint, too late to matter for a value only ever read at submit
+  // time -- but wrong in a subtler way too: see handleReady's comment).
+  const initialActiveNumber = questions.find((question) => question.existingCriteria.length === 0)?.number ?? null;
   const [latestDocument, setLatestDocument] = useState<unknown>(initialDocument ?? null);
-  const [checkpoints, setCheckpoints] = useState<Record<number, unknown>>({});
+  // If a document was already saved (any question answered in an earlier
+  // session, including ones with no grading rule of their own yet), THAT
+  // saved snapshot -- not some later in-session edit -- is the true
+  // "before" state for whichever question starts active. Seeding it here
+  // covers that case; handleReady below covers the other one (nothing
+  // saved yet, so there's no initialDocument to seed from).
+  const [checkpoints, setCheckpoints] = useState<Record<number, unknown>>(() => (initialDocument != null && initialActiveNumber !== null ? { [initialActiveNumber]: initialDocument } : {}));
   const [assignments, setAssignments] = useState<Record<number, Criterion[]>>(() => Object.fromEntries(questions.map((question) => [question.number, question.existingCriteria])));
   const [answeredNumbers, setAnsweredNumbers] = useState<Set<number>>(() => new Set(questions.filter((question) => question.existingCriteria.length > 0).map((question) => question.number)));
-  const [activeNumber, setActiveNumber] = useState<number | null>(() => questions.find((question) => question.existingCriteria.length === 0)?.number ?? null);
+  const [activeNumber, setActiveNumber] = useState<number | null>(initialActiveNumber);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [resetting, setResetting] = useState(false);
 
@@ -67,8 +81,23 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
     setMessage(null);
   };
 
+  // Covers the OTHER half of the initial-question checkpoint problem (see
+  // the checkpoints initializer above): when nothing has been saved yet at
+  // all, there's no initialDocument to seed a checkpoint from, so the
+  // initializer above leaves checkpoints empty. In that case the pristine,
+  // as-rendered-from-the-original-Working-Matter snapshot this effect
+  // fires with (before RichDocumentEditor's own initialDocument effect, if
+  // any, overwrites the DOM) IS the correct "before" state for whichever
+  // question starts active. Without this, saveActiveAnswer fell back to
+  // `checkpoints[activeNumber] ?? document`, i.e. diffing the just-saved
+  // document against itself, which always produces zero changes -- the
+  // very first question ever authored on a version could never be
+  // auto-graded, no matter what was typed.
   const handleReady = (snapshot: unknown) => {
-    if (latestDocument === null) setLatestDocument(snapshot);
+    if (latestDocument === null) {
+      setLatestDocument(snapshot);
+      if (activeNumber !== null) setCheckpoints((current) => (activeNumber in current ? current : { ...current, [activeNumber]: snapshot }));
+    }
   };
 
   // Passed as RichDocumentEditor's submitAction -- same (id, document) =>
