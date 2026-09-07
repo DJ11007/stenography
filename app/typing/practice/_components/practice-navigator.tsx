@@ -69,5 +69,5 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
   const preset = managedVersionToPreset(version);
   if (version.audioPath) { const { data: signed } = await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath, 3600); preset.audioUrl = signed?.signedUrl ?? null; }
   if (version.pdfPath) { const { data: signed } = await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath, 3600); preset.pdfUrl = signed?.signedUrl ?? null; }
-  return <ConfigurableTypingExam preset={preset} mode="practice" customPreset directWorkspace managedTest={{ testId:test.id, versionId:versionRow.id, mode:version.mode }} practiceNavigation={navigation}/>;
+  return <ConfigurableTypingExam preset={preset} mode="practice" customPreset directWorkspace managedTest={{ testId:test.id, versionId:versionRow.id, mode:version.mode }} practiceNavigation={navigation} backHref="/typing/practice"/>;
 }
