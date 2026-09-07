@@ -95,6 +95,21 @@ header a[href="/typing"]:not(:has(img)) {
   border-color: #2563eb;
 }
 
+/*
+ * The app has no real dark theme — cards and fields stay white/light-slate
+ * regardless of prefers-color-scheme. But most inputs/textareas never set
+ * their own text color, so on a device in dark mode they inherited the
+ * near-white `--foreground` set on `body` above, making typed text
+ * (sign-in fields, typing-practice/exam textareas, etc.) unreadable.
+ * Force a readable dark color by default; more specific rules elsewhere
+ * (e.g. .word-ribbon-select) still take precedence.
+ */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+textarea,
+select {
+  color: #0f172a;
+}
+
 /* Learn Typing: compact exam-style original-passage panel. */
 section:has(> textarea[aria-label="Lesson typing area"]) {
   overflow: hidden;
