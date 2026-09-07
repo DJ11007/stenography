@@ -49,6 +49,27 @@
   .live-results-track { animation: none; }
 }
 
+/*
+ * Deliberately NOT dark-mode-aware. This site has no real dark theme --
+ * every card, panel, ribbon, and form field across the entire app
+ * (student typing workspaces, admin tools, sign-in, etc.) is built
+ * assuming a light background, with explicit Tailwind classes
+ * (bg-slate-800, text-white, ...) used wherever a section is
+ * *intentionally* dark. --foreground/--background used to flip to a
+ * near-white-on-near-black pair under prefers-color-scheme: dark, which
+ * did nothing for those intentionally-dark sections (they don't consume
+ * these variables) but silently made body's inherited text color
+ * near-white everywhere else that never set its own color explicitly --
+ * sign-in fields, the typing/exam passage text, and any number of other
+ * plain <p>/<div> elements site-wide -- rendering near-invisible text on
+ * their still-light/white backgrounds for any visitor whose OS or
+ * browser prefers dark. Confirmed via grep: nothing else in the
+ * codebase reads --foreground/--background or the text-foreground/
+ * bg-background utilities @theme derives from them, so removing the
+ * dark override changes nothing else -- it only stops this one variable
+ * from ever again silently flipping the color of everything that relies
+ * on inheriting it.
+ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -59,13 +80,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
