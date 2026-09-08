@@ -66,7 +66,7 @@ export default async function AdminTrackPage({ searchParams }: { searchParams: P
               {rows.map((row, index) => (
                 <tr key={row.student_id} className="border-b align-top">
                   <td className="p-3">{index + 1}</td>
-                  <td className="p-3"><Link href={`/admin/students/${row.student_id}`} className="font-bold text-blue-700 hover:underline">{row.full_name || "(no name)"}</Link><br /><span className="text-xs text-slate-500">{row.email}</span></td>
+                  <td className="p-3"><Link href={`/admin/track/${row.student_id}`} className="font-bold text-blue-700 hover:underline">{row.full_name || "(no name)"}</Link><br /><span className="text-xs text-slate-500">{row.email}</span></td>
                   <td className="p-3">{row.tests_today}</td>
                   <td className="p-3">{row.tests_total}</td>
                   <td className="p-3">{row.avg_score != null ? `${row.avg_score}%` : "—"}</td>
