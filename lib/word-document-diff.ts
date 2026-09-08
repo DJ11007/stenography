@@ -78,44 +78,60 @@ function fieldLabel(field: string): string {
 }
 
 function diffBlock(before: WordBlock, after: WordBlock, position: number, changes: WordDetectedChange[]) {
-  const id = String(after.id ?? before.id ?? "");
+  // Target paths address the block by its ARRAY INDEX (position - 1), not
+  // its `id` field. Block ids are assigned fresh on every toSnapshot() call
+  // ("block-0", "block-1", ... by position at THAT render) or inherited
+  // from the pristine working-matter render ("matter-p-1", ...) -- neither
+  // is stable across sessions: the admin's authoring document and a
+  // student's independently-submitted document almost never share the same
+  // id for "paragraph 6", even when the content is byte-for-byte identical.
+  // A grading rule stored with an id-based target (blocks.block-5.runs.0.bold)
+  // therefore matched essentially nothing in any real student submission --
+  // every criterion silently evaluated to "block not found", so every
+  // attempt scored 0 regardless of what was actually typed or formatted.
+  // Confirmed live: every submitted attempt against a version graded this
+  // way showed 0/50. Position is stable as long as the student doesn't
+  // insert/delete whole paragraphs, which is the same assumption
+  // diffWordDocuments already makes elsewhere (before/after compared
+  // strictly by array index).
+  const index = position - 1;
   if (!equalValue(before.alignment, after.alignment)) {
-    changes.push({ target: `blocks.${id}.alignment`, expectedValue: after.alignment, label: `Paragraph ${position}: alignment changed to ${String(after.alignment)}`, blockPosition: position });
+    changes.push({ target: `blocks.${index}.alignment`, expectedValue: after.alignment, label: `Paragraph ${position}: alignment changed to ${String(after.alignment)}`, blockPosition: position });
   }
   const beforeAttrs = isObject(before.attrs) ? before.attrs : {};
   const afterAttrs = isObject(after.attrs) ? after.attrs : {};
   if (Array.isArray(afterAttrs.rows) && Array.isArray(beforeAttrs.rows)) {
     for (const field of TABLE_ATTR_FIELDS) {
       if (!(field in beforeAttrs) && !(field in afterAttrs)) continue;
-      if (!equalValue(beforeAttrs[field], afterAttrs[field])) changes.push({ target: `blocks.${id}.attrs.${field}`, expectedValue: afterAttrs[field] ?? null, label: `Paragraph ${position} (table): ${fieldLabel(field)} changed to ${String(afterAttrs[field])}`, blockPosition: position });
+      if (!equalValue(beforeAttrs[field], afterAttrs[field])) changes.push({ target: `blocks.${index}.attrs.${field}`, expectedValue: afterAttrs[field] ?? null, label: `Paragraph ${position} (table): ${fieldLabel(field)} changed to ${String(afterAttrs[field])}`, blockPosition: position });
     }
     const beforeRows = beforeAttrs.rows as unknown[][];
     const afterRows = afterAttrs.rows as unknown[][];
-    if (beforeRows.length === afterRows.length && beforeRows.every((row, index) => Array.isArray(row) && Array.isArray(afterRows[index]) && row.length === (afterRows[index] as unknown[]).length)) {
+    if (beforeRows.length === afterRows.length && beforeRows.every((row, rowIdx) => Array.isArray(row) && Array.isArray(afterRows[rowIdx]) && row.length === (afterRows[rowIdx] as unknown[]).length)) {
       afterRows.forEach((row, rowIndex) => {
         (row as unknown[]).forEach((cell, colIndex) => {
           const beforeCell = beforeRows[rowIndex][colIndex];
-          if (!equalValue(beforeCell, cell)) changes.push({ target: `blocks.${id}.attrs.rows.${rowIndex}.${colIndex}`, expectedValue: cell, label: `Paragraph ${position} (table), row ${rowIndex + 1} column ${colIndex + 1}: text changed to "${String(cell)}"`, blockPosition: position });
+          if (!equalValue(beforeCell, cell)) changes.push({ target: `blocks.${index}.attrs.rows.${rowIndex}.${colIndex}`, expectedValue: cell, label: `Paragraph ${position} (table), row ${rowIndex + 1} column ${colIndex + 1}: text changed to "${String(cell)}"`, blockPosition: position });
         });
       });
       return;
     }
     // Row/column count changed -- too structural to diff cell-by-cell reliably; report the whole table.
-    if (!equalValue(beforeRows, afterRows)) changes.push({ target: `blocks.${id}.attrs.rows`, expectedValue: afterRows, label: `Paragraph ${position} (table): the table's rows or columns changed`, blockPosition: position });
+    if (!equalValue(beforeRows, afterRows)) changes.push({ target: `blocks.${index}.attrs.rows`, expectedValue: afterRows, label: `Paragraph ${position} (table): the table's rows or columns changed`, blockPosition: position });
     return;
   }
   for (const field of PARAGRAPH_ATTR_FIELDS) {
     if (!(field in beforeAttrs) && !(field in afterAttrs)) continue;
-    if (!equalValue(beforeAttrs[field], afterAttrs[field])) changes.push({ target: `blocks.${id}.attrs.${field}`, expectedValue: afterAttrs[field] ?? null, label: `Paragraph ${position}: ${fieldLabel(field)} changed to ${String(afterAttrs[field])}`, blockPosition: position });
+    if (!equalValue(beforeAttrs[field], afterAttrs[field])) changes.push({ target: `blocks.${index}.attrs.${field}`, expectedValue: afterAttrs[field] ?? null, label: `Paragraph ${position}: ${fieldLabel(field)} changed to ${String(afterAttrs[field])}`, blockPosition: position });
   }
   const beforeRuns = runsOf(before);
   const afterRuns = runsOf(after);
   if (beforeRuns.length !== afterRuns.length) {
-    if (!equalValue(beforeRuns, afterRuns)) changes.push({ target: `blocks.${id}.runs`, expectedValue: afterRuns, label: `Paragraph ${position}: the text was restructured (a run was split or merged) -- review this paragraph manually`, blockPosition: position });
+    if (!equalValue(beforeRuns, afterRuns)) changes.push({ target: `blocks.${index}.runs`, expectedValue: afterRuns, label: `Paragraph ${position}: the text was restructured (a run was split or merged) -- review this paragraph manually`, blockPosition: position });
     return;
   }
-  afterRuns.forEach((run, index) => {
-    const beforeRun = beforeRuns[index] ?? {};
+  afterRuns.forEach((run, runIndex) => {
+    const beforeRun = beforeRuns[runIndex] ?? {};
     // A paragraph is frequently more than one run (e.g. bolding only part of
     // a sentence), so two different runs in the same paragraph can easily
     // pick up the exact same field change (both set to font size 16, say).
@@ -129,7 +145,7 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
       const afterValue = normalizedRunField(run, field);
       if (!equalValue(beforeValue, afterValue)) {
         const preview = field === "text" ? `"${String(afterValue)}"` : String(afterValue);
-        changes.push({ target: `blocks.${id}.runs.${index}.${field}`, expectedValue: afterValue, label: `Paragraph ${position}${field === "text" ? "" : snippet}: ${fieldLabel(field)} changed to ${preview}`, blockPosition: position });
+        changes.push({ target: `blocks.${index}.runs.${runIndex}.${field}`, expectedValue: afterValue, label: `Paragraph ${position}${field === "text" ? "" : snippet}: ${fieldLabel(field)} changed to ${preview}`, blockPosition: position });
       }
     }
   });
