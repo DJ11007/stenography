@@ -41,6 +41,11 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
   const { data: wordVersions } = wordVersionIds.length ? await supabase.from("word_efficiency_versions").select("id,title,maximum_marks").in("id", wordVersionIds) : { data: [] };
   const wordTitleById = new Map((wordVersions ?? []).map((v) => [v.id, v]));
 
+  const { data: excelAttempts } = await supabase.from("excel_efficiency_attempts").select("id,version_id,status,result,started_at,submitted_at,evaluation_status,result_published_at").eq("student_id", id).order("started_at", { ascending: false }).limit(100);
+  const excelVersionIds = [...new Set((excelAttempts ?? []).map((a) => a.version_id))];
+  const { data: excelVersions } = excelVersionIds.length ? await supabase.from("excel_efficiency_versions").select("id,title,maximum_marks").in("id", excelVersionIds) : { data: [] };
+  const excelTitleById = new Map((excelVersions ?? []).map((v) => [v.id, v]));
+
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-5xl">
@@ -85,6 +90,14 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
           <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">Test</th><th className="p-3">Status</th><th className="p-3">Marks</th><th className="p-3">Submitted</th></tr></thead><tbody>
             {(wordAttempts ?? []).map((attempt) => { const version = wordTitleById.get(attempt.version_id); const result = attempt.result as Record<string, unknown> | null; const published = attempt.evaluation_status === "published"; return <tr key={attempt.id} className="border-b"><td className="p-3">{version?.title ?? "Unknown test"}</td><td className="p-3">{attempt.status}</td><td className="p-3">{published && result?.marksObtained != null ? `${result.marksObtained} / ${version?.maximum_marks ?? "?"}` : published ? "Not graded" : "Pending"}</td><td className="p-3">{attempt.submitted_at ? date(attempt.submitted_at) : "In progress"}</td></tr>; })}
             {!wordAttempts?.length && <tr><td colSpan={4} className="p-6 text-center text-slate-500">No Word Efficiency attempts yet.</td></tr>}
+          </tbody></table></div>
+        </section>
+
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow">
+          <h2 className="text-xl font-black">Excel Efficiency results</h2>
+          <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">Test</th><th className="p-3">Status</th><th className="p-3">Marks</th><th className="p-3">Submitted</th></tr></thead><tbody>
+            {(excelAttempts ?? []).map((attempt) => { const version = excelTitleById.get(attempt.version_id); const result = attempt.result as Record<string, unknown> | null; const published = attempt.evaluation_status === "published"; return <tr key={attempt.id} className="border-b"><td className="p-3">{version?.title ?? "Unknown test"}</td><td className="p-3">{attempt.status}</td><td className="p-3">{published && result?.marksObtained != null ? `${result.marksObtained} / ${version?.maximum_marks ?? "?"}` : published ? "Not graded" : "Pending"}</td><td className="p-3">{attempt.submitted_at ? date(attempt.submitted_at) : "In progress"}</td></tr>; })}
+            {!excelAttempts?.length && <tr><td colSpan={4} className="p-6 text-center text-slate-500">No Excel Efficiency attempts yet.</td></tr>}
           </tbody></table></div>
         </section>
       </div>
