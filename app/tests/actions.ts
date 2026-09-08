@@ -80,7 +80,14 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // category's own rules -- preset already reflects that override (or
   // falls back to version's own values when there's no override to apply).
   const score = calculateTypingScore({ typedText: getScoringText(normalized.comparisonText, inputSystem), passage: getScoringText(effectivePassage, inputSystem), elapsedSeconds: Math.min(payload.elapsedSeconds, preset.durationSeconds), wordMethod: preset.wordMethod, scoringProfile, includeUntypedWords: true });
-  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)) };
+  // typedText/examCategorySlug/passageWordCount: previously this only ever
+  // stored the AGGREGATE score, never what the student actually typed --
+  // there was no way for an admin (or the student, after leaving the
+  // client-side results screen) to ever see the real passage-vs-typed
+  // comparison again, only the numbers. Storing these lets an admin
+  // detail view rebuild the exact same preset/passage/AdvancedTypingResults
+  // breakdown a student saw right after submitting, on demand later.
+  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   if (error) return error.code === "23505" && test.is_live ? { status: "already-submitted" as const, resultsPublishAt: test.results_publish_at } : null;
   return test.is_live ? { status: "submitted" as const, resultsPublishAt: test.results_publish_at } : { status: "scored" as const, score };
