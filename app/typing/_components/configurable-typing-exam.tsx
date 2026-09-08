@@ -395,7 +395,21 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
     const original = passageRef.current; const typing = textareaRef.current;
     const marker = original?.querySelector<HTMLElement>("[data-current-character]");
     if (!original || !marker || !typing) return;
-    const activeLine = marker.offsetTop;
+    // marker.offsetTop is relative to marker's nearest positioned
+    // ancestor, NOT necessarily `original` (the scrollable passage
+    // container) -- `original` has no `position` set, so offsetTop
+    // walked all the way up to <body>, inflating this by the container's
+    // own page offset (header height, outer chrome, ...). That inflated
+    // value was harmless on a tall viewport, where clientHeight/3 below
+    // was large enough to still clamp the result to 0, but on a short
+    // viewport (clientHeight/3 shrinks with it) it won this comparison
+    // and auto-scrolled the passage down by that leftover offset before
+    // the student had typed a single character -- hiding line 1 behind
+    // the "Original Passage" header on small screens while looking fine
+    // on big ones. Measuring via getBoundingClientRect deltas instead
+    // gives the marker's true position within the scrollable content,
+    // independent of DOM ancestry/positioning.
+    const activeLine = marker.getBoundingClientRect().top - original.getBoundingClientRect().top + original.scrollTop;
     if (lastActiveLine.current === activeLine) return;
     lastActiveLine.current = activeLine;
     const originalTarget = Math.max(0, Math.min(original.scrollHeight - original.clientHeight, activeLine - original.clientHeight / 3));
