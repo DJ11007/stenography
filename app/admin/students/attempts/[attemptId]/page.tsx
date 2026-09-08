@@ -7,6 +7,7 @@ import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tes
 import { repeatPassageToExactWordCount } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/lib/typing-language";
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories } from "@/lib/typing-test";
+import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { AttemptReviewClient } from "./attempt-review-client";
 
 export const metadata: Metadata = { title: "Attempt Review | Admin" };
@@ -25,7 +26,7 @@ export default async function AdminAttemptReviewPage({ params }: { params: Promi
   const { data: attempt } = await supabase.from("test_attempts").select("id,test_id,snapshot,result,started_at,submitted_at,student_id,is_live_attempt").eq("id", attemptId).maybeSingle();
   if (!attempt) notFound();
   const { data: test } = await supabase.from("tests").select("id,title,slug").eq("id", attempt.test_id).maybeSingle();
-  const { data: student } = await supabase.from("profiles").select("id,full_name,email").eq("id", attempt.student_id).maybeSingle();
+  const { data: student } = await supabase.from("profiles").select("id,full_name,email,phone").eq("id", attempt.student_id).maybeSingle();
 
   const v = attempt.snapshot as Record<string, unknown>;
   const result = (attempt.result ?? {}) as Record<string, unknown>;
@@ -59,7 +60,19 @@ export default async function AdminAttemptReviewPage({ params }: { params: Promi
           <p className="mt-1 text-sm text-slate-600">{student?.full_name || "(no name)"} · {student?.email} · Submitted {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "In progress"}</p>
         </section>
         {reviewData ? (
-          <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref={`/admin/students/${attempt.student_id}`} returnLabel={`← Back to ${student?.full_name || "student"}`}/></div>
+          // AdvancedTypingResults renders TypingBrandHeader internally, which
+          // calls useTypingStudent() -- that context is normally supplied by
+          // /typing/layout.tsx (or an explicit TypingStudentProvider, as
+          // /tests/[slug]/page.tsx does) for every student-facing route, but
+          // this page lives under /admin, outside that layout entirely.
+          // Without this wrapper the whole page 500s with "Typing student
+          // context is unavailable" the instant AdvancedTypingResults tries
+          // to render -- caught live via read_network_requests on a real
+          // attempt. Passes the REVIEWED student's own info (not the
+          // admin's), so the header shows whose result this is.
+          <TypingStudentProvider student={{ name: student?.full_name?.trim() || "Student", email: student?.email || "", phone: student?.phone || null }}>
+            <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref={`/admin/students/${attempt.student_id}`} returnLabel={`← Back to ${student?.full_name || "student"}`}/></div>
+          </TypingStudentProvider>
         ) : (
           <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">No detailed record available</h2><p className="mt-2 text-sm">This attempt was submitted before detailed review was added, so only the summary score below was ever saved.</p><dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3"><Field label="Net WPM" value={String(result.netWpm ?? "—")}/><Field label="Accuracy" value={result.accuracy != null ? `${result.accuracy}%` : "—"}/><Field label="Errors" value={String(Number(result.fullErrors ?? 0) + Number(result.halfErrors ?? 0))}/></dl></section>
         )}
