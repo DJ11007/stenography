@@ -35,7 +35,47 @@ export function snapshotPaintStyle(style:CSSStyleDeclaration):EditorRunStyles{re
 
 export function replaceEditorRangeText(range:Range,value:string){const document=range.startContainer.ownerDocument;if(!document)return null;range.deleteContents();const node=document.createTextNode(value);range.insertNode(node);const selected=document.createRange();selected.selectNodeContents(node);return selected}
 
-export function changeEditorRangeCase(range:Range,mode:"upper"|"lower"|"title"|"sentence"|"toggle"){const source=range.toString();let value=source;if(mode==="upper")value=source.toLocaleUpperCase();else if(mode==="lower")value=source.toLocaleLowerCase();else if(mode==="title")value=source.replace(/\p{L}[\p{L}\p{M}]*/gu,word=>word[0].toLocaleUpperCase()+word.slice(1).toLocaleLowerCase());else if(mode==="sentence")value=source.toLocaleLowerCase().replace(/(^|[.!?]\s+)(\p{L})/gu,(_,prefix,letter)=>prefix+letter.toLocaleUpperCase());else value=[...source].map(character=>character===character.toLocaleUpperCase()?character.toLocaleLowerCase():character.toLocaleUpperCase()).join("");return replaceEditorRangeText(range,value)}
+export function changeEditorRangeCase(range:Range,mode:"upper"|"lower"|"title"|"sentence"|"toggle"){const source=range.toString();let value=source;if(mode==="upper")value=source.toLocaleUpperCase();else if(mode==="lower")value=source.toLocaleLowerCase();else if(mode==="title")value=source.replace(/\p{L}[\p{L}\p{M}]*/gu,word=>word[0].toLocaleUpperCase()+word.slice(1).toLocaleLowerCase());else if(mode==="sentence")value=source.toLocaleLowerCase().replace(/(^|[.!?]\s+)(\p{L})/gu,(_,prefix,letter)=>prefix+letter.toLocaleUpperCase());else value=[...source].map(character=>character===character.toLocaleUpperCase()?character.toLocaleLowerCase():character.toLocaleUpperCase()).join("");return replaceEditorRangeTextPreservingRuns(range,source,value)}
+
+// replaceEditorRangeText deletes the WHOLE selection and inserts one bare,
+// unstyled text node -- correct for Clear Formatting (which means to strip
+// styling), catastrophic for Change Case, which should only ever touch
+// letter casing. Reproduced live: a real student applied Bold+Italic+
+// Underline to a paragraph (Q1 of a real test), then Capitalize Each Word
+// to the same paragraph (Q3) -- clearEditorRangeCase's plain-text-node
+// replacement silently wiped out all three, and the final submitted
+// document had none of them, confirmed via the admin grading view. Since
+// case changes never add or remove characters for the modes this editor
+// offers, the fix rewrites each intersected text node'S OWN characters in
+// place (same node objects, same parent spans) instead of replacing the
+// DOM structure -- formatting is simply never touched. Length-changing
+// Unicode case folding (e.g. German ß -> SS under toLocaleUpperCase in
+// some locales) is the one case where per-node realignment can't work
+// exactly right; that falls back to the prior (formatting-losing but at
+// least textually correct) plain replacement rather than risk corrupting
+// the text.
+function replaceEditorRangeTextPreservingRuns(range:Range,source:string,value:string):Range|null{
+ const document=range.startContainer.ownerDocument;
+ if(!document)return null;
+ if(value.length!==source.length)return replaceEditorRangeText(range,value);
+ const walker=document.createTreeWalker(range.commonAncestorContainer,NodeFilter.SHOW_TEXT);
+ const nodes:Text[]=[];
+ for(let node=walker.nextNode();node;node=walker.nextNode())if(range.intersectsNode(node))nodes.push(node as Text);
+ let cursor=0;
+ for(const node of nodes){
+  const text=node.textContent??"";
+  const startInNode=node===range.startContainer?range.startOffset:0;
+  const endInNode=node===range.endContainer?range.endOffset:text.length;
+  if(startInNode>=endInNode)continue;
+  const length=endInNode-startInNode;
+  node.textContent=text.slice(0,startInNode)+value.slice(cursor,cursor+length)+text.slice(endInNode);
+  cursor+=length;
+ }
+ const selected=document.createRange();
+ selected.setStart(range.startContainer,range.startOffset);
+ selected.setEnd(range.endContainer,range.endOffset);
+ return selected;
+}
 
 export function clearEditorRangeFormatting(range:Range){const value=range.toString(),container=range.commonAncestorContainer,element=(container.nodeType===1?container:container.parentElement)as HTMLElement|null;if(element?.tagName==="SPAN"&&element.textContent===value){const document=element.ownerDocument,node=document.createTextNode(value),selected=document.createRange();element.replaceWith(node);selected.selectNodeContents(node);return selected}return replaceEditorRangeText(range,value)}
 
