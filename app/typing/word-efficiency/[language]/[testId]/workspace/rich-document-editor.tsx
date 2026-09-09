@@ -123,33 +123,47 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  // Chromium quirk: applying an inline style command (bold/italic/
  // underline/etc.) to a selection that spans a WHOLE block element --
  // exactly what selectByMargin's margin-click paragraph selection
- // produces -- can leave behind a brand-new, completely empty sibling
- // paragraph/list-item next to the one actually being formatted. Caught
- // live: a student selected paragraph 6 in the margin and applied Bold,
- // Italic, Underline in sequence (mirroring Q1's instructions) and ended
- // up with a genuinely empty <p> injected immediately before it. That
- // shifts every later paragraph's array position by one in THIS
- // document only -- fatal for position-based grading (see
+ // produces -- can split that block into two, leaving one of the two
+ // genuinely empty. Caught live TWICE now, two different ways: first, a
+ // brand-new empty <p> inserted as an extra sibling (fixed by comparing
+ // element references against a before-snapshot); then, reported again
+ // on Underline specifically -- this time execCommand reused the
+ // ORIGINAL <p>'s own element (same id, same reference) as the empty
+ // half and put all the real text in a newly created clone right after
+ // it, which a same-reference check waves through as "that one was
+ // already here, not new" even though its content just vanished. Either
+ // direction shifts every later paragraph's array position by one in
+ // THIS document only -- fatal for position-based grading (see
  // word-document-diff.ts's diffBlock), which addresses paragraphs by
  // index and assumes the student's and the model answer's block arrays
- // line up one-to-one. Rather than fight execCommand's internals, detect
- // and undo the side effect: snapshot the direct children beforehand,
- // then remove any element that's both brand new (not in that snapshot)
- // and genuinely empty (no text, no image/table/rule). undo/redo are
- // exempted since swapping in/out many blocks -- including ones that are
- // legitimately, intentionally empty -- is their whole job.
- const pruneStrayEmptyBlocks=(before:Element[])=>{
+ // line up one-to-one. Rather than trying to track which specific
+ // element execCommand decided to keep -- an implementation detail this
+ // has already been wrong about once -- key off the one signal that's
+ // reliable either way: the number of top-level blocks. If it grew, a
+ // split happened, and any block that's now completely empty (text,
+ // image, table, rule) is the side effect, whichever element it
+ // happens to be, existing reference or brand new; remove exactly as
+ // many as the count grew by, so a document that legitimately already
+ // had an empty paragraph elsewhere is left alone. undo/redo are
+ // exempted since swapping in/out many blocks -- including ones that
+ // are legitimately, intentionally empty -- is their whole job.
+ const pruneStrayEmptyBlocks=(beforeCount:number)=>{
   if(!editor.current)return;
-  const beforeSet=new Set(before);
+  let excess=editor.current.children.length-beforeCount;
+  if(excess<=0)return;
+  const isPrunable=(child:Element)=>{
+   if(child.tagName==="HR"||child.tagName==="TABLE"||child.tagName==="FIGURE")return false;
+   if(child.querySelector("img,table,hr"))return false;
+   return(child.textContent??"").replace(/​/g,"").trim()===""
+  };
   for(const child of[...editor.current.children]){
-   if(beforeSet.has(child))continue;
-   if(child.tagName==="HR"||child.tagName==="TABLE"||child.tagName==="FIGURE")continue;
-   if(child.querySelector("img,table,hr"))continue;
-   if((child.textContent??"").replace(/​/g,"").trim()!=="")continue;
+   if(excess<=0)break;
+   if(!isPrunable(child))continue;
    child.remove();
+   excess--;
   }
  };
- const exec=(name:string,value?:string)=>{editor.current?.focus();restoreSelection();const safeValue=name==="fontName"?value?.replace(/ \((?:Headings|Body)\)$/u,""):value;const before=name==="undo"||name==="redo"||!editor.current?null:[...editor.current.children];document.execCommand(name,false,safeValue);if(before)pruneStrayEmptyBlocks(before);changed()};
+ const exec=(name:string,value?:string)=>{editor.current?.focus();restoreSelection();const safeValue=name==="fontName"?value?.replace(/ \((?:Headings|Body)\)$/u,""):value;const beforeCount=name==="undo"||name==="redo"||!editor.current?null:editor.current.children.length;document.execCommand(name,false,safeValue);if(beforeCount!==null)pruneStrayEmptyBlocks(beforeCount);changed()};
  const selectedBlocks=()=>{restoreSelection();const selection=getSelection();return editor.current&&selection?.rangeCount?selectedEditorBlocks(editor.current,selection.getRangeAt(0)):[]};
  const applyRunStyles=(styles:EditorRunStyles)=>{editor.current?.focus();restoreSelection();const selection=getSelection();if(!selection?.rangeCount)return;const wrapped=wrapEditorRange(selection.getRangeAt(0),styles);if(wrapped){savedRange.current=wrapped.range;changed()}};
  const applyFontStep=(direction:1|-1)=>{restoreSelection();const node=getSelection()?.anchorNode,parent=node instanceof Element?node:node?.parentElement,current=Number.parseFloat(parent?getComputedStyle(parent).fontSize:"11")*.75,sizes=[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].filter(size=>size>=capabilities.fontSizeMin&&size<=capabilities.fontSizeMax),index=direction>0?sizes.findIndex(size=>size>current):sizes.findLastIndex(size=>size<current),size=index<0?(direction>0?sizes.at(-1):sizes[0]):sizes[index];if(size)applyRunStyles({fontSize:`${size}pt`})};
