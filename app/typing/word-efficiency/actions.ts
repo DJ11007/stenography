@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import{validateWordEditorDocument,validateWordEditorOperations}from"@/lib/word-editor-document";
+import{validateWordEditorDocument}from"@/lib/word-editor-document";
 import{convertWorkingMatterToEditorDocument,parseWorkingMatterDocx,validateWorkingMatterFile}from"@/lib/word-docx";
 import{safePdfName}from"@/lib/word-efficiency";
 
@@ -48,7 +48,31 @@ export async function startWordAttempt(attemptId:string){await requireStudent();
 // while also adding real latency to every single autosave. Ownership and role are already
 // enforced inside the RPC itself (student_id=auth.uid(), is_active_word_efficiency_student()),
 // which returns a normal {ok:false} error instead of redirecting when something is wrong.
-export async function autosaveWordDocument(attemptId:string,document:unknown):Promise<{ok:boolean;error:string}>{const safeDocument=validateWordEditorDocument(document);const supabase=await createClient();const{data:attempt,error:attemptError}=await supabase.from("word_efficiency_attempts").select("snapshot").eq("id",attemptId).maybeSingle();if(!attempt)return{ok:false,error:process.env.NODE_ENV==="development"?`Autosave failed: ${attemptError?.message??"attempt unavailable"}`:"Autosave failed."};validateWordEditorOperations(safeDocument,(attempt.snapshot as Record<string,unknown>)?.editor_capabilities);const{error}=await supabase.rpc("autosave_word_efficiency_document",{p_attempt_id:attemptId,p_document:safeDocument});if(error)return{ok:false,error:process.env.NODE_ENV==="development"?`Autosave failed: ${error.message}`:"Autosave failed."};return{ok:true,error:""}}
-export async function submitWordDocument(attemptId:string,document:unknown):Promise<{ok:boolean;error:string}>{try{const safeDocument=validateWordEditorDocument(document);const supabase=await createClient();const{data:attempt,error:attemptError}=await supabase.from("word_efficiency_attempts").select("snapshot").eq("id",attemptId).maybeSingle();if(!attempt)return{ok:false,error:submissionError(attemptError??{message:"attempt unavailable"})};validateWordEditorOperations(safeDocument,(attempt.snapshot as Record<string,unknown>)?.editor_capabilities);const{error}=await supabase.rpc("submit_word_efficiency_document",{p_attempt_id:attemptId,p_document:safeDocument});if(error){if(process.env.NODE_ENV==="development")console.error("[Word Efficiency submission RPC failed]",{message:error.message,code:error.code,details:error.details,hint:error.hint});return{ok:false,error:submissionError(error)}}return{ok:true,error:""}}catch(error){return{ok:false,error:submissionError(error)}}}
+// Speed fix, reported live (deployed site): submitting/autosaving a Word
+// Efficiency document spent a whole extra Supabase round trip here --
+// select("snapshot") from word_efficiency_attempts, purely to read
+// editor_capabilities so validateWordEditorOperations() could pre-check
+// the document's operations log client-side -- before ever calling the
+// actual autosave/submit RPC. That pre-check is fully redundant: both
+// autosave_word_efficiency_document and submit_word_efficiency_document
+// already call assert_word_efficiency_capability_changes() themselves
+// (see supabase/migrations/202608240008_repair_word_efficiency_
+// submission_baseline.sql), which re-derives effective_capabilities from
+// word_efficiency_versions and checks the exact same operations array --
+// a strict superset of what validateWordEditorOperations did, since it
+// also diffs the document's actual features against the baseline, not
+// just the self-reported operations log. A student never saw a more
+// specific error for this either way: submissionError() only surfaces
+// RPC-message detail in development, production always showed the same
+// generic "Autosave/Submission failed." string regardless of which check
+// failed. Dropping this call halves the round trips on every autosave
+// (fires on every ~800ms-debounced edit -- see rich-document-editor.tsx's
+// changed()) and removes one full round trip from the final submit,
+// exactly the class of fix already applied to typing test submission
+// (recordManagedAttempt, five round trips to three) and reported the
+// same way: a student staring at a frozen/blank screen while this
+// resolved, worse whenever Supabase's own auth/API latency spikes.
+export async function autosaveWordDocument(attemptId:string,document:unknown):Promise<{ok:boolean;error:string}>{const safeDocument=validateWordEditorDocument(document);const supabase=await createClient();const{error}=await supabase.rpc("autosave_word_efficiency_document",{p_attempt_id:attemptId,p_document:safeDocument});if(error)return{ok:false,error:process.env.NODE_ENV==="development"?`Autosave failed: ${error.message}`:"Autosave failed."};return{ok:true,error:""}}
+export async function submitWordDocument(attemptId:string,document:unknown):Promise<{ok:boolean;error:string}>{try{const safeDocument=validateWordEditorDocument(document);const supabase=await createClient();const{error}=await supabase.rpc("submit_word_efficiency_document",{p_attempt_id:attemptId,p_document:safeDocument});if(error){if(process.env.NODE_ENV==="development")console.error("[Word Efficiency submission RPC failed]",{message:error.message,code:error.code,details:error.details,hint:error.hint});return{ok:false,error:submissionError(error)}}return{ok:true,error:""}}catch(error){return{ok:false,error:submissionError(error)}}}
 
 function submissionError(error:unknown){if(process.env.NODE_ENV!=="development")return"Submission failed.";const candidate=error as{message?:unknown;code?:unknown;details?:unknown;hint?:unknown};const fields=[`message=${String(candidate?.message??"unknown submission error")}`];if(candidate?.code)fields.push(`code=${String(candidate.code)}`);if(candidate?.details)fields.push(`details=${String(candidate.details)}`);if(candidate?.hint)fields.push(`hint=${String(candidate.hint)}`);return`Submission failed: ${fields.join(" · ")}`}
