@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import {
   WORD_EDITOR_RIBBON,
@@ -9,6 +9,44 @@ import {
   type RibbonOption,
   type WordEditorTab,
 } from "@/lib/word-editor-capabilities";
+
+// Font/color/underline flyouts were each positioned with a hardcoded
+// guess at their own rendered width (e.g. "window.innerWidth-158" for a
+// palette that's actually ~132px wide) to clamp them onto the screen.
+// Reported live: on a narrow viewport the guess and the real size didn't
+// agree, so the clamp let the palette sit past the right edge -- mostly
+// off-screen, just a sliver of color swatches visible, the rest
+// unreachable. A hardcoded guess can never really track "how wide is
+// this popup", since that depends on the option list, font names, and
+// the viewport's own font rendering. This measures the actual portaled
+// element after it mounts (first effect: initial guess near the trigger
+// so there's something to measure; second effect, no dependency array so
+// it re-checks every render while open: nudge it back inside the
+// viewport if the real box overflows) instead of asserting a size.
+function useClampedFlyoutPosition(open: boolean, anchorRef: RefObject<HTMLElement | null>, align: "left" | "right" = "left") {
+  const [position, setPosition] = useState<CSSProperties>({});
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPosition({ position: "fixed", left: align === "left" ? rect.left : undefined, right: align === "right" ? Math.max(4, window.innerWidth - rect.right) : undefined, top: rect.bottom + 2 });
+  }, [open, align, anchorRef]);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const flyout = flyoutRef.current;
+    if (!flyout) return;
+    const rect = flyout.getBoundingClientRect();
+    const margin = 4;
+    let left = rect.left, top = rect.top;
+    if (rect.right > window.innerWidth - margin) left -= rect.right - (window.innerWidth - margin);
+    if (left < margin) left = margin;
+    if (rect.bottom > window.innerHeight - margin) top -= rect.bottom - (window.innerHeight - margin);
+    if (top < margin) top = margin;
+    if (Math.abs(left - rect.left) > 0.5 || Math.abs(top - rect.top) > 0.5) setPosition(current => ({ ...current, left, top, right: "auto" }));
+  });
+  return { position, flyoutRef };
+}
 
 type Props = {
   capabilities: HierarchicalEditorCapabilities;
@@ -158,15 +196,15 @@ const RECENT_FONTS_KEY="word-efficiency-recent-fonts";
 // displayed and, while open, the live search query filtering the gallery
 // below it.
 function FontGallery({fonts,preview,onChange,currentFontFamily}:{fonts:string[];preview:boolean;onChange?:(font:string)=>void;currentFontFamily?:string}){
-  const[open,setOpen]=useState(false),[selected,setSelected]=useState(currentFontFamily||"Calibri (Body)"),[text,setText]=useState(selected),[query,setQuery]=useState(""),[recent,setRecent]=useState<string[]>([]),[position,setPosition]=useState<CSSProperties>({});
+  const[open,setOpen]=useState(false),[selected,setSelected]=useState(currentFontFamily||"Calibri (Body)"),[text,setText]=useState(selected),[query,setQuery]=useState(""),[recent,setRecent]=useState<string[]>([]);
   const inputRef=useRef<HTMLInputElement>(null);
+  const{position,flyoutRef}=useClampedFlyoutPosition(open,inputRef,"left");
   useEffect(()=>{if(currentFontFamily&&currentFontFamily!==selected&&!open){setSelected(currentFontFamily);setText(currentFontFamily)}},[currentFontFamily]);
-  useLayoutEffect(()=>{if(!open)return;const rect=inputRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-290)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
   useEffect(()=>{try{const value=JSON.parse(localStorage.getItem(RECENT_FONTS_KEY)??"[]");if(Array.isArray(value))setRecent(value.filter((font):font is string=>typeof font==="string"&&fonts.includes(font)).slice(0,8))}catch{}},[fonts]);
   const choose=(font:string)=>{if(preview||!fonts.includes(font))return;setSelected(font);setText(font);setOpen(false);setQuery("");const next=[font,...recent.filter(item=>item!==font)].slice(0,8);setRecent(next);try{localStorage.setItem(RECENT_FONTS_KEY,JSON.stringify(next))}catch{}onChange?.(font)};
   const filter=(items:readonly string[])=>items.filter(font=>fonts.includes(font)&&font.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const theme=filter(WORD_THEME_FONTS),recentFonts=filter(recent),all=filter(fonts.filter(font=>!WORD_THEME_FONTS.includes(font as typeof WORD_THEME_FONTS[number])));
-  const gallery=open&&typeof document!=="undefined"?createPortal(<div className="word-font-gallery" role="listbox" aria-label="Font family" style={position}><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>,document.body):null;
+  const gallery=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} className="word-font-gallery" role="listbox" aria-label="Font family" style={position}><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>,document.body):null;
   return <div data-ribbon-option="fontName" className="word-font-picker"><input ref={inputRef} aria-label="Font family" role="combobox" aria-haspopup="listbox" aria-expanded={open} disabled={preview} style={{fontFamily:fontCssName(text)}} value={text} onFocus={event=>{setOpen(true);setQuery("");event.target.select();}} onChange={event=>{setText(event.target.value);setQuery(event.target.value);}} onBlur={()=>{setOpen(false);setQuery("");setText(selected);}} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();const exact=fonts.find(font=>font.toLocaleLowerCase()===text.toLocaleLowerCase());if(exact)choose(exact);}else if(event.key==="Escape"){event.preventDefault();(event.target as HTMLInputElement).blur();}}}/>{gallery}</div>
 }
 function FontSection({title,fonts,choose}:{title:string;fonts:readonly string[];choose:(font:string)=>void}){if(!fonts.length)return null;return <section><h3>{title}</h3>{fonts.map(font=><button role="option" type="button" key={font} style={{fontFamily:fontCssName(font)}} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(font)}><span>{font.replace(/ \((?:Headings|Body)\)$/u,"")}</span>{font.endsWith("(Headings)")&&<small>(Headings)</small>}{font.endsWith("(Body)")&&<small>(Body)</small>}</button>)}</section>}
@@ -174,19 +212,20 @@ function fontCssName(font:string){return font.replace(/ \((?:Headings|Body)\)$/u
 export const SAFE_COLORS=["#000000","#7f7f7f","#a6a6a6","#d9d9d9","#ffffff","#c00000","#ff0000","#ffc000","#ffff00","#92d050","#00b050","#00b0f0","#0070c0","#002060","#7030a0","#fff2cc","#f4cccc","#d9ead3","#cfe2f3","#d9d2e9","#ed7d31","#70ad47","#4472c4","#a9d18e","#9dc3e6","#f9cb9c"];
 const CLEAR_LABEL:Record<string,string>={fontColor:"Automatic",highlightColor:"No Color",shading:"No Fill"};
 function ColorSplitButton({option,preview,swatch,setSwatch,onChange}:{option:RibbonOption;preview:boolean;swatch:string;setSwatch:(color:string)=>void;onChange?:Props["onColorChange"]}){
-  const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
+  const[open,setOpen]=useState(false);
   const arrowRef=useRef<HTMLButtonElement>(null);
-  useLayoutEffect(()=>{if(!open)return;const rect=arrowRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left-134,window.innerWidth-158)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
+  const{position,flyoutRef}=useClampedFlyoutPosition(open,arrowRef,"right");
   const apply=(color=swatch)=>{if(!preview)onChange?.(option.id,color)};
   const clearLabel=CLEAR_LABEL[option.id]??"No Color";
-  const palette=open&&typeof document!=="undefined"?createPortal(<div role="menu" aria-label={`${option.label} colors`} className="word-color-palette" style={{...position,gridTemplateColumns:"repeat(5,20px)",width:"auto"}}>{SAFE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`${option.label} ${color}`} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color);apply(color);setOpen(false)}}/>)}<button role="menuitem" type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{apply(option.id==="fontColor"?"automatic":"transparent");setOpen(false)}} style={{gridColumn:"1 / -1",marginTop:4,padding:"4px 2px",fontSize:10,fontWeight:700,background:"#fff",border:"1px solid #999",borderRadius:2}}>{clearLabel}</button></div>,document.body):null;
+  const palette=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} role="menu" aria-label={`${option.label} colors`} className="word-color-palette" style={{...position,gridTemplateColumns:"repeat(5,20px)",width:"auto"}}>{SAFE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`${option.label} ${color}`} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color);apply(color);setOpen(false)}}/>)}<button role="menuitem" type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{apply(option.id==="fontColor"?"automatic":"transparent");setOpen(false)}} style={{gridColumn:"1 / -1",marginTop:4,padding:"4px 2px",fontSize:10,fontWeight:700,background:"#fff",border:"1px solid #999",borderRadius:2}}>{clearLabel}</button></div>,document.body):null;
   return <div data-ribbon-option={option.id} className="word-color-split"><button type="button" className="word-color-apply" aria-label={`Apply ${option.label}`} disabled={preview} title={option.label} onMouseDown={event=>event.preventDefault()} onClick={()=>apply()}><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></button><button ref={arrowRef} type="button" className="word-color-arrow" aria-label={`Open ${option.label} palette`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}>▾</button>{palette}</div>}
 const UNDERLINE_STYLES=["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy"] as const;
 const UNDERLINE_COLORS=["#000000","#c00000","#ed7d31","#ffc000","#70ad47","#5b9bd5","#4472c4","#7030a0"];
 function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:boolean;onChange?:(style:string,color?:string)=>void}){
-  const[open,setOpen]=useState(false),[moreOpen,setMoreOpen]=useState(false),[colorOpen,setColorOpen]=useState(false),[lastStyle,setLastStyle]=useState("single"),[thickness,setThickness]=useState("3"),[wordsOnly,setWordsOnly]=useState(false),[position,setPosition]=useState<CSSProperties>({});
-  const arrowRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);
-  useLayoutEffect(()=>{if(!open)return;const rect=arrowRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left-24,window.innerWidth-184)),top:rect.bottom+2});requestAnimationFrame(()=>menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())},[open]);
+  const[open,setOpen]=useState(false),[moreOpen,setMoreOpen]=useState(false),[colorOpen,setColorOpen]=useState(false),[lastStyle,setLastStyle]=useState("single"),[thickness,setThickness]=useState("3"),[wordsOnly,setWordsOnly]=useState(false);
+  const arrowRef=useRef<HTMLButtonElement>(null);
+  const{position,flyoutRef:menuRef}=useClampedFlyoutPosition(open,arrowRef,"right");
+  useEffect(()=>{if(!open)return;requestAnimationFrame(()=>menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())},[open,menuRef]);
   const close=()=>{setOpen(false);setMoreOpen(false);setColorOpen(false);arrowRef.current?.focus()};
   const applyStyle=(style:string)=>{if(!preview){setLastStyle(style==="none"?lastStyle:style);onChange?.(style)}close()};
   const move=(event:KeyboardEvent<HTMLDivElement>)=>{const items=[...event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')],index=items.indexOf(document.activeElement as HTMLElement);if(event.key==="Escape"){event.preventDefault();close()}else if(["ArrowDown","ArrowRight"].includes(event.key)){event.preventDefault();items[(index+1+items.length)%items.length]?.focus()}else if(["ArrowUp","ArrowLeft"].includes(event.key)){event.preventDefault();items[(index-1+items.length)%items.length]?.focus()}else if(event.key==="Home"){event.preventDefault();items[0]?.focus()}else if(event.key==="End"){event.preventDefault();items.at(-1)?.focus()}};
