@@ -47,6 +47,14 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked }
   const [editValue, setEditValue] = useState("");
   const [status, setStatus] = useState("Ready");
   const [submitted, setSubmitted] = useState(locked);
+  // Same fix as the Word Efficiency editor's finalSubmitting: without a
+  // prominent overlay, the only feedback during this await is the small
+  // status text, easy to miss under exam pressure -- especially when the
+  // submit call is slow (Supabase-latency swings, not something this
+  // component controls). Reported live as the submission appearing to
+  // freeze; this doesn't speed up the network call, it just makes the
+  // wait unmistakable instead of ambiguous.
+  const [finalSubmitting, setFinalSubmitting] = useState(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
 
@@ -129,9 +137,10 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked }
   const submit = async () => {
     if (!confirm("Submit your final sheet? You cannot edit it afterward.")) return;
     setStatus("Submitting…");
+    setFinalSubmitting(true);
     const document: ExcelDocument = { schemaVersion: "2", rows, cols, cells, operations: [...operations].slice(0, 256), savedAt: new Date().toISOString() };
     const result = await submitExcelDocument(attemptId, document);
-    if (!result.ok) { setStatus(result.error); return; }
+    if (!result.ok) { setStatus(result.error); setFinalSubmitting(false); return; }
     setSubmitted(true);
     setStatus("Test submitted successfully");
     router.push(`/typing/excel-efficiency/results/${attemptId}`);
@@ -142,6 +151,13 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {finalSubmitting && <div role="status" aria-live="assertive" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4">
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
+          <span className="mx-auto flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-cyan-100 text-3xl" aria-hidden>⏳</span>
+          <h2 className="mt-5 text-2xl font-black text-slate-900">Submitting your sheet…</h2>
+          <p className="mt-3 leading-7 text-slate-600">Please don&apos;t close this page or click Submit again. This can take a few moments -- your document is safe.</p>
+        </div>
+      </div>}
       <div role="toolbar" aria-label="Spreadsheet controls" className="flex flex-wrap items-center gap-1.5 border-b bg-white px-3 py-2">
         <RibbonButton active={activeCell.bold} onClick={() => toggleStyle("bold")} label="Bold"><strong>B</strong></RibbonButton>
         <RibbonButton active={activeCell.italic} onClick={() => toggleStyle("italic")} label="Italic"><em>I</em></RibbonButton>
