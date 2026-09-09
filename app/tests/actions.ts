@@ -10,22 +10,38 @@ type AttemptPayload = { testId: string; versionId: string; startedAt: string; ty
 
 export async function recordManagedAttempt(payload: AttemptPayload) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !Number.isFinite(payload.elapsedSeconds) || payload.elapsedSeconds < 0 || payload.typedText.length > 100000) return null;
-  const [{ data: test }, { data: v }] = await Promise.all([
+  // Speed fix, reported live: submitting a test on the deployed site took
+  // multiple seconds of background processing (doesn't block the results
+  // screen -- see configurable-typing-exam.tsx's finalScore fallback --
+  // but the corrected/verified score, and any "locked" outcome, waited on
+  // it). Measured on the deployed site: one submission's network request
+  // took ~6.9s. Root cause: this function made up to five Supabase round
+  // trips in strict sequence -- getUser(), then the tests+test_versions
+  // pair, then assert_student_access_allowed, then (practice mode only)
+  // assert_practice_test_allowed, then the insert -- when the first three
+  // don't actually depend on each other's result (RLS reads the request's
+  // JWT directly, not the JS-level getUser() return value, so it's safe
+  // to run alongside the row lookups) and the two RPC checks are
+  // independent boolean gates, not a pipeline. Collapsing both groups into
+  // Promise.all cuts the sequential round-trip count from five to three
+  // without changing what's checked or in what order failures are
+  // reported.
+  const [{ data: { user } }, { data: test }, { data: v }] = await Promise.all([
+    supabase.auth.getUser(),
     supabase.from("tests").select("id,slug,current_version_id,status,visibility,is_live,live_starts_at,live_ends_at,results_publish_at").eq("id", payload.testId).maybeSingle(),
     supabase.from("test_versions").select("*").eq("id", payload.versionId).maybeSingle(),
   ]);
+  if (!user || !Number.isFinite(payload.elapsedSeconds) || payload.elapsedSeconds < 0 || payload.typedText.length > 100000) return null;
   if (!test || test.status !== "published" || test.visibility !== "public" || test.current_version_id !== v?.id || v.test_id !== test.id) return null;
-  const { error: accessError } = await supabase.rpc("assert_student_access_allowed");
-  if (accessError) return { status: "locked" as const };
   // Defense-in-depth backstop for the free-practice-test cap -- the real
   // gate is PracticeNavigator refusing to even render the workspace once
   // blocked, this only matters against a direct call to this action.
-  if (v.mode === "practice") {
-    const { error: freeLimitError } = await supabase.rpc("assert_practice_test_allowed");
-    if (freeLimitError) return { status: "locked" as const };
-  }
+  const [{ error: accessError }, practiceLimitResult] = await Promise.all([
+    supabase.rpc("assert_student_access_allowed"),
+    v.mode === "practice" ? supabase.rpc("assert_practice_test_allowed") : Promise.resolve(null),
+  ]);
+  if (accessError) return { status: "locked" as const };
+  if (v.mode === "practice" && practiceLimitResult?.error) return { status: "locked" as const };
   if (test.is_live) {
     const now = Date.now(); const starts = new Date(test.live_starts_at ?? "").getTime(); const ends = new Date(test.live_ends_at ?? "").getTime();
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || now < starts || now > ends) return { status: "closed" as const };
