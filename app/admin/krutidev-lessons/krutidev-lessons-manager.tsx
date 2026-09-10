@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { deleteKrutiDevExercise, saveKrutiDevExercise, type KrutiDevLessonActionState } from "./actions";
 
 type Row = {
@@ -40,6 +40,26 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
   const groups: Row["kind"][] = ["key-lesson", "word-set", "paragraph"];
   const draft = editing && "id" in editing ? editing : null;
   const editingKind = editing ? editing.kind : null;
+
+  // Close the editor once a save succeeds (the list revalidates on the server).
+  useEffect(() => {
+    if (saveState.success) setEditing(null);
+  }, [saveState]);
+
+  // Escape closes the editor; lock background scroll while it is open.
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setEditing(null);
+    };
+    document.addEventListener("keydown", onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [editing]);
 
   return (
     <div className="space-y-8">
@@ -81,10 +101,16 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
       <Feedback state={deleteState} />
 
       {editing && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center"
+          onMouseDown={() => setEditing(null)}
+          role="presentation"
+        >
         <form
           action={saveAction}
           key={draft?.id ?? `new-${editingKind}`}
-          className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50/40 p-5"
+          onMouseDown={(event) => event.stopPropagation()}
+          className="my-8 grid w-full max-w-xl gap-3 rounded-xl border border-blue-200 bg-white p-5 shadow-2xl"
         >
           <input type="hidden" name="id" value={draft?.id ?? ""} />
           <p className="text-sm font-black text-slate-900">{draft ? "Edit" : "New"} {KIND_LABEL[editingKind as Row["kind"]]}</p>
@@ -119,6 +145,7 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
           </div>
           <Feedback state={saveState} />
         </form>
+        </div>
       )}
     </div>
   );
