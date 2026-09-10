@@ -71,25 +71,43 @@ function decodeLegacyWord(rawWord: string) {
     output += convertLegacy(rawWord.slice(index, nextOverride).replaceAll("%", "\uE000")).replaceAll("\uE000", "ः");
     index = nextOverride;
   }
-  return repairStackedMatras(output);
+  return repairDecodedWord(output);
 }
 
-// A Devanagari consonant carries at most one vowel sign (मात्रा). Legacy
-// Kruti Dev passages that were hand-typed or machine-converted with a
-// stray "aa" keystroke decode to an impossible stack of two vowel signs:
-// "धीरे" typed as è + k + h decodes to धाीरे, "अनुसंधान" (/k + an extra k)
-// to अनुसंधाान, "अधिकार" to अधिाकार, "अवधि" to अवधिा. The stray sign is
-// always आ-matra (ा); drop it wherever it stacks on another vowel sign --
-// wedged before one, doubled, or trailing one (optionally then anusvara /
-// visarga). None of those is possible in correct Devanagari, so
-// well-formed text is untouched and scoring a Kruti Dev test now treats
-// such a stored passage and a cleanly typed answer as the same word.
-function repairStackedMatras(word: string) {
+// Repairs applied to each decoded token. Every rule below only rewrites a
+// token that is ALREADY impossible in Devanagari -- two stacked vowel
+// signs, a word that opens with a मात्रा, an independent vowel carrying a
+// मात्रा -- so it can never disturb a well-formed word; it only mends, or
+// at worst re-mangles, a token that came in broken. The patterns are from
+// auditing the Rajasthan LDC Hindi chapters, hand-typed in Kruti Dev with
+// a recurring set of slips: a stray "aa" keystroke stacking two signs
+// ("धीरे" -> धाीरे, "अधिकार" -> अधिाकार), the k key one keystroke early
+// ("कार्य" -> ाकर्य), the s/l mirror-swap at a word start ("समाज" -> ेमाज),
+// and f + m for f + e ("मिल" -> the impossible उि).
+function repairDecodedWord(word: string) {
   return word
     // "ा" wedged before another vowel sign (è+k+h -> धाी).
     .replace(/ा(?=[ि-ौ])/gu, "")
     // doubled "ा" (/k + extra k -> धाा).
     .replace(/ा{2,}/gu, "ा")
+    // A word cannot begin with a मात्रा. The Kruti Dev "ा" key (k) pressed
+    // one keystroke early lands before its consonant -- "कार्य" stored as
+    // k + d + ... decodes with a leading ा; move it after the consonant.
+    .replace(/^ा([क-हक़-य़])/u, "$1ा")
+    // Nor with "े". Kruti Dev स is the l key and े the mirror-image s key;
+    // typing s for l at a word start is the most common slip in these
+    // chapters ("सभी" -> ेभी, "समाज" -> ेमाज, "सुरक्षा" -> ेुरक्षा). Restore स.
+    .replace(/^े/u, "स")
+    // The pre-base ि marker (the f key) then उ (m) instead of म (e): ि
+    // cannot ride an independent vowel, so it renders as the impossible
+    // उ + ि -- every observed case is मिलना / मिलकर / मिला.
+    .replace(/उि/gu, "मि")
+    // A nukta letter directly followed by "यि" -- the @anthro-ai decoder
+    // misplaces the pre-base ि onto य for ड़ि / ढ़ि / क़ि clusters, so
+    // "सीढ़ियों" comes back as सीढ़यिों and "पीढ़ियों" as पीढ़यिों. The ि
+    // belongs on the nukta letter; put it there. (matches ़ decomposed or
+    // a pre-composed क़-य़.)
+    .replace(/([़क़-य़])यि/gu, "$1िय")
     // "ा" trailing another vowel sign, before a consonant (अधिाकार) or at a
     // word / clause boundary (अवधिा), optionally with anusvara/visarga on
     // it. Chandrabindu (ँ) is deliberately NOT a boundary here: it keeps a
