@@ -76,21 +76,26 @@ function decodeLegacyWord(rawWord: string) {
 
 // A Devanagari consonant carries at most one vowel sign (मात्रा). Legacy
 // Kruti Dev passages that were hand-typed or machine-converted with a
-// stray "aa" keystroke decode to an impossible stack of two vowel signs
-// -- "धीरे" typed as è + k + h decodes to धाीरे, "अनुसंधान" (/k + an extra
-// k) to अनुसंधाान. The stray sign is always आ-matra (ा); remove it when it
-// leads straight into another vowel sign, and fold a doubled ा. Both
-// shapes are impossible in correct Devanagari, so well-formed text is
-// untouched -- scoring a Kruti Dev test then treats such a stored passage
-// and a cleanly typed answer as the same word. (A trailing stray ा, e.g.
-// "अवधि" stored as ...िा, is deliberately left alone: it is
-// indistinguishable from the "िया" shape an upstream nukta-letter bug
-// already produces as "...यिा", and dropping it there would lose a real
-// vowel.)
+// stray "aa" keystroke decode to an impossible stack of two vowel signs:
+// "धीरे" typed as è + k + h decodes to धाीरे, "अनुसंधान" (/k + an extra k)
+// to अनुसंधाान, "अधिकार" to अधिाकार, "अवधि" to अवधिा. The stray sign is
+// always आ-matra (ा); drop it wherever it stacks on another vowel sign --
+// wedged before one, doubled, or trailing one (optionally then anusvara /
+// visarga). None of those is possible in correct Devanagari, so
+// well-formed text is untouched and scoring a Kruti Dev test now treats
+// such a stored passage and a cleanly typed answer as the same word.
 function repairStackedMatras(word: string) {
   return word
+    // "ा" wedged before another vowel sign (è+k+h -> धाी).
     .replace(/ा(?=[ि-ौ])/gu, "")
-    .replace(/ा{2,}/gu, "ा");
+    // doubled "ा" (/k + extra k -> धाा).
+    .replace(/ा{2,}/gu, "ा")
+    // "ा" trailing another vowel sign, before a consonant (अधिाकार) or at a
+    // word / clause boundary (अवधिा), optionally with anusvara/visarga on
+    // it. Chandrabindu (ँ) is deliberately NOT a boundary here: it keeps a
+    // real "...ि" + "याँ" (already mis-joined upstream for nukta letters)
+    // from losing its "ाँ".
+    .replace(/(?<=[ि-ौ])ा(?=[ंः]?(?:[क-हक़-य़\s।,;:!?)"'-]|$))/gu, "");
 }
 
 export function detectHindiTextFormat(text: string): HindiTextFormat | "empty" | "mixed" | "unknown" {
