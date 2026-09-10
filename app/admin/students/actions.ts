@@ -163,19 +163,38 @@ export async function setStudentFreePracticeLimit(_: StudentActionState, formDat
   return { success: "Free practice test limit saved." };
 }
 
-// This bypasses the "email a reset link" flow entirely and sets a password
-// directly -- meant for the rare case a student is genuinely locked out of
-// their email too, not routine use. The password is never stored or
-// logged by this action beyond the single Supabase Auth call it makes.
+// Sets a student's password directly, bypassing the "email a reset link"
+// flow -- for the rare case a student is genuinely locked out of their
+// email too, not routine use. The password is never stored or logged
+// beyond the single call this makes.
+//
+// Primary path is the admin_set_student_password RPC, which runs on this
+// admin's own AAL2 session and needs no SUPABASE_SERVICE_ROLE_KEY (that
+// key throws "Invalid API key" once a project switches to the new
+// sb_publishable_/sb_secret_ key format). The service-role admin API is
+// kept as a fallback for deployments that have a valid key set.
 export async function setStudentPassword(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
   await requireAdmin();
   const studentId = String(formData.get("studentId") ?? "");
   const password = String(formData.get("password") ?? "");
   if (!password) return { error: "Enter a new password." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
+
+  const done = () => {
+    revalidatePath("/admin/students");
+    revalidatePath(`/admin/students/${studentId}`);
+    return { success: "Password updated -- copy it below and share it with the student through a secure channel." };
+  };
+
+  const supabase = await createClient();
+  const { error: rpcError } = await supabase.rpc("admin_set_student_password", { p_student_id: studentId, p_password: password });
+  if (!rpcError) return done();
+
   const admin = createAdminClient();
-  if (!admin) return { error: "Admin password tools are not configured on this server." };
-  const { error } = await admin.auth.admin.updateUserById(studentId, { password });
-  if (error) return { error: error.message };
-  return { success: "Password updated -- copy it below and share it with the student through a secure channel." };
+  if (admin) {
+    const { error } = await admin.auth.admin.updateUserById(studentId, { password });
+    if (!error) return done();
+    return { error: `Could not set the password: ${error.message}` };
+  }
+  return { error: `Could not set the password: ${rpcError.message}` };
 }

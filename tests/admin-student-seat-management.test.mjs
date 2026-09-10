@@ -16,11 +16,32 @@ test("setStudentClassInfo calls the new admin_set_student_class_info RPC", async
   assert.match(actions, /admin_set_student_class_info/);
 });
 
-test("setStudentPassword requires a minimum length and calls the service-role updateUserById, not a reset link", async () => {
+test("setStudentPassword requires a minimum length and sets the password directly (RPC first, service-role fallback), not a reset link", async () => {
   const actions = await read("app/admin/students/actions.ts");
   assert.match(actions, /export async function setStudentPassword/);
   assert.match(actions, /if \(password\.length < 8\) return \{ error: "Password must be at least 8 characters\." \};/);
+  // Primary path: the admin's own AAL2 session, no service-role key needed.
+  assert.match(actions, /supabase\.rpc\("admin_set_student_password", \{ p_student_id: studentId, p_password: password \}\)/);
+  // Kept as a fallback for deployments that do have a valid key.
   assert.match(actions, /admin\.auth\.admin\.updateUserById\(studentId, \{ password \}\)/);
+  // ...and setStudentPassword itself never sends an email reset link.
+  const body = actions.slice(actions.indexOf("export async function setStudentPassword"));
+  assert.doesNotMatch(body, /resetPasswordForEmail/);
+});
+
+test("a migration adds the admin_set_student_password RPC with the same AAL2 gate and revoke/grant convention as every other admin_set_student_* function", async () => {
+  const migration = await read("supabase/migrations/202609101445_admin_set_student_password.sql");
+  assert.match(migration, /create or replace function public\.admin_set_student_password\(p_student_id uuid, p_password text\)/);
+  assert.match(migration, /security definer/);
+  assert.match(migration, /if not public\.is_aal2_admin\(\) then raise exception 'not authorized'; end if;/);
+  assert.match(migration, /length\(p_password\) < 8/);
+  assert.match(migration, /update auth\.users\s*\n\s*set encrypted_password = crypt\(p_password, gen_salt\('bf', 10\)\)/);
+  assert.match(migration, /delete from auth\.sessions where user_id = p_student_id;/);
+  // Runs as supabase_auth_admin on hosted Supabase so it can write auth.users
+  // regardless of the postgres role's auth-schema restrictions.
+  assert.match(migration, /alter function public\.admin_set_student_password\(uuid, text\) owner to supabase_auth_admin/);
+  assert.match(migration, /revoke all on function public\.admin_set_student_password\(uuid, text\) from public, anon;/);
+  assert.match(migration, /grant execute on function public\.admin_set_student_password\(uuid, text\) to authenticated;/);
 });
 
 test("the access-controls panel wires all four new forms: lock/unlock, clear seat, class info, and set password", async () => {
@@ -35,7 +56,7 @@ test("the access-controls panel wires all four new forms: lock/unlock, clear sea
 
 test("the student detail page selects class_info and passes it into the access-controls panel", async () => {
   const detail = await read("app/admin/students/[id]/page.tsx");
-  assert.match(detail, /select\("id,email,full_name,phone,role,is_active,created_at,class_info,free_practice_test_limit"\)/);
+  assert.match(detail, /select\("id,email,full_name,phone,role,is_active,approved,created_at,class_info,free_practice_test_limit"\)/);
   assert.match(detail, /classInfo=\{student\.class_info\}/);
 });
 

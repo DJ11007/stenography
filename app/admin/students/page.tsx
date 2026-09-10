@@ -79,7 +79,7 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
 
         {!admin && (
           <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">
-            Email confirmation status and the manual-confirm-email / set-password tools need the SUPABASE_SERVICE_ROLE_KEY environment variable on the server — it is not set, so that column and those specific tools are hidden below.
+            Email confirmation status and the manual-confirm-email tool need the SUPABASE_SERVICE_ROLE_KEY environment variable on the server — it is not set, so that column and that tool are hidden below. (Setting a student&apos;s password directly still works without it.)
           </p>
         )}
 
