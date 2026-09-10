@@ -20,25 +20,29 @@ preferredLegacy.set("?", "\\");
 preferredLegacy.set("-", "&");
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
-// unicodeToKrutiDev is tuned to match the exact byte strings in
-// admin-authored production passages, and those legitimately use Kruti
-// Dev's single-byte Latin-1 ligatures (Ò for भ, è for ध, ç for प्र, Ä for
-// घ, Ã for ई, ª for the ट-cluster rakar ...). Those render correctly but
-// no ordinary keyboard key produces them, so anything teaching a student
-// *which key to press* (the Kruti Dev tutor) needs the plain ASCII
-// spelling. This rewrite runs only on tutor content -- every pair is
-// verified to decode back to the same Unicode through krutiDevToUnicode.
-const TYPEABLE_LIGATURES: Array<[RegExp, string]> = [
+// The @anthro-ai dictionary optimises for the shortest byte sequence,
+// which for a number of consonants and clusters is a single Latin-1
+// "ligature" byte: Ò for भ, è for ध, ç for प्र, Ä for घ, Ã for ई, ª for
+// the ट-cluster rakar, ® for ैं ... A student types Hindi on the Kruti
+// Dev / Remington keyboard, where those forms are ordinary key sequences
+// (Hk, /k, iz, ?k, bZ, z, Sa ...) -- the ligature bytes need Alt codes,
+// and some (®) do not even have a glyph in the bundled KrutiDev010 font,
+// so a passage stored with them both mis-renders and can never be matched
+// by a correctly-typed answer. unicodeToKrutiDev folds every ligature to
+// its keyboard sequence as its last step; each pair is verified to decode
+// back to the same Unicode through krutiDevToUnicode.
+const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ùk/g, "Rr"], [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
   [/ç/g, "iz"], [/æ/g, "nz"], [/Ø/g, "dz"], [/—/g, "d`"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
   [/ê/g, "V~V"], [/î/g, "~;"],
 ];
 
+// Retained name -- unicodeToKrutiDev now always produces keyboard-typeable
+// output, so this is a straight alias for callers that asked for it by
+// intent (the Kruti Dev learn simulator).
 export function toTypeableKrutiDev(unicode: string) {
-  let legacy = unicodeToKrutiDev(unicode);
-  for (const [pattern, replacement] of TYPEABLE_LIGATURES) legacy = legacy.replace(pattern, replacement);
-  return legacy;
+  return unicodeToKrutiDev(unicode);
 }
 
 // The dependency searches globally and then replaces the first matching text,
@@ -67,7 +71,26 @@ function decodeLegacyWord(rawWord: string) {
     output += convertLegacy(rawWord.slice(index, nextOverride).replaceAll("%", "\uE000")).replaceAll("\uE000", "ः");
     index = nextOverride;
   }
-  return output;
+  return repairStackedMatras(output);
+}
+
+// A Devanagari consonant carries at most one vowel sign (मात्रा). Legacy
+// Kruti Dev passages that were hand-typed or machine-converted with a
+// stray "aa" keystroke decode to an impossible stack of two vowel signs
+// -- "धीरे" typed as è + k + h decodes to धाीरे, "अनुसंधान" (/k + an extra
+// k) to अनुसंधाान. The stray sign is always आ-matra (ा); remove it when it
+// leads straight into another vowel sign, and fold a doubled ा. Both
+// shapes are impossible in correct Devanagari, so well-formed text is
+// untouched -- scoring a Kruti Dev test then treats such a stored passage
+// and a cleanly typed answer as the same word. (A trailing stray ा, e.g.
+// "अवधि" stored as ...िा, is deliberately left alone: it is
+// indistinguishable from the "िया" shape an upstream nukta-letter bug
+// already produces as "...यिा", and dropping it there would lose a real
+// vowel.)
+function repairStackedMatras(word: string) {
+  return word
+    .replace(/ा(?=[ि-ौ])/gu, "")
+    .replace(/ा{2,}/gu, "ा");
 }
 
 export function detectHindiTextFormat(text: string): HindiTextFormat | "empty" | "mixed" | "unknown" {
@@ -113,6 +136,7 @@ export function unicodeToKrutiDev(text: string) {
       output += char; index += 1;
     }
   }
+  for (const [ligature, keys] of KEYBOARD_KEY_SEQUENCES) output = output.replace(ligature, keys);
   return output;
 }
 

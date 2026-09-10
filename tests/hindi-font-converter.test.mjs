@@ -19,7 +19,8 @@ test("Unicode and Kruti Dev conversion fixtures round-trip deterministically",()
 });
 
 test("order-sensitive production Kruti Dev fixtures convert exactly",()=>{
-  const exact=[
+  // Historical byte strings still DECODE correctly...
+  const decodesTo=[
     ["fCjDl","ब्रिक्स"],
     ["vkfFkZd","आर्थिक"],
     ["v/;{krk","अध्यक्षता"],
@@ -27,7 +28,18 @@ test("order-sensitive production Kruti Dev fixtures convert exactly",()=>{
     ['o"kZ',"वर्ष"],
     ['Òkjr bl o"kZ fCjDl v/;{krk fuÒk jgk gSA',"भारत इस वर्ष ब्रिक्स अध्यक्षता निभा रहा है।"],
   ];
-  for(const [legacy,unicode] of exact){assert.equal(krutiDevToUnicode(legacy),unicode);assert.equal(unicodeToKrutiDev(unicode),legacy);}
+  for(const [legacy,unicode] of decodesTo)assert.equal(krutiDevToUnicode(legacy),unicode);
+  // ...but ENCODING now yields the keyboard-typeable spelling: the Latin-1
+  // ligature "Ò" (भ) is folded to the "Hk" key sequence a typist presses.
+  const encodesTo=[
+    ["ब्रिक्स","fCjDl"],
+    ["आर्थिक","vkfFkZd"],
+    ["अध्यक्षता","v/;{krk"],
+    ["निभा","fuHkk"],
+    ["वर्ष",'o"kZ'],
+    ["भारत इस वर्ष ब्रिक्स अध्यक्षता निभा रहा है।",'Hkkjr bl o"kZ fCjDl v/;{krk fuHkk jgk gSA'],
+  ];
+  for(const [unicode,legacy] of encodesTo){assert.equal(unicodeToKrutiDev(unicode),legacy);assert.equal(krutiDevToUnicode(legacy),unicode);}
   const economic=unicodeToKrutiDev("आर्थिक");
   assert.equal(economic,"vkfFkZd");
   assert.deepEqual([...economic].map(char=>`U+${char.codePointAt(0).toString(16).toUpperCase()}`),["U+76","U+6B","U+66","U+46","U+6B","U+5A","U+64"]);
