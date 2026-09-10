@@ -12,7 +12,7 @@ export async function getPublishedLearningTests(language?: "English" | "Hindi") 
   }
   if (!tests?.length) return [];
   const versionIds = tests.flatMap((test) => test.current_version_id ? [test.current_version_id] : []);
-  const { data: versions, error: versionError } = await supabase.from("test_versions").select("id,description,passage,required_accuracy,duration_seconds,configuration").in("id", versionIds).neq("passage", "");
+  const { data: versions, error: versionError } = await supabase.from("test_versions").select("id,description,passage,required_accuracy,duration_seconds,configuration,input_system_id").in("id", versionIds).neq("passage", "");
   if (versionError) {
     console.error("Learning catalogue version query failed", { code: versionError.code, message: versionError.message });
     throw new Error(`The learning catalogue passages could not be loaded from the database (${versionError.code || "database error"}).`);

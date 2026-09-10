@@ -24,6 +24,13 @@ export type TypingLesson = {
   unlockAccuracy: number;
   slug?: string;
   durationSeconds?: number;
+  // The version's input_system_id -- a Hindi lesson is authored in Kruti
+  // Dev 010 legacy encoding (see hindiInputSystemsFor: learn mode returns
+  // [HINDI_KRUTI_DEV] only), whose bytes are Latin-1 codepoints, not
+  // Devanagari. LessonWorkspace needs this to know to load and apply the
+  // Kruti Dev font -- a script test on the passage text can't tell,
+  // because Kruti Dev text looks like Latin to \p{Script=Devanagari}.
+  inputSystemId?: string | null;
 };
 
 export type LessonProgress = {
