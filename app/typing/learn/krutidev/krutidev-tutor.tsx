@@ -53,6 +53,18 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void rootRef.current?.requestFullscreen?.();
+  };
 
   const fingerName = useCallback((finger: Finger) => fingers.find((f) => f.id === finger)?.hi ?? "", [fingers]);
   const fingerColor = useCallback((finger: Finger) => fingers.find((f) => f.id === finger)?.color ?? "#94a3b8", [fingers]);
@@ -172,12 +184,29 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
   const kbdVisible = step !== 3 && showKeyboard;
 
   return (
-    <main className="min-h-screen bg-slate-100" style={{ fontFamily: HI }}>
-      <TypingBrandHeader />
+    <main ref={rootRef} className="min-h-screen overflow-y-auto bg-slate-100" style={{ fontFamily: HI }}>
+      {!isFullscreen && <TypingBrandHeader />}
       <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/typing/learn/hindi" className="text-sm font-bold text-blue-700">← सभी हिन्दी पाठ</Link>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-orange-600 shadow-sm">कृतिदेव 010 · हिन्दी टंकण प्रशिक्षक</span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-orange-600 shadow-sm">कृतिदेव 010 · हिन्दी टंकण प्रशिक्षक</span>
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-pressed={isFullscreen}
+              title={isFullscreen ? "पूर्ण स्क्रीन बंद करें" : "पूर्ण स्क्रीन"}
+              className="grid h-8 w-8 place-items-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+            >
+              {isFullscreen ? (
+                <span aria-hidden className="text-sm font-black leading-none">✕</span>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
         <StepRail step={step} onPick={setStep} />

@@ -1,0 +1,133 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import { PGlite } from "@electric-sql/pglite";
+
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const migrationPath = new URL("../supabase/migrations/202609101600_krutidev_tutor_exercises.sql", import.meta.url);
+const adminId = "00000000-0000-4000-8000-000000000009";
+const studentId = "00000000-0000-4000-8000-000000000001";
+
+async function database() {
+  const db = new PGlite();
+  await db.exec(`
+create role anon; create role authenticated;
+create schema auth;
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('app.current_uid', true), '')::uuid $$;
+create table auth.users(id uuid primary key);
+create table public.profiles(id uuid primary key, role text default 'student');
+create function public.is_aal2_admin() returns boolean language sql stable as $$ select exists(select 1 from public.profiles where id=auth.uid() and role='admin') $$;
+insert into auth.users values ('${adminId}'), ('${studentId}');
+insert into public.profiles values ('${adminId}','admin'), ('${studentId}','student');
+`);
+  await db.exec(await readFile(migrationPath, "utf8"));
+  return db;
+}
+const asUser = (db, id) => db.query("select set_config('app.current_uid', $1, false)", [id]);
+
+test("the migration seeds the full bundled curriculum (16 key drills, 12 word sets, 8 paragraphs)", async () => {
+  const db = await database();
+  const { rows } = await db.query("select kind, count(*)::int c from public.krutidev_tutor_exercises group by kind order by kind");
+  assert.deepEqual(rows, [
+    { kind: "key-lesson", c: 16 },
+    { kind: "paragraph", c: 8 },
+    { kind: "word-set", c: 12 },
+  ]);
+  const { rows: pub } = await db.query("select count(*)::int c from public.list_published_krutidev_exercises()");
+  assert.equal(pub[0].c, 36);
+  await db.close();
+});
+
+test("an admin can add and edit an exercise; a student cannot", async () => {
+  const db = await database();
+  await asUser(db, adminId);
+  const { rows: [created] } = await db.query(
+    "select (public.admin_save_krutidev_exercise(null,'word-set','नया समूह','कमल जल फल',null,true,50)).id",
+  );
+  assert.ok(created.id);
+  await db.query("select public.admin_save_krutidev_exercise($1,'word-set','नया समूह (संपादित)','कमल जल फल थल हम',null,true,50)", [created.id]);
+  const { rows: [edited] } = await db.query("select title, content from public.krutidev_tutor_exercises where id = $1", [created.id]);
+  assert.equal(edited.title, "नया समूह (संपादित)");
+  assert.equal(edited.content, "कमल जल फल थल हम");
+
+  await asUser(db, studentId);
+  await assert.rejects(
+    () => db.query("select public.admin_save_krutidev_exercise(null,'word-set','हैक','शब्द',null,true,0)"),
+    /not authorized/,
+  );
+  await assert.rejects(() => db.query("select public.admin_list_krutidev_exercises()"), /not authorized/i);
+  await db.close();
+});
+
+test("save rejects a bad kind, a blank title and blank content", async () => {
+  const db = await database();
+  await asUser(db, adminId);
+  await assert.rejects(() => db.query("select public.admin_save_krutidev_exercise(null,'nonsense','T','C',null,true,0)"), /Invalid exercise type/);
+  await assert.rejects(() => db.query("select public.admin_save_krutidev_exercise(null,'word-set','   ','C',null,true,0)"), /Title is required/);
+  await assert.rejects(() => db.query("select public.admin_save_krutidev_exercise(null,'word-set','T','   ',null,true,0)"), /Content is required/);
+  await db.close();
+});
+
+test("an unpublished exercise disappears from the public listing but stays in the admin listing", async () => {
+  const db = await database();
+  await asUser(db, adminId);
+  const { rows: [{ id }] } = await db.query("select id from public.krutidev_tutor_exercises where kind='paragraph' order by display_order limit 1");
+  await db.query("select public.admin_save_krutidev_exercise($1,'paragraph','अनुच्छेद (छिपा)','कुछ पाठ',null,false,0)", [id]);
+  const { rows: pub } = await db.query("select count(*) filter (where id=$1)::int c from public.list_published_krutidev_exercises()", [id]);
+  assert.equal(pub[0].c, 0);
+  const { rows: adm } = await db.query("select count(*) filter (where id=$1)::int c from public.admin_list_krutidev_exercises()", [id]);
+  assert.equal(adm[0].c, 1);
+  await db.close();
+});
+
+test("delete is admin-only and removes the row", async () => {
+  const db = await database();
+  await asUser(db, adminId);
+  const { rows: [{ id }] } = await db.query("select id from public.krutidev_tutor_exercises limit 1");
+  await asUser(db, studentId);
+  await assert.rejects(() => db.query("select public.admin_delete_krutidev_exercise($1)", [id]), /not authorized/);
+  await asUser(db, adminId);
+  await db.query("select public.admin_delete_krutidev_exercise($1)", [id]);
+  const { rows } = await db.query("select count(*)::int c from public.krutidev_tutor_exercises where id = $1", [id]);
+  assert.equal(rows[0].c, 0);
+  await db.close();
+});
+
+test("public RPC is granted to anon/authenticated; admin RPCs are not", async () => {
+  const db = await database();
+  const { rows } = await db.query(`
+    select
+      has_function_privilege('anon', 'public.list_published_krutidev_exercises()', 'execute') as pub_anon,
+      has_function_privilege('anon', 'public.admin_list_krutidev_exercises()', 'execute') as adm_anon,
+      has_function_privilege('authenticated', 'public.admin_save_krutidev_exercise(uuid,text,text,text,text,boolean,integer)', 'execute') as save_auth
+  `);
+  assert.equal(rows[0].pub_anon, true);
+  assert.equal(rows[0].adm_anon, false);
+  assert.equal(rows[0].save_auth, true);
+  await db.close();
+});
+
+test("the tutor page reads from the DB with a bundled fallback, and the admin manager + hub link are wired", async () => {
+  const [server, page, admin, manager, hub] = await Promise.all([
+    read("lib/krutidev-tutor-server.ts"),
+    read("app/typing/learn/krutidev/page.tsx"),
+    read("app/admin/page.tsx"),
+    read("app/admin/krutidev-lessons/krutidev-lessons-manager.tsx"),
+    read("app/admin/krutidev-lessons/page.tsx"),
+  ]);
+  assert.match(server, /list_published_krutidev_exercises/);
+  assert.match(server, /KEY_LESSONS\.map|WORD_SETS\.map|PARAGRAPHS\.map/);
+  assert.match(page, /getKrutiDevExercises/);
+  assert.match(admin, /"\/admin\/krutidev-lessons", "Kruti Dev Typing Tutor"/);
+  assert.match(hub, /admin_list_krutidev_exercises/);
+  assert.match(manager, /admin_save_krutidev_exercise|saveKrutiDevExercise/);
+  assert.match(manager, /\+ New \{KIND_LABEL\[kind\]\}/);
+  assert.match(manager, /deleteKrutiDevExercise/);
+});
+
+test("the tutor has a full-screen toggle", async () => {
+  const tutor = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
+  assert.match(tutor, /requestFullscreen/);
+  assert.match(tutor, /document\.exitFullscreen/);
+  assert.match(tutor, /fullscreenchange/);
+});
