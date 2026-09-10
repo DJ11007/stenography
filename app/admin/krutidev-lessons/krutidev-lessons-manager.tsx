@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
+import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { deleteKrutiDevExercise, saveKrutiDevExercise, type KrutiDevLessonActionState } from "./actions";
 
 type Row = {
@@ -11,6 +12,7 @@ type Row = {
   focus_keys: string | null;
   is_published: boolean;
   display_order: number;
+  krutidev?: string;
 };
 
 const initial: KrutiDevLessonActionState = {};
@@ -26,6 +28,7 @@ const KIND_HINT: Record<Row["kind"], string> = {
   paragraph: "The full paragraph as one block of text.",
 };
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
+const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
 function Feedback({ state }: { state: KrutiDevLessonActionState }) {
   if (!state.error && !state.success) return null;
@@ -34,8 +37,18 @@ function Feedback({ state }: { state: KrutiDevLessonActionState }) {
 
 export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; dbReady?: boolean }) {
   const [editing, setEditing] = useState<Row | { kind: Row["kind"] } | null>(null);
+  const [liveContent, setLiveContent] = useState("");
   const [saveState, saveAction, savePending] = useActionState(saveKrutiDevExercise, initial);
   const [deleteState, deleteAction] = useActionState(deleteKrutiDevExercise, initial);
+
+  const livePreview = useMemo(() => {
+    if (!liveContent.trim()) return "";
+    try {
+      return toTypeableKrutiDev(liveContent);
+    } catch {
+      return "";
+    }
+  }, [liveContent]);
 
   const groups: Row["kind"][] = ["key-lesson", "word-set", "paragraph"];
   const draft = editing && "id" in editing ? editing : null;
@@ -45,6 +58,11 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
   useEffect(() => {
     if (saveState.success) setEditing(null);
   }, [saveState]);
+
+  // Seed the live Kruti Dev preview from whatever is being edited.
+  useEffect(() => {
+    setLiveContent(editing && "id" in editing ? editing.content : "");
+  }, [editing]);
 
   // Escape closes the editor; lock background scroll while it is open.
   useEffect(() => {
@@ -91,6 +109,15 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
                     )}
                   </div>
                   <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600" style={{ fontFamily: HI }}>{row.content}</p>
+                  {row.krutidev && (
+                    <p
+                      className="mt-2 line-clamp-2 whitespace-pre-wrap border-t border-dashed border-slate-200 pt-2 text-2xl leading-loose text-slate-800"
+                      style={{ fontFamily: KD }}
+                      title="What students see — Kruti Dev 010"
+                    >
+                      {row.krutidev}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -126,8 +153,12 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
           </label>
           <label className="text-xs font-bold text-slate-600">Content (Unicode Hindi)
             <span className="ml-1 font-normal text-slate-400">— {editingKind ? KIND_HINT[editingKind] : ""}</span>
-            <textarea name="content" defaultValue={draft?.content ?? ""} rows={8} required className="input mt-1 w-full font-normal" style={{ fontFamily: HI }} />
+            <textarea name="content" value={liveContent} onChange={(event) => setLiveContent(event.target.value)} rows={8} required className="input mt-1 w-full font-normal" style={{ fontFamily: HI }} />
           </label>
+          <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
+            <p className="text-xs font-bold text-slate-500">Student preview — Kruti Dev 010</p>
+            <p className="mt-1 max-h-48 min-h-9 overflow-y-auto whitespace-pre-wrap text-2xl leading-loose text-slate-900" style={{ fontFamily: KD }}>{livePreview}</p>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-xs font-bold text-slate-600">Focus keys <span className="font-normal text-slate-400">(key drills only)</span>
               <input name="focusKeys" defaultValue={draft?.focus_keys ?? ""} placeholder="d j" className="input mt-1 w-full" />

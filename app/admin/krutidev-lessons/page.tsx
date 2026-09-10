@@ -1,9 +1,22 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { KEY_LESSONS, PARAGRAPHS, WORD_SETS } from "@/lib/krutidev-tutor-content";
 import { BackButton } from "../../_components/back-button";
 import { KrutiDevLessonsManager } from "./krutidev-lessons-manager";
+
+// What students actually see: the Unicode content converted to keyboard-typeable
+// Kruti Dev bytes, rendered in the Kruti Dev 010 font on the card.
+function withKrutiDevPreview<T extends { content: string }>(row: T) {
+  let krutidev = "";
+  try {
+    krutidev = toTypeableKrutiDev(row.content);
+  } catch {
+    krutidev = "";
+  }
+  return { ...row, krutidev };
+}
 
 export const metadata: Metadata = { title: "Kruti Dev Typing Tutor | Admin" };
 
@@ -40,7 +53,10 @@ export default async function AdminKrutiDevLessonsPage() {
           </p>
         )}
         <div className="mt-6">
-          <KrutiDevLessonsManager rows={dbReady ? data : BUNDLED} dbReady={dbReady} />
+          <KrutiDevLessonsManager
+            rows={(dbReady ? data : BUNDLED).map(withKrutiDevPreview)}
+            dbReady={dbReady}
+          />
         </div>
       </div>
     </main>
