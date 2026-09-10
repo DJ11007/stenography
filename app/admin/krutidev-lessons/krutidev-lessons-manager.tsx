@@ -32,7 +32,7 @@ function Feedback({ state }: { state: KrutiDevLessonActionState }) {
   return <p role="status" className={`mt-2 text-sm font-bold ${state.error ? "text-red-700" : "text-green-700"}`}>{state.error ?? state.success}</p>;
 }
 
-export function KrutiDevLessonsManager({ rows }: { rows: Row[] }) {
+export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; dbReady?: boolean }) {
   const [editing, setEditing] = useState<Row | { kind: Row["kind"] } | null>(null);
   const [saveState, saveAction, savePending] = useActionState(saveKrutiDevExercise, initial);
   const [deleteState, deleteAction] = useActionState(deleteKrutiDevExercise, initial);
@@ -49,7 +49,7 @@ export function KrutiDevLessonsManager({ rows }: { rows: Row[] }) {
           <section key={kind}>
             <div className="flex items-center justify-between">
               <h2 className="font-black text-slate-950">{KIND_LABEL[kind]}s <span className="font-normal text-slate-500">({groupRows.length})</span></h2>
-              <button type="button" onClick={() => setEditing({ kind })} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800">+ New {KIND_LABEL[kind]}</button>
+              {dbReady && <button type="button" onClick={() => setEditing({ kind })} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800">+ New {KIND_LABEL[kind]}</button>}
             </div>
             <div className="mt-3 grid gap-2">
               {groupRows.length === 0 && <p className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">None yet — the bundled defaults are shown to students until you add one.</p>}
@@ -60,13 +60,15 @@ export function KrutiDevLessonsManager({ rows }: { rows: Row[] }) {
                       #{row.display_order} · {row.title}
                       {!row.is_published && <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-600">Hidden</span>}
                     </p>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setEditing(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black hover:bg-slate-50">Edit</button>
-                      <form action={deleteAction} onSubmit={(event) => { if (!confirm(`Delete "${row.title}"?`)) event.preventDefault(); }}>
-                        <input type="hidden" name="id" value={row.id} />
-                        <button type="submit" className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50">Delete</button>
-                      </form>
-                    </div>
+                    {dbReady && (
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setEditing(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black hover:bg-slate-50">Edit</button>
+                        <form action={deleteAction} onSubmit={(event) => { if (!confirm(`Delete "${row.title}"?`)) event.preventDefault(); }}>
+                          <input type="hidden" name="id" value={row.id} />
+                          <button type="submit" className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50">Delete</button>
+                        </form>
+                      </div>
+                    )}
                   </div>
                   <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600" style={{ fontFamily: HI }}>{row.content}</p>
                 </div>

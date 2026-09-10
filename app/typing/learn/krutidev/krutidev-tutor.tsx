@@ -134,7 +134,6 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
   }, [target, caret, reverse]);
 
   const activeKey = nextKey && "key" in nextKey ? nextKey.key : null;
-  const activeFinger = nextKey && "finger" in nextKey ? nextKey.finger : null;
 
   const finish = useCallback((value: string) => {
     const seconds = Math.max(1, (Date.now() - (startedAt ?? Date.now())) / 1000);
@@ -170,12 +169,13 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
     for (let i = 0; i < typed.length; i += 1) if (typed[i] === target[i]) correct += 1;
     const seconds = startedAt ? Math.max(1, ((done ? startedAt : now || startedAt) - startedAt) / 1000 || 1) : 0;
     const activeSeconds = startedAt && !done ? Math.max(1, (Date.now() - startedAt) / 1000) : seconds;
-    const wpm = activeSeconds ? Math.max(0, Math.round(correct / 5 / (activeSeconds / 60))) : 0;
+    const minutes = activeSeconds / 60;
     return {
       correct,
       errors: typed.length - correct,
       accuracy: typed.length ? Math.round((correct / typed.length) * 100) : 100,
-      wpm,
+      wpm: activeSeconds ? Math.max(0, Math.round(correct / 5 / minutes)) : 0,
+      grossWpm: activeSeconds ? Math.max(0, Math.round(typed.length / 5 / minutes)) : 0,
       progress: target.length ? Math.round((typed.length / target.length) * 100) : 0,
     };
   }, [typed, target, startedAt, done, now]);
@@ -247,8 +247,8 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                 </div>
 
                 <div
-                  className="mt-4 min-h-32 w-full max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100"
-                  style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400 }}
+                  className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100 sm:min-h-64"
+                  style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "40vh" }}
                   aria-hidden
                 >
                   {[...target].map((char, position) => {
@@ -271,7 +271,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   spellCheck={false}
                   autoFocus
                   aria-label="टाइपिंग क्षेत्र"
-                  className="mt-3 h-32 w-full resize-none rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500"
+                  className="mt-3 h-52 w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 sm:h-60"
                   style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 }}
                   placeholder="यहाँ टाइप करना शुरू करें…"
                 />
@@ -321,20 +321,18 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
             </div>
 
             <aside className="min-w-0 space-y-4">
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-black text-slate-800">प्रगति</h2>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Stat label="गति" value={String(live.wpm)} />
-                  <Stat label="शुद्धता" value={`${live.accuracy}%`} />
-                  <Stat label="गलतियाँ" value={String(live.errors)} tone={live.errors ? "bad" : "ok"} />
-                  <Stat label="पूर्ण" value={`${live.progress}%`} />
+              <div className="rounded-2xl bg-white px-3 py-2.5 shadow-sm">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
+                  <span>प्रगति</span>
+                  <span className="text-slate-900">गति <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
+                  <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>शुद्धता <b className="text-sm">{live.accuracy}%</b></span>
+                  <span>गलतियाँ <b className="text-sm text-slate-900">{live.errors}</b></span>
+                  <span>पूर्ण <b className="text-sm text-slate-900">{live.progress}%</b></span>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all" style={{ width: `${live.progress}%` }} />
                 </div>
               </div>
-
-              {activeFinger && step !== 3 && <HandsDiagram activeFinger={activeFinger} fingers={fingers} />}
 
               <div className="rounded-2xl bg-white p-4 shadow-sm">
                 <h2 className="text-sm font-black text-slate-800">सेटिंग्स</h2>
@@ -404,11 +402,10 @@ function InstructionsStep({
           <KeyboardDiagram keyboardRows={keyboardRows} fingerColor={fingerColor} activeKey={null} activeShift={false} />
         </div>
 
-        <div className="mt-5 flex flex-col gap-5 lg:flex-row">
-          <HandsDiagram activeFinger={null} fingers={fingers} large />
-          <div className="flex-1">
+        <div className="mt-5">
+          <div>
             <h2 className="text-sm font-black text-slate-800">अंगुली और रंग</h2>
-            <ul className="mt-2 grid grid-cols-2 gap-1.5 text-sm font-bold text-slate-700 sm:grid-cols-3">
+            <ul className="mt-2 grid grid-cols-2 gap-1.5 text-sm font-bold text-slate-700 sm:grid-cols-3 lg:grid-cols-4">
               {fingers.map((finger) => (
                 <li key={finger.id} className="flex items-center gap-2">
                   <span className="h-3.5 w-3.5 rounded-full" style={{ background: finger.color }} />
@@ -495,59 +492,6 @@ function KeyboardDiagram({
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-// Capsule geometry per finger. x = left edge, len = length (middle finger
-// longest). Thumbs sit lower and angled. Left + right hands mirror.
-const HAND_FINGERS: Array<{ id: Finger; x: number; len: number; thumb?: boolean }> = [
-  { id: "l-pinky", x: 20, len: 30 },
-  { id: "l-ring", x: 37, len: 42 },
-  { id: "l-middle", x: 54, len: 48 },
-  { id: "l-index", x: 71, len: 40 },
-  { id: "thumb", x: 92, len: 20, thumb: true },
-  { id: "thumb", x: 148, len: 20, thumb: true },
-  { id: "r-index", x: 169, len: 40 },
-  { id: "r-middle", x: 186, len: 48 },
-  { id: "r-ring", x: 203, len: 42 },
-  { id: "r-pinky", x: 220, len: 30 },
-];
-
-function HandsDiagram({ activeFinger, fingers, large = false }: { activeFinger: Finger | null; fingers: FingerInfo[]; large?: boolean }) {
-  const colorOf = (id: Finger) => fingers.find((f) => f.id === id)?.color ?? "#94a3b8";
-  const palmY = 96;
-  return (
-    <div className={`rounded-2xl bg-white p-3 shadow-sm ${large ? "sm:w-72" : ""}`}>
-      <svg viewBox="0 0 252 150" className="w-full" role="img" aria-label="हाथों की स्थिति">
-        <rect x="14" y={palmY - 8} width="86" height="34" rx="16" fill="#eef2f7" />
-        <rect x="152" y={palmY - 8} width="86" height="34" rx="16" fill="#eef2f7" />
-        {HAND_FINGERS.map((finger, index) => {
-          const active = activeFinger != null && finger.id === activeFinger;
-          const width = 13;
-          const top = finger.thumb ? palmY + 6 : palmY - finger.len;
-          const height = finger.thumb ? finger.len : finger.len + 12;
-          const color = colorOf(finger.id);
-          return (
-            <g key={index} transform={finger.thumb ? `rotate(${finger.x < 126 ? 38 : -38} ${finger.x + width / 2} ${top})` : undefined}>
-              <rect
-                x={finger.x}
-                y={top}
-                width={width}
-                height={height}
-                rx={width / 2}
-                fill={active ? color : "#e2e8f0"}
-                stroke={active ? "#0f172a" : "#cbd5e1"}
-                strokeWidth={active ? 2 : 1}
-              />
-              {active && <circle cx={finger.x + width / 2} cy={top + 7} r="4" fill="#0f172a" />}
-            </g>
-          );
-        })}
-      </svg>
-      <p className="mt-1 text-center text-xs font-bold text-slate-500">
-        {activeFinger ? fingers.find((f) => f.id === activeFinger)?.hi : "दोनों हाथ मूल पंक्ति (A S D F · J K L ;) पर रखें"}
-      </p>
     </div>
   );
 }
