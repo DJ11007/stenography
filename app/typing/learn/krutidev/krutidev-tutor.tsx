@@ -1,0 +1,607 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Finger, FingerInfo, KeyCap } from "@/lib/krutidev-tutor-content";
+import { TypingBrandHeader } from "../../_components/typing-brand";
+
+const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
+const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
+
+type Exercise = { id: string; title: string; target: string; focusKeys?: string[] };
+
+type Props = {
+  keyboardRows: KeyCap[][];
+  glyphKeys: KeyCap[];
+  fingers: FingerInfo[];
+  lessons: Exercise[];
+  wordSets: Exercise[];
+  paragraphs: Exercise[];
+};
+
+const STEPS = [
+  { hi: "निर्देश पढ़ें", en: "Read Instructions" },
+  { hi: "कुंजियाँ सीखें", en: "Learn Keys" },
+  { hi: "शब्द अभ्यास", en: "Practice Words" },
+  { hi: "अनुच्छेद टाइप करें", en: "Type Paragraphs" },
+];
+
+// Legacy bytes that no ordinary key emits -- surfaced in the Alt-code helper.
+const ALT_CODES: Array<{ glyph: string; code: string; note: string }> = [
+  { glyph: "ँ", code: "Alt + 0161", note: "चन्द्रबिंदु (ँ)" },
+  { glyph: "ॉ", code: "Alt + 0130", note: "ऑ की मात्रा (ॉ)" },
+];
+
+export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSets, paragraphs }: Props) {
+  const [step, setStep] = useState(0);
+  const [lessonIdx, setLessonIdx] = useState(0);
+  const [wordIdx, setWordIdx] = useState(0);
+  const [paraIdx, setParaIdx] = useState(0);
+
+  const [typed, setTyped] = useState("");
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [done, setDone] = useState(false);
+  const [result, setResult] = useState<{ seconds: number; errors: number; grossWpm: number; netWpm: number; accuracy: number } | null>(null);
+  const [now, setNow] = useState(0);
+
+  const [showKeyboard, setShowKeyboard] = useState(true);
+  const [moveOnError, setMoveOnError] = useState(true);
+  const [bold, setBold] = useState(false);
+  const [sound, setSound] = useState(false);
+  const [fontPx, setFontPx] = useState(30);
+  const [altOpen, setAltOpen] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+
+  const fingerName = useCallback((finger: Finger) => fingers.find((f) => f.id === finger)?.hi ?? "", [fingers]);
+  const fingerColor = useCallback((finger: Finger) => fingers.find((f) => f.id === finger)?.color ?? "#94a3b8", [fingers]);
+
+  const tone = useCallback((freq: number, ms: number, gain = 0.05) => {
+    if (!sound) return;
+    try {
+      const ctx = audioRef.current ?? new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      audioRef.current = ctx;
+      const osc = ctx.createOscillator();
+      const vol = ctx.createGain();
+      osc.connect(vol);
+      vol.connect(ctx.destination);
+      osc.frequency.value = freq;
+      vol.gain.value = gain;
+      osc.start();
+      osc.stop(ctx.currentTime + ms / 1000);
+    } catch {
+      /* ignore */
+    }
+  }, [sound]);
+
+  // physical-key lookup: legacy byte -> the key + finger that produces it.
+  const reverse = useMemo(() => {
+    const rows: Array<[string, { key: string; shift: boolean; finger: Finger }]> = [];
+    for (const cap of glyphKeys) {
+      if (cap.normal) rows.push([cap.normal, { key: cap.key, shift: false, finger: cap.finger }]);
+      if (cap.shift) rows.push([cap.shift, { key: cap.key, shift: true, finger: cap.finger }]);
+    }
+    rows.push([" ", { key: "Space", shift: false, finger: "thumb" }]);
+    return rows.sort((a, b) => b[0].length - a[0].length || Number(a[1].shift) - Number(b[1].shift));
+  }, [glyphKeys]);
+
+  const exercises = step === 1 ? lessons : step === 2 ? wordSets : step === 3 ? paragraphs : [];
+  const idx = step === 1 ? lessonIdx : step === 2 ? wordIdx : paraIdx;
+  const setIdx = step === 1 ? setLessonIdx : step === 2 ? setWordIdx : setParaIdx;
+  const exercise: Exercise | undefined = exercises[idx];
+  const target = exercise?.target ?? "";
+
+  const reset = useCallback(() => {
+    setTyped("");
+    setStartedAt(null);
+    setDone(false);
+    setResult(null);
+    setNow(0);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  // reset whenever the active exercise or step changes
+  useEffect(() => { reset(); }, [step, idx, reset]);
+
+  // live clock while a drill is in progress
+  useEffect(() => {
+    if (!startedAt || done) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [startedAt, done]);
+
+  const caret = typed.length;
+  const nextKey = useMemo(() => {
+    const rest = target.slice(caret);
+    if (!rest) return null;
+    for (const [out, info] of reverse) if (out && rest.startsWith(out)) return info;
+    const cp = rest.codePointAt(0) ?? 0;
+    if (cp > 127) return { alt: `Alt + 0${cp}` } as const;
+    return { rawKey: rest[0] } as const;
+  }, [target, caret, reverse]);
+
+  const activeKey = nextKey && "key" in nextKey ? nextKey.key : null;
+  const activeFinger = nextKey && "finger" in nextKey ? nextKey.finger : null;
+
+  const finish = useCallback((value: string) => {
+    const seconds = Math.max(1, (Date.now() - (startedAt ?? Date.now())) / 1000);
+    let correct = 0;
+    for (let i = 0; i < target.length; i += 1) if (value[i] === target[i]) correct += 1;
+    const minutes = seconds / 60;
+    setResult({
+      seconds: Math.round(seconds),
+      errors: target.length - correct,
+      grossWpm: Math.max(0, Math.round(value.length / 5 / minutes)),
+      netWpm: Math.max(0, Math.round(correct / 5 / minutes)),
+      accuracy: target.length ? Math.round((correct / target.length) * 100) : 0,
+    });
+    setDone(true);
+    tone(660, 90);
+    window.setTimeout(() => tone(880, 120), 100);
+  }, [startedAt, target, tone]);
+
+  const handleChange = (raw: string) => {
+    if (done) return;
+    const value = raw.length > target.length ? raw.slice(0, target.length) : raw;
+    if (!moveOnError && value.length > typed.length) {
+      const i = value.length - 1;
+      if (value[i] !== target[i]) { tone(200, 90, 0.06); return; }
+    }
+    if (startedAt === null && value.length > 0) setStartedAt(Date.now());
+    setTyped(value);
+    if (value.length === target.length && target.length > 0) finish(value);
+  };
+
+  const live = useMemo(() => {
+    let correct = 0;
+    for (let i = 0; i < typed.length; i += 1) if (typed[i] === target[i]) correct += 1;
+    const seconds = startedAt ? Math.max(1, ((done ? startedAt : now || startedAt) - startedAt) / 1000 || 1) : 0;
+    const activeSeconds = startedAt && !done ? Math.max(1, (Date.now() - startedAt) / 1000) : seconds;
+    const wpm = activeSeconds ? Math.max(0, Math.round(correct / 5 / (activeSeconds / 60))) : 0;
+    return {
+      correct,
+      errors: typed.length - correct,
+      accuracy: typed.length ? Math.round((correct / typed.length) * 100) : 100,
+      wpm,
+      progress: target.length ? Math.round((typed.length / target.length) * 100) : 0,
+    };
+  }, [typed, target, startedAt, done, now]);
+
+  const total = exercises.length;
+  const kbdVisible = step !== 3 && showKeyboard;
+
+  return (
+    <main className="min-h-screen bg-slate-100" style={{ fontFamily: HI }}>
+      <TypingBrandHeader />
+      <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link href="/typing/learn/hindi" className="text-sm font-bold text-blue-700">← सभी हिन्दी पाठ</Link>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-orange-600 shadow-sm">कृतिदेव 010 · हिन्दी टंकण प्रशिक्षक</span>
+        </div>
+
+        <StepRail step={step} onPick={setStep} />
+
+        {step === 0 ? (
+          <InstructionsStep
+            keyboardRows={keyboardRows}
+            fingers={fingers}
+            fingerColor={fingerColor}
+            onStart={() => setStep(1)}
+          />
+        ) : (
+          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="min-w-0 space-y-4">
+              <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">«</button>
+                    <label className="text-sm font-bold text-slate-700">
+                      <span className="sr-only">अभ्यास चुनें</span>
+                      <select
+                        value={idx}
+                        onChange={(event) => setIdx(Number(event.target.value))}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-bold text-slate-800"
+                      >
+                        {exercises.map((item, position) => (
+                          <option key={item.id} value={position}>{`अभ्यास ${position + 1}/${total} — ${item.title}`}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="button" onClick={() => setIdx(Math.min(total - 1, idx + 1))} disabled={idx >= total - 1} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">»</button>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm font-black text-slate-600">
+                    <button type="button" onClick={() => setFontPx((value) => Math.max(18, value - 2))} className="rounded-md bg-slate-100 px-2 py-1">A−</button>
+                    <span className="w-10 text-center">{fontPx}</span>
+                    <button type="button" onClick={() => setFontPx((value) => Math.min(56, value + 2))} className="rounded-md bg-slate-100 px-2 py-1">A+</button>
+                  </div>
+                </div>
+
+                <div
+                  className="mt-4 min-h-32 w-full max-w-full overflow-hidden whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100"
+                  style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400 }}
+                  aria-hidden
+                >
+                  {[...target].map((char, position) => {
+                    const state = position < typed.length
+                      ? (typed[position] === char ? "ok" : "bad")
+                      : position === caret ? "cur" : "todo";
+                    const cls = state === "ok" ? "text-emerald-600"
+                      : state === "bad" ? "rounded bg-rose-200 text-rose-700"
+                      : state === "cur" ? "rounded bg-amber-300 text-slate-900"
+                      : "text-slate-400";
+                    return <span key={position} className={cls}>{char === " " ? " " : char}</span>;
+                  })}
+                </div>
+
+                <textarea
+                  ref={inputRef}
+                  value={typed}
+                  onChange={(event) => handleChange(event.target.value)}
+                  onPaste={(event) => event.preventDefault()}
+                  spellCheck={false}
+                  autoFocus
+                  aria-label="टाइपिंग क्षेत्र"
+                  className="mt-3 h-32 w-full resize-none rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500"
+                  style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 }}
+                  placeholder="यहाँ टाइप करना शुरू करें…"
+                />
+
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <span className="font-bold text-slate-500">दबाएँ:</span>
+                  {nextKey && "key" in nextKey ? (
+                    <span className="font-black text-slate-900">
+                      {nextKey.key === "Space"
+                        ? "Space"
+                        : nextKey.shift
+                          ? `Shift + ${nextKey.key.toUpperCase()}`
+                          : nextKey.key}
+                      <span className="ml-2 font-bold text-slate-500">({fingerName(nextKey.finger)})</span>
+                    </span>
+                  ) : nextKey && "alt" in nextKey ? (
+                    <span className="font-black text-orange-600">{nextKey.alt}</span>
+                  ) : nextKey && "rawKey" in nextKey ? (
+                    <span className="font-black text-slate-900">{nextKey.rawKey}</span>
+                  ) : (
+                    <span className="font-black text-emerald-600">पूरा हुआ ✓</span>
+                  )}
+                </div>
+              </div>
+
+              {done && result && (
+                <ResultCard
+                  result={result}
+                  isTest={step === 3}
+                  hasNext={idx < total - 1}
+                  onRetry={reset}
+                  onNext={() => setIdx(Math.min(total - 1, idx + 1))}
+                />
+              )}
+
+              {kbdVisible && (
+                <div className="overflow-x-auto">
+                  <KeyboardDiagram
+                    keyboardRows={keyboardRows}
+                    fingerColor={fingerColor}
+                    activeKey={activeKey}
+                    activeShift={Boolean(nextKey && "shift" in nextKey && nextKey.shift)}
+                    compact
+                  />
+                </div>
+              )}
+            </div>
+
+            <aside className="min-w-0 space-y-4">
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-black text-slate-800">प्रगति</h2>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Stat label="गति" value={String(live.wpm)} />
+                  <Stat label="शुद्धता" value={`${live.accuracy}%`} />
+                  <Stat label="गलतियाँ" value={String(live.errors)} tone={live.errors ? "bad" : "ok"} />
+                  <Stat label="पूर्ण" value={`${live.progress}%`} />
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all" style={{ width: `${live.progress}%` }} />
+                </div>
+              </div>
+
+              {activeFinger && step !== 3 && <HandsDiagram activeFinger={activeFinger} fingers={fingers} />}
+
+              <div className="rounded-2xl bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-black text-slate-800">सेटिंग्स</h2>
+                <div className="mt-3 space-y-2 text-sm font-bold text-slate-700">
+                  <Toggle checked={bold} onChange={setBold} label="बोल्ड अक्षर" />
+                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="कीबोर्ड दिखाएँ" />}
+                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="गलती पर आगे बढ़ें" />
+                  <Toggle checked={sound} onChange={setSound} label="ध्वनि" />
+                  {step === 3 && <p className="rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">परीक्षा मोड — इस चरण में कीबोर्ड नहीं दिखता।</p>}
+                </div>
+                <button type="button" onClick={() => setAltOpen(true)} className="mt-3 w-full rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">Alt कोड दिखाएँ</button>
+              </div>
+            </aside>
+          </div>
+        )}
+      </section>
+
+      {altOpen && <AltCodesModal onClose={() => setAltOpen(false)} />}
+    </main>
+  );
+}
+
+function StepRail({ step, onPick }: { step: number; onPick: (value: number) => void }) {
+  return (
+    <div className="mt-4 flex items-stretch gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-sm sm:gap-2">
+      {STEPS.map((item, position) => {
+        const active = position === step;
+        const doneStep = position < step;
+        return (
+          <button
+            key={item.en}
+            type="button"
+            onClick={() => onPick(position)}
+            className={`flex min-w-max flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-black transition sm:text-sm ${
+              active ? "bg-orange-500 text-white shadow" : doneStep ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${active ? "bg-white/25" : doneStep ? "bg-emerald-200 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>
+              {doneStep ? "✓" : position + 1}
+            </span>
+            {item.hi}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function InstructionsStep({
+  keyboardRows,
+  fingers,
+  fingerColor,
+  onStart,
+}: {
+  keyboardRows: KeyCap[][];
+  fingers: FingerInfo[];
+  fingerColor: (finger: Finger) => string;
+  onStart: () => void;
+}) {
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
+        <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">हिन्दी टाइपिंग में अंगुलियों की सही स्थिति</h1>
+        <p className="mt-2 text-slate-600">अपनी अंगुलियों को कीबोर्ड पर नीचे दिखाई गई तस्वीर के अनुसार रखें। बायें हाथ की अंगुलियाँ <b>A S D F</b> पर और दायें हाथ की अंगुलियाँ <b>J K L ;</b> पर टिकाएँ। अंगूठे स्पेस-बार पर रहें।</p>
+
+        <div className="mt-5 overflow-x-auto">
+          <KeyboardDiagram keyboardRows={keyboardRows} fingerColor={fingerColor} activeKey={null} activeShift={false} />
+        </div>
+
+        <div className="mt-5 flex flex-col gap-5 lg:flex-row">
+          <HandsDiagram activeFinger={null} fingers={fingers} large />
+          <div className="flex-1">
+            <h2 className="text-sm font-black text-slate-800">अंगुली और रंग</h2>
+            <ul className="mt-2 grid grid-cols-2 gap-1.5 text-sm font-bold text-slate-700 sm:grid-cols-3">
+              {fingers.map((finger) => (
+                <li key={finger.id} className="flex items-center gap-2">
+                  <span className="h-3.5 w-3.5 rounded-full" style={{ background: finger.color }} />
+                  {finger.hi}
+                </li>
+              ))}
+            </ul>
+            <h2 className="mt-4 text-sm font-black text-slate-800">कृतिदेव 010 कैसे काम करता है</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              कृतिदेव एक <b>फ़ॉन्ट-एन्कोडिंग</b> है — आप अंग्रेज़ी कुंजियाँ दबाते हैं और कृतिदेव फ़ॉन्ट उन्हें देवनागरी अक्षर बना देता है।
+              जैसे <b>d → क</b>, <b>g → ह</b>, <b>j → र</b>, <b>k → ा</b>। अधिकांश अक्षर किसी भी कीबोर्ड पर काम करते हैं;
+              आधे अक्षरों के लिए <b>Shift</b> दबाएँ (जैसे Shift + D → क्) और कुछ दुर्लभ चिह्नों के लिए <b>Alt कोड</b>।
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onStart}
+          className="mt-6 w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3 text-base font-black text-white shadow-lg transition hover:brightness-105 sm:w-auto"
+        >
+          टाइपिंग सीखना शुरू करें →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function KeyboardDiagram({
+  keyboardRows,
+  fingerColor,
+  activeKey,
+  activeShift,
+  compact = false,
+}: {
+  keyboardRows: KeyCap[][];
+  fingerColor: (finger: Finger) => string;
+  activeKey: string | null;
+  activeShift: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl bg-slate-800 p-2 shadow-sm sm:p-3 ${compact ? "min-w-[560px]" : "min-w-[680px]"}`}>
+      <div className="space-y-1.5">
+        {keyboardRows.map((row, rowIndex) => (
+          <div key={rowIndex} className="flex gap-1.5">
+            {row.map((cap) => {
+              const isGlyph = cap.key.length === 1;
+              const isActive = activeKey != null && cap.key.trim() === activeKey.trim();
+              const color = fingerColor(cap.finger);
+              return (
+                <div
+                  key={cap.key}
+                  style={{
+                    flexGrow: cap.width ?? 1,
+                    flexBasis: 0,
+                    background: isActive ? color : isGlyph ? `${color}2e` : "rgba(255,255,255,0.06)",
+                    borderColor: isActive ? "#fff" : "transparent",
+                  }}
+                  className={`relative flex ${compact ? "h-10 sm:h-11" : "h-12 sm:h-14"} min-w-0 flex-col items-center justify-center rounded-md border text-white`}
+                >
+                  <span className={`absolute left-1 top-0.5 text-[9px] font-bold ${isActive ? "text-slate-900" : "text-white/45"}`}>
+                    {isGlyph ? cap.key.toUpperCase() : cap.key}
+                  </span>
+                  {isGlyph && cap.shift && cap.shift !== cap.normal && (
+                    <span
+                      className={`absolute right-1 top-0 text-[13px] leading-none ${isActive && activeShift ? "text-slate-900" : "text-white/50"}`}
+                      style={{ fontFamily: KD }}
+                    >
+                      {cap.shift}
+                    </span>
+                  )}
+                  {isGlyph ? (
+                    <span className={`mt-1 text-lg leading-none ${isActive ? "text-slate-900" : "text-white"}`} style={{ fontFamily: KD }}>
+                      {cap.normal === " " ? "" : cap.normal}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-white/70">{cap.key.trim() || "Space"}</span>
+                  )}
+                  {cap.home && <span className="absolute bottom-1 h-0.5 w-3 rounded-full bg-white/70" />}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Capsule geometry per finger. x = left edge, len = length (middle finger
+// longest). Thumbs sit lower and angled. Left + right hands mirror.
+const HAND_FINGERS: Array<{ id: Finger; x: number; len: number; thumb?: boolean }> = [
+  { id: "l-pinky", x: 20, len: 30 },
+  { id: "l-ring", x: 37, len: 42 },
+  { id: "l-middle", x: 54, len: 48 },
+  { id: "l-index", x: 71, len: 40 },
+  { id: "thumb", x: 92, len: 20, thumb: true },
+  { id: "thumb", x: 148, len: 20, thumb: true },
+  { id: "r-index", x: 169, len: 40 },
+  { id: "r-middle", x: 186, len: 48 },
+  { id: "r-ring", x: 203, len: 42 },
+  { id: "r-pinky", x: 220, len: 30 },
+];
+
+function HandsDiagram({ activeFinger, fingers, large = false }: { activeFinger: Finger | null; fingers: FingerInfo[]; large?: boolean }) {
+  const colorOf = (id: Finger) => fingers.find((f) => f.id === id)?.color ?? "#94a3b8";
+  const palmY = 96;
+  return (
+    <div className={`rounded-2xl bg-white p-3 shadow-sm ${large ? "sm:w-72" : ""}`}>
+      <svg viewBox="0 0 252 150" className="w-full" role="img" aria-label="हाथों की स्थिति">
+        <rect x="14" y={palmY - 8} width="86" height="34" rx="16" fill="#eef2f7" />
+        <rect x="152" y={palmY - 8} width="86" height="34" rx="16" fill="#eef2f7" />
+        {HAND_FINGERS.map((finger, index) => {
+          const active = activeFinger != null && finger.id === activeFinger;
+          const width = 13;
+          const top = finger.thumb ? palmY + 6 : palmY - finger.len;
+          const height = finger.thumb ? finger.len : finger.len + 12;
+          const color = colorOf(finger.id);
+          return (
+            <g key={index} transform={finger.thumb ? `rotate(${finger.x < 126 ? 38 : -38} ${finger.x + width / 2} ${top})` : undefined}>
+              <rect
+                x={finger.x}
+                y={top}
+                width={width}
+                height={height}
+                rx={width / 2}
+                fill={active ? color : "#e2e8f0"}
+                stroke={active ? "#0f172a" : "#cbd5e1"}
+                strokeWidth={active ? 2 : 1}
+              />
+              {active && <circle cx={finger.x + width / 2} cy={top + 7} r="4" fill="#0f172a" />}
+            </g>
+          );
+        })}
+      </svg>
+      <p className="mt-1 text-center text-xs font-bold text-slate-500">
+        {activeFinger ? fingers.find((f) => f.id === activeFinger)?.hi : "दोनों हाथ मूल पंक्ति (A S D F · J K L ;) पर रखें"}
+      </p>
+    </div>
+  );
+}
+
+function ResultCard({
+  result,
+  isTest,
+  hasNext,
+  onRetry,
+  onNext,
+}: {
+  result: { seconds: number; errors: number; grossWpm: number; netWpm: number; accuracy: number };
+  isTest: boolean;
+  hasNext: boolean;
+  onRetry: () => void;
+  onNext: () => void;
+}) {
+  const passed = result.accuracy >= 90;
+  return (
+    <div className={`rounded-2xl p-5 shadow-sm ${passed ? "bg-emerald-50" : "bg-amber-50"}`}>
+      <h2 className={`text-lg font-black ${passed ? "text-emerald-800" : "text-amber-800"}`}>
+        {passed ? "बहुत बढ़िया!" : "अभ्यास जारी रखें"}
+      </h2>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Stat label="शुद्ध गति" value={`${result.netWpm}`} />
+        <Stat label="कुल गति" value={`${result.grossWpm}`} />
+        <Stat label="शुद्धता" value={`${result.accuracy}%`} tone={passed ? "ok" : "bad"} />
+        <Stat label="समय" value={`${result.seconds}s`} />
+      </div>
+      <p className="mt-2 text-sm font-bold text-slate-600">गलतियाँ: {result.errors}{isTest ? " · यह परीक्षा-शैली अभ्यास है।" : ""}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" onClick={onRetry} className="rounded-lg bg-white px-4 py-2 text-sm font-black text-slate-700 shadow-sm">फिर से</button>
+        {hasNext && <button type="button" onClick={onNext} className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-black text-white shadow-sm">अगला अभ्यास →</button>}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "ok" | "bad" }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-2.5 py-2">
+      <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</span>
+      <strong className={`mt-0.5 block text-base ${tone === "ok" ? "text-emerald-600" : tone === "bad" ? "text-rose-600" : "text-slate-900"}`}>{value}</strong>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3">
+      <span>{label}</span>
+      <span
+        onClick={() => onChange(!checked)}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? "bg-orange-500" : "bg-slate-300"}`}
+      >
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${checked ? "left-4" : "left-0.5"}`} />
+      </span>
+    </label>
+  );
+}
+
+function AltCodesModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black text-slate-900">Alt कोड</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <p className="mt-2 text-xs font-bold text-slate-500">
+          कुछ चिह्न किसी कुंजी पर नहीं होते। <b>Alt</b> दबाकर संख्या-पैड से नीचे दिया कोड लिखें।
+        </p>
+        <ul className="mt-3 space-y-2">
+          {ALT_CODES.map((item) => (
+            <li key={item.code} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <span className="text-2xl" style={{ fontFamily: HI }}>{item.glyph}</span>
+              <span className="font-bold text-slate-600">{item.note}</span>
+              <span className="font-black text-slate-900">{item.code}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-slate-500">बाकी संयुक्त अक्षर (क्ष, त्र, ज्ञ, श्र) कुंजियों से ही बनते हैं — अभ्यास में संकेत मिलेगा।</p>
+      </div>
+    </div>
+  );
+}

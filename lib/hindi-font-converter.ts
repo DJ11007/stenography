@@ -20,6 +20,27 @@ preferredLegacy.set("?", "\\");
 preferredLegacy.set("-", "&");
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
+// unicodeToKrutiDev is tuned to match the exact byte strings in
+// admin-authored production passages, and those legitimately use Kruti
+// Dev's single-byte Latin-1 ligatures (Ò for भ, è for ध, ç for प्र, Ä for
+// घ, Ã for ई, ª for the ट-cluster rakar ...). Those render correctly but
+// no ordinary keyboard key produces them, so anything teaching a student
+// *which key to press* (the Kruti Dev tutor) needs the plain ASCII
+// spelling. This rewrite runs only on tutor content -- every pair is
+// verified to decode back to the same Unicode through krutiDevToUnicode.
+const TYPEABLE_LIGATURES: Array<[RegExp, string]> = [
+  [/Ùk/g, "Rr"], [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
+  [/ç/g, "iz"], [/æ/g, "nz"], [/Ø/g, "dz"], [/—/g, "d`"],
+  [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
+  [/ê/g, "V~V"], [/î/g, "~;"],
+];
+
+export function toTypeableKrutiDev(unicode: string) {
+  let legacy = unicodeToKrutiDev(unicode);
+  for (const [pattern, replacement] of TYPEABLE_LIGATURES) legacy = legacy.replace(pattern, replacement);
+  return legacy;
+}
+
 // The dependency searches globally and then replaces the first matching text,
 // so one word can accidentally mutate a later word in a long passage. Decode
 // lexical tokens independently. Keep verified non-injective spellings explicit:
