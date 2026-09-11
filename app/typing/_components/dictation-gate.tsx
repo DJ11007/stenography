@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { ExamPreset } from "@/lib/typing-curriculum";
-import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, type HalfErrorCategory } from "@/lib/typing-test";
+import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, PRACTICE_DURATION_MINUTES, type HalfErrorCategory } from "@/lib/typing-test";
 import { TypingBrandHeader } from "./typing-brand";
 
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
@@ -31,12 +32,16 @@ export const DICTATION_SPEEDS = [
 // not copy-typing. Rendered as a full page (same weight as ExamStart)
 // rather than an overlay, specifically so the typing textarea underneath
 // genuinely doesn't exist in the DOM until Start Typing is clicked.
-export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping }: {
+export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref }: {
   preset: ExamPreset;
   url: string;
   selectedCategories: HalfErrorCategory[];
   onCategoriesChange: (next: HalfErrorCategory[]) => void;
   onStartTyping: () => void;
+  durationSeconds: number;
+  durationLocked: boolean;
+  onDurationChange: (minutes: number) => void;
+  backHref?: string;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -76,7 +81,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   // dictation -- relabeling the existing punctuation checkbox for Hindi
   // tests is simpler and clearer than adding a whole separate category
   // that would only ever catch commas anyway.
-  const categoryLabel = (category: HalfErrorCategory) => category === "punctuation" && preset.language !== "English" ? "Comma Count" : HALF_ERROR_CATEGORY_LABELS[category];
+  const categoryLabel = (category: HalfErrorCategory) => category === "punctuation" && preset.language !== "English" ? "Comma Count" : category === "halant" ? "Viram Count" : HALF_ERROR_CATEGORY_LABELS[category];
   const toggle = (category: HalfErrorCategory) => onCategoriesChange(selectedCategories.includes(category) ? selectedCategories.filter((item) => item !== category) : [...selectedCategories, category]);
 
   return <main className="min-h-screen bg-slate-100">
@@ -86,6 +91,12 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
         <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">Dictation phase</span>
         <h1 className="mt-5 text-3xl font-black text-slate-900">Listen to the dictation</h1>
         <p className="mt-2 text-slate-600">Play the audio at whichever speed suits you. The passage will not be shown on screen — this is a real dictation, not copy-typing. Listen all the way to the end before typing can begin.</p>
+
+        {!durationLocked && <label className="mt-4 block max-w-xs text-sm font-bold text-slate-800">Timer
+          <select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">
+            {(PRACTICE_DURATION_MINUTES.includes(durationSeconds / 60) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationSeconds / 60].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}
+          </select>
+        </label>}
 
         <audio
           ref={audioRef}
@@ -126,9 +137,12 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           </div>
         </fieldset>
 
-        <button type="button" disabled={!playedThrough} onClick={onStartTyping} className="mt-8 w-full rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">
-          {playedThrough ? "Start Typing" : "Listen to the full dictation to continue"}
-        </button>
+        <div className="mt-8 flex gap-3">
+          {backHref && <Link href={backHref} className="rounded-xl border-2 border-red-200 px-6 py-4 text-lg font-black text-red-700 hover:bg-red-50">Exit</Link>}
+          <button type="button" disabled={!playedThrough} onClick={onStartTyping} className="flex-1 rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">
+            {playedThrough ? "Start Typing" : "Listen to the full dictation to continue"}
+          </button>
+        </div>
       </div>
     </section>
   </main>;
