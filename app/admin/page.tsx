@@ -32,6 +32,7 @@ const groups = [
     items: [
       ["/admin/learning-tests", "Learning Tests", "Create public learning lessons.", "Manage →"],
       ["/admin/krutidev-lessons", "Kruti Dev Typing Tutor", "Edit the key drills, word sets and paragraphs in the Kruti Dev learn simulator.", "Manage →"],
+      ["/admin/english-lessons", "English Typing Tutor", "Edit the key drills, word sets and paragraphs in the English learn simulator.", "Manage →"],
       ["/admin/practice-tests", "Practice Tests", "Create practice-mode tests.", "Manage →"],
       ["/admin/exam-tests", "Exam Tests", "Create exam-mode simulations, including the Exam Simulator category presets.", "Manage →"],
       ["/admin/tests", "General Test Management & Live Tests", "Manage any test with an explicit mode selector, including scheduling free live tests.", "Manage →"],

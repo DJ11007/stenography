@@ -4,7 +4,7 @@ import { BackButton } from "../../_components/back-button";
 
 type Choice = { label: string; detail: string; href: string; icon: string; accent: string };
 const english: Choice[] = [
-  { label: "Learn Typing", detail: "Build accuracy from the basics", href: "/typing/learn/english", icon: "AB", accent: "from-blue-600 to-cyan-500" },
+  { label: "Learn Typing", detail: "Finger-position simulator", href: "/typing/learn/english-tutor", icon: "AB", accent: "from-blue-600 to-cyan-500" },
   { label: "Take Tests", detail: "Measure speed and precision", href: "/typing/practice/english", icon: "✓", accent: "from-indigo-600 to-violet-500" },
   { label: "Number Typing", detail: "Master the complete number row", href: "/typing/learn/english", icon: "12", accent: "from-cyan-600 to-teal-500" },
 ];
