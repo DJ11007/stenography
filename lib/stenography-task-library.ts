@@ -15,5 +15,8 @@ export type StenographyTaskSummary = {
   durationSeconds: number;
   requiredWpm: number;
   requiredAccuracy: number;
+  passageWords: number;
+  publishedAt: string | null;
   hasAudio: boolean;
+  completed: boolean;
 };

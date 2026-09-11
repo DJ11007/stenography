@@ -39,13 +39,26 @@ test("the task library view renders category tabs, a search box, and links each 
 // Real stenography training runs as a speed ladder (60 -> 80 -> 100 -> 120+
 // WPM); the library should let a student filter to their current speed
 // instead of hunting through every published task regardless of pace.
-test("the task library view offers a speed filter derived from the tasks' own required WPM values, sorted low to high, and defaults the list to the same order", async () => {
+test("the task library view offers a speed filter derived from the tasks' own required WPM values, sorted low to high", async () => {
   const view = await read("app/typing/practice/stenography/library/_components/task-library-view.tsx");
   assert.match(view, /const speeds = \[\.\.\.new Set\(tasks\.map\(\(task\) => task\.requiredWpm\)\)\]\.sort\(\(a, b\) => a - b\);/);
   assert.match(view, /speed === "All" \|\| task\.requiredWpm === speed/);
-  assert.match(view, /\.sort\(\(a, b\) => a\.requiredWpm - b\.requiredWpm \|\| a\.title\.localeCompare\(b\.title\)\)/);
   assert.match(view, /aria-label="Filter by dictation speed"/);
   assert.match(view, /\{value\} WPM/);
+});
+
+// Matches the reference stenography site: a "Newest First"/"Oldest First"
+// sort dropdown (not just the speed-ladder filter above), a completed-test
+// "Done" badge, and a per-card word count.
+test("the task library view offers a Newest/Oldest/Speed sort control, a Done badge for completed tests, and shows each task's word count", async () => {
+  const view = await read("app/typing/practice/stenography/library/_components/task-library-view.tsx");
+  assert.match(view, /const \[sort, setSort\] = useState<"newest" \| "oldest" \| "speed">\("newest"\);/);
+  assert.match(view, /<option value="newest">Newest First<\/option>/);
+  assert.match(view, /<option value="oldest">Oldest First<\/option>/);
+  assert.match(view, /<option value="speed">Speed \(Low → High\)<\/option>/);
+  assert.match(view, /if \(sort === "speed"\) return a\.requiredWpm - b\.requiredWpm \|\| a\.title\.localeCompare\(b\.title\);/);
+  assert.match(view, /task\.completed && <span className="rounded-full bg-emerald-100 px-2 py-0\.5 text-\[11px\] font-black text-emerald-800">✓ Done<\/span>/);
+  assert.match(view, /\{task\.passageWords\} words/);
 });
 
 test("the library pages exist for both languages and fetch published tasks server-side", async () => {

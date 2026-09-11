@@ -82,7 +82,7 @@ test("SectionTestPage accepts an optional language/inputSystemId scope, filters 
   assert.match(page, /language\?: "English" \| "Hindi"; inputSystemId\?: string; backHref\?: string/);
   assert.match(page, /if \(language\) query = query\.eq\("language", language\);/);
   assert.match(page, /if \(inputSystemId\) query = query\.eq\("input_system_id", inputSystemId\);/);
-  assert.match(page, /<TestManager tests=\{rows\} lockedMode=\{mode\} lockedLanguage=\{language\} lockedInputSystemId=\{inputSystemId\}\/>/);
+  assert.match(page, /<TestManager tests=\{rows\} lockedMode=\{mode\} lockedLanguage=\{language\} lockedInputSystemId=\{inputSystemId\} currentAdminId=\{user\.id\}\/>/);
 });
 
 test("TestManager locks Language/Input system to hidden inputs (not an editable select) when given lockedLanguage, and seeds a new test's language from it instead of always defaulting to English", async () => {

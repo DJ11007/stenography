@@ -21,7 +21,7 @@ test("the admin test manager shows a total test count, paginates the filtered li
   assert.match(manager, /<option value=\{20\}>20<\/option><option value=\{30\}>30<\/option>/);
 
   // Page resets whenever the filtered set could change shape underneath it.
-  assert.match(manager, /useEffect\(\(\)=>\{setPage\(1\);\},\[query,status,filterLanguage,filterMode,sort,pageSize\]\);/);
+  assert.match(manager, /useEffect\(\(\)=>\{setPage\(1\);\},\[query,status,filterLanguage,filterMode,ownership,sort,pageSize\]\);/);
 
   // The list itself renders only the current page's slice, not the full filtered array.
   assert.match(manager, /const pageItems = filtered\.slice\(pageStart,pageStart\+pageSize\);/);
