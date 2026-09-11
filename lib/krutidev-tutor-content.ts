@@ -94,14 +94,20 @@ const ROW_TOP: KeyCap[] = [
   { key: "\\", normal: "\\", shift: "|", finger: "r-pinky", width: 1.5 },
 ];
 
+// Kruti Dev's own touch-typing convention shifts the left hand's resting
+// position one key right of the standard QWERTY home row: the left little
+// finger rests on S (not A -- A is deliberately left unused/a reach-back
+// key), ring on D, middle on F, index on G, with H as the index's reach.
+// The right hand is unaffected -- still J K L ; -- with ' as the pinky's
+// own reach, now that H no longer needs to be shared with the right hand.
 const ROW_HOME: KeyCap[] = [
   { key: "Caps", normal: "", shift: "", finger: "l-pinky", width: 1.75 },
-  { key: "a", normal: "a", shift: "A", finger: "l-pinky", home: true },
-  { key: "s", normal: "s", shift: "S", finger: "l-ring", home: true },
-  { key: "d", normal: "d", shift: "D", finger: "l-middle", home: true },
-  { key: "f", normal: "f", shift: "F", finger: "l-index", home: true },
-  { key: "g", normal: "g", shift: "G", finger: "l-index" },
-  { key: "h", normal: "h", shift: "H", finger: "r-index" },
+  { key: "a", normal: "a", shift: "A", finger: "l-pinky" },
+  { key: "s", normal: "s", shift: "S", finger: "l-pinky", home: true },
+  { key: "d", normal: "d", shift: "D", finger: "l-ring", home: true },
+  { key: "f", normal: "f", shift: "F", finger: "l-middle", home: true },
+  { key: "g", normal: "g", shift: "G", finger: "l-index", home: true },
+  { key: "h", normal: "h", shift: "H", finger: "l-index" },
   { key: "j", normal: "j", shift: "J", finger: "r-index", home: true },
   { key: "k", normal: "k", shift: "K", finger: "r-middle", home: true },
   { key: "l", normal: "l", shift: "L", finger: "r-ring", home: true },

@@ -396,7 +396,7 @@ function InstructionsStep({
     <div className="mt-5 space-y-4">
       <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-7">
         <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">हिन्दी टाइपिंग में अंगुलियों की सही स्थिति</h1>
-        <p className="mt-2 text-slate-600">अपनी अंगुलियों को कीबोर्ड पर नीचे दिखाई गई तस्वीर के अनुसार रखें। बायें हाथ की अंगुलियाँ <b>A S D F</b> पर और दायें हाथ की अंगुलियाँ <b>J K L ;</b> पर टिकाएँ। अंगूठे स्पेस-बार पर रहें।</p>
+        <p className="mt-2 text-slate-600">अपनी अंगुलियों को कीबोर्ड पर नीचे दिखाई गई तस्वीर के अनुसार रखें। बायें हाथ की अंगुलियाँ <b>S D F G</b> पर और दायें हाथ की अंगुलियाँ <b>J K L ;</b> पर टिकाएँ — कृतिदेव में बायीं ओर की A कुंजी उपयोग में नहीं आती। अंगूठे स्पेस-बार पर रहें।</p>
 
         <div className="mt-5 overflow-x-auto">
           <KeyboardDiagram keyboardRows={keyboardRows} fingerColor={fingerColor} activeKey={null} activeShift={false} />
