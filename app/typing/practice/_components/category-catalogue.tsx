@@ -9,16 +9,28 @@ import { TypingBrandHeader } from "../../_components/typing-brand";
 
 export const practiceMetadata = (title:string, description:string):Metadata => ({ title:`${title} | Samradhi Classes`, description });
 
+// Every distinct Hindi input system this mode could possibly show: the
+// configured set (lib/typing-curriculum.ts) plus any input_system_id a
+// published test already uses, in case one was set up outside that
+// config. Shared between HindiCatalogue (which renders the picker from
+// exactly this list) and each Hindi practice/stenography page (which uses
+// its length to decide whether a picker is even worth showing) so the two
+// can never drift apart.
+export async function hindiInputSystemIds(mode: ManagedTestMode): Promise<string[]> {
+  const availableTests = await getPublishedManagedTests(mode, { language: "Hindi" });
+  const hindiInputSystems = hindiInputSystemsFor(mode);
+  return [...new Set([...hindiInputSystems.map((system) => system.id), ...availableTests.map((test) => test.input_system_id)])];
+}
+
 export async function ExactCatalogue({ title, description, mode, language, inputSystemId }: { title:string; description:string; mode:ManagedTestMode; language:"English"|"Hindi"; inputSystemId?:string }) {
   const tests = await getPublishedManagedTests(mode, { language, inputSystemId });
   return <CatalogueShell title={title} description={description}><ManagedTestCards tests={tests} empty/></CatalogueShell>;
 }
 
 export async function HindiCatalogue({ title, description, mode, selectedInput }: { title:string; description:string; mode:ManagedTestMode; selectedInput?:string }) {
-  const availableTests = await getPublishedManagedTests(mode, { language:"Hindi" });
   const hindiInputSystems = hindiInputSystemsFor(mode);
   const known = new Map(hindiInputSystems.map((system)=>[system.id,system]));
-  const ids = [...new Set([...hindiInputSystems.map((system)=>system.id), ...availableTests.map((test)=>test.input_system_id)])];
+  const ids = await hindiInputSystemIds(mode);
   const selected = selectedInput && ids.includes(selectedInput) ? selectedInput : undefined;
   const tests = selected ? await getPublishedManagedTests(mode, { language:"Hindi", inputSystemId:selected }) : [];
   // Not /typing/practice -- that page offers both English and Hindi, which
