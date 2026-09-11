@@ -240,8 +240,8 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                 </div>
 
                 <div
-                  className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100 sm:min-h-64"
-                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "40vh" }}
+                  className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100 sm:min-h-64 md:min-h-72 lg:min-h-80"
+                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "min(45vh, 34rem)" }}
                   aria-hidden
                 >
                   {[...target].map((char, position) => {
@@ -264,7 +264,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   spellCheck={false}
                   autoFocus
                   aria-label="Typing area"
-                  className="mt-3 h-52 w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 sm:h-60"
+                  className="mt-3 h-52 w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 sm:h-60 md:h-64 lg:h-72"
                   style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 }}
                   placeholder="Start typing here…"
                 />

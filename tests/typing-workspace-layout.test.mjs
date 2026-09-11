@@ -24,7 +24,7 @@ test("when a preset carries dictation audio, the workspace shows neither the pas
 });
 
 test("the toolbar header also exposes a back button and a full screen toggle with a distinct exit state", () => {
-  assert.match(workspace, /<BackButton dark label="Back"\/>/);
+  assert.match(workspace, /<BackButton dark label="Back" href=\{backHref\}\/>/);
   assert.match(workspace, /requestFullscreen/);
   assert.match(workspace, /exitFullscreen/);
   assert.match(workspace, /isFullscreen \? "Exit full screen" : "Enter full screen"/);
