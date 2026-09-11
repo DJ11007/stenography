@@ -24,13 +24,15 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
   const language = languageFromSegment(languageSegment);
   if (!category || !language) notFound();
   const query = await searchParams;
-  const sort = query.sort === "oldest" ? "oldest" : "newest";
+  // Oldest-first by default, matching every other typing section's test
+  // catalogue -- exercises run in the order they were actually published.
+  const sort = query.sort === "newest" ? "newest" : "oldest";
   const { items, page, pages, total } = await getExamCategoryNavigator({ categorySlug: slug, language, page: query.page, sort });
 
   const officialPresetId = examCategoryPresetId(slug, language);
   const pageHref = (targetPage: number, targetSort: "newest" | "oldest" = sort) => {
     const params = new URLSearchParams();
-    if (targetSort === "oldest") params.set("sort", "oldest");
+    if (targetSort === "newest") params.set("sort", "newest");
     if (targetPage > 1) params.set("page", String(targetPage));
     const search = params.toString();
     return `/typing/exams/category/${slug}/${languageSegment}${search ? `?${search}` : ""}`;

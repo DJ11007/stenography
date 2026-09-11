@@ -11,8 +11,8 @@ test("students can explicitly sort the practice test picker by newest or oldest,
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(server, /sort\?:"newest"\|"oldest"/);
   assert.match(server, /const oldest=filters\.sort==="oldest";/);
-  assert.match(navigator, /const sort = params\.sort === "oldest" \? "oldest" : "newest";/);
-  assert.match(navigator, /if \(forSort === "oldest"\) query\.set\("sort", "oldest"\);/);
+  assert.match(navigator, /const sort = params\.sort === "newest" \? "newest" : "oldest";/);
+  assert.match(navigator, /if \(forSort === "newest"\) query\.set\("sort", "newest"\);/);
   // reuses the already-fetched, already-ordered list's own endpoints instead
   // of a second query -- which endpoint is "newest" depends on which
   // direction is currently active.

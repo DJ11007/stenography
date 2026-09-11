@@ -11,6 +11,16 @@ import { FreePracticeLimitPaywall } from "./free-limit-paywall";
 
 type Params = { input?: string; test?: string; sort?: string };
 
+// The picker's badge should identify the test itself (e.g. "TEST - 4" -> 4),
+// not just its position in the current sort order -- otherwise switching
+// Newest/Oldest re-numbers every card and a title's own number stops
+// matching the badge next to it. Falls back to position only when a title
+// carries no number at all.
+function serialFor(title: string, fallbackPosition: number): number {
+  const match = title.match(/(\d+)(?!.*\d)/);
+  return match ? Number(match[1]) : fallbackPosition;
+}
+
 export async function PracticeNavigator({ mode = "practice", language, params, requireInput = false }: { mode?: "practice" | "stenography"; language: "English" | "Hindi"; params: Params; requireInput?: boolean }) {
   const inputSystemId = params.input || undefined;
   if (requireInput && !inputSystemId) return null;
@@ -25,7 +35,11 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
     if (freeStatus?.blocked) return <FreePracticeLimitPaywall used={freeStatus.used_count} limit={freeStatus.free_limit ?? 0} />;
   }
 
-  const sort = params.sort === "oldest" ? "oldest" : "newest";
+  // Oldest-first by default, across every "Take Tests" section (English,
+  // Hindi, both plain practice and stenography) -- students expect test
+  // catalogues to run in the order they were actually published, not
+  // newest-first.
+  const sort = params.sort === "newest" ? "newest" : "oldest";
   const items = await getPracticeSelector({ mode, language, inputSystemId, sort });
 
   if (!items.length) return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center"><div className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl sm:p-12"><span className="text-5xl" aria-hidden>⌨</span><h1 className="mt-5 text-3xl font-black text-slate-900">No compatible tests yet</h1><p className="mx-auto mt-3 max-w-xl text-slate-600">No compatible published {language.toLowerCase()} {mode} tests are currently available.</p><Link href="/typing/practice" className="mt-7 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Back to Practice Categories</Link></div></section></main>;
@@ -34,7 +48,7 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
     const query = new URLSearchParams();
     if (inputSystemId) query.set("input", inputSystemId);
     query.set("test", slug);
-    if (forSort === "oldest") query.set("sort", "oldest");
+    if (forSort === "newest") query.set("sort", "newest");
     return `?${query}`;
   };
 
@@ -49,7 +63,7 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
     const sortHref = (targetSort: "newest" | "oldest") => {
       const query = new URLSearchParams();
       if (inputSystemId) query.set("input", inputSystemId);
-      if (targetSort === "oldest") query.set("sort", "oldest");
+      if (targetSort === "newest") query.set("sort", "newest");
       const qs = query.toString();
       return qs ? `?${qs}` : "?";
     };
@@ -71,7 +85,7 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {items.map((item) => (
               <Link key={item.id} href={queryFor(item.slug)} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{item.index}</span>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{serialFor(item.title, item.index)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-black text-slate-800">{item.title}</span>
                   <span className="block text-xs text-slate-600">{Math.max(1, Math.round(item.durationSeconds / 60))} min</span>
