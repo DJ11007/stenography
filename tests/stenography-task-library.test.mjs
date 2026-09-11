@@ -36,6 +36,18 @@ test("the task library view renders category tabs, a search box, and links each 
   assert.match(view, /\/typing\/practice\/hindi-stenography\?input=.*&test=/);
 });
 
+// Real stenography training runs as a speed ladder (60 -> 80 -> 100 -> 120+
+// WPM); the library should let a student filter to their current speed
+// instead of hunting through every published task regardless of pace.
+test("the task library view offers a speed filter derived from the tasks' own required WPM values, sorted low to high, and defaults the list to the same order", async () => {
+  const view = await read("app/typing/practice/stenography/library/_components/task-library-view.tsx");
+  assert.match(view, /const speeds = \[\.\.\.new Set\(tasks\.map\(\(task\) => task\.requiredWpm\)\)\]\.sort\(\(a, b\) => a - b\);/);
+  assert.match(view, /speed === "All" \|\| task\.requiredWpm === speed/);
+  assert.match(view, /\.sort\(\(a, b\) => a\.requiredWpm - b\.requiredWpm \|\| a\.title\.localeCompare\(b\.title\)\)/);
+  assert.match(view, /aria-label="Filter by dictation speed"/);
+  assert.match(view, /\{value\} WPM/);
+});
+
 test("the library pages exist for both languages and fetch published tasks server-side", async () => {
   const english = await read("app/typing/practice/stenography/library/english/page.tsx");
   const hindi = await read("app/typing/practice/stenography/library/hindi/page.tsx");

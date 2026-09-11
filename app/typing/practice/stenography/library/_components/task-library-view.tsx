@@ -11,8 +11,18 @@ function practiceHref(task: StenographyTaskSummary) {
 
 export function StenographyTaskLibraryView({ tasks }: { tasks: StenographyTaskSummary[] }) {
   const [category, setCategory] = useState<"All" | (typeof STENOGRAPHY_TASK_CATEGORIES)[number]>("Task");
+  const [speed, setSpeed] = useState<"All" | number>("All");
   const [query, setQuery] = useState("");
-  const filtered = tasks.filter((task) => (category === "All" || task.category === category) && task.title.toLowerCase().includes(query.trim().toLowerCase()));
+  // Real stenography training runs as a speed ladder (60 -> 80 -> 100 ->
+  // 120+ WPM, matching how SSC/court dictation grades step up) -- offering
+  // every distinct speed actually configured, sorted low to high, lets a
+  // student practise at their current speed rather than hunting through
+  // every test regardless of pace. Derived from the data itself (not a
+  // hardcoded band list) so it never shows a speed nothing was published at.
+  const speeds = [...new Set(tasks.map((task) => task.requiredWpm))].sort((a, b) => a - b);
+  const filtered = tasks
+    .filter((task) => (category === "All" || task.category === category) && (speed === "All" || task.requiredWpm === speed) && task.title.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => a.requiredWpm - b.requiredWpm || a.title.localeCompare(b.title));
 
   return (
     <div>
@@ -20,12 +30,20 @@ export function StenographyTaskLibraryView({ tasks }: { tasks: StenographyTaskSu
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title…" className="input flex-1 min-w-48" aria-label="Search tests"/>
       </div>
       <h2 className="mt-6 text-xl font-black text-slate-950">Task / Topic Wise Tests</h2>
-      <div role="tablist" className="mt-3 flex flex-wrap gap-2">
+      <div role="tablist" aria-label="Filter by topic" className="mt-3 flex flex-wrap gap-2">
         <button type="button" role="tab" aria-selected={category === "All"} onClick={() => setCategory("All")} className={`rounded-full px-4 py-1.5 text-sm font-black ${category === "All" ? "bg-violet-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>All</button>
         {STENOGRAPHY_TASK_CATEGORIES.map((item) => (
           <button key={item} type="button" role="tab" aria-selected={category === item} onClick={() => setCategory(item)} className={`rounded-full px-4 py-1.5 text-sm font-black uppercase ${category === item ? "bg-violet-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{item}</button>
         ))}
       </div>
+      {speeds.length > 1 && (
+        <div role="tablist" aria-label="Filter by dictation speed" className="mt-2 flex flex-wrap gap-2">
+          <button type="button" role="tab" aria-selected={speed === "All"} onClick={() => setSpeed("All")} className={`rounded-full px-3 py-1 text-xs font-black ${speed === "All" ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>All speeds</button>
+          {speeds.map((value) => (
+            <button key={value} type="button" role="tab" aria-selected={speed === value} onClick={() => setSpeed(value)} className={`rounded-full px-3 py-1 text-xs font-black ${speed === value ? "bg-slate-800 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{value} WPM</button>
+          ))}
+        </div>
+      )}
       <div className="mt-5 grid gap-3">
         {filtered.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">No tests in this category yet.</p>}
         {filtered.map((task) => (
