@@ -16,3 +16,20 @@ test("PracticeNavigator's in-workspace Back button is scoped to the language (an
   assert.match(navigator, /const backHref = `\/typing\/practice\/\$\{language === "Hindi" \? "hindi" : "english"\}\$\{mode === "stenography" \? "-stenography" : ""\}`;/);
   assert.match(navigator, /backHref=\{backHref\}/);
 });
+
+// The Back button pointing at /typing/practice/english is only a real fix
+// if that URL (no ?test=) is a genuine list to land on -- it used to
+// auto-redirect into the newest test, which is usually the exact test the
+// student was just viewing, so Back visibly did nothing.
+test("landing on /typing/practice/{english,hindi} with no ?test= shows a language-scoped list of tests to choose from, instead of silently auto-selecting one", async () => {
+  const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
+  assert.match(navigator, /if \(!params\.test\) \{/);
+  assert.match(navigator, /Choose a test/);
+  assert.match(navigator, /items\.map\(\(item\) => \(/);
+  assert.match(navigator, /href=\{queryFor\(item\.slug\)\}/);
+  // The redirect-into-a-test logic only ever runs once a test slug (valid
+  // or not) is actually present in the URL -- i.e. after the picker branch.
+  const pickerAt = navigator.indexOf("if (!params.test) {");
+  const redirectAt = navigator.indexOf("if (params.test !== selected.slug) redirect(queryFor(selected.slug));");
+  assert.ok(pickerAt >= 0 && redirectAt >= 0 && pickerAt < redirectAt, "the no-test-param picker must be checked before the stale-slug redirect");
+});

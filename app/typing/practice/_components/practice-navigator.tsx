@@ -6,6 +6,7 @@ import { getPracticeSelector } from "@/lib/practice-navigator-server";
 import { resolvePracticeSelection } from "@/lib/practice-navigator";
 import { ConfigurableTypingExam, type PracticeNavigation } from "../../_components/configurable-typing-exam";
 import { TypingBrandHeader } from "../../_components/typing-brand";
+import { BackButton } from "../../../_components/back-button";
 import { FreePracticeLimitPaywall } from "./free-limit-paywall";
 
 type Params = { input?: string; test?: string; sort?: string };
@@ -26,9 +27,8 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
 
   const sort = params.sort === "oldest" ? "oldest" : "newest";
   const items = await getPracticeSelector({ mode, language, inputSystemId, sort });
-  const { selectedIndex, selected } = resolvePracticeSelection(items, params.test);
 
-  if (!selected) return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center"><div className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl sm:p-12"><span className="text-5xl" aria-hidden>⌨</span><h1 className="mt-5 text-3xl font-black text-slate-900">No compatible tests yet</h1><p className="mx-auto mt-3 max-w-xl text-slate-600">No compatible published {language.toLowerCase()} {mode} tests are currently available.</p><Link href="/typing/practice" className="mt-7 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Back to Practice Categories</Link></div></section></main>;
+  if (!items.length) return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center"><div className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl sm:p-12"><span className="text-5xl" aria-hidden>⌨</span><h1 className="mt-5 text-3xl font-black text-slate-900">No compatible tests yet</h1><p className="mx-auto mt-3 max-w-xl text-slate-600">No compatible published {language.toLowerCase()} {mode} tests are currently available.</p><Link href="/typing/practice" className="mt-7 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Back to Practice Categories</Link></div></section></main>;
 
   const queryFor = (slug: string, forSort: "newest" | "oldest" = sort) => {
     const query = new URLSearchParams();
@@ -38,6 +38,54 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
     return `?${query}`;
   };
 
+  // No specific test requested (this is the actual landing page for "Take
+  // Tests", and where the in-workspace Back button now points) -- show a
+  // real, language-scoped list to choose from instead of silently jumping
+  // straight into one test. Jumping straight in used to make Back look
+  // broken: it always landed on the newest test, which is usually the
+  // exact test the student was already looking at, so nothing appeared to
+  // change.
+  if (!params.test) {
+    const sortHref = (targetSort: "newest" | "oldest") => {
+      const query = new URLSearchParams();
+      if (inputSystemId) query.set("input", inputSystemId);
+      if (targetSort === "oldest") query.set("sort", "oldest");
+      const qs = query.toString();
+      return qs ? `?${qs}` : "?";
+    };
+    return (
+      <main className="min-h-screen bg-slate-100">
+        <TypingBrandHeader />
+        <section className="mx-auto max-w-5xl px-4 py-10">
+          <BackButton href="/typing/practice" label="Practice Categories" />
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-blue-700">{language} · {mode === "stenography" ? "Stenography" : "Take Tests"}</p>
+              <h1 className="mt-1 text-3xl font-black text-slate-900">Choose a test</h1>
+            </div>
+            <div className="flex overflow-hidden rounded-full border border-slate-300 bg-white text-sm font-bold" role="group" aria-label="Sort tests">
+              <Link href={sortHref("newest")} aria-pressed={sort === "newest"} className={`px-4 py-1.5 ${sort === "newest" ? "bg-blue-700 text-white" : "text-slate-600"}`}>Newest</Link>
+              <Link href={sortHref("oldest")} aria-pressed={sort === "oldest"} className={`px-4 py-1.5 ${sort === "oldest" ? "bg-blue-700 text-white" : "text-slate-600"}`}>Oldest</Link>
+            </div>
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {items.map((item) => (
+              <Link key={item.id} href={queryFor(item.slug)} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{item.index}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-black text-slate-800">{item.title}</span>
+                  <span className="block text-xs text-slate-600">{Math.max(1, Math.round(item.durationSeconds / 60))} min</span>
+                </span>
+                <span aria-hidden="true" className="text-xl font-black text-slate-300">→</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const { selectedIndex, selected } = resolvePracticeSelection(items, params.test);
   if (params.test !== selected.slug) redirect(queryFor(selected.slug));
 
   // items is already ordered by the active sort, so its own first/last
