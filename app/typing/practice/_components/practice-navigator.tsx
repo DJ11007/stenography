@@ -69,5 +69,11 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
   const preset = managedVersionToPreset(version);
   if (version.audioPath) { const { data: signed } = await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath, 3600); preset.audioUrl = signed?.signedUrl ?? null; }
   if (version.pdfPath) { const { data: signed } = await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath, 3600); preset.pdfUrl = signed?.signedUrl ?? null; }
-  return <ConfigurableTypingExam preset={preset} mode="practice" customPreset directWorkspace managedTest={{ testId:test.id, versionId:versionRow.id, mode:version.mode }} practiceNavigation={navigation} backHref="/typing/practice"/>;
+  // Scoped to the language (and stenography-ness) the student actually
+  // came from -- not the unscoped /typing/practice picker, which would ask
+  // them to choose English or Hindi all over again (the same bug already
+  // fixed for the "Take Tests" hub card itself; this is the in-workspace
+  // Back button, and it serves both plain practice and stenography).
+  const backHref = `/typing/practice/${language === "Hindi" ? "hindi" : "english"}${mode === "stenography" ? "-stenography" : ""}`;
+  return <ConfigurableTypingExam preset={preset} mode="practice" customPreset directWorkspace managedTest={{ testId:test.id, versionId:versionRow.id, mode:version.mode }} practiceNavigation={navigation} backHref={backHref}/>;
 }
