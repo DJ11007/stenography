@@ -21,6 +21,16 @@ test("PracticeNavigator's in-workspace Back button is scoped to the language (an
 // if that URL (no ?test=) is a genuine list to land on -- it used to
 // auto-redirect into the newest test, which is usually the exact test the
 // student was just viewing, so Back visibly did nothing.
+// Reported: pressing the picker's own "Practice Categories" back button
+// landed on /typing/practice, which offers both English and Hindi -- the
+// exact same class of bug already fixed for the in-workspace Back button
+// above, one level further out.
+test("the picker's own Back button does not link to the unscoped /typing/practice category chooser", async () => {
+  const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
+  assert.doesNotMatch(navigator, /<BackButton href="\/typing\/practice" label="Practice Categories" \/>/);
+  assert.match(navigator, /<BackButton href="\/typing" label="Typing Hub" \/>/);
+});
+
 test("landing on /typing/practice/{english,hindi} with no ?test= shows a language-scoped list of tests to choose from, instead of silently auto-selecting one", async () => {
   const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
   assert.match(navigator, /if \(!params\.test\) \{/);

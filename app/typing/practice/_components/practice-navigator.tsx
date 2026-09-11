@@ -71,7 +71,11 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
       <main className="min-h-screen bg-slate-100">
         <TypingBrandHeader />
         <section className="mx-auto max-w-5xl px-4 py-10">
-          <BackButton href="/typing/practice" label="Practice Categories" />
+          {/* Not /typing/practice -- that page offers both English and Hindi,
+              which would undo the language choice this picker already made
+              (the same class of bug as the in-workspace Back button fix
+              above). The Typing Hub names no language at all. */}
+          <BackButton href="/typing" label="Typing Hub" />
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-700">{language} · {mode === "stenography" ? "Stenography" : "Take Tests"}</p>
