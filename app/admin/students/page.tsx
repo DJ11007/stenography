@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { StudentActionButtons } from "./student-action-buttons";
+import { StudentAccessLockButton } from "./student-access-controls";
 import { AccessStatusBadge, validityLabel, type AccessRow } from "./access-status-badge";
 import { BackButton } from "../../_components/back-button";
 
@@ -15,6 +16,8 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   await requireAdmin();
   const params = await searchParams;
   const search = (params.search ?? "").trim();
+  const statusFilter = params.statusFilter ?? "all";
+  const accessFilter = params.accessFilter ?? "all";
 
   const supabase = await createClient();
   const base = () => supabase.from("profiles").select("id,email,full_name,phone,role,is_active,approved,created_at,class_info").eq("role", "student").order("created_at", { ascending: false });
@@ -57,6 +60,21 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
   const graceCount = rows.filter((row) => row.access?.status === "grace").length;
   const lockedCount = rows.filter((row) => row.access?.status === "locked").length;
 
+  // Two independent dropdown filters, matching a reference admin's
+  // "All-Status" + "Membership" pair -- account status (approval/active/
+  // confirmation) is a different axis from test-access status (active/
+  // grace/locked), so both stay separate rather than one combined filter.
+  // Stat cards above stay computed from the full, unfiltered `rows`.
+  const visibleRows = rows.filter((row) => {
+    const statusOk = statusFilter === "all"
+      || (statusFilter === "pending" && !row.student.approved)
+      || (statusFilter === "active" && row.student.approved && row.student.is_active)
+      || (statusFilter === "deactivated" && !row.student.is_active)
+      || (statusFilter === "unconfirmed" && !row.status.emailConfirmed);
+    const accessOk = accessFilter === "all" || row.access?.status === accessFilter;
+    return statusOk && accessOk;
+  });
+
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-6xl">
@@ -83,53 +101,70 @@ export default async function AdminStudentsPage({ searchParams }: { searchParams
           </p>
         )}
 
-        <form className="mt-6 flex gap-2" role="search">
-          <input name="search" defaultValue={search} placeholder="Search by name or email" className="w-full max-w-sm rounded-lg border border-slate-300 px-4 py-2" />
-          <button className="rounded-lg bg-blue-700 px-5 font-bold text-white">Search</button>
-          {search && <Link href="/admin/students" className="rounded-lg bg-slate-200 px-4 py-2 font-bold text-slate-700">Clear</Link>}
+        <form className="mt-6 flex flex-wrap items-end gap-2" role="search">
+          <label className="text-xs font-bold text-slate-600">Search
+            <input name="search" defaultValue={search} placeholder="Name or email" className="mt-1 block w-full max-w-sm rounded-lg border border-slate-300 px-4 py-2" />
+          </label>
+          <label className="text-xs font-bold text-slate-600">Status
+            <select name="statusFilter" defaultValue={statusFilter} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2">
+              <option value="all">All statuses</option>
+              <option value="pending">Pending approval</option>
+              <option value="active">Active</option>
+              <option value="deactivated">Deactivated</option>
+              <option value="unconfirmed">Unconfirmed email</option>
+            </select>
+          </label>
+          <label className="text-xs font-bold text-slate-600">Test access
+            <select name="accessFilter" defaultValue={accessFilter} className="mt-1 block rounded-lg border border-slate-300 px-3 py-2">
+              <option value="all">All</option>
+              <option value="active">Active</option>
+              <option value="grace">Grace</option>
+              <option value="locked">Locked</option>
+            </select>
+          </label>
+          <button className="rounded-lg bg-blue-700 px-5 py-2 font-bold text-white">Apply</button>
+          {(search || statusFilter !== "all" || accessFilter !== "all") && <Link href="/admin/students" className="rounded-lg bg-slate-200 px-4 py-2 font-bold text-slate-700">Clear</Link>}
         </form>
 
         <div className="mt-6 overflow-x-auto rounded-2xl bg-white shadow">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="w-full border-collapse text-left text-xs">
             <thead>
               <tr className="bg-slate-100">
-                <th className="p-3">Name</th>
-                <th className="p-3">Email</th>
-                <th className="p-3">Phone</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Tests (today/total)</th>
-                <th className="p-3">Test access</th>
-                <th className="p-3">Joined</th>
-                <th className="p-3">Last sign-in</th>
-                <th className="p-3">Actions</th>
+                <th className="p-2">User</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Test limit</th>
+                <th className="p-2">Validity</th>
+                <th className="p-2">Manage</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ student, status, access }) => (
+              {visibleRows.map(({ student, status, access }) => (
                 <tr key={student.id} className="border-b align-top">
-                  <td className="p-3 font-bold"><Link href={`/admin/students/${student.id}`} className="text-blue-700 hover:underline">{student.full_name || "(no name)"}</Link></td>
-                  <td className="p-3">{student.email}</td>
-                  <td className="p-3">{student.phone || <span className="text-slate-400">Not provided</span>}</td>
-                  <td className="p-3">
-                    <div className="flex flex-col gap-1">
-                      {!student.approved && <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">Pending approval</span>}
-                      <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${student.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{student.is_active ? "Active" : "Deactivated"}</span>
-                      {admin && <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${status.emailConfirmed ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>{status.emailConfirmed ? "Email confirmed" : "Email not confirmed"}</span>}
-                    </div>
+                  <td className="p-2">
+                    <Link href={`/admin/students/${student.id}`} className="font-bold text-blue-700 hover:underline">{student.full_name || "(no name)"}</Link>
+                    <p className="text-slate-500">{student.email}</p>
+                    <p className="text-slate-400">{student.phone || "No phone"} · Joined {date(student.created_at)} · Last in {status.lastSignInAt ? date(status.lastSignInAt) : "Never"}</p>
                   </td>
-                  <td className="p-3">{access ? `${access.tests_today} / ${access.tests_total}` : "—"}</td>
-                  <td className="p-3">
+                  <td className="p-2">
                     <div className="flex flex-col gap-1">
+                      {!student.approved && <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900">Pending approval</span>}
+                      <span className={`inline-flex w-fit rounded-full px-2 py-0.5 font-bold ${student.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{student.is_active ? "Active" : "Deactivated"}</span>
+                      {admin && <span className={`inline-flex w-fit rounded-full px-2 py-0.5 font-bold ${status.emailConfirmed ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>{status.emailConfirmed ? "Email confirmed" : "Email not confirmed"}</span>}
                       <AccessStatusBadge access={access} />
-                      <span className="text-[11px] text-slate-500">{access?.test_limit != null ? `${access.tests_remaining}/${access.test_limit} tests left` : "Unlimited tests"} · {validityLabel(access)}</span>
                     </div>
                   </td>
-                  <td className="p-3">{date(student.created_at)}</td>
-                  <td className="p-3">{status.lastSignInAt ? date(status.lastSignInAt) : <span className="text-slate-400">Never</span>}</td>
-                  <td className="p-3"><StudentActionButtons studentId={student.id} emailConfirmed={status.emailConfirmed} isActive={student.is_active} approved={student.approved} /></td>
+                  <td className="p-2">{access?.test_limit != null ? `${access.tests_remaining}/${access.test_limit} left` : "Unlimited"}<p className="text-slate-400">{access ? `${access.tests_today}/${access.tests_total} tests` : "—"}</p></td>
+                  <td className="p-2">{validityLabel(access)}</td>
+                  <td className="p-2">
+                    <div className="flex flex-wrap items-start gap-1">
+                      <Link href={`/admin/students/${student.id}`} title="View / edit profile" aria-label="View / edit profile" className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-sm font-black text-slate-800 hover:bg-slate-200">👁</Link>
+                      <StudentAccessLockButton studentId={student.id} accessLocked={access?.access_locked ?? false} />
+                      <StudentActionButtons studentId={student.id} emailConfirmed={status.emailConfirmed} isActive={student.is_active} approved={student.approved} compact />
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={9} className="p-6 text-center text-slate-500">No students match this search.</td></tr>}
+              {!visibleRows.length && <tr><td colSpan={5} className="p-6 text-center text-slate-500">No students match these filters.</td></tr>}
             </tbody>
           </table>
         </div>

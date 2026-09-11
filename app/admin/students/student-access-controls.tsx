@@ -109,3 +109,22 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
     </div>
   );
 }
+
+// Compact standalone icon toggle for a table row's "Manage" column -- the
+// exact same setStudentAccessLocked action the full "Lock/unlock test
+// access" button above uses, so a row can lock/unlock a seat without
+// leaving the students list for the detail page.
+export function StudentAccessLockButton({ studentId, accessLocked }: { studentId: string; accessLocked: boolean }) {
+  const [lockState, lockAction, lockPending] = useActionState(setStudentAccessLocked, initial);
+  return (
+    <div className="flex flex-col gap-1">
+      <form action={lockAction} onSubmit={(event) => { if (!confirm(accessLocked ? "Unlock this student's test access?" : "Lock this student out of taking new tests? Their account can still sign in.")) event.preventDefault(); }}>
+        <input type="hidden" name="studentId" value={studentId} />
+        <input type="hidden" name="locked" value={String(!accessLocked)} />
+        <button disabled={lockPending} title={accessLocked ? "Unlock test access" : "Lock test access"} aria-label={accessLocked ? "Unlock test access" : "Lock test access"} className={`flex h-8 w-8 items-center justify-center rounded-lg text-sm font-black disabled:opacity-60 ${accessLocked ? "bg-green-100 text-green-800 hover:bg-green-200" : "bg-red-100 text-red-800 hover:bg-red-200"}`}>{lockPending ? "…" : accessLocked ? "🔓" : "🔒"}</button>
+      </form>
+      {lockState.error && <p role="alert" className="text-[10px] font-bold text-red-700">{lockState.error}</p>}
+      {lockState.success && <p className="text-[10px] font-bold text-green-700">{lockState.success}</p>}
+    </div>
+  );
+}
