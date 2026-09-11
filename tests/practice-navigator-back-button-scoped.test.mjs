@@ -31,6 +31,16 @@ test("the picker's own Back button does not link to the unscoped /typing/practic
   assert.match(navigator, /<BackButton href="\/typing" label="Typing Hub" \/>/);
 });
 
+// Same class of bug, one screen further back: the Hindi keyboard-picker
+// page (reached before PracticeNavigator even runs, since Hindi needs a
+// font/input choice first) has its own Back button, inherited from the
+// shared CatalogueShell -- it defaults to /typing/practice too.
+test("the Hindi keyboard-picker page's Back button also skips the unscoped /typing/practice category chooser", async () => {
+  const categories = await read("app/typing/practice/_components/category-catalogue.tsx");
+  assert.match(categories, /return <CatalogueShell title=\{title\} description=\{description\} backHref="\/typing" backLabel="Typing Hub">/);
+  assert.match(categories, /function CatalogueShell\(\{title,description,children,backHref="\/typing\/practice",backLabel="Practice Categories"\}/);
+});
+
 test("landing on /typing/practice/{english,hindi} with no ?test= shows a language-scoped list of tests to choose from, instead of silently auto-selecting one", async () => {
   const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
   assert.match(navigator, /if \(!params\.test\) \{/);
