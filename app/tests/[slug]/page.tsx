@@ -5,6 +5,7 @@ import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tes
 import { liveTestState } from "@/lib/live-tests";
 import { ConfigurableTypingExam } from "@/app/typing/_components/configurable-typing-exam";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
+import { FreeExamLimitPaywall } from "@/app/typing/exams/_components/free-exam-limit-paywall";
 
 export default async function PublishedTestPage({params,searchParams}:PageProps<"/tests/[slug]">){
   const slug=(await params).slug; const supabase=await createClient();
@@ -37,7 +38,15 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   // exact link to preview/trial their own just-published test is a
   // normal, expected use of it.
   if(!user)redirect(`/login?next=${encodeURIComponent(`/tests/${slug}`)}`);
-  const{data:profile}=await supabase.from("profiles").select("full_name,phone").eq("id",user.id).maybeSingle();
+  // The Typing Exam Simulator's free-attempt cap (mode="exam" only, a free
+  // scheduled live test is unaffected) -- checked here, before the exam
+  // workspace ever renders, exactly like PracticeNavigator's own pre-render
+  // check for "Take Tests". Applies identically to English and Hindi.
+  const[{data:profile},examFreeStatus]=await Promise.all([
+    supabase.from("profiles").select("full_name,phone").eq("id",user.id).maybeSingle(),
+    test.mode==="exam"&&!test.is_live?supabase.rpc("exam_test_free_status").single() as unknown as Promise<{data:{used_count:number;free_limit:number|null;remaining:number|null;blocked:boolean}|null}>:Promise.resolve({data:null}),
+  ]);
+  if(examFreeStatus.data?.blocked)return <FreeExamLimitPaywall used={examFreeStatus.data.used_count} limit={examFreeStatus.data.free_limit??0}/>;
   const schedule={isLive:Boolean(test.is_live),startsAt:test.live_starts_at,endsAt:test.live_ends_at,resultsPublishAt:test.results_publish_at};
   const state=liveTestState(schedule);
   if(test.is_live&&state!=="open")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${new Date(test.live_starts_at).toLocaleString()}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":`Results publish ${new Date(test.results_publish_at).toLocaleString()}`}/>;

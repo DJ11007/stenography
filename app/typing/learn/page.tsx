@@ -14,7 +14,6 @@ const english: Choice[] = [
 // Simulators, Stenography), which this page has nothing to do with.
 const kruti: Choice[] = [
   { label: "Learn Typing", detail: "कृतिदेव कीबोर्ड सिम्युलेटर", href: "/typing/learn/krutidev", icon: "अ", accent: "from-orange-500 to-amber-400" },
-  { label: "Admin Lessons", detail: "Guided Kruti Dev passages", href: "/typing/learn/hindi", icon: "प", accent: "from-amber-500 to-yellow-400" },
   { label: "Take Tests", detail: "Kruti Dev speed practice", href: "/typing/practice/hindi", icon: "क", accent: "from-rose-500 to-orange-400" },
 ];
 

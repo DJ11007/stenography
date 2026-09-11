@@ -163,6 +163,23 @@ export async function setStudentFreePracticeLimit(_: StudentActionState, formDat
   return { success: "Free practice test limit saved." };
 }
 
+// Same pattern, separate allowance: the platform-wide default is 20 free
+// Typing Exam Simulator (mode='exam') attempts before the Buy Now paywall.
+// Applies identically to English and Hindi exam attempts.
+export async function setStudentFreeExamLimit(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const raw = String(formData.get("freeExamLimit") ?? "").trim();
+  const limit = raw === "" ? null : Number(raw);
+  if (limit !== null && (!Number.isFinite(limit) || limit < 0)) return { error: "Enter a non-negative number, or leave it blank for unlimited." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_exam_free_limit", { p_student_id: studentId, p_limit: limit });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  return { success: "Free exam test limit saved." };
+}
+
 // Sets a student's password directly, bypassing the "email a reset link"
 // flow -- for the rare case a student is genuinely locked out of their
 // email too, not routine use. The password is never stored or logged

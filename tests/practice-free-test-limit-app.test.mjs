@@ -21,12 +21,13 @@ test("the paywall reuses the existing Buy Now button (which already links to /co
 
 test("recordManagedAttempt has a server-side backstop for the free-practice limit, scoped to mode='practice' only", async () => {
   const actions = await read("app/tests/actions.ts");
-  assert.match(actions, /if \(v\.mode === "practice"\) \{\s*const \{ error: freeLimitError \} = await supabase\.rpc\("assert_practice_test_allowed"\);/);
+  assert.match(actions, /v\.mode === "practice" \? supabase\.rpc\("assert_practice_test_allowed"\) : Promise\.resolve\(null\)/);
+  assert.match(actions, /if \(v\.mode === "practice" && practiceLimitResult\?\.error\) return \{ status: "locked" as const \};/);
 });
 
 test("an admin can set a student's free-practice-test limit from the student detail page", async () => {
   const controls = await read("app/admin/students/student-access-controls.tsx");
-  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
+  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
   assert.match(controls, /useActionState\(setStudentFreePracticeLimit, initial\)/);
   assert.match(controls, /name="freePracticeLimit"/);
 
@@ -35,7 +36,7 @@ test("an admin can set a student's free-practice-test limit from the student det
   assert.match(actions, /admin_set_practice_free_limit/);
 
   const detail = await read("app/admin/students/[id]/page.tsx");
-  assert.match(detail, /select\("id,email,full_name,phone,role,is_active,created_at,class_info,free_practice_test_limit"\)/);
+  assert.match(detail, /select\("id,email,full_name,phone,role,is_active,approved,created_at,class_info,free_practice_test_limit,free_exam_test_limit"\)/);
   assert.match(detail, /freePracticeLimit=\{student\.free_practice_test_limit\}/);
 });
 

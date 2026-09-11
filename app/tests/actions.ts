@@ -33,15 +33,19 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   ]);
   if (!user || !Number.isFinite(payload.elapsedSeconds) || payload.elapsedSeconds < 0 || payload.typedText.length > 100000) return null;
   if (!test || test.status !== "published" || test.visibility !== "public" || test.current_version_id !== v?.id || v.test_id !== test.id) return null;
-  // Defense-in-depth backstop for the free-practice-test cap -- the real
-  // gate is PracticeNavigator refusing to even render the workspace once
-  // blocked, this only matters against a direct call to this action.
-  const [{ error: accessError }, practiceLimitResult] = await Promise.all([
+  // Defense-in-depth backstop for the free-practice-test and free-exam-test
+  // caps -- the real gates are PracticeNavigator and /tests/[slug] refusing
+  // to even render the workspace once blocked, these only matter against a
+  // direct call to this action. A live scheduled exam is unaffected by the
+  // exam cap, same as the pre-render gate.
+  const [{ error: accessError }, practiceLimitResult, examLimitResult] = await Promise.all([
     supabase.rpc("assert_student_access_allowed"),
     v.mode === "practice" ? supabase.rpc("assert_practice_test_allowed") : Promise.resolve(null),
+    v.mode === "exam" && !test.is_live ? supabase.rpc("assert_exam_test_allowed") : Promise.resolve(null),
   ]);
   if (accessError) return { status: "locked" as const };
   if (v.mode === "practice" && practiceLimitResult?.error) return { status: "locked" as const };
+  if (v.mode === "exam" && !test.is_live && examLimitResult?.error) return { status: "locked" as const };
   if (test.is_live) {
     const now = Date.now(); const starts = new Date(test.live_starts_at ?? "").getTime(); const ends = new Date(test.live_ends_at ?? "").getTime();
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || now < starts || now > ends) return { status: "closed" as const };
