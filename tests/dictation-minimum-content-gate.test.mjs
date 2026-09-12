@@ -5,35 +5,24 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const EXAM_PATH = "app/typing/_components/configurable-typing-exam.tsx";
 
-// Reference stenography platforms block Submit on a dictation test until the
-// student has typed a minimum share of the dictated matter (seen quoted as
-// "Required content: 20% minimum (0/83 words)") -- stopping a near-blank
-// attempt from burning a test's limited attempt count. Only meaningful for
-// dictation tests, since a plain passage test's typed length is already
-// visibly compared against the on-screen original as the student types.
-test("a dictation (audio) test computes a minimum-content requirement as a percentage of the dictated matter's word count", async () => {
+// Real reported bug: a "Required content: 20% minimum (X/Y words)" gate
+// (added deliberately, mirroring reference stenography platforms) blocked
+// Submit until the student had typed a minimum share of the dictated
+// matter -- but a student who genuinely wanted to submit early (e.g. to
+// end a bad attempt rather than burn the full timer) had no way to. The
+// only thing that should ever stop a submission is a genuinely empty
+// attempt, which would score as a meaningless 0/0 result and is more
+// likely a misclick than an intentional early submission.
+test("Submit is never blocked by how much the student has typed -- only a completely empty attempt is blocked, with an alert", async () => {
   const editor = await read(EXAM_PATH);
-  assert.match(editor, /const MINIMUM_DICTATION_CONTENT_PERCENT = 20;/);
-  assert.match(editor, /const dictationRequiredWordCount = preset\.audioUrl \? Math\.ceil\(countPassageWords\(effectivePassage\) \* MINIMUM_DICTATION_CONTENT_PERCENT \/ 100\) : 0;/);
-  assert.match(editor, /const dictationTypedWordCount = countPassageWords\(typedText\);/);
-  assert.match(editor, /const contentRequirementMet = dictationRequiredWordCount === 0 \|\| dictationTypedWordCount >= dictationRequiredWordCount;/);
+  assert.doesNotMatch(editor, /MINIMUM_DICTATION_CONTENT_PERCENT/);
+  assert.doesNotMatch(editor, /contentRequirementMet/);
+  assert.doesNotMatch(editor, /contentStatus/);
+  assert.match(editor, /const submit = \(\) => \{ if \(!typedText\.trim\(\)\) \{ window\.alert\("Please write at least one word before submitting\."\); return; \}/);
 });
 
-test("submit (both the toolbar button's onClick and the Ctrl+Enter shortcut) is blocked while the content requirement isn't met", async () => {
+test("the Submit button is always enabled (no disabled/title tied to a content requirement) and the Ctrl+Enter shortcut no longer checks one either", async () => {
   const editor = await read(EXAM_PATH);
-  assert.match(editor, /const submit = \(\) => \{ if \(!contentRequirementMet\) return;/);
-  assert.match(editor, /if\(!finished&&\(!preset\.audioUrl\|\|dictationReady\)&&contentRequirementMet\)submit\(\)/);
-});
-
-test("the workspace passes the content status down and disables/labels the Submit button while short, with a visible status pill", async () => {
-  const editor = await read(EXAM_PATH);
-  assert.match(editor, /contentStatus=\{dictationRequiredWordCount > 0 \? \{ typed: dictationTypedWordCount, required: dictationRequiredWordCount \} : null\}/);
-  assert.match(editor, /contentStatus: \{ typed: number; required: number \} \| null/);
-  assert.match(editor, /disabled=\{Boolean\(contentStatus && contentStatus\.typed < contentStatus\.required\)\}/);
-  assert.match(editor, /Required content: \{MINIMUM_DICTATION_CONTENT_PERCENT\}% minimum \(\{contentStatus\.typed\}\/\{contentStatus\.required\} words\)/);
-});
-
-test("a non-dictation test (no audioUrl) never gets a content requirement, so this never affects existing practice/exam behavior", async () => {
-  const editor = await read(EXAM_PATH);
-  assert.match(editor, /preset\.audioUrl \? Math\.ceil\(countPassageWords\(effectivePassage\) \* MINIMUM_DICTATION_CONTENT_PERCENT \/ 100\) : 0/);
+  assert.match(editor, /<button type="button" onClick=\{onSubmit\} className="flex h-9 items-center justify-center rounded-lg bg-white px-4 text-xs font-black text-blue-800 hover:bg-blue-50">Submit<\/button>/);
+  assert.match(editor, /if\(!started\)start\(\);else if\(!finished&&\(!preset\.audioUrl\|\|dictationReady\)\)submit\(\);/);
 });

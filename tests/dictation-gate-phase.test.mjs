@@ -24,9 +24,9 @@ test("the workspace never shows the reference passage or an audio panel for a di
   assert.doesNotMatch(editor, /preset\.audioUrl \? <DictationAudioPanel/);
 });
 
-test("Ctrl+Enter cannot submit an empty attempt while still on the dictation gate (a student hasn't started typing yet)", async () => {
+test("Ctrl+Enter cannot submit while still on the dictation gate (a student hasn't started typing yet)", async () => {
   const editor = await read(EXAM_PATH);
-  assert.match(editor, /if\(!started\)start\(\);else if\(!finished&&\(!preset\.audioUrl\|\|dictationReady\)&&contentRequirementMet\)submit\(\);/);
+  assert.match(editor, /if\(!started\)start\(\);else if\(!finished&&\(!preset\.audioUrl\|\|dictationReady\)\)submit\(\);/);
 });
 
 test("Start Typing begins the timer immediately (reuses the existing idempotent beginTiming), not on the student's first keystroke", async () => {
