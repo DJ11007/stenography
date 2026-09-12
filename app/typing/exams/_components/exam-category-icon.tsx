@@ -40,12 +40,20 @@ export function ExamCategoryIcon({ category, size = 84 }: { category: IconableCa
   const uid = useId().replace(/[:]/g, "");
   const gradientId = `exam-cat-gradient-${uid}`;
   const arcId = `exam-cat-arc-${uid}`;
+  // Math.cos/Math.sin can differ in their very last bit of float64
+  // precision between the server's JS engine and the browser's -- rare but
+  // real (seen in production: a hydration mismatch on every tick line,
+  // e.g. y1=11.028856829700274 client vs 11.028856829700267 server).
+  // Rounding to 3 decimal places is far more precision than a 100x100 SVG
+  // viewBox needs, and guarantees the server and client strings are
+  // byte-identical regardless of that last-bit engine difference.
+  const round = (value: number) => Math.round(value * 1000) / 1000;
   const ticks = Array.from({ length: TICK_COUNT }, (_, index) => {
     const angle = (index / TICK_COUNT) * 2 * Math.PI;
     const inner = 45, outer = 48.5;
     return {
-      x1: 50 + inner * Math.cos(angle), y1: 50 + inner * Math.sin(angle),
-      x2: 50 + outer * Math.cos(angle), y2: 50 + outer * Math.sin(angle),
+      x1: round(50 + inner * Math.cos(angle)), y1: round(50 + inner * Math.sin(angle)),
+      x2: round(50 + outer * Math.cos(angle)), y2: round(50 + outer * Math.sin(angle)),
     };
   });
   if (CustomBadge) {
