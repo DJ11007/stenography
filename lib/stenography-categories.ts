@@ -71,8 +71,15 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common SSC/departmental stenographer pattern."] },
   { slug: "rsmssb-steno", name: "RSMSSB Stenographer", badge: "RSMSSB", fullName: "Rajasthan Subordinate & Ministerial Services Selection Board — Stenographer", iconKind: "commission",
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 60, durationMinutes: 10, accuracy: 90, patternSourced: true,
-    patternNotes: ["A separate typing test requires 40 WPM English / 35 WPM Hindi at 95% accuracy.", "The full skill test (dictation + transcription) runs 70 minutes in the real exam."] },
+    // Corrected against the 2024/2025 RSMSSB Stenographer & PA recruitment
+    // cycle (Adda247's admit-card page and Oliveboard's syllabus page
+    // independently agree on the same duration breakdown: 10 min dictation +
+    // 60 min transcription for English, 10 min dictation + 70 min for Hindi,
+    // 100 marks each) -- the previous 80/60 WPM figures and "separate 40/35
+    // WPM typing test at 95%" note here did not match any source and looked
+    // conflated with a different exam.
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 80, patternSourced: true,
+    patternNotes: ["Audio is played once with no replay. Transcription is then typed on computer: 60 minutes for the English paper, 70 minutes for the Hindi paper -- 100 marks each, 0.1 marks per correctly transcribed word.", "Candidates are disqualified if errors exceed 20% (the 80% minimum accuracy above); SC/ST candidates get a 5% relaxation.", "The transcription screen uses the Calibri font for English and DevLys 010 for Hindi.", "There is no separate lower-speed typing-test stage -- dictation and transcription are one combined paper per language."] },
   { slug: "rajasthan-district-court-steno", name: "Rajasthan District Court Steno", badge: "DIST", fullName: "Rajasthan Subordinate Courts — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the Rajasthan High Court stenographer pattern.", "Verify against the specific District Court recruitment notification."] },
