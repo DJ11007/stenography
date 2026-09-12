@@ -52,8 +52,16 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Punjab & Haryana High Court notification."] },
   { slug: "rajasthan-hc-steno", name: "Rajasthan High Court Steno", badge: "RHC", fullName: "Rajasthan High Court — Stenographer", iconKind: "scales",
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 90, patternSourced: true,
-    patternNotes: ["The real dictation is only 6 minutes (after a short, unscored 200–250 word trial passage), followed by 5 minutes reading time and 50 minutes computer transcription.", "A separate Computer Speed/Efficiency Test requires 8000 key depressions per hour.", "Hindi transcription font is Kruti Dev 010; English uses Calibri."] },
+    // Re-verified against three independent sources; typingwale.com's
+    // detailed breakdown matches this entry's existing dictation speed/
+    // duration/reading-time/transcription-time/font figures exactly, so
+    // those are unchanged. accuracy corrected from a flat 90% to 95%: the
+    // real rule is a 5%-mistake margin (Marks = correct words x max marks /
+    // total dictated words, with excess above 5% deducted), not a 90%
+    // baseline -- 95% is the closer single figure for this app's simplified
+    // accuracy-threshold model.
+    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 95, patternSourced: true,
+    patternNotes: ["The real dictation is only 6 minutes (after a short, unscored 200–250 word trial passage), followed by 5 minutes reading time and 50 minutes computer transcription.", "Shorthand is scored out of 100 marks per language: marks = (correct words x 100) / total dictated words. Up to 5% mistakes are free; errors beyond that are deducted from the correct-word count. Omissions, substitutions, and misspellings count as full mistakes; punctuation/capitalization count as half.", "A separate two-part Computer Speed & Efficiency Test follows: a 10-minute, 50-mark Speed Test requiring 8000 key depressions per hour (roughly 25-27 WPM), and a 10-minute, 50-mark Efficiency Test of word-processing/formatting tasks -- both scored, not just qualifying, with a minimum of 22.5/50 (20/50 for SC/ST/PH/Ex-Servicemen).", "Hindi transcription font is Kruti Dev 010 (Remington layout); English uses Calibri."] },
   { slug: "patna-hc-steno", name: "Patna High Court Steno", badge: "PHC", fullName: "Patna High Court — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Patna High Court notification."] },
