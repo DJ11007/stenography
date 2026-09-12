@@ -69,21 +69,34 @@ export function normalizeManagedTestRules<T extends ManagedTestDraft>(draft: T):
 
 export function validateManagedTest(input: ManagedTestDraft) {
   const errors: string[] = [];
-  if (input.title.trim().length < 3) errors.push("Title must contain at least 3 characters.");
-  if (input.language === "Hindi" && !/\p{Script=Devanagari}/u.test(input.title) && /(?:f['{kTtM<;]|O;fDr|vkSj|gS|\{kk|\.[k]|[dD][kZ]?)/.test(input.title)) errors.push("Hindi test titles must use Unicode Devanagari, not Kruti Dev legacy encoding.");
-  if (!slugifyTest(input.slug || input.title)) errors.push("A valid URL slug is required.");
-  if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 60 || input.durationSeconds > 3600) errors.push("Duration must be between 1 and 60 minutes.");
-  if (!Number.isFinite(input.requiredWpm) || input.requiredWpm < 0 || input.requiredWpm > 300) errors.push("Required WPM must be between 0 and 300.");
-  if (!Number.isFinite(input.requiredAccuracy) || input.requiredAccuracy < 0 || input.requiredAccuracy > 100) errors.push("Required accuracy must be between 0 and 100.");
+  // fieldErrors keys match each field's `name` attribute in TestManager's
+  // form, so the UI can put a red box on the exact field instead of only
+  // showing one generic message at the bottom -- see test-manager.tsx's
+  // fieldError() helper and its scroll-to-first-error effect. A field with
+  // more than one problem keeps only its first (most useful) message here;
+  // `errors` still collects every message for the general banner and for
+  // checks (like the live-schedule ones) that have no single field to point
+  // at.
+  const fieldErrors: Record<string, string> = {};
+  const addError = (field: string | null, message: string) => {
+    errors.push(message);
+    if (field && !fieldErrors[field]) fieldErrors[field] = message;
+  };
+  if (input.title.trim().length < 3) addError("title", "Title must contain at least 3 characters.");
+  if (input.language === "Hindi" && !/\p{Script=Devanagari}/u.test(input.title) && /(?:f['{kTtM<;]|O;fDr|vkSj|gS|\{kk|\.[k]|[dD][kZ]?)/.test(input.title)) addError("title", "Hindi test titles must use Unicode Devanagari, not Kruti Dev legacy encoding.");
+  if (!slugifyTest(input.slug || input.title)) addError("title", "A valid URL slug is required.");
+  if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 60 || input.durationSeconds > 3600) addError("durationMinutes", "Duration must be between 1 and 60 minutes.");
+  if (!Number.isFinite(input.requiredWpm) || input.requiredWpm < 0 || input.requiredWpm > 300) addError("requiredWpm", "Required WPM must be between 0 and 300.");
+  if (!Number.isFinite(input.requiredAccuracy) || input.requiredAccuracy < 0 || input.requiredAccuracy > 100) addError("requiredAccuracy", "Required accuracy must be between 0 and 100.");
   const system = INPUT_SYSTEMS.find((candidate) => candidate.id === input.inputSystemId && candidate.language === input.language);
-  if (!system) errors.push("Choose an input system matching the selected language.");
-  if (input.mode === "exam" && !input.isLive && !EXAM_CATEGORIES.some((category) => category.slug === input.examCategory)) errors.push("Choose the exam category this test belongs to.");
-  if (input.mode === "stenography" && !input.isLive && !STENOGRAPHY_CATEGORIES.some((category) => category.slug === input.stenoCategory)) errors.push("Choose the stenography category this test belongs to.");
+  if (!system) addError("inputSystemId", "Choose an input system matching the selected language.");
+  if (input.mode === "exam" && !input.isLive && !EXAM_CATEGORIES.some((category) => category.slug === input.examCategory)) addError("examCategory", "Choose the exam category this test belongs to.");
+  if (input.mode === "stenography" && !input.isLive && !STENOGRAPHY_CATEGORIES.some((category) => category.slug === input.stenoCategory)) addError("stenoCategory", "Choose the stenography category this test belongs to.");
   const matter = validateMatterText(input.passage, input.language, input.inputSystemId);
-  errors.push(...matter.errors);
+  matter.errors.forEach((message) => addError("passage", message));
   errors.push(...validateLiveSchedule({ isLive: input.isLive ?? false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, resultsPublishAt: input.resultsPublishAt ?? null }));
-  if (matter.characterCount < 20) errors.push("Passage must contain at least 20 characters.");
-  return { errors, passage: matter.text, characterCount: matter.characterCount, wordCount: matter.wordCount };
+  if (matter.characterCount < 20) addError("passage", "Passage must contain at least 20 characters.");
+  return { errors, fieldErrors, passage: matter.text, characterCount: matter.characterCount, wordCount: matter.wordCount };
 }
 
 export function managedVersionToPreset(version: ManagedTestVersion, viewAsCategorySlug?: string): ExamPreset {

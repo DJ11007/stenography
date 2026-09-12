@@ -9,7 +9,7 @@ import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { STENOGRAPHY_CATEGORIES, stenographyCategoryTypingRules } from "@/lib/stenography-categories";
 import { ALL_HALF_ERROR_CATEGORIES } from "@/lib/typing-test";
 
-export type TestFormState = { error?: string; success?: string };
+export type TestFormState = { error?: string; success?: string; fieldErrors?: Record<string, string> };
 const text = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
 
 function revalidateTestRoutes(mode?: ManagedTestMode, isLive = false) {
@@ -142,7 +142,7 @@ async function resolvePdfPath(formData: FormData, testId: string | null, supabas
 async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode): Promise<TestFormState> {
   await requireAdmin(); const draft = parseDraft(formData); const validation = validateManagedTest(draft);
   if (lockedMode && draft.mode !== lockedMode) return { error: `This section only accepts ${lockedMode} tests.` };
-  if (validation.errors.length) return { error: validation.errors[0] };
+  if (validation.errors.length) return { error: validation.errors[0], fieldErrors: validation.fieldErrors };
   const id = text(formData, "testId") || null; const publish = formData.get("intent") === "publish"; const supabase = await createClient();
   let audioPath: string | null = null;
   if (draft.mode === "stenography") {
