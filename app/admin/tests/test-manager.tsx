@@ -16,6 +16,16 @@ type Version = { id:string; description:string|null; language:"English"|"Hindi";
 export type ManagedTestRow = { id:string; title:string; slug:string; description:string|null; language:string|null; status:ManagedTestStatus; mode:ManagedTestMode; input_system_id:string; visibility:"public"|"private"; duration_seconds:number|null; current_version_id:string|null; current_version_number:number; updated_at:string; is_live:boolean; live_starts_at:string|null; live_ends_at:string|null; results_publish_at:string|null; currentVersion:Version|null; attempts:number; created_by?:string|null; created_at?:string|null; creatorName?:string|null };
 const initialState: TestFormState = {};
 const localDateTime = (value:string|null|undefined) => value ? new Date(value).toISOString().slice(0,16) : "";
+// Picks a sane starting input system for a language + mode -- used when a
+// section locks the language (e.g. Stenography's English/Hindi split) but
+// leaves the input system itself free, so a fresh Hindi form doesn't start
+// on "english-qwerty" (invalid for that language) before the admin touches
+// the Input system field.
+function defaultInputSystemFor(language:"English"|"Hindi", mode:ManagedTestMode) {
+  const hindiIds = new Set(hindiInputSystemsFor(mode).map((system)=>system.id));
+  const candidate = MANAGED_INPUT_SYSTEMS.find((system)=>system.language===language && (language!=="Hindi"||hindiIds.has(system.id)));
+  return candidate?.id ?? "english-qwerty";
+}
 
 export default function TestManager({ tests, lockedMode, lockedLanguage, lockedInputSystemId, learningOnly:legacyLearningOnly=false, currentAdminId }: { tests:ManagedTestRow[]; lockedMode?:ManagedTestMode; lockedLanguage?:"English"|"Hindi"; lockedInputSystemId?:string; learningOnly?:boolean; currentAdminId?:string }) {
   const effectiveMode = lockedMode ?? (legacyLearningOnly ? "learn" : undefined);
@@ -49,7 +59,7 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   const [page,setPage] = useState(1);
   const [passage,setPassage] = useState("");
   const [language,setLanguage] = useState<"English"|"Hindi">(lockedLanguage ?? "English");
-  const [inputSystem,setInputSystem] = useState(lockedInputSystemId ?? "english-qwerty");
+  const [inputSystem,setInputSystem] = useState(lockedInputSystemId ?? defaultInputSystemFor(lockedLanguage ?? "English", effectiveMode ?? "practice"));
   const [formMode,setFormMode] = useState<ManagedTestMode>(effectiveMode ?? "practice");
   const [isLive,setIsLive] = useState(false);
   // Which of the 25 hardcoded exam categories (lib/exam-categories.ts) this
@@ -85,7 +95,8 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   const rangeStart = filtered.length ? pageStart+1 : 0;
   const rangeEnd = Math.min(filtered.length,pageStart+pageSize);
   const choose = (test:ManagedTestRow|null) => {
-    setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(test?.currentVersion?.language??lockedLanguage??"English"); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??"english-qwerty"); setFormMode(effectiveMode??test?.currentVersion?.mode??"practice"); setIsLive(Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
+    const chosenLanguage = test?.currentVersion?.language??lockedLanguage??"English"; const chosenMode = effectiveMode??test?.currentVersion?.mode??"practice";
+    setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(chosenLanguage); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??defaultInputSystemFor(chosenLanguage,chosenMode)); setFormMode(chosenMode); setIsLive(Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
     setExamCategorySlug((test?.currentVersion?.configuration?.exam_category as string|undefined) ?? "");
     const stored = test?.currentVersion?.configuration?.dictation_categories as {available?:unknown;defaults?:unknown}|undefined;
     const validated = (value:unknown) => Array.isArray(value) ? value.filter((item):item is HalfErrorCategory => (ALL_HALF_ERROR_CATEGORIES as string[]).includes(item as string)) : null;
@@ -146,11 +157,15 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
         <Field label="Title"><input className="input" name="title" defaultValue={editing?.title} style={{fontFamily:language==="Hindi"?'"Nirmala UI", Mangal, "Noto Sans Devanagari", sans-serif':undefined}} required/><span className="mt-1 block text-xs font-normal text-slate-500">Titles always use Unicode; only Passage / matter may use legacy Kruti Dev encoding. {editing ? "This test's web address was set from its title when first created and won't change if you rename it now -- if a new test's title collides with it, rename this one." : "This title also sets the test's web address -- renaming later won't change the address, so if a future test's title collides with this one, come back and rename this test."}</span></Field>
         <Field label="URL slug"><input className="input" name="slug" defaultValue={editing?.slug}/></Field>
         {descriptionVisible && <Field label="Description"><textarea className="input min-h-20" name="description" defaultValue={editing?.currentVersion?.description??""}/></Field>}
-        {lockedLanguage ? <>
+        {lockedLanguage && lockedInputSystemId ? <>
           <input type="hidden" name="language" value={language}/>
           <input type="hidden" name="inputSystemId" value={inputSystem}/>
-          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-black text-slate-700">{language}{lockedInputSystemId ? ` · ${systems.find((system)=>system.id===inputSystem)?.label??inputSystem}` : ""} <span className="font-normal text-slate-500">(set by the language you chose to get here)</span></p>
-        </> : <div className="grid grid-cols-2 gap-3"><Field label="Language"><select className="input" name="language" value={language} onChange={(event)=>{const value=event.target.value as "English"|"Hindi";setLanguage(value);const first=MANAGED_INPUT_SYSTEMS.find((system)=>system.language===value);if(first)setInputSystem(first.id);}}><option>English</option><option>Hindi</option></select></Field><Field label="Input system"><select className="input" name="inputSystemId" value={inputSystem} onChange={(event)=>setInputSystem(event.target.value)}>{systems.map((system)=><option key={system.id} value={system.id}>{system.label}</option>)}</select></Field></div>}
+          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-black text-slate-700">{language} · {systems.find((system)=>system.id===inputSystem)?.label??inputSystem} <span className="font-normal text-slate-500">(set by the language you chose to get here)</span></p>
+        </> : lockedLanguage ? <>
+          <input type="hidden" name="language" value={language}/>
+          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-black text-slate-700">{language} <span className="font-normal text-slate-500">(set by the language you chose to get here)</span></p>
+          <Field label="Input system"><select className="input" name="inputSystemId" value={inputSystem} onChange={(event)=>setInputSystem(event.target.value)}>{systems.map((system)=><option key={system.id} value={system.id}>{system.label}</option>)}</select></Field>
+        </> : <div className="grid grid-cols-2 gap-3"><Field label="Language"><select className="input" name="language" value={language} onChange={(event)=>{const value=event.target.value as "English"|"Hindi";setLanguage(value);setInputSystem(defaultInputSystemFor(value,formMode));}}><option>English</option><option>Hindi</option></select></Field><Field label="Input system"><select className="input" name="inputSystemId" value={inputSystem} onChange={(event)=>setInputSystem(event.target.value)}>{systems.map((system)=><option key={system.id} value={system.id}>{system.label}</option>)}</select></Field></div>}
         {formMode==="exam" && !isLive && <Field label="Exam category"><select className="input" name="examCategory" value={examCategorySlug} onChange={(event)=>setExamCategorySlug(event.target.value)} required><option value="">Select an exam category…</option>{EXAM_CATEGORIES.map((category)=><option key={category.slug} value={category.slug}>{category.name} — {category.fullName}</option>)}</select><span className="mt-1 block text-xs font-normal text-slate-500">This category's own official speed, duration, accuracy and backspace rules apply automatically to this test -- you only supply the passage below. Students find this test on that category's exercise list.</span></Field>}
         {(!effectiveMode || showAdminRules) && <div className="grid grid-cols-2 gap-3">{!effectiveMode&&<Field label="Mode"><select className="input" name="mode" value={formMode} onChange={(event)=>setFormMode(event.target.value as ManagedTestMode)}>{["learn","practice","exam","stenography"].map((value)=><option key={value}>{value}</option>)}</select></Field>}{showAdminRules&&<Field label="Duration (minutes, optional)"><input className="input" name="durationMinutes" type="number" min={1} max={60} defaultValue={(editing?.currentVersion?.duration_seconds??600)/60} onChange={(event)=>setDurationHint(Number(event.target.value)||0)}/></Field>}</div>}
         {!showAdminRules && <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-black text-blue-900">{formMode==="exam"?(selectedExamCategory?`Duration follows ${selectedExamCategory.name}'s official pattern (${selectedExamCategory.durationMinutes} minutes) and can't be changed here.`:"Choose an exam category above -- its official duration can't be changed here."):"Duration is picked by the student (1–25 min, then 5-min steps to 70) when they start the test -- no need to set one here."}</p>}
