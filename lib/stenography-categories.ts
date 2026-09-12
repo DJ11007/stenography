@@ -52,16 +52,22 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Punjab & Haryana High Court notification."] },
   { slug: "rajasthan-hc-steno", name: "Rajasthan High Court Steno", badge: "RHC", fullName: "Rajasthan High Court — Stenographer", iconKind: "scales",
-    // Re-verified against three independent sources; typingwale.com's
-    // detailed breakdown matches this entry's existing dictation speed/
-    // duration/reading-time/transcription-time/font figures exactly, so
-    // those are unchanged. accuracy corrected from a flat 90% to 95%: the
-    // real rule is a 5%-mistake margin (Marks = correct words x max marks /
-    // total dictated words, with excess above 5% deducted), not a 90%
-    // baseline -- 95% is the closer single figure for this app's simplified
-    // accuracy-threshold model.
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 95, patternSourced: true,
-    patternNotes: ["The real dictation is only 6 minutes (after a short, unscored 200–250 word trial passage), followed by 5 minutes reading time and 50 minutes computer transcription.", "Shorthand is scored out of 100 marks per language: marks = (correct words x 100) / total dictated words. Up to 5% mistakes are free; errors beyond that are deducted from the correct-word count. Omissions, substitutions, and misspellings count as full mistakes; punctuation/capitalization count as half.", "A separate two-part Computer Speed & Efficiency Test follows: a 10-minute, 50-mark Speed Test requiring 8000 key depressions per hour (roughly 25-27 WPM), and a 10-minute, 50-mark Efficiency Test of word-processing/formatting tasks -- both scored, not just qualifying, with a minimum of 22.5/50 (20/50 for SC/ST/PH/Ex-Servicemen).", "Hindi transcription font is Kruti Dev 010 (Remington layout); English uses Calibri."] },
+    // Corrected after visiting hcraj.nic.in directly and reading the actual
+    // notification PDFs (not third-party coaching sites). The previous
+    // 80/70 WPM, 6-min dictation, 50-min transcription figures turned out to
+    // belong to a DIFFERENT post -- "Stenographer for District Courts and
+    // DLSAs" (a subordinate-court post the High Court also administers; see
+    // the separate rajasthan-district-court-steno category, which is the
+    // correct home for that pattern). The Rajasthan High Court's OWN direct-
+    // recruitment stenographer-equivalent post is "Junior Personal
+    // Assistant" (JPA) -- confirmed from the actual Scheme of Examination
+    // tables in the JPA (English) 2023 and JPA (Hindi) 2024 advertisements
+    // (hcraj.nic.in > Recruitment), which is what these figures now reflect.
+    // English and Hindi have genuinely different schemes: English is a
+    // single 50-mark Shorthand Test; Hindi adds a separate two-part
+    // Computer Speed & Efficiency Test on top of a 100-mark Shorthand Test.
+    dictationSpeedEnglish: 90, dictationSpeedHindi: 70, durationMinutes: 8, writingMinutesEnglish: 60, writingMinutesHindi: 70, accuracy: 95, patternSourced: true,
+    patternNotes: ["This is the Junior Personal Assistant (JPA) post -- Rajasthan High Court's own direct-recruitment stenographer-equivalent role, distinct from the separate Stenographer post for District Courts and DLSAs.", "After an unscored 200-250 word trial passage, the real dictation runs 8 minutes for both languages, followed by 5 minutes reading time. Transcription on computer is then 60 minutes for English (50 marks) or 70 minutes for Hindi (100 marks) -- English and Hindi are separately advertised posts with different schemes, not just different speeds.", "Marks = (correct words x max marks) / total dictated words. Up to 5% mistakes are free; excess beyond that is deducted from the correct-word count. Omissions, substitutions, and misspellings count as full mistakes; punctuation/capitalization/paragraph indentation count as half.", "Hindi JPA (2024 scheme) adds a separate two-part Computer Speed & Efficiency Test: a 10-minute, 50-mark Speed Test requiring 8000 key depressions per hour (roughly 25-27 WPM) in Kruti Dev 010, and a 10-minute, 50-mark word-processing Efficiency Test -- both scored, minimum qualifying 22.5/50 (20/50 for SC/ST/PwD/Ex-Servicemen). The 2023 English JPA scheme had no equivalent computer-test stage.", "Hindi transcription font is Kruti Dev 010; English uses Calibri.", "Ties in merit are broken by age -- the older candidate ranks higher."] },
   { slug: "patna-hc-steno", name: "Patna High Court Steno", badge: "PHC", fullName: "Patna High Court — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Patna High Court notification."] },
@@ -97,8 +103,14 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 60, writingMinutesHindi: 70, accuracy: 80, patternSourced: true,
     patternNotes: ["Audio is played once with no replay. Transcription is then typed on computer: 60 minutes for the English paper, 70 minutes for the Hindi paper -- 100 marks each, 0.1 marks per correctly transcribed word.", "Candidates are disqualified if errors exceed 20% (the 80% minimum accuracy above); SC/ST candidates get a 5% relaxation.", "The transcription screen uses the Calibri font for English and DevLys 010 for Hindi.", "There is no separate lower-speed typing-test stage -- dictation and transcription are one combined paper per language."] },
   { slug: "rajasthan-district-court-steno", name: "Rajasthan District Court Steno", badge: "DIST", fullName: "Rajasthan Subordinate Courts — Stenographer", iconKind: "scales",
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 10, accuracy: 90, patternSourced: false,
-    patternNotes: ["No separately confirmed pattern found; modelled on the Rajasthan High Court stenographer pattern.", "Verify against the specific District Court recruitment notification."] },
+    // Sourced directly from hcraj.nic.in's actual "Joint Recruitment to the
+    // post of Stenographer for District Courts and DLSAs" advertisement
+    // (Scheme & Syllabus of Examination, Groups A/B/C) -- this is the
+    // pattern that was previously (mis)coded under rajasthan-hc-steno; that
+    // category now correctly reflects the High Court's OWN "Junior Personal
+    // Assistant" post instead, which has a different scheme entirely.
+    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 95, patternSourced: true,
+    patternNotes: ["After an unscored 200-250 word trial passage, the real dictation runs 6 minutes for both languages, followed by 5 minutes reading time and 50 minutes computer transcription -- 100 marks per language (Group A English / Group B Hindi).", "Marks = (correct words x 100) / total dictated words. Up to 5% mistakes are free; excess beyond that is deducted from the correct-word count. Omissions, substitutions, and misspellings count as full mistakes; punctuation/capitalization count as half.", "Group C: a separate two-part Computer Test follows -- a 10-minute, 50-mark Speed Test requiring 8000 key depressions per hour (roughly 25-27 WPM), and a 10-minute, 50-mark word-processing Efficiency Test -- both scored, minimum qualifying 22.5/50 (20/50 for SC/ST/PwBD).", "Hindi transcription font is Kruti Dev 010; English uses Calibri.", "An Interview follows (unscored -- solely to confirm the candidate isn't so severely affected by stammering that they cannot read back their own shorthand notes)."] },
   { slug: "dsssb-steno", name: "DSSSB Stenographer", badge: "DSSSB", fullName: "Delhi Subordinate Services Selection Board — Stenographer", iconKind: "commission",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common Delhi-administrative stenographer pattern."] },
