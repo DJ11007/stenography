@@ -13,7 +13,7 @@ test("PRACTICE_DURATION_MINUTES is 1-25 in 1-minute steps then 30-70 in 5-minute
 test("Practice Tests admin form no longer asks for Description or Required WPM/Accuracy, and explains duration is student-chosen; Live still asks for all of it", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
   assert.match(manager, /\{descriptionVisible && <Field label="Description">/);
-  assert.match(manager, /\{showAdminRules && <div className="grid grid-cols-2 gap-3"><Field label="Required WPM">/);
+  assert.match(manager, /\{showAdminRules && !stenoLocked && <div className="grid grid-cols-2 gap-3"><Field label="Required WPM">/);
   assert.match(manager, /Practice tests aren't graded against a target -- required speed\/accuracy default to 30 WPM \/ 90%/);
   assert.match(manager, /Duration is picked by the student \(1–25 min, then 5-min steps to 70\)/);
 });
@@ -92,7 +92,8 @@ test("TestManager locks Language/Input system to hidden inputs (not an editable 
   assert.match(manager, /lockedLanguage \? <>/);
   assert.match(manager, /<input type="hidden" name="language" value=\{language\}\/>/);
   assert.match(manager, /<input type="hidden" name="inputSystemId" value=\{inputSystem\}\/>/);
-  assert.match(manager, /setLanguage\(test\?\.currentVersion\?\.language\?\?lockedLanguage\?\?"English"\)/);
+  assert.match(manager, /const chosenLanguage = test\?\.currentVersion\?\.language\?\?lockedLanguage\?\?"English";/);
+  assert.match(manager, /setLanguage\(chosenLanguage\)/);
 });
 
 test("directWorkspace (the practice-hub entry point every student actually uses, which skips ExamStart entirely) still ends up with the correct duration, not the admin's stale default", async () => {

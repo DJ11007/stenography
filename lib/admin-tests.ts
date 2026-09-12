@@ -1,6 +1,7 @@
 import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
 import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, RSSB_DEO_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
 import { EXAM_CATEGORIES, type ExamCategoryDefinition } from "./exam-categories.ts";
+import { STENOGRAPHY_CATEGORIES } from "./stenography-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
 
@@ -42,6 +43,15 @@ export type ManagedTestDraft = Partial<LiveTestSchedule> & {
    * inherits that category's own speed/duration/backspace rules and shows
    * up on that category's student-facing exercise-selection page. */
   examCategory?: string | null;
+  /** Slug into STENOGRAPHY_CATEGORIES (lib/stenography-categories.ts) --
+   * required for mode==="stenography" && !isLive, always null/undefined
+   * otherwise. Forces that category's own dictation speed and accuracy
+   * (always) and its official transcription duration (only when a
+   * confirmed single figure exists for this category/language -- see
+   * stenographyCategoryTypingRules). Unlike examCategory, this does not
+   * yet feed a student-facing category discovery page or a marks-based
+   * grading scheme -- it only forces these typing-behaviour fields. */
+  stenoCategory?: string | null;
 };
 
 export type ManagedTestVersion = ManagedTestDraft & { id: string; testId: string; versionNumber: number };
@@ -68,6 +78,7 @@ export function validateManagedTest(input: ManagedTestDraft) {
   const system = INPUT_SYSTEMS.find((candidate) => candidate.id === input.inputSystemId && candidate.language === input.language);
   if (!system) errors.push("Choose an input system matching the selected language.");
   if (input.mode === "exam" && !input.isLive && !EXAM_CATEGORIES.some((category) => category.slug === input.examCategory)) errors.push("Choose the exam category this test belongs to.");
+  if (input.mode === "stenography" && !input.isLive && !STENOGRAPHY_CATEGORIES.some((category) => category.slug === input.stenoCategory)) errors.push("Choose the stenography category this test belongs to.");
   const matter = validateMatterText(input.passage, input.language, input.inputSystemId);
   errors.push(...matter.errors);
   errors.push(...validateLiveSchedule({ isLive: input.isLive ?? false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, resultsPublishAt: input.resultsPublishAt ?? null }));

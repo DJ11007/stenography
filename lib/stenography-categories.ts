@@ -13,6 +13,14 @@ export type StenographyCategoryDefinition = {
   dictationSpeedEnglish: number;
   dictationSpeedHindi: number;
   durationMinutes: number;
+  /** Real transcription/typing time in minutes, ONLY when a specific single official figure was
+   * confirmed for this exact post's English/Hindi paper -- left undefined when nothing more
+   * precise than a range was found (e.g. Delhi HC's "50-65 minutes"), or nothing at all. An
+   * admin-created test tied to this category (via stenoCategoryTypingRules below) locks its
+   * Duration field to this number when present; when absent, Duration stays admin-editable with
+   * a warning shown instead, rather than silently guessing a number this codebase can't back up. */
+  writingMinutesEnglish?: number;
+  writingMinutesHindi?: number;
   accuracy: number;
   /** true = based on a specific recruiting authority's published pattern found during research;
    * false = no confirmed pattern found for this exact post, using a reasoned baseline from the
@@ -29,14 +37,14 @@ const TONE_PALETTE: Array<[string, string]> = [
 
 const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDark">> = [
   { slug: "ssc-steno-cd", name: "SSC Steno C&D", badge: "SSC", fullName: "Staff Selection Commission — Stenographer Grade 'C' & 'D'", iconKind: "commission",
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 80, durationMinutes: 10, accuracy: 90, patternSourced: true,
+    dictationSpeedEnglish: 80, dictationSpeedHindi: 80, durationMinutes: 10, writingMinutesEnglish: 50, writingMinutesHindi: 65, accuracy: 90, patternSourced: true,
     patternNotes: ["Grade 'D' dictates at 80 WPM with 50 minutes (English) or 65 minutes (Hindi) to transcribe on computer, up to 10% errors allowed.", "Grade 'C' dictates at 100 WPM with 40 minutes (English) or 55 minutes (Hindi) to transcribe, up to 7% errors allowed.", "This simulation uses the Grade 'D' baseline (80 WPM)."] },
   { slug: "supreme-court-pa", name: "Supreme Court PA", badge: "SC", fullName: "Supreme Court of India — Personal Assistant", iconKind: "scales",
-    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 95, patternSourced: true,
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 45, writingMinutesHindi: 45, accuracy: 95, patternSourced: true,
     patternNotes: ["Transcription time is 45 minutes with up to 5% errors permitted.", "A separate Typing Speed Test requires 40 WPM at 97%+ accuracy in 10 minutes.", "Senior PA posts require a higher 110 WPM dictation."] },
   { slug: "delhi-hc-steno", name: "Delhi High Court Steno", badge: "DHC", fullName: "Delhi High Court — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: true,
-    patternNotes: ["Depending on the specific post (Stenographer Grade III / PA / Senior PA), real dictation ranges from 80 to 110 WPM.", "Transcription typically takes 50–65 minutes on computer.", "Verify the exact grade and speed against the current Delhi High Court notification."] },
+    patternNotes: ["Depending on the specific post (Stenographer Grade III / PA / Senior PA), real dictation ranges from 80 to 110 WPM.", "Transcription typically takes 50–65 minutes on computer -- too wide a range to lock a single figure here.", "Verify the exact grade and speed against the current Delhi High Court notification."] },
   { slug: "allahabad-hc-steno", name: "Allahabad High Court Steno", badge: "AHC", fullName: "Allahabad High Court — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern (Delhi/Rajasthan HC).", "Verify against the latest Allahabad High Court notification."] },
@@ -44,7 +52,7 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Punjab & Haryana High Court notification."] },
   { slug: "rajasthan-hc-steno", name: "Rajasthan High Court Steno", badge: "RHC", fullName: "Rajasthan High Court — Stenographer", iconKind: "scales",
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, accuracy: 90, patternSourced: true,
+    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 90, patternSourced: true,
     patternNotes: ["The real dictation is only 6 minutes (after a short, unscored 200–250 word trial passage), followed by 5 minutes reading time and 50 minutes computer transcription.", "A separate Computer Speed/Efficiency Test requires 8000 key depressions per hour.", "Hindi transcription font is Kruti Dev 010; English uses Calibri."] },
   { slug: "patna-hc-steno", name: "Patna High Court Steno", badge: "PHC", fullName: "Patna High Court — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
@@ -56,7 +64,7 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Calcutta High Court notification."] },
   { slug: "central-secretariat-steno", name: "Central Secretariat Steno", badge: "CSSS", fullName: "Central Secretariat Stenographer Service", iconKind: "commission",
-    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 93, patternSourced: true,
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 40, writingMinutesHindi: 55, accuracy: 93, patternSourced: true,
     patternNotes: ["Recruited via the SSC Stenographer Grade 'C' exam: 40 minutes (English) or 55 minutes (Hindi) to transcribe, up to 7% errors allowed."] },
   { slug: "income-tax-steno", name: "Income Tax Dept. Steno", badge: "IT", fullName: "Income Tax Department — Stenographer", iconKind: "commission",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
@@ -78,7 +86,7 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     // 100 marks each) -- the previous 80/60 WPM figures and "separate 40/35
     // WPM typing test at 95%" note here did not match any source and looked
     // conflated with a different exam.
-    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 80, patternSourced: true,
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 60, writingMinutesHindi: 70, accuracy: 80, patternSourced: true,
     patternNotes: ["Audio is played once with no replay. Transcription is then typed on computer: 60 minutes for the English paper, 70 minutes for the Hindi paper -- 100 marks each, 0.1 marks per correctly transcribed word.", "Candidates are disqualified if errors exceed 20% (the 80% minimum accuracy above); SC/ST candidates get a 5% relaxation.", "The transcription screen uses the Calibri font for English and DevLys 010 for Hindi.", "There is no separate lower-speed typing-test stage -- dictation and transcription are one combined paper per language."] },
   { slug: "rajasthan-district-court-steno", name: "Rajasthan District Court Steno", badge: "DIST", fullName: "Rajasthan Subordinate Courts — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 10, accuracy: 90, patternSourced: false,
@@ -118,6 +126,22 @@ export function getStenographyCategory(slug: string) {
 
 export function stenographyCategoryPresetId(slug: string, language: "English" | "Hindi") {
   return `steno-cat-${slug}-${language.toLowerCase()}`;
+}
+
+// The typing-behaviour fields a category forces on an admin-created
+// Stenography test, derived purely from the category's own definition +
+// language -- mirrors examCategoryTypingRules() in lib/admin-tests.ts.
+// durationSeconds is null when no confirmed single transcription-time
+// figure exists for this category/language (see writingMinutesEnglish/Hindi
+// above): the caller must then leave Duration admin-editable rather than
+// forcing a number this codebase can't back up.
+export function stenographyCategoryTypingRules(category: StenographyCategoryDefinition, language: "English" | "Hindi") {
+  const writingMinutes = language === "Hindi" ? category.writingMinutesHindi : category.writingMinutesEnglish;
+  return {
+    durationSeconds: writingMinutes != null ? writingMinutes * 60 : null,
+    requiredWpm: language === "Hindi" ? category.dictationSpeedHindi : category.dictationSpeedEnglish,
+    requiredAccuracy: category.accuracy,
+  };
 }
 
 export function defaultStenographyCategoryRules(category: StenographyCategoryDefinition, language: "English" | "Hindi"): string[] {

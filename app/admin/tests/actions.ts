@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { examCategoryTypingRules, normalizeManagedTestRules, slugifyTest, validateManagedTest, type ManagedTestDraft, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
+import { STENOGRAPHY_CATEGORIES, stenographyCategoryTypingRules } from "@/lib/stenography-categories";
 import { ALL_HALF_ERROR_CATEGORIES } from "@/lib/typing-test";
 
 export type TestFormState = { error?: string; success?: string };
@@ -71,18 +72,31 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   // lib/admin-tests.ts) so the two can never drift apart again -- they
   // already did once this session.
   const categoryRules = examCategoryDefinition ? examCategoryTypingRules(examCategoryDefinition, language) : null;
+  // Stenography tests must belong to one of the researched stenography
+  // categories (lib/stenography-categories.ts), same requirement as Exam
+  // mode's examCategory above -- but the force is partial, not total: the
+  // category's own dictation speed and accuracy always override the form
+  // (stenoCategoryRules.requiredWpm/requiredAccuracy are never null), while
+  // Duration is only overridden when a confirmed single transcription-time
+  // figure exists for this category/language (durationSeconds is null
+  // otherwise) -- see stenographyCategoryTypingRules for why some
+  // categories can't honestly claim an exact number here.
+  const stenoCategory = mode === "stenography" && !isLive ? (text(formData, "stenoCategory") || null) : null;
+  const stenoCategoryDefinition = stenoCategory ? STENOGRAPHY_CATEGORIES.find((category) => category.slug === stenoCategory) : undefined;
+  const stenoCategoryRules = stenoCategoryDefinition ? stenographyCategoryTypingRules(stenoCategoryDefinition, language) : null;
   return normalizeManagedTestRules({
     title: text(formData, "title"), description: text(formData, "description"), slug: slugifyTest(text(formData, "slug") || text(formData, "title")), language,
-    inputSystemId: text(formData, "inputSystemId"), mode, durationSeconds: forcedDefaultRules ? (categoryRules?.durationSeconds ?? 600) : (durationMinutes ? Number(durationMinutes) * 60 : 600),
+    inputSystemId: text(formData, "inputSystemId"), mode,
+    durationSeconds: forcedDefaultRules ? (categoryRules?.durationSeconds ?? 600) : stenoCategoryRules?.durationSeconds != null ? stenoCategoryRules.durationSeconds : (durationMinutes ? Number(durationMinutes) * 60 : 600),
     passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"),
-    requiredWpm: forcedDefaultRules ? (categoryRules?.requiredWpm ?? 30) : Number(formData.get("requiredWpm")),
-    requiredAccuracy: forcedDefaultRules ? (categoryRules?.requiredAccuracy ?? 90) : Number(formData.get("requiredAccuracy")),
+    requiredWpm: forcedDefaultRules ? (categoryRules?.requiredWpm ?? 30) : stenoCategoryRules ? stenoCategoryRules.requiredWpm : Number(formData.get("requiredWpm")),
+    requiredAccuracy: forcedDefaultRules ? (categoryRules?.requiredAccuracy ?? 90) : stenoCategoryRules ? stenoCategoryRules.requiredAccuracy : Number(formData.get("requiredAccuracy")),
     backspaceMode: forcedDefaultRules ? (categoryRules?.backspaceMode ?? "full") : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
     wordMethod: forcedDefaultRules ? (categoryRules?.wordMethod ?? "characters") : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
     highlightMode: forcedDefaultRules ? (categoryRules?.highlightMode ?? "character") : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
-    examCategory,
+    examCategory, stenoCategory,
   });
 }
 
@@ -151,7 +165,7 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     const defaults = parse("dictationDefaults").filter((item) => available.includes(item));
     return { available, defaults };
   })() : null;
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null };
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null, steno_category: draft.stenoCategory ?? null };
   const runSave = (attemptPayload: typeof payload) => lockedMode
     ? supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: attemptPayload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive
