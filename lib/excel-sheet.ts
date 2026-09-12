@@ -6,7 +6,13 @@ export type SheetCell = { value: string | number | null; formula: string | null;
 export type WorkingSheetSnapshot = { schemaVersion: 1; language: "English" | "Hindi"; rows: number; cols: number; cells: Record<string, SheetCell>; source?: { fileName: string; sizeBytes: number; bucket?: string; storagePath?: string } };
 
 const MAX_XLSX_BYTES = 10 * 1024 * 1024, MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024, MAX_ROWS = 200, MAX_COLS = 26;
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@", textNodeName: "#text", isArray: (name) => ["row", "c", "si", "font", "fill", "xf", "sheet"].includes(name) });
+// trimValues defaults to true in fast-xml-parser, which strips leading/
+// trailing space off every text node -- including a rich-text run inside a
+// shared string (si/r/t), the same word-glue corruption fixed in
+// lib/word-docx.ts for Word's <w:t> runs (e.g. "your Guru cell" split across
+// runs at a formatting boundary loses the run-boundary spaces and joins as
+// "yourGurucell"). Disabled here for the same reason.
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@", textNodeName: "#text", trimValues: false, isArray: (name) => ["row", "c", "si", "font", "fill", "xf", "sheet"].includes(name) });
 const attr = (value: unknown, key: string) => (value && typeof value === "object" ? String((value as Record<string, unknown>)[`@${key}`] ?? "") : "");
 const text = (value: unknown): string => { if (value == null) return ""; if (typeof value === "string" || typeof value === "number") return String(value); if (Array.isArray(value)) return value.map(text).join(""); if (typeof value === "object") return text((value as Record<string, unknown>)["#text"]); return "" };
 

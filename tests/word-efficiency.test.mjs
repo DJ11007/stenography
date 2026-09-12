@@ -58,6 +58,23 @@ test("DOCX importer extracts table content instead of silently dropping it, and 
  const withDrawing=zipSync({"[Content_Types].xml":strToU8("<Types/>"),"word/document.xml":strToU8(withDrawingXml),"word/_rels/document.xml.rels":strToU8("<Relationships/>")});
  assert.match(parseWorkingMatterDocx(withDrawing).warnings.join(" "),/drawings or embedded elements were omitted/);
 });
+// Real reported bug: a word given its own formatting run (e.g. the admin
+// bolds/colors just "Guru" in the middle of a sentence) splits that
+// paragraph's text into separate <w:t> runs at the word boundary --
+// "your "/"Guru"/" document" -- each carrying the boundary space inside its
+// own run. fast-xml-parser trims leading/trailing whitespace off every text
+// node by default, so those boundary spaces were silently stripped before
+// this app ever saw them, and joining the (now-trimmed) runs with ""
+// glued the words together: "yourGurudocument". This has nothing to do
+// with Word's own xml:space="preserve" handling -- the trimming happens at
+// the XML-parsing layer regardless of that attribute.
+test("run text at a mid-sentence formatting-run boundary keeps its spacing intact, instead of gluing adjacent words together",()=>{
+ const xml=`<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">your </w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>Guru</w:t></w:r><w:r><w:t xml:space="preserve"> document, long enough to survive paragraph filtering.</w:t></w:r></w:p></w:body></w:document>`;
+ const bytes=zipSync({"[Content_Types].xml":strToU8("<Types/>"),"word/document.xml":strToU8(xml),"word/_rels/document.xml.rels":strToU8("<Relationships/>")});
+ const snapshot=parseWorkingMatterDocx(bytes);
+ const paragraph=snapshot.paragraphs.find(p=>p.type!=="table");
+ assert.equal(paragraph.runs.map(run=>run.text).join(""),"your Guru document, long enough to survive paragraph filtering.");
+});
 test("Working Matter rejects non-DOCX malformed executable and external-relationship packages",()=>{assert.ok(validateWorkingMatterFile({name:"matter.docm",type:"application/vnd.ms-word.document.macroEnabled.12",size:100}).length);assert.throws(()=>parseWorkingMatterDocx(strToU8("not a zip")));const unsafe=(extra={})=>zipSync({"[Content_Types].xml":strToU8("<Types/>"),"word/document.xml":strToU8('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Safe paragraph content for testing only.</w:t></w:r></w:p></w:body></w:document>'),"word/_rels/document.xml.rels":strToU8("<Relationships/>"),...extra});assert.throws(()=>parseWorkingMatterDocx(unsafe({"word/vbaProject.bin":new Uint8Array([1])})),/executable/);assert.throws(()=>parseWorkingMatterDocx(unsafe({"word/_rels/header.xml.rels":strToU8('<Relationships><Relationship TargetMode="External" Target="https://evil.example"/></Relationships>')})),/external relationships/);});
 test("DOCX snapshot is immutable across editor autosave and final submission",async()=>{const[migration,actions,editor,workspace,admin]=await Promise.all([read("supabase/migrations/202608240002_word_efficiency_docx_workspace.sql"),read("app/typing/word-efficiency/actions.ts"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"),read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx"),read("app/admin/word-efficiency-tests/working-matter-docx-fields.tsx")]);for(const field of["working_matter_snapshot","original_document_snapshot","document_autosave","final_document_snapshot","editor_capabilities"])assert.match(migration,new RegExp(field));assert.match(migration,/final_document_snapshot is null/);assert.match(actions,/autosave_word_efficiency_document/);assert.match(actions,/submit_word_efficiency_document/);assert.match(editor,/contentEditable=\{!submitted&&view\.mode!=="reading"\}/);assert.match(editor,/document\.execCommand/);assert.match(editor,/Submit your final document/);assert.match(workspace,/Show Questions/);assert.match(workspace,/Hide Questions/);assert.match(admin,/Upload Working Matter \(\.docx\)/);assert.doesNotMatch(admin,/accept="[^"]*\.pdf/);});
 

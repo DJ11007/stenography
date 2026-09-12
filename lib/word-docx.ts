@@ -8,7 +8,16 @@ export type MatterTable={id:string;type:"table";rows:string[][]};
 export type MatterParagraph=MatterTextParagraph|MatterTable;
 export type WorkingMatterSnapshot={schemaVersion:1|"1";language:"English"|"Hindi";source?:{fileName:string;sizeBytes:number;bucket?:string;storagePath?:string};paragraphs:MatterParagraph[];formattingSummary:{paragraphs:number;runs:number;italicParagraphs:number;justifiedParagraphs:number;listItems:number;tables:number;fonts:string[]};warnings:string[]};
 const MAX_DOCX_BYTES=10*1024*1024,MAX_UNCOMPRESSED_BYTES=40*1024*1024;
-const parser=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",textNodeName:"#text",isArray:(name)=>["w:p","w:r","w:t","w:tbl","w:tr","w:tc"].includes(name)});
+// trimValues defaults to true in fast-xml-parser, which strips the leading/
+// trailing space off every <w:t> text node -- exactly the whitespace Word
+// uses to mark a word boundary at a run split (e.g. one word given its own
+// formatting run splits "your Guru document" into "your "/"Guru"/" document").
+// Joining trimmed runs with "" then glues adjacent words together
+// ("yourGurudocument") with no separator ever having existed to restore.
+// Word's actual significant-whitespace marker (xml:space="preserve") is
+// irrelevant here: fast-xml-parser's trimming ignores it and strips the
+// value regardless, so the fix is simply to stop trimming at the parser level.
+const parser=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",textNodeName:"#text",trimValues:false,isArray:(name)=>["w:p","w:r","w:t","w:tbl","w:tr","w:tc"].includes(name)});
 const own=(value:unknown,key:string)=>Boolean(value&&typeof value==="object"&&Object.prototype.hasOwnProperty.call(value,key));
 const attr=(value:unknown,key:string)=>value&&typeof value==="object"?String((value as Record<string,unknown>)[`@w:${key}`]??""):"";
 const points=(value:string,divisor:number)=>Number.isFinite(Number(value))?Number(value)/divisor:0;
