@@ -16,7 +16,8 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: student } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,approved,created_at,class_info,free_practice_test_limit,free_exam_test_limit").eq("id", id).maybeSingle();
+  const { data: student, error: studentError } = await supabase.from("profiles").select("id,email,full_name,phone,role,is_active,approved,created_at,class_info,free_practice_test_limit,free_exam_test_limit").eq("id", id).maybeSingle();
+  if (studentError) throw new Error(`Could not load student: ${studentError.message}`);
   if (!student) notFound();
 
   const admin = createAdminClient();
