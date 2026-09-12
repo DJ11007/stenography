@@ -56,6 +56,6 @@ test("the danger zone requires typing the exact title and ticking the acknowledg
 
 test("TestRow keeps the quick Delete button disabled for a test with attempts, and offers the permanent-delete danger zone instead", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
-  assert.match(manager, /<button disabled=\{test\.attempts>0\} title=\{test\.attempts>0\?"Has attempts -- use Permanently delete below instead":undefined\}[^>]*>Delete<\/button>/);
+  assert.match(manager, /<button disabled=\{test\.attempts>0\} title=\{test\.attempts>0\?"Has attempts -- use Permanently delete below instead":"Delete"\}[\s\S]*?>🗑<\/button>/);
   assert.match(manager, /\{test\.attempts>0 && <PermanentDeleteDangerZone testId=\{test\.id\} title=\{test\.title\} attemptCount=\{test\.attempts\}\/>\}/);
 });

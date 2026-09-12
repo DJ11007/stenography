@@ -20,7 +20,7 @@ test("learning-test manager exposes one publish action and no duplicate draft cr
   assert.match(manager, /Create and Publish Test/);
   assert.match(manager, /Save and Publish Changes/);
   assert.match(manager, /learningOnly\?<button[\s\S]*Create and Publish Test/);
-  assert.match(manager, /!learningOnly&&<form action=\{duplicateManagedTest\}/);
+  assert.match(manager, /!learningOnly && <form action=\{duplicateManagedTest\}/);
 });
 
 test("learning catalogue includes only valid published public learning tests and reports database failures", async () => {

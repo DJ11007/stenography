@@ -21,7 +21,11 @@ test("both admin test-list entry points fetch created_by/created_at and resolve 
   assert.match(general, /supabase\.from\("profiles"\)\.select\("id,full_name"\)\.in\("id",creatorIds\)/);
 });
 
-test("TestManager offers a Public/Personal ownership filter (only once it knows who 'mine' is) and every row shows its creator and created date", async () => {
+// The row itself went from three always-visible detail lines to a single
+// compact line (a dense list an admin can actually scan) plus a hover
+// tooltip that still carries everything those lines used to spell out,
+// creator/created date included -- see TestRow's `details` string.
+test("TestManager offers a Public/Personal ownership filter (only once it knows who 'mine' is) and every row's hover tooltip still carries its creator and created date", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
   assert.match(manager, /currentAdminId\?:string/);
   assert.match(manager, /const \[ownership,setOwnership\] = useState<"all"\|"mine">\("all"\);/);
@@ -29,5 +33,6 @@ test("TestManager offers a Public/Personal ownership filter (only once it knows 
   assert.match(manager, /\{currentAdminId && <div role="radiogroup" aria-label="Show tests created by"/);
   assert.match(manager, /Public \(everyone&apos;s\)/);
   assert.match(manager, /Personal \(mine only\)/);
-  assert.match(manager, /Creator: \{test\.creatorName\?\?"—"\} · Created \{test\.created_at\?new Date\(test\.created_at\)\.toLocaleDateString\("en-IN"\):"—"\}/);
+  assert.match(manager, /Creator: \$\{test\.creatorName\?\?"—"\} · Created \$\{test\.created_at\?new Date\(test\.created_at\)\.toLocaleDateString\("en-IN"\):"—"\}/);
+  assert.match(manager, /<h3 title=\{details\} className="cursor-help truncate font-black">/);
 });
