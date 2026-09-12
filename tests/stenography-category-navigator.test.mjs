@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import { STENOGRAPHY_CATEGORIES } from "../lib/stenography-categories.ts";
+
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+// Real reported gap: an admin-created stenography test (with genuine court-
+// matter dictation) tagged to one "court and legal" category (e.g.
+// Rajasthan High Court Steno) was invisible everywhere except the flat,
+// uncategorized Task Library list -- a student browsing a *different*
+// court category's own page (Delhi HC, Supreme Court PA, etc.) never saw
+// it, even though the same real dictation is just as useful there. Every
+// other, non-court category (RSMSSB, SSC, CBI, IB, RBI, ...) should stay
+// unshared -- only its own exactly-tagged tests belong on its own page.
+test("court/legal categories are exactly the ones with the scales icon, and there are at least two of them to actually share between", () => {
+  const court = STENOGRAPHY_CATEGORIES.filter((category) => category.iconKind === "scales");
+  assert.ok(court.length >= 2, "expected multiple court/legal categories to verify sharing between");
+  assert.ok(court.some((category) => category.slug === "rajasthan-hc-steno"));
+  assert.ok(court.some((category) => category.slug === "delhi-hc-steno"));
+  assert.ok(!court.some((category) => category.slug === "rsmssb-steno"), "RSMSSB is a commission post, not a court -- must not be swept into court sharing");
+});
+
+test("getStenographyCategoryNavigator scopes a court category's query to every court/legal slug via .or(), and a non-court category to only its own exact tag", async () => {
+  const source = await read("lib/stenography-category-navigator-server.ts");
+  assert.match(source, /const COURT_CATEGORY_SLUGS = STENOGRAPHY_CATEGORIES\.filter\(\(category\) => category\.iconKind === "scales"\)\.map\(\(category\) => category\.slug\);/);
+  assert.match(source, /query\.or\(COURT_CATEGORY_SLUGS\.map\(\(slug\) => `settings->>steno_category\.eq\.\$\{slug\}`\)\.join\(","\)\)/);
+  assert.match(source, /: query\.eq\("settings->>steno_category", categorySlug\);/);
+  assert.match(source, /\.eq\("mode", "stenography"\)\.eq\("status", "published"\)\.eq\("visibility", "public"\)\.eq\("is_live", false\)\.eq\("language", language\)/);
+});
+
+test("the stenography category rules page fetches and renders both languages' navigator lists via RealTestList, above the generic sample link", async () => {
+  const page = await read("app/typing/practice/stenography/exams/[slug]/page.tsx");
+  assert.match(page, /import \{ getStenographyCategoryNavigator, type StenographyCategoryNavigatorItem \} from "@\/lib\/stenography-category-navigator-server";/);
+  assert.match(page, /const \[englishTests, hindiTests\] = await Promise\.all\(\[/);
+  assert.match(page, /<RealTestList tests=\{englishTests\} language="English"\/>/);
+  assert.match(page, /<RealTestList tests=\{hindiTests\} language="Hindi"\/>/);
+  assert.match(page, /function RealTestList\(/);
+});
