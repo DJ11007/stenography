@@ -4,6 +4,7 @@ import { EXAM_CATEGORIES, type ExamCategoryDefinition } from "./exam-categories.
 import { STENOGRAPHY_CATEGORIES } from "./stenography-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
+import { LEGACY_SIGNAL } from "./hindi-font-converter.ts";
 
 // The typing-behaviour fields a category forces on an exam test, derived
 // purely from the category's own definition + language. Shared by
@@ -83,9 +84,17 @@ export function validateManagedTest(input: ManagedTestDraft) {
     if (field && !fieldErrors[field]) fieldErrors[field] = message;
   };
   if (input.title.trim().length < 3) addError("title", "Title must contain at least 3 characters.");
-  if (input.language === "Hindi" && !/\p{Script=Devanagari}/u.test(input.title) && /(?:f['{kTtM<;]|O;fDr|vkSj|gS|\{kk|\.[k]|[dD][kZ]?)/.test(input.title)) addError("title", "Hindi test titles must use Unicode Devanagari, not Kruti Dev legacy encoding.");
+  if (input.language === "Hindi" && !/\p{Script=Devanagari}/u.test(input.title) && LEGACY_SIGNAL.test(input.title)) addError("title", "Hindi test titles must use Unicode Devanagari, not Kruti Dev legacy encoding.");
   if (!slugifyTest(input.slug || input.title)) addError("title", "A valid URL slug is required.");
-  if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 60 || input.durationSeconds > 3600) addError("durationMinutes", "Duration must be between 1 and 60 minutes.");
+  // 70 minutes, not 60 -- matches PRACTICE_DURATION_MINUTES' own outer bound
+  // (lib/typing-test.ts) elsewhere in the app, and covers every researched
+  // stenography category's real transcription time (up to 70 minutes for
+  // RSMSSB Hindi and Rajasthan HC Steno Hindi -- see
+  // lib/stenography-categories.ts). A 60-minute cap here silently rejected
+  // those two categories' own force-applied, correct duration with no way
+  // for the admin to see or fix it, since Duration is a locked hidden field
+  // once a category with a confirmed transcription time is chosen.
+  if (!Number.isInteger(input.durationSeconds) || input.durationSeconds < 60 || input.durationSeconds > 4200) addError("durationMinutes", "Duration must be between 1 and 70 minutes.");
   if (!Number.isFinite(input.requiredWpm) || input.requiredWpm < 0 || input.requiredWpm > 300) addError("requiredWpm", "Required WPM must be between 0 and 300.");
   if (!Number.isFinite(input.requiredAccuracy) || input.requiredAccuracy < 0 || input.requiredAccuracy > 100) addError("requiredAccuracy", "Required accuracy must be between 0 and 100.");
   const system = INPUT_SYSTEMS.find((candidate) => candidate.id === input.inputSystemId && candidate.language === input.language);

@@ -6,7 +6,14 @@ export type ConvertedHindiText = Readonly<{ text: string; encoding: HindiTextFor
 
 const DEVANAGARI = /[\u0900-\u097f]/u;
 const DEVANAGARI_GLOBAL = /[\u0900-\u097f]/gu;
-const LEGACY_SIGNAL = /(?:f['{kTtM<;]|O;fDr|vkSj|gS|\{kk|\.[k]|[dD][kZ]?)/;
+// The trailing `?` on [dD][kZ]? was a bug: it made the second character
+// optional, so this matched on a bare "d"/"D" alone -- degenerately common
+// in ordinary English/transliterated text (e.g. any title containing the
+// word "Hindi" itself), unlike every other alternative here, which all
+// require a specific multi-character Kruti Dev garbage sequence. Real
+// legacy-encoded text pairs "d"/"D" with "k" or "Z" (Devanagari half-forms
+// rendered from those byte combinations); a lone "d" proves nothing.
+export const LEGACY_SIGNAL = /(?:f['{kTtM<;]|O;fDr|vkSj|gS|\{kk|\.[k]|[dD][kZ])/;
 
 const preferredLegacy = new Map<string, string>();
 for (const [legacy, unicode] of legacyMapping) {
