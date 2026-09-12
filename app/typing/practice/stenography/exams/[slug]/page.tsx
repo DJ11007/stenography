@@ -23,6 +23,15 @@ export default async function StenographyCategoryRulesPage({ params }: PageProps
     getStenographyCategoryNavigator(category.slug, "English"),
     getStenographyCategoryNavigator(category.slug, "Hindi"),
   ]);
+  // The generic preset below (ENGLISH_STENO_PASSAGE/HINDI_STENO_PASSAGE) has
+  // no audio -- it predates the real dictation-gate feature and is only a
+  // text-passage stand-in for categories/languages nobody has recorded real
+  // dictation for yet. Once a real admin-uploaded test exists, that's the
+  // actual product experience (real audio dictation, not copy-typing), so
+  // the main Start button should go straight there instead of silently
+  // landing students on the no-audio sample.
+  const englishHref = englishTests.length ? `/tests/${englishTests[0].slug}` : `/typing/exams/${englishPresetId}`;
+  const hindiHref = hindiTests.length ? `/tests/${hindiTests[0].slug}` : `/typing/exams/${hindiPresetId}`;
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -50,7 +59,7 @@ export default async function StenographyCategoryRulesPage({ params }: PageProps
               {englishRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
             <RealTestList tests={englishTests} language="English"/>
-            <Link href={`/typing/exams/${englishPresetId}`} className="mt-4 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white hover:bg-violet-800">
+            <Link href={englishHref} className="mt-4 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white hover:bg-violet-800">
               Start in English
             </Link>
           </div>
@@ -60,7 +69,7 @@ export default async function StenographyCategoryRulesPage({ params }: PageProps
               {hindiRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
             <RealTestList tests={hindiTests} language="Hindi"/>
-            <Link href={`/typing/exams/${hindiPresetId}`} className="mt-4 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white hover:bg-violet-800">
+            <Link href={hindiHref} className="mt-4 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white hover:bg-violet-800">
               हिंदी में शुरू करें (Start in Hindi)
             </Link>
           </div>
