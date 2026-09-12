@@ -20,11 +20,6 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
     supabase.auth.getUser(),
   ]);
   if(!test?.current_version_id)notFound();
-  if(!test.is_live&&test.status==="published"&&test.visibility==="public"&&(test.mode==="practice"||test.mode==="stenography")){
-    const category=test.mode==="stenography"?(test.language==="Hindi"?"hindi-stenography":"english-stenography"):(test.language==="Hindi"?"hindi":"english");
-    const input=test.language==="Hindi"?`input=${encodeURIComponent(test.input_system_id)}&`:"";
-    redirect(`/typing/practice/${category}?${input}test=${encodeURIComponent(test.slug)}`);
-  }
   // Everything past this point (exam/learn tests, and live tests) renders
   // the same exam workspace as every /typing/* route, which needs the
   // signed-in user's identity for TypingBrandHeader (name/email/sign-out
@@ -38,14 +33,33 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   // exact link to preview/trial their own just-published test is a
   // normal, expected use of it.
   if(!user)redirect(`/login?next=${encodeURIComponent(`/tests/${slug}`)}`);
+  const{data:profile}=await supabase.from("profiles").select("full_name,phone,role").eq("id",user.id).maybeSingle();
+  const isAdmin=profile?.role==="admin";
+  // Real gap this closed: an admin previewing their own practice/
+  // stenography test used to get redirected here into /typing/practice/...
+  // same as a student -- but that route lives under /typing/layout.tsx's
+  // student-only access gate, which bounced the admin straight to /admin,
+  // making "preview my own test" impossible for exactly these two modes
+  // (exam/learn/live tests never had this problem, since they render
+  // directly below instead of redirecting). Only skip the redirect for an
+  // actual admin; a student hitting this same link still gets the real
+  // Task Library experience (Prev/Next between tests, Newest/Oldest sort)
+  // instead of landing on one isolated test.
+  if(!isAdmin&&!test.is_live&&test.status==="published"&&test.visibility==="public"&&(test.mode==="practice"||test.mode==="stenography")){
+    const category=test.mode==="stenography"?(test.language==="Hindi"?"hindi-stenography":"english-stenography"):(test.language==="Hindi"?"hindi":"english");
+    const input=test.language==="Hindi"?`input=${encodeURIComponent(test.input_system_id)}&`:"";
+    redirect(`/typing/practice/${category}?${input}test=${encodeURIComponent(test.slug)}`);
+  }
   // The Typing Exam Simulator's free-attempt cap (mode="exam" only, a free
   // scheduled live test is unaffected) -- checked here, before the exam
   // workspace ever renders, exactly like PracticeNavigator's own pre-render
-  // check for "Take Tests". Applies identically to English and Hindi.
-  const[{data:profile},examFreeStatus]=await Promise.all([
-    supabase.from("profiles").select("full_name,phone").eq("id",user.id).maybeSingle(),
-    test.mode==="exam"&&!test.is_live?supabase.rpc("exam_test_free_status").single() as unknown as Promise<{data:{used_count:number;free_limit:number|null;remaining:number|null;blocked:boolean}|null}>:Promise.resolve({data:null}),
-  ]);
+  // check for "Take Tests". Applies identically to English and Hindi. An
+  // admin's own preview is exempt -- it would be strange for the admin who
+  // sets that very limit to burn their own attempt count checking a test
+  // they just wrote.
+  const examFreeStatus=test.mode==="exam"&&!test.is_live&&!isAdmin
+    ?await supabase.rpc("exam_test_free_status").single() as unknown as {data:{used_count:number;free_limit:number|null;remaining:number|null;blocked:boolean}|null}
+    :{data:null};
   if(examFreeStatus.data?.blocked)return <FreeExamLimitPaywall used={examFreeStatus.data.used_count} limit={examFreeStatus.data.free_limit??0}/>;
   const schedule={isLive:Boolean(test.is_live),startsAt:test.live_starts_at,endsAt:test.live_ends_at,resultsPublishAt:test.results_publish_at};
   const state=liveTestState(schedule);
@@ -57,7 +71,7 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   if(version.audioPath){const{data:signed}=await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath,3600);preset.audioUrl=signed?.signedUrl??null;}
   if(version.pdfPath){const{data:signed}=await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath,3600);preset.pdfUrl=signed?.signedUrl??null;}
   return <TypingStudentProvider student={{name:profile?.full_name?.trim()||"Student",email:user.email||"",phone:profile?.phone||user.phone||null}}>
-    <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at}}/>
+    <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at}} adminPreview={isAdmin}/>
   </TypingStudentProvider>;
 }
 

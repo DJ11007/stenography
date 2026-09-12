@@ -32,7 +32,7 @@ export const DICTATION_SPEEDS = [
 // not copy-typing. Rendered as a full page (same weight as ExamStart)
 // rather than an overlay, specifically so the typing textarea underneath
 // genuinely doesn't exist in the DOM until Start Typing is clicked.
-export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref }: {
+export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref, adminPreview = false }: {
   preset: ExamPreset;
   url: string;
   selectedCategories: HalfErrorCategory[];
@@ -42,6 +42,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   durationLocked: boolean;
   onDurationChange: (minutes: number) => void;
   backHref?: string;
+  adminPreview?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -50,6 +51,13 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   const [speed, setSpeed] = useState(1);
   const [playedThrough, setPlayedThrough] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  // A real student attempt keeps requiring the full dictation (this is a
+  // real dictation, not copy-typing) -- but an admin previewing their own
+  // just-created test is here to check the scoring/error-detection logic
+  // against a known passage, not to sit through the whole recording every
+  // time they tweak something, so 1 second of playback is enough to prove
+  // the audio loads and unlock typing.
+  const readyToType = adminPreview ? current >= 1 : playedThrough;
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -122,7 +130,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
               {DICTATION_SPEEDS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          {playedThrough && <p role="status" className="text-xs font-bold text-green-700">✓ Dictation complete — you can listen again, or start typing when ready.</p>}
+          {readyToType && <p role="status" className="text-xs font-bold text-green-700">{adminPreview && !playedThrough ? "✓ Admin preview: typing is unlocked after a moment of playback -- you can start now, or keep listening." : "✓ Dictation complete — you can listen again, or start typing when ready."}</p>}
         </div>
         {audioError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 font-bold text-red-800">The dictation audio could not be loaded. Please refresh the page; if this keeps happening, contact your administrator.</p>}
 
@@ -139,8 +147,8 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
 
         <div className="mt-8 flex gap-3">
           {backHref && <Link href={backHref} className="rounded-xl border-2 border-red-200 px-6 py-4 text-lg font-black text-red-700 hover:bg-red-50">Exit</Link>}
-          <button type="button" disabled={!playedThrough} onClick={onStartTyping} className="flex-1 rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">
-            {playedThrough ? "Start Typing" : "Listen to the full dictation to continue"}
+          <button type="button" disabled={!readyToType} onClick={onStartTyping} className="flex-1 rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">
+            {readyToType ? "Start Typing" : adminPreview ? "Play the audio to continue (admin preview unlocks after ~1 second)" : "Listen to the full dictation to continue"}
           </button>
         </div>
       </div>

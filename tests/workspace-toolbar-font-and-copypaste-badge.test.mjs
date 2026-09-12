@@ -21,9 +21,15 @@ test("the toolbar offers quick -A/+A buttons for the typing area's font size, re
   assert.match(editor, />\+A<\/button>/);
 });
 
-test("the toolbar shows a Copy-Paste: Disabled badge, documenting the typing textarea's existing paste/drop/cut prevention", async () => {
+// A real student attempt still disables paste/drop/cut into the typing
+// area, but an admin's own preview of their just-created test needs
+// pasting allowed so they can quickly check scoring/error-detection
+// against a known passage (see adminPreview throughout this component) --
+// so the handlers now only preventDefault() when adminPreview is false.
+test("the toolbar shows a Copy-Paste: Disabled badge, documenting the typing textarea's existing paste/drop/cut prevention (admin preview excepted)", async () => {
   const editor = await read(EXAM_PATH);
   assert.match(editor, />Copy-Paste: Disabled<\/span>/);
-  assert.match(editor, /onPaste=\{\(event\) => event\.preventDefault\(\)\}/);
-  assert.match(editor, /onDrop=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(editor, />Admin Preview: Copy-Paste Enabled<\/span>/);
+  assert.match(editor, /onPaste=\{\(event\) => \{ if \(!adminPreview\) event\.preventDefault\(\); \}\}/);
+  assert.match(editor, /onDrop=\{\(event\) => \{ if \(!adminPreview\) event\.preventDefault\(\); \}\}/);
 });

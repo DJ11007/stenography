@@ -47,10 +47,11 @@ test("the student's category selection is folded into the scoring profile only f
   assert.match(editor, /recordManagedAttempt\(\{testId:managedTest\.testId,versionId:managedTest\.versionId,startedAt:startedAt\.current,typedText,elapsedSeconds:finalScore\.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable\?preferences\.passageWordCount:null,examCategorySlug:preset\.examCategorySlug\}\)/);
 });
 
-test("the dictation gate hides the audio player, shows the category checkboxes, and keeps Start Typing disabled until the audio has played through once", async () => {
+test("the dictation gate hides the audio player, shows the category checkboxes, and keeps Start Typing disabled until the audio has played through once (or, in admin preview, until ~1 second of playback)", async () => {
   const gate = await read(GATE_PATH);
   assert.match(gate, /onEnded=\{\(\) => \{ setPlaying\(false\); setPlayedThrough\(true\); \}\}/);
-  assert.match(gate, /<button type="button" disabled=\{!playedThrough\} onClick=\{onStartTyping\}/);
+  assert.match(gate, /const readyToType = adminPreview \? current >= 1 : playedThrough;/);
+  assert.match(gate, /<button type="button" disabled=\{!readyToType\} onClick=\{onStartTyping\}/);
   assert.match(gate, /HALF_ERROR_CATEGORY_LABELS\[category\]/);
 });
 

@@ -263,5 +263,5 @@ test("input validation keeps deletion restrictions without duplicate insertion w
   assert.match(exam, /inputType\.startsWith\("history"\)/);
   assert.doesNotMatch(exam, /typeof native\.data === "string"/);
   assert.match(exam, /if \(!allowed\(from, end/);
-  assert.match(exam, /onPaste=\{\(event\) => event\.preventDefault\(\)\}/);
+  assert.match(exam, /onPaste=\{\(event\) => \{ if \(!adminPreview\) event\.preventDefault\(\); \}\}/);
 });

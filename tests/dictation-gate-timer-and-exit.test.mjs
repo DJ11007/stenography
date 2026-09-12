@@ -20,5 +20,5 @@ test("the dictation gate offers an adjustable timer (when not locked) using the 
 
 test("the workspace threads its own duration/backHref state into the dictation gate instead of the gate managing its own copy", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
-  assert.match(workspace, /<DictationGate preset=\{preset\} url=\{preset\.audioUrl\} selectedCategories=\{selectedCategories\} onCategoriesChange=\{setSelectedCategories\} onStartTyping=\{\(\) => \{ beginTiming\(\); setDictationReady\(true\); \}\} durationSeconds=\{activeDurationSeconds\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\} backHref=\{backHref\}\/>/);
+  assert.match(workspace, /<DictationGate preset=\{preset\} url=\{preset\.audioUrl\} selectedCategories=\{selectedCategories\} onCategoriesChange=\{setSelectedCategories\} onStartTyping=\{\(\) => \{ beginTiming\(\); setDictationReady\(true\); \}\} durationSeconds=\{activeDurationSeconds\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\} backHref=\{backHref\} adminPreview=\{adminPreview\}\/>/);
 });
