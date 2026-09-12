@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { ExamPreset } from "@/lib/typing-curriculum";
 import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, PRACTICE_DURATION_MINUTES, type HalfErrorCategory } from "@/lib/typing-test";
@@ -146,7 +147,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
         </fieldset>
 
         <div className="mt-8 flex gap-3">
-          {backHref && <Link href={backHref} className="rounded-xl border-2 border-red-200 px-6 py-4 text-lg font-black text-red-700 hover:bg-red-50">Exit</Link>}
+          <ExitButton href={backHref}/>
           <button type="button" disabled={!readyToType} onClick={onStartTyping} className="flex-1 rounded-xl bg-green-600 py-4 text-lg font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-400">
             {readyToType ? "Start Typing" : adminPreview ? "Play the audio to continue (admin preview unlocks after ~1 second)" : "Listen to the full dictation to continue"}
           </button>
@@ -154,4 +155,16 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
       </div>
     </section>
   </main>;
+}
+
+// Every caller of DictationGate used to have to opt in with its own
+// backHref just to get an exit path off this screen at all -- most don't,
+// leaving a dead end mid-dictation with no way out but closing the tab.
+// Falling back to router.back() (same fallback BackButton already uses
+// elsewhere) means there's always a way out, regardless of the caller.
+function ExitButton({ href }: { href?: string }) {
+  const router = useRouter();
+  const className = "rounded-xl border-2 border-red-200 px-6 py-4 text-lg font-black text-red-700 hover:bg-red-50";
+  if (href) return <Link href={href} className={className}>Exit</Link>;
+  return <button type="button" onClick={() => router.back()} className={className}>Exit</button>;
 }
