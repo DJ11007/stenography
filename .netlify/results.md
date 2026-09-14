@@ -1,0 +1,9 @@
+This session investigated why the homepage showed Netlify's generic "Page not found" screen on the very first deploy of this site.
+
+The application itself was verified to be healthy: every route in the app (home page, marketing pages, auth pages, admin section, typing/exam tools, account pages) was exercised through a local dev server and returned successful responses, TypeScript type-checking passed with no errors, and the most recent code changes (WhatsApp support links on the login and pending-approval screens, and performance fixes to the typing-test grading logic) were reviewed and contain no broken imports or syntax issues.
+
+Some leftover local debug log files (`.next-*-error.log` at the repo root) were found and inspected — these turned out to be stale artifacts from a developer's own Windows machine and reference an import bug (`AdvancedTypingResult` vs `AdvancedTypingResults`) that has already been fixed in the current code. They are not the cause of the current issue and were left in place rather than deleted, since removing unrelated files wasn't part of this fix.
+
+No code change was made in this session — nothing that would explain a 404 on every path was found in the application source. Given this is explicitly the first deploy attempt for the site, the most likely remaining explanation is on the deploy/build side itself (for example, the production build not having completed or published successfully yet) rather than a bug in the page code, since the exact same code serves every page correctly in a local run.
+
+What's left unfinished: confirming why the first production build/deploy itself did not produce a live site, which requires checking the actual deploy/build run rather than the application source — that verification was not completed in this session.
