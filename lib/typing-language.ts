@@ -52,12 +52,40 @@ export type NormalizedTypingInput = {
 
 export const KRUTI_DEV_FONT_ASSET = "/fonts/KrutiDev010.ttf";
 
+// Constructing Intl.Segmenter loads locale data and is genuinely expensive
+// -- this used to happen on every call, and callers like editDistance() run
+// it per word-pair inside O(passage-length x typed-length) alignment grids,
+// so a single test submission could construct it hundreds of thousands of
+// times (a 700-word batch test took 40+ seconds to grade because of this
+// alone). The segmenter itself is stateless w.r.t. the text being
+// segmented, so one shared instance is safe to reuse for every call.
+const graphemeSegmenter = typeof Intl !== "undefined" && "Segmenter" in Intl
+  ? new Intl.Segmenter("hi", { granularity: "grapheme" })
+  : null;
+
+// The same handful of words get segmented over and over -- editDistance()
+// (used for half-error/minor-spelling comparisons) calls this once per word
+// for EVERY cell of an alignment grid, so a 700-word test re-segments the
+// same ~1,300 words hundreds of thousands of times. Caching by exact text is
+// safe (segmentation is a pure function of the string) and doesn't change
+// any result, only how often it's recomputed. Only short strings (single
+// words) are cached -- full passages/typed text are segmented once anyway
+// and aren't worth holding onto.
+const graphemeCache = new Map<string, string[]>();
+const GRAPHEME_CACHE_MAX_ENTRIES = 5000;
+const GRAPHEME_CACHE_MAX_KEY_LENGTH = 64;
+
 export function segmentGraphemes(text: string) {
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    const segmenter = new Intl.Segmenter("hi", { granularity: "grapheme" });
-    return [...segmenter.segment(text)].map((part) => part.segment);
+  if (!graphemeSegmenter) return Array.from(text);
+  if (text.length > GRAPHEME_CACHE_MAX_KEY_LENGTH) {
+    return [...graphemeSegmenter.segment(text)].map((part) => part.segment);
   }
-  return Array.from(text);
+  const cached = graphemeCache.get(text);
+  if (cached) return cached;
+  const segments = [...graphemeSegmenter.segment(text)].map((part) => part.segment);
+  if (graphemeCache.size >= GRAPHEME_CACHE_MAX_ENTRIES) graphemeCache.clear();
+  graphemeCache.set(text, segments);
+  return segments;
 }
 
 export function normalizeTypingInput(

@@ -506,6 +506,17 @@ export function alignWords(
   const exactMatches = Array.from({ length: rows }, () => new Array<number>(columns).fill(0));
   const moves = Array.from({ length: rows }, () => new Array<"pair" | "missing" | "extra" | "start">(columns));
 
+  // canAlignEarlier below used to re-scan originalWords[0..originalIndex-2]
+  // with .slice().some() on every DP cell, making this O(rows x columns x
+  // columns) instead of O(rows x columns) -- a 700-word passage could take
+  // tens of seconds. Since we only need "does any earlier occurrence
+  // exist", the smallest occurrence index per word is enough.
+  const firstOccurrenceIndex = new Map<string, number>();
+  for (let index = 0; index < originalWords.length; index += 1) {
+    const raw = originalWords[index].raw;
+    if (!firstOccurrenceIndex.has(raw)) firstOccurrenceIndex.set(raw, index);
+  }
+
   costs[0][0] = 0;
   moves[0][0] = "start";
   for (let originalIndex = 1; originalIndex < columns; originalIndex += 1) {
@@ -535,8 +546,8 @@ export function alignWords(
       const extraEligible = extraCost === best && extraMatches === mostMatches;
       const repeatsPrevious = originalIndex > 1 &&
         typedWords[typedIndex - 1].raw === originalWords[originalIndex - 2].raw;
-      const canAlignEarlier = originalWords.slice(0, originalIndex - 1).some((word) =>
-        word.raw === typedWords[typedIndex - 1].raw);
+      const earliestOccurrence = firstOccurrenceIndex.get(typedWords[typedIndex - 1].raw);
+      const canAlignEarlier = earliestOccurrence !== undefined && earliestOccurrence < originalIndex - 1;
       moves[typedIndex][originalIndex] =
         repeatsPrevious && extraEligible ? "extra" :
         canAlignEarlier && missingEligible ? "missing" :

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { decideSignInDestination, type LoginKind } from "@/lib/auth-routing";
 
-export type AuthFormState = { error?: string; success?: string };
+export type AuthFormState = { error?: string; success?: string; whatsapp?: boolean };
 
 function getCredentials(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -39,7 +39,10 @@ export async function signIn(_: AuthFormState, formData: FormData): Promise<Auth
 
   if (profile && profile.role === "student" && profile.approved === false) {
     await supabase.auth.signOut();
-    return { error: "Your account is pending admin approval. You'll be able to sign in once an admin approves it." };
+    return {
+      error: "Your account is pending admin approval. Please contact support/admin to activate your account.",
+      whatsapp: true,
+    };
   }
 
   const role = profile?.is_active && profile.approved !== false && (profile.role === "admin" || profile.role === "student")
