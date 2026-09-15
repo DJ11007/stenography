@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
 import { getPracticeSelector } from "@/lib/practice-navigator-server";
 import { resolvePracticeSelection } from "@/lib/practice-navigator";
+import { sortExamCategoryNavigatorItems } from "@/lib/exam-category-navigator";
 import { ConfigurableTypingExam, type PracticeNavigation } from "../../_components/configurable-typing-exam";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { BackButton } from "../../../_components/back-button";
@@ -40,7 +41,14 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
   // catalogues to run in the order they were actually published, not
   // newest-first.
   const sort = params.sort === "newest" ? "newest" : "oldest";
-  const items = await getPracticeSelector({ mode, language, inputSystemId, sort });
+  // Real reported bug: publish order doesn't always match a title's own
+  // number (e.g. "TEST - 3" published before "TEST - 2"), so the raw
+  // published_at order listed 1, 3, 2, 4... instead of the serial order a
+  // numbered title implies. Re-sorts by the first number found in each
+  // title -- same fix already applied to the exam category navigator --
+  // direction still follows the Newest/Oldest toggle above (Oldest =
+  // ascending, ie. Test 1 first).
+  const items = sortExamCategoryNavigatorItems(await getPracticeSelector({ mode, language, inputSystemId, sort }), sort === "oldest" ? "ascending" : "descending");
 
   if (!items.length) return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center"><div className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl sm:p-12"><span className="text-5xl" aria-hidden>⌨</span><h1 className="mt-5 text-3xl font-black text-slate-900">No compatible tests yet</h1><p className="mx-auto mt-3 max-w-xl text-slate-600">No compatible published {language.toLowerCase()} {mode} tests are currently available.</p><Link href="/typing/practice" className="mt-7 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Back to Practice Categories</Link></div></section></main>;
 
@@ -86,7 +94,7 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
               <Link href={sortHref("oldest")} aria-pressed={sort === "oldest"} className={`px-4 py-1.5 ${sort === "oldest" ? "bg-blue-700 text-white" : "text-slate-600"}`}>Oldest</Link>
             </div>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {items.map((item) => (
               <Link key={item.id} href={queryFor(item.slug)} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{serialFor(item.title, item.index)}</span>

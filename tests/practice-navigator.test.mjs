@@ -3,6 +3,19 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { resolvePracticeSelection } from "../lib/practice-navigator.ts";
 const read=(path)=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
+
+// Real reported bug: publish order doesn't always match a title's own
+// number (e.g. "TEST - 3" published before "TEST - 2"), so the "Choose a
+// test" landing page listed 1, 3, 2, 4, 5, 6, 7 instead of serial order.
+// Reuses the same numbered-title sort already built for the exam category
+// navigator and the admin test list, and widens the grid to 4 columns
+// (from 2) now that space isn't wasted on wide single-per-row cards.
+test("the Choose a test landing page lists tests in serial (numbered-title) order across four columns, not raw publish order in two", async () => {
+  const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
+  assert.match(navigator, /import \{ sortExamCategoryNavigatorItems \} from "@\/lib\/exam-category-navigator";/);
+  assert.match(navigator, /const items = sortExamCategoryNavigatorItems\(await getPracticeSelector\(\{ mode, language, inputSystemId, sort \}\), sort === "oldest" \? "ascending" : "descending"\);/);
+  assert.match(navigator, /className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"/);
+});
 test("direct selector uses real compatible test metadata and stable ordering",async()=>{const server=await read("lib/practice-navigator-server.ts"),page=await read("app/typing/practice/_components/practice-navigator.tsx");for(const expected of [/getPracticeSelector/,/\.eq\("mode",filters\.mode\)/,/\.eq\("status","published"\)/,/\.eq\("visibility","public"\)/,/\.eq\("is_live",false\)/,/\.eq\("language",filters\.language\)/,/\.eq\("input_system_id",filters\.inputSystemId\)/,/\.order\("published_at",\{ascending:oldest\}\)\.order\("id",\{ascending:true\}\)/])assert.match(server,expected);assert.match(page,/items\.length/);assert.match(page,/Test \$\{index \+ 1\} of \$\{items\.length\}/);assert.doesNotMatch(page,/500/);});
 
 test("students can explicitly sort the practice test picker by newest or oldest from the Choose a test landing page, not just whatever order the admin happened to publish tests in", async () => {
