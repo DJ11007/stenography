@@ -116,9 +116,21 @@ test("app/tests/[slug]/page.tsx requires a signed-in user (any role) and wraps t
   const page = await source("app/tests/[slug]/page.tsx");
   assert.match(page, /import \{ TypingStudentProvider \} from "@\/app\/typing\/_components\/typing-student-provider";/);
   assert.match(page, /if\(!user\)redirect\(`\/login\?next=\$\{encodeURIComponent\(`\/tests\/\$\{slug\}`\)\}`\);/);
-  assert.match(page, /<TypingStudentProvider student=\{\{name:profile\?\.full_name\?\.trim\(\)\|\|"Student",email:user\.email\|\|"",phone:profile\?\.phone\|\|user\.phone\|\|null\}\}>/);
+  assert.match(page, /const studentIdentity=\{name:profile\?\.full_name\?\.trim\(\)\|\|"Student",email:user\.email\|\|"",phone:profile\?\.phone\|\|user\.phone\|\|null\};/);
+  assert.match(page, /<TypingStudentProvider student=\{studentIdentity\}>/);
   // Not requireStudent() -- an admin must still be able to open this exact
   // link to preview/trial their own just-published test, not get bounced
   // to /admin.
   assert.doesNotMatch(page, /requireStudent/);
+});
+
+// Real reported runtime error: "Typing student context is unavailable" --
+// FreeExamLimitPaywall renders TypingBrandHeader, which calls
+// useTypingStudent() same as the exam workspace does, but this early
+// return used to skip the TypingStudentProvider wrap entirely (it only
+// wrapped the final return), so the whole page 500s for any student who
+// has actually used up their free exam attempts.
+test("the FreeExamLimitPaywall early return is also wrapped in TypingStudentProvider, not just the final exam-workspace return", async () => {
+  const page = await source("app/tests/[slug]/page.tsx");
+  assert.match(page, /if\(examFreeStatus\.data\?\.blocked\)return <TypingStudentProvider student=\{studentIdentity\}><FreeExamLimitPaywall used=\{examFreeStatus\.data\.used_count\} limit=\{examFreeStatus\.data\.free_limit\?\?0\}\/><\/TypingStudentProvider>;/);
 });

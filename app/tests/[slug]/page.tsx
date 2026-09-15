@@ -61,7 +61,13 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   const examFreeStatus=test.mode==="exam"&&!test.is_live&&!isAdmin
     ?await supabase.rpc("exam_test_free_status").single() as unknown as {data:{used_count:number;free_limit:number|null;remaining:number|null;blocked:boolean}|null}
     :{data:null};
-  if(examFreeStatus.data?.blocked)return <FreeExamLimitPaywall used={examFreeStatus.data.used_count} limit={examFreeStatus.data.free_limit??0}/>;
+  // Real bug: this early return renders TypingBrandHeader (via
+  // FreeExamLimitPaywall) without the TypingStudentProvider wrap the final
+  // return below supplies -- useTypingStudent() then throws "Typing
+  // student context is unavailable" and the whole page 500s for any
+  // student who has actually used up their free exam attempts.
+  const studentIdentity={name:profile?.full_name?.trim()||"Student",email:user.email||"",phone:profile?.phone||user.phone||null};
+  if(examFreeStatus.data?.blocked)return <TypingStudentProvider student={studentIdentity}><FreeExamLimitPaywall used={examFreeStatus.data.used_count} limit={examFreeStatus.data.free_limit??0}/></TypingStudentProvider>;
   const schedule={isLive:Boolean(test.is_live),startsAt:test.live_starts_at,endsAt:test.live_ends_at,resultsPublishAt:test.results_publish_at};
   const state=liveTestState(schedule);
   if(test.is_live&&state!=="open")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${new Date(test.live_starts_at).toLocaleString()}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":`Results publish ${new Date(test.results_publish_at).toLocaleString()}`}/>;
@@ -71,7 +77,7 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   const preset=managedVersionToPreset(version,viewAs);
   if(version.audioPath){const{data:signed}=await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath,3600);preset.audioUrl=signed?.signedUrl??null;}
   if(version.pdfPath){const{data:signed}=await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath,3600);preset.pdfUrl=signed?.signedUrl??null;}
-  return <TypingStudentProvider student={{name:profile?.full_name?.trim()||"Student",email:user.email||"",phone:profile?.phone||user.phone||null}}>
+  return <TypingStudentProvider student={studentIdentity}>
     <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at}} adminPreview={isAdmin}/>
   </TypingStudentProvider>;
 }

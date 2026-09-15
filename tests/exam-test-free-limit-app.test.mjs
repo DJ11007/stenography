@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("/tests/[slug] gates a non-live mode='exam' test behind the free-exam paywall, checked before the exam workspace renders (admin's own preview is exempt)", async () => {
   const page = await read("app/tests/[slug]/page.tsx");
   assert.match(page, /test\.mode==="exam"&&!test\.is_live&&!isAdmin\s*\n\s*\?await supabase\.rpc\("exam_test_free_status"\)\.single\(\)/);
-  assert.match(page, /if\(examFreeStatus\.data\?\.blocked\)return <FreeExamLimitPaywall used=\{examFreeStatus\.data\.used_count\} limit=\{examFreeStatus\.data\.free_limit\?\?0\}\/>;/);
+  assert.match(page, /if\(examFreeStatus\.data\?\.blocked\)return <TypingStudentProvider student=\{studentIdentity\}><FreeExamLimitPaywall used=\{examFreeStatus\.data\.used_count\} limit=\{examFreeStatus\.data\.free_limit\?\?0\}\/><\/TypingStudentProvider>;/);
 });
 
 test("the exam paywall reuses the existing Buy Now button, not a new purchase flow", async () => {
