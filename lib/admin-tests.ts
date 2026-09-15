@@ -151,7 +151,14 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     // (see advanced-typing-results.tsx's resultPassed), so a display-only
     // override would show the right target on screen while still scoring
     // against Rajasthan LDC's own thresholds underneath.
-    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, capitalizationErrors: version.language === "English" },
+    // matra/halant/gender/vachan stay unset (undefined) for every mode but
+    // stenography -- see ScoringProfile's own comment: undefined means "not
+    // a stenography context", which falls through to ordinary minor-
+    // spelling grading instead of a dictation-specific category. Only
+    // stenography sets a real base (true); halant is then narrowed to
+    // true/false per attempt by scoringProfileWithSelectedCategories,
+    // matching the dictation gate's category checklist.
+    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
     audioUrl: null,
     pdfUrl: null,
     pdfFileName: version.pdfFileName ?? null,

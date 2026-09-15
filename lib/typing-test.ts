@@ -127,9 +127,20 @@ export type ScoringProfile = {
   punctuationErrors?: boolean;
   spacingErrors?: boolean;
   minorSpellingErrors?: boolean;
-  // matra/gender/vachan have no toggle here on purpose -- see
-  // ALL_HALF_ERROR_CATEGORIES's comment below.
+  // These four are opt-IN (only graded when explicitly true), unlike every
+  // other flag above -- they're specifically for stenography's dictation
+  // scoring, not general Hindi typing (practice/exam/learn). Real bug this
+  // fixes: a plain Hindi typing test's results page was showing "Matra
+  // error"/"Gender error"/"Vachan error" rows in its scoring guide and
+  // silently grading them, purely because the passage happened to be
+  // Devanagari -- these Hindi-script-specific nuances should only ever
+  // apply where an admin has actually configured a stenography test.
+  // halant keeps its own further per-attempt toggle on top of this (the
+  // dictation gate's category checklist, see scoringProfileWithSelectedCategories).
+  matraErrors?: boolean;
   halantErrors?: boolean;
+  genderErrors?: boolean;
+  vachanErrors?: boolean;
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -147,7 +158,9 @@ export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
 // app/tests/actions.ts, and the results-page "graded for this attempt"
 // banner, so all three always agree on the same names/labels.
 //
-// matra/gender/vachan are deliberately NOT in this list -- they're always
+// matra/gender/vachan are deliberately NOT in this list -- for a
+// stenography test (the only place they're ever graded, see
+// ScoringProfile.matraErrors/genderErrors/vachanErrors), they're always
 // computed and always shown in results, never a pre-test checkbox. Real
 // Hindi grammatical gender/number agreement depends on a word's
 // relationship to the rest of the sentence, which this word-by-word
@@ -384,14 +397,19 @@ function classifyDevanagariDifference(original: WordToken, typed: WordToken): "m
 }
 
 // Returns only the categories that are BOTH actually present as a
-// difference AND currently graded (profile.<category>Errors !== false --
-// except matra/gender/vachan, which are always graded, see
-// ALL_HALF_ERROR_CATEGORIES's comment). A category being toggled off must
-// mean "forgive this difference", not "this difference doesn't count as
-// this category but still counts as something else" -- callers combine
-// this with isWithinHalfErrorFamily() to tell "no graded difference"
-// (forgiven, status "correct") apart from "genuinely a different word"
-// (status "substituted").
+// difference AND currently graded. matra/halant/gender/vachan are three-
+// state, not the plain on/off every other category uses: profile.<x> ===
+// true grades it as its own labeled category (early return); === false
+// means a stenography attempt explicitly unchecked it pre-test, so the
+// difference is wholly forgiven (early return with nothing pushed, same
+// "toggled off must mean forgive this difference" contract every other
+// category follows -- callers combine this with isWithinHalfErrorFamily()
+// to tell "no graded difference" (forgiven, status "correct") apart from
+// "genuinely a different word" (status "substituted")); === undefined
+// means this isn't a stenography context at all (a plain Hindi typing/
+// exam/learn test), so instead of labeling it with a dictation-specific
+// category name, fall through to the same generic edit-distance/
+// minorSpelling check every other language already uses for small typos.
 function halfErrorCategories(
   original: WordToken,
   typed: WordToken,
@@ -404,15 +422,16 @@ function halfErrorCategories(
     return categories;
   }
   const devanagariCategory = classifyDevanagariDifference(original, typed);
-  if (devanagariCategory === "halant") {
-    if (profile.halantErrors !== false) categories.push("halant");
-    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
-    return categories;
-  }
   if (devanagariCategory) {
-    categories.push(devanagariCategory);
-    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
-    return categories;
+    const graded = devanagariCategory === "halant" ? profile.halantErrors
+      : devanagariCategory === "matra" ? profile.matraErrors
+      : devanagariCategory === "gender" ? profile.genderErrors
+      : profile.vachanErrors;
+    if (graded !== undefined) {
+      if (graded) categories.push(devanagariCategory);
+      if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
+      return categories;
+    }
   }
   if (
     editDistance(original.normalizedCore, typed.normalizedCore) <=

@@ -30,11 +30,24 @@ const HALF_DEFINITIONS = [
   { key: "vachan", label: "Vachan (number) error", explanation: "The word's ending matches a well-known Hindi singular/plural agreement swap against the reference word. Same caveat as gender: this flags the pattern, not full grammatical agreement.", decoration: "pair", typed: "लड़का", expected: "लड़के" },
 ] as const;
 
+// Whether this profile actually grades a given Devanagari-specific
+// category -- these are the same three-state opt-in flags
+// halfErrorCategories() reads (undefined = not a stenography context at
+// all), so the guide only lists a category when it's genuinely possible
+// to see it in this test's results, instead of showing it for any Hindi
+// content regardless of mode.
+const isDevanagariCategoryGraded = (profile: ScoringProfile, key: string) =>
+  key === "matra" ? Boolean(profile.matraErrors)
+  : key === "halant" ? Boolean(profile.halantErrors)
+  : key === "gender" ? Boolean(profile.genderErrors)
+  : key === "vachan" ? Boolean(profile.vachanErrors)
+  : true;
+
 export function buildErrorGuide(profile: ScoringProfile, language: "en" | "hi") {
   const full = FULL_DEFINITIONS.map(({key,label,explanation,...example}): ErrorGuideDefinition => ({ key,label,explanation,example,kind: "full", penalty: profile.fullErrorPenalty }));
   const half = HALF_DEFINITIONS
     .filter((definition) => language === "en" || definition.key !== "capitalization")
-    .filter((definition) => language === "hi" || !["matra", "halant", "gender", "vachan"].includes(definition.key))
+    .filter((definition) => isDevanagariCategoryGraded(profile, definition.key))
     .map(({key,label,explanation,...example}): ErrorGuideDefinition => ({
       key,label,example,
       kind: key === "minorSpelling" && profile.minorSpellingMaxDistance < 1 ? "full" : "half",

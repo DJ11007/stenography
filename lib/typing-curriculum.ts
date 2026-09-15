@@ -175,7 +175,10 @@ const preset = (value: Omit<ExamPreset, "script" | "inputEncoding" | "fontLabel"
     const overrideCounts = value.inputSystems.filter((item) => item.passageOverride).map((item) => item.passageOverride!.trim().split(/\s+/u).length);
     if (value.durationSeconds !== value.marksMethod.requiredDurationSeconds || passageWords !== value.marksMethod.passageWordLimit || overrideCounts.some((count) => count !== value.marksMethod!.passageWordLimit)) throw new Error(`Invalid ${value.id} marks-method preset configuration.`);
   }
-  return { ...value, scoringProfile: { ...value.scoringProfile, capitalizationErrors: value.language === "English" }, script: system.script, inputEncoding: system.inputEncoding, fontLabel: system.fontLabel, fontStack: system.fontStack, fontClassName: "font-sans", layoutLabel: system.keyboardLayout, keyboardLayout: system.keyboardLayout };
+  // matra/halant/gender/vachan only ever apply to a stenography preset --
+  // see ScoringProfile's own comment for why leaving them undefined for
+  // "typing" presets (instead of false) matters.
+  return { ...value, scoringProfile: { ...value.scoringProfile, capitalizationErrors: value.language === "English", ...(value.category === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) }, script: system.script, inputEncoding: system.inputEncoding, fontLabel: system.fontLabel, fontStack: system.fontStack, fontClassName: "font-sans", layoutLabel: system.keyboardLayout, keyboardLayout: system.keyboardLayout };
 };
 
 // Exported so an admin-managed exam test tied to the "rajasthan-ldc"
