@@ -42,19 +42,26 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
             : <>No confirmed official notification was found for {category.name}&apos;s exact typing-test pattern. The rules below are a reasoned baseline from the closest comparable exam family, not a verified official pattern — please tell us the real pattern if you have the official notification, and we will update it.</>}
         </div>
 
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
+        {/* flex+h-full+flex-1: English and Hindi translations are never the
+            same length, so one card's rule list is reliably taller than the
+            other's -- without this, the two "Start" buttons would land at
+            different heights instead of lining up along the bottom edge.
+            The rule list (not the button's own margin) grows to fill the
+            leftover space, so the mt-6 gap above each button stays the same
+            fixed size on both cards regardless of which one is shorter. */}
+        <div className="mt-8 grid items-stretch gap-6 md:grid-cols-2">
+          <div className="flex h-full flex-col rounded-2xl bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black">English rules &amp; regulations</h2>
-            <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
+            <ul className="mt-4 flex-1 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {englishRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
             <Link href={`/typing/exams/category/${category.slug}/english`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
               Start in English
             </Link>
           </div>
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="flex h-full flex-col rounded-2xl bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black">हिंदी नियम एवं शर्तें</h2>
-            <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
+            <ul className="mt-4 flex-1 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {hindiRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
             <Link href={`/typing/exams/category/${category.slug}/hindi`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">

@@ -140,6 +140,22 @@ test("the category rules page shows English and Hindi rules with distinct start 
   assert.match(page, /<BackButton href="\/typing\/exams" label="Exam Categories" \/>/);
 });
 
+// Real reported bug (screenshot): the English and Hindi rule lists are
+// rarely the same length -- translations don't match sentence-for-sentence
+// in length -- so the two "Start" buttons landed at different heights
+// instead of lining up. Both cards stretch to equal height (items-stretch)
+// and each rule list grows to fill the leftover space (flex-1) so the
+// fixed mt-6 gap above each button, and the buttons themselves, always
+// land at the same row.
+test("the two rule cards stretch to equal height and their rule lists grow to push both Start buttons to the same aligned position", async () => {
+  const page = await read("app/typing/exams/category/[slug]/page.tsx");
+  assert.match(page, /className="mt-8 grid items-stretch gap-6 md:grid-cols-2"/);
+  const cardCount = (page.match(/className="flex h-full flex-col rounded-2xl bg-white p-6 shadow-sm"/g) ?? []).length;
+  assert.equal(cardCount, 2);
+  const flexRuleListCount = (page.match(/className="mt-4 flex-1 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700"/g) ?? []).length;
+  assert.equal(flexRuleListCount, 2);
+});
+
 // Real requested research: NCERT LDC's typing/computer skill test, confirmed
 // directly (NCERT's own live 2026 LDC recruitment cycle result page, DDA's
 // official JSA typing instructions for the shared scoring formula, and
