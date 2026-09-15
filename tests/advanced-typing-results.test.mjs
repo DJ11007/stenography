@@ -223,8 +223,14 @@ test("the shared result exposes every accessible view and interactive error deta
   for (const label of ["Typing Details", "Speed Details", "Full / Half Mistake Breakdown", "Detailed Passage Comparison", "Gross Speed (CPM / KPM)", "Net Speed (CPM / KPM)"]) assert.ok(component.includes(label));
   assert.match(component, /result\.durationWarning/);
   assert.doesNotMatch(component, /MARKS INVALID|Marks Invalid|>Invalid</);
-  const ordered = ["<RssbMarksPanel", "<RssbTypingDetails", "<RssbSpeedDetails", "<RssbMistakeDetails", "<ComparisonTextPanel", "role=\"tablist\""];
+  const ordered = ["<RssbMarksPanel", "<RssbTypingDetails", "<RssbSpeedDetails", "<ComparisonTextPanel", "role=\"tablist\""];
   assert.ok(ordered.every((needle, index) => index === 0 || component.indexOf(ordered[index - 1]) < component.indexOf(needle)));
+  // Real reported request: Full / Half Mistake Breakdown moved off the
+  // always-visible summary and into the "Errors Only" tab specifically,
+  // alongside the mistakes-only PassageFlow -- not shown unconditionally
+  // above the tabs any more.
+  assert.ok(component.indexOf("role=\"tablist\"") < component.indexOf("<RssbMistakeDetails"));
+  assert.match(component, /\{tab === "errors" && <>\{marksResult && <RssbMistakeDetails summary=\{summary\}\/>\}<PassageFlow entries=\{mistakes\}/);
   assert.doesNotMatch(component, /Configured method · not officially verified/);
   assert.doesNotMatch(component, /Marks qualification uses/);
   assert.doesNotMatch(component, /<sup/);
