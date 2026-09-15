@@ -145,7 +145,7 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
   // fullErrorPenalty/halfErrorPenalty/errorRelaxationPercent override --
   // so unlike `rules`, this must be derived from effectiveCategory
   // (native OR viewed) every time, not only when viewAsCategorySlug is set.
-  const scoringOverride = effectiveCategory ? { fullErrorPenalty: effectiveCategory.fullErrorPenalty, halfErrorPenalty: effectiveCategory.halfErrorPenalty, errorRelaxationPercent: effectiveCategory.errorRelaxationPercent } : null;
+  const scoringOverride = effectiveCategory ? { fullErrorPenalty: effectiveCategory.fullErrorPenalty, halfErrorPenalty: effectiveCategory.halfErrorPenalty, errorRelaxationPercent: effectiveCategory.errorRelaxationPercent, errorGraceCount: effectiveCategory.errorGraceCount } : null;
   return {
     id: version.testId, slug: version.slug, title: version.title,
     subtitle: version.description || "Samradhi Classes managed test",
@@ -176,7 +176,7 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     // KDPH, the flat-10-per-mistake formula, etc.) but was still SCORED
     // with the generic 1/0.5 penalty and zero error relaxation underneath,
     // silently understating how harsh those boards' real formulas are.
-    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, fullErrorPenalty: scoringOverride?.fullErrorPenalty ?? DEFAULT_SCORING_PROFILE.fullErrorPenalty, halfErrorPenalty: scoringOverride?.halfErrorPenalty ?? DEFAULT_SCORING_PROFILE.halfErrorPenalty, errorRelaxationPercent: scoringOverride?.errorRelaxationPercent, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
+    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, fullErrorPenalty: scoringOverride?.fullErrorPenalty ?? DEFAULT_SCORING_PROFILE.fullErrorPenalty, halfErrorPenalty: scoringOverride?.halfErrorPenalty ?? DEFAULT_SCORING_PROFILE.halfErrorPenalty, errorRelaxationPercent: scoringOverride?.errorRelaxationPercent, errorGraceCount: scoringOverride?.errorGraceCount, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
     audioUrl: null,
     pdfUrl: null,
     pdfFileName: version.pdfFileName ?? null,

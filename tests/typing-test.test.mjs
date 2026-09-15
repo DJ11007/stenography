@@ -164,6 +164,31 @@ test("errorRelaxationPercent is a no-op for every profile that doesn't set it --
   assert.equal(explicitZero.netWpm, withoutRelaxation.netWpm);
 });
 
+// Real reported research: UPSSSC's typing test forgives a FLAT count of
+// mistakes (errorGraceCount) regardless of words typed -- genuinely
+// different from RRB NTPC's percentage-based errorRelaxationPercent above.
+// Reproduces UPSSSC's own worked example end to end: 180 words, 6 full + 4
+// half mistakes (8 mistake-units, since half counts as 0.5), grace 5,
+// penalty (8-5)x5=15 words, net speed (180-15)/5min=33 WPM.
+test("errorGraceCount forgives a flat count of mistakes regardless of words typed, reproducing UPSSSC's own worked example", () => {
+  const graceProfile = { ...DEFAULT_SCORING_PROFILE, fullErrorPenalty: 5, halfErrorPenalty: 2.5, errorGraceCount: 5 };
+  const words = Array.from({ length: 180 }, (_, index) => `w${index}`);
+  const passage = words.join(" ");
+  const typedText = words.map((word, index) => index < 6 ? `WRONG${index}` : index < 10 ? word.toUpperCase() : word).join(" ");
+  const score = calculateTypingScore({ typedText, passage, elapsedSeconds: 300, wordMethod: "spaces", scoringProfile: graceProfile, includeUntypedWords: true });
+  assert.equal(score.grossWpm, 36);
+  assert.equal(score.analysis.fullErrors, 6);
+  assert.equal(score.analysis.halfErrors, 4);
+  assert.equal(score.analysis.totalPenalty, 40);
+  assert.equal(score.netWpm, 33);
+});
+
+test("errorGraceCount is a no-op for every profile that doesn't set it -- identical netWpm to before this feature existed", () => {
+  const withoutGrace = calculateTypingScore({ typedText: "hello Wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", scoringProfile: DEFAULT_SCORING_PROFILE, includeUntypedWords: true });
+  const explicitZero = calculateTypingScore({ typedText: "hello Wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", scoringProfile: { ...DEFAULT_SCORING_PROFILE, errorGraceCount: 0 }, includeUntypedWords: true });
+  assert.equal(explicitZero.netWpm, withoutGrace.netWpm);
+});
+
 test("early stop classifies the untouched suffix as zero-penalty remaining text", () => {
   const score = calculateTypingScore({ typedText: "one", passage: "one two three four", elapsedSeconds: 30, wordMethod: "characters", includeUntypedWords: true });
   assert.deepEqual(score.analysis.entries.map((entry) => entry.status), ["correct", "remaining", "remaining", "remaining"]);

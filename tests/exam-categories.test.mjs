@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { EXAM_CATEGORIES, getExamCategory, examCategoryPresetId, defaultExamCategoryRules } from "../lib/exam-categories.ts";
 import { getExamPreset } from "../lib/typing-curriculum.ts";
+import { calculateTypingScore } from "../lib/typing-test.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -375,6 +376,36 @@ test("durationMinutesHindi defaults to durationMinutes for every category that d
     const english = getExamPreset(examCategoryPresetId(slug, "English"));
     const hindi = getExamPreset(examCategoryPresetId(slug, "Hindi"));
     assert.equal(hindi.durationSeconds, english.durationSeconds, `${slug} both languages should share one duration`);
+  }
+});
+
+// Real requested deep research: UPSSSC's 5-mistake grace was already
+// narrated in prose but never actually implemented (the engine used the
+// platform default 1/0.5 penalty with no grace at all) -- a genuinely
+// different mechanism from RRB NTPC's percentage-based
+// errorRelaxationPercent, since UPSSSC forgives a FLAT count of mistakes
+// regardless of words typed. Verified against a worked example: 180 words,
+// 6 full + 4 half mistakes, grace 5, penalty 15 words, net speed 33 WPM.
+test("UPSSSC Assistants' 5-mistake FLAT grace is now implemented exactly via a new errorGraceCount mechanism, reproducing the sourced worked example", () => {
+  const category = getExamCategory("upsssc-assistants");
+  assert.equal(category.fullErrorPenalty, 5);
+  assert.equal(category.halfErrorPenalty, 2.5);
+  assert.equal(category.errorGraceCount, 5);
+  const english = getExamPreset(examCategoryPresetId("upsssc-assistants", "English"));
+  assert.equal(english.scoringProfile.errorGraceCount, 5);
+  const words = Array.from({ length: 180 }, (_, index) => `w${index}`);
+  const passage = words.join(" ");
+  const typedText = words.map((word, index) => index < 6 ? `WRONG${index}` : index < 10 ? word.toUpperCase() : word).join(" ");
+  const score = calculateTypingScore({ typedText, passage, elapsedSeconds: 300, wordMethod: "spaces", scoringProfile: english.scoringProfile, includeUntypedWords: true });
+  assert.equal(score.grossWpm, 36);
+  assert.equal(score.netWpm, 33);
+  assert.equal(score.analysis.totalPenalty, 40);
+});
+
+test("errorGraceCount is a no-op for every category that doesn't set it (unchanged behavior)", () => {
+  for (const slug of ["ssc-chsl", "rrb-ntpc", "ncert-ldc"]) {
+    const category = getExamCategory(slug);
+    assert.equal(category.errorGraceCount, undefined, `${slug} should not set errorGraceCount`);
   }
 });
 

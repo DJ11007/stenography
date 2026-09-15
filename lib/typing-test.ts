@@ -153,6 +153,17 @@ export type ScoringProfile = {
   // zero relaxation -- calculateTypingScore()'s existing behavior,
   // unchanged.
   errorRelaxationPercent?: number;
+  // UPSSSC's real formula (confirmed via research, worked example: 180
+  // words, 6 full + 4 half mistakes = 8 mistake-units, grace 5, penalty
+  // (8-5)x5=15 words, net speed (180-15)/5min=33 WPM) forgives a FLAT
+  // count of mistake-units rather than a percentage of words typed --
+  // genuinely different from RRB NTPC's errorRelaxationPercent. Expressed
+  // the same way, in penalty-point terms: graceFloor = errorGraceCount x
+  // fullErrorPenalty. Undefined (every other profile) means zero grace,
+  // unchanged from before this field existed. Composes additively with
+  // errorRelaxationPercent if a profile ever set both, though no current
+  // category needs both at once.
+  errorGraceCount?: number;
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -808,11 +819,14 @@ export function calculateTypingScore({
   const grossWpm = Math.round(grossWordCount / elapsedMinutes);
   const analysis = analyzeTyping(passage, typedText, scoringProfile, includeUntypedWords);
   // RRB NTPC's real formula forgives errorRelaxationPercent% of grossWordCount
-  // worth of mistakes before any penalty applies at all (see ScoringProfile's
-  // own doc comment for the exact derivation) -- zero for every profile that
-  // doesn't set it, leaving effectivePenalty === analysis.totalPenalty and
-  // this line's behavior completely unchanged from before.
-  const relaxationPoints = scoringProfile.errorRelaxationPercent ? (scoringProfile.errorRelaxationPercent / 100) * grossWordCount * scoringProfile.fullErrorPenalty : 0;
+  // worth of mistakes before any penalty applies at all; UPSSSC's forgives a
+  // FLAT errorGraceCount of mistakes instead, regardless of words typed (see
+  // ScoringProfile's own doc comments for the exact derivations) -- both are
+  // zero for every profile that doesn't set them, leaving effectivePenalty
+  // === analysis.totalPenalty and this line's behavior completely unchanged
+  // from before either field existed.
+  const relaxationPoints = (scoringProfile.errorRelaxationPercent ? (scoringProfile.errorRelaxationPercent / 100) * grossWordCount * scoringProfile.fullErrorPenalty : 0)
+    + (scoringProfile.errorGraceCount ? scoringProfile.errorGraceCount * scoringProfile.fullErrorPenalty : 0);
   const effectivePenalty = Math.max(0, analysis.totalPenalty - relaxationPoints);
   const netWpm = Math.max(Math.round(grossWpm - effectivePenalty / elapsedMinutes), 0);
   const efficiency = grossWpm > 0 ? Math.min(100, Math.round((netWpm / grossWpm) * 100)) : 100;
