@@ -233,9 +233,24 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
 // Rajasthan DEO) has no negative marking, so the penalty-based "Half
 // mistake / Full mistake" scoring guide misstates its real rules and must
 // not render for any test using that marks method.
-test("the penalty-based Error Scoring Guide is hidden for RSSB marks-method tests, shown otherwise", () => {
+test("the penalty-based Error Scoring Guide is hidden for RSSB marks-method tests and for Practice attempts, shown otherwise", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
-  assert.match(component, /\{!marksResult && <ErrorScoringGuide profile=\{preset\.scoringProfile\} textLanguage=\{textLanguage\} entries=\{score\.analysis\.entries\} savedPenalty=\{score\.analysis\.totalPenalty\}\/>\}/);
+  assert.match(component, /\{!marksResult && mode !== "practice" && <ErrorScoringGuide profile=\{preset\.scoringProfile\} textLanguage=\{textLanguage\} entries=\{score\.analysis\.entries\} savedPenalty=\{score\.analysis\.totalPenalty\}\/>\}/);
+});
+
+// Real reported request: the exact penalty weight ("Applied penalty" column
+// showing 1 / 0.5) is specific to each exam's own official rules, which get
+// researched and configured one exam at a time (see RSSB's marks method) --
+// asserting a generic 1/0.5 for every exam misrepresents exams that haven't
+// been researched yet, so it now shows "-" until that exam's real rule is
+// implemented. Practice isn't following any specific exam's rules at all,
+// so it drops the whole guide instead (see the test above), rather than
+// showing it with every value blanked.
+test("the Error Scoring Guide shows \"-\" for Applied penalty instead of asserting a generic 1/0.5 for every exam", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(component, /\{number\(definition\.penalty\)\}/);
+  assert.match(component, /className="p-3 font-black" title="Not yet configured for this exam's official rules">-<\/td>/);
+  assert.match(component, /\{definition\.kind==="full"\?"Full mistake":"Half mistake"\} · -<\/span>/);
 });
 
 test("the Summary tab's calculations are told whether this preset uses the RSSB marks method, so its Net WPM formula can switch", () => {

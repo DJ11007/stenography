@@ -10,6 +10,6 @@ import { AdvancedTypingResults } from "@/app/typing/_components/advanced-typing-
 // needs an onRestart callback (meaningless for an admin reviewing someone
 // else's finished attempt, so it's a no-op here) and is itself a client
 // component, which the server page above can't render directly.
-export function AttemptReviewClient(props: { preset: ExamPreset; inputSystem: InputSystem; passage: string; typedText: string; score: TypingScore; backspaces: number; returnHref: string; returnLabel: string }) {
+export function AttemptReviewClient(props: { preset: ExamPreset; inputSystem: InputSystem; passage: string; typedText: string; score: TypingScore; backspaces: number; returnHref: string; returnLabel: string; mode: "practice" | "exam" }) {
   return <AdvancedTypingResults {...props} onRestart={() => {}} />;
 }
