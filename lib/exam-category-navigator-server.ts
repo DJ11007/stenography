@@ -1,5 +1,5 @@
 import { createClient } from "./supabase/server";
-import { normalizeExamCategoryPage, examCategoryPageBounds, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
+import { normalizeExamCategoryPage, examCategoryPageBounds, sortExamCategoryNavigatorItems, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
 export { normalizeExamCategoryPage, examCategoryPageBounds, examCategoryPageCount, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
 
 export type ExamCategoryNavigatorItem={id:string;slug:string;title:string;publishedAt:string|null};
@@ -18,6 +18,11 @@ export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"
 // query (no caching on this route -- createClient() forces dynamic
 // rendering), so it's retroactive: a newly published exercise appears on
 // every category's list immediately, no admin re-save needed.
+//
+// Fetched in date order (page boundaries come from published_at), then
+// re-sorted within that page by sortExamCategoryNavigatorItems() so
+// plainly-numbered titles ("CHAPTER - 8") display in their natural serial
+// order instead of publish order.
 export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilters){
  const supabase=await createClient();const oldest=filters.sort==="oldest";
  const query=supabase.from("tests").select("id,slug,title,published_at",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
@@ -25,5 +30,5 @@ export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilt
  if(error){console.error("Exam category navigator query failed",{code:error.code,message:error.message});throw new Error(`Exam exercises could not be loaded (${error.code||"database error"}).`);}
  const total=count??0;const bounds=examCategoryPageBounds(requested,total);
  const items:ExamCategoryNavigatorItem[]=(data??[]).map(test=>({id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at}));
- return{items,total,...bounds};
+ return{items:sortExamCategoryNavigatorItems(items,oldest?"ascending":"descending"),total,...bounds};
 }

@@ -73,7 +73,7 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
 
         {items.length === 0
           ? <p className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">No additional exercises have been published yet for {category.name} in {language}. Practice with the Official Pattern above, or check back soon.</p>
-          : <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          : <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {items.map((item, index) => (
                 // Every category's list now includes every exam exercise
                 // (see getExamCategoryNavigator), whichever category it was

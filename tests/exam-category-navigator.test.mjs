@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { normalizeExamCategoryPage, examCategoryPageBounds, examCategoryPageCount, EXAM_CATEGORY_PAGE_SIZE } from "../lib/exam-category-navigator.ts";
+import { normalizeExamCategoryPage, examCategoryPageBounds, examCategoryPageCount, sortExamCategoryNavigatorItems, EXAM_CATEGORY_PAGE_SIZE } from "../lib/exam-category-navigator.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -24,12 +24,6 @@ test("server query filters mode/status/visibility/is_live/language, ordered by p
   for (const expected of [/\.eq\("mode","exam"\)/, /\.eq\("status","published"\)/, /\.eq\("visibility","public"\)/, /\.eq\("is_live",false\)/, /\.eq\("language",filters\.language\)/, /\.order\("published_at",\{ascending:oldest\}\)\.order\("id",\{ascending:true\}\)/, /\.range\(from,from\+EXAM_CATEGORY_PAGE_SIZE-1\)/]) assert.match(server, expected);
 });
 
-// Real feature: every Rajasthan LDC exercise the admin uploads is shared
-// into every other category's own list automatically -- Rajasthan LDC's
-// own list stays exactly its own uploads (never broadened, no
-// double-counting risk since exam_category is a single scalar string per
-// test), every other category's list also matches Rajasthan-LDC-tagged
-// tests via a PostgREST .or() filter.
 // Real reported request: every category's list should include every exam
 // exercise, whichever category it was native-uploaded under -- not just
 // its own uploads plus Rajasthan LDC's. No exam_category filter at all
@@ -60,4 +54,19 @@ test("the exercise-selection page shows the permanent Official Pattern card, a n
 test("exercise links carry ?viewAs=<category> on every category page, unconditionally", async () => {
   const page = await read("app/typing/exams/category/[slug]/[language]/page.tsx");
   assert.match(page, /href=\{`\/tests\/\$\{item\.slug\}\?viewAs=\$\{slug\}`\}/);
+});
+
+// Real reported bug: "CHAPTER - 8" was published before "CHAPTER - 6", so
+// the page listed them 1,2,3,4,5,8,6,9,7 -- publish order, not the serial
+// order a student expects from titles that are plainly numbered.
+test("sortExamCategoryNavigatorItems re-orders numbered titles into serial order, ascending for Oldest", () => {
+  const publishOrder = [{ title: "CHAPTER - 1" }, { title: "CHAPTER - 2" }, { title: "CHAPTER - 3" }, { title: "CHAPTER - 4" }, { title: "CHAPTER - 5" }, { title: "CHAPTER - 8" }, { title: "CHAPTER - 6" }, { title: "CHAPTER - 9" }, { title: "CHAPTER - 7" }];
+  const serial = sortExamCategoryNavigatorItems(publishOrder, "ascending").map((item) => item.title);
+  assert.deepEqual(serial, ["CHAPTER - 1", "CHAPTER - 2", "CHAPTER - 3", "CHAPTER - 4", "CHAPTER - 5", "CHAPTER - 6", "CHAPTER - 7", "CHAPTER - 8", "CHAPTER - 9"]);
+});
+
+test("sortExamCategoryNavigatorItems reverses to descending for Newest, and keeps unnumbered titles at the end in their original relative order", () => {
+  const items = [{ title: "CHAPTER - 2" }, { title: "Official Rules Notice" }, { title: "CHAPTER - 1" }, { title: "Practice Tips" }];
+  assert.deepEqual(sortExamCategoryNavigatorItems(items, "ascending").map((item) => item.title), ["CHAPTER - 1", "CHAPTER - 2", "Official Rules Notice", "Practice Tips"]);
+  assert.deepEqual(sortExamCategoryNavigatorItems(items, "descending").map((item) => item.title), ["CHAPTER - 2", "CHAPTER - 1", "Official Rules Notice", "Practice Tips"]);
 });
