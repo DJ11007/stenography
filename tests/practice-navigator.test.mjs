@@ -5,23 +5,34 @@ import { resolvePracticeSelection } from "../lib/practice-navigator.ts";
 const read=(path)=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
 test("direct selector uses real compatible test metadata and stable ordering",async()=>{const server=await read("lib/practice-navigator-server.ts"),page=await read("app/typing/practice/_components/practice-navigator.tsx");for(const expected of [/getPracticeSelector/,/\.eq\("mode",filters\.mode\)/,/\.eq\("status","published"\)/,/\.eq\("visibility","public"\)/,/\.eq\("is_live",false\)/,/\.eq\("language",filters\.language\)/,/\.eq\("input_system_id",filters\.inputSystemId\)/,/\.order\("published_at",\{ascending:oldest\}\)\.order\("id",\{ascending:true\}\)/])assert.match(server,expected);assert.match(page,/items\.length/);assert.match(page,/Test \$\{index \+ 1\} of \$\{items\.length\}/);assert.doesNotMatch(page,/500/);});
 
-test("students can explicitly sort the practice test picker by newest or oldest, not just whatever order the admin happened to publish tests in", async () => {
+test("students can explicitly sort the practice test picker by newest or oldest from the Choose a test landing page, not just whatever order the admin happened to publish tests in", async () => {
   const server = await read("lib/practice-navigator-server.ts");
   const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
-  const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(server, /sort\?:"newest"\|"oldest"/);
   assert.match(server, /const oldest=filters\.sort==="oldest";/);
   assert.match(navigator, /const sort = params\.sort === "newest" \? "newest" : "oldest";/);
   assert.match(navigator, /if \(forSort === "newest"\) query\.set\("sort", "newest"\);/);
-  // reuses the already-fetched, already-ordered list's own endpoints instead
-  // of a second query -- which endpoint is "newest" depends on which
-  // direction is currently active.
-  assert.match(navigator, /const newestSlug = sort === "newest" \? items\[0\]\.slug : items\[items\.length - 1\]\.slug;/);
-  assert.match(navigator, /const oldestSlug = sort === "newest" \? items\[items\.length - 1\]\.slug : items\[0\]\.slug;/);
-  assert.match(workspace, /aria-pressed=\{practiceNavigation\.sort==="newest"\}/);
-  assert.match(workspace, /aria-pressed=\{practiceNavigation\.sort==="oldest"\}/);
-  assert.match(workspace, /onClick=\{\(\)=>onNavigateTest\(practiceNavigation\.newestHref\)\}/);
-  assert.match(workspace, /onClick=\{\(\)=>onNavigateTest\(practiceNavigation\.oldestHref\)\}/);
+  assert.match(navigator, /role="group" aria-label="Sort tests"/);
+});
+
+// Real reported request: the in-workspace toolbar's Newest/Oldest toggle
+// (next to the "Test N of M" dropdown) was redundant with the landing
+// page's own Newest/Oldest sort and just added clutter/wrapping risk to an
+// already-packed toolbar -- removed here, leaving the landing-page toggle
+// (checked above) as the only place that sort choice lives. newestHref/
+// oldestHref/sort were only ever computed to feed this removed toggle, so
+// they're gone from PracticeNavigation and its construction too, not just
+// hidden.
+test("the in-workspace toolbar no longer shows a Newest/Oldest toggle next to the practice test navigator", async () => {
+  const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
+  const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
+  assert.doesNotMatch(workspace, /Sort tests by/);
+  assert.doesNotMatch(workspace, /practiceNavigation\.sort/);
+  assert.doesNotMatch(workspace, /practiceNavigation\.newestHref/);
+  assert.doesNotMatch(workspace, /practiceNavigation\.oldestHref/);
+  assert.match(workspace, /export type PracticeNavigation=\{currentIndex:number;total:number;items:\{title:string;href:string;label:string\}\[\];previousHref:string\|null;nextHref:string\|null\};/);
+  assert.doesNotMatch(navigator, /newestSlug/);
+  assert.doesNotMatch(navigator, /oldestSlug/);
 });
 test("valid URL selections are retained and invalid selections fall back to the first stable item",()=>{const items=[{slug:"first"},{slug:"second"}];assert.deepEqual(resolvePracticeSelection(items,"second"),{selectedIndex:1,selected:items[1],fellBack:false});assert.deepEqual(resolvePracticeSelection(items,"missing"),{selectedIndex:0,selected:items[0],fellBack:true});assert.deepEqual(resolvePracticeSelection(items),{selectedIndex:0,selected:items[0],fellBack:true});assert.deepEqual(resolvePracticeSelection([],"missing"),{selectedIndex:0,selected:undefined,fellBack:true});});
 test("English typing opens a canonical selected workspace without the pre-start page",async()=>{const route=await read("app/typing/practice/english/page.tsx"),navigator=await read("app/typing/practice/_components/practice-navigator.tsx"),workspace=await read("app/typing/_components/configurable-typing-exam.tsx");assert.match(route,/<PracticeNavigator language="English"/);assert.match(navigator,/if \(params\.test !== selected\.slug\) redirect\(queryFor\(selected\.slug\)\)/);assert.match(navigator,/customPreset directWorkspace/);assert.match(workspace,/useState\(directWorkspace\)/);assert.match(workspace,/if \(!started\) return <ExamStart/);});

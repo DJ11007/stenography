@@ -35,7 +35,7 @@ test("students see a Download PDF button when the admin attached one, separate f
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(workspace, /\{preset\.pdfUrl && <a href=\{preset\.pdfUrl\}/);
   assert.match(workspace, /Download PDF/);
-  assert.match(workspace, /🖨️ Print \/ PDF/); // still present, unreplaced
+  assert.match(workspace, /onClick=\{printPassage\}[^>]+>🖨️<\/button>/); // still present, unreplaced
 });
 
 test("both server routes that build a managed test preset (direct practice workspace and the canonical /tests/[slug] page) sign and populate pdfUrl the same way they already do for audioUrl", async () => {

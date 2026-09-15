@@ -106,22 +106,12 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
   const { selectedIndex, selected } = resolvePracticeSelection(items, params.test);
   if (params.test !== selected.slug) redirect(queryFor(selected.slug));
 
-  // items is already ordered by the active sort, so its own first/last
-  // entries tell us where "Newest"/"Oldest" should jump to without a
-  // second query -- whichever end holds the newest test depends on which
-  // direction is currently active.
-  const newestSlug = sort === "newest" ? items[0].slug : items[items.length - 1].slug;
-  const oldestSlug = sort === "newest" ? items[items.length - 1].slug : items[0].slug;
-
   const navigation: PracticeNavigation = {
     currentIndex: selectedIndex,
     total: items.length,
     items: items.map((item, index) => ({ title: item.title, href: queryFor(item.slug), label: `Test ${index + 1} of ${items.length}` })),
     previousHref: selectedIndex > 0 ? queryFor(items[selectedIndex - 1].slug) : null,
     nextHref: selectedIndex < items.length - 1 ? queryFor(items[selectedIndex + 1].slug) : null,
-    sort,
-    newestHref: queryFor(newestSlug, "newest"),
-    oldestHref: queryFor(oldestSlug, "oldest"),
   };
 
   let selectedTestQuery = supabase.from("tests").select("id,slug,current_version_id").eq("id", selected.id).eq("mode", mode).eq("language", language).eq("status", "published").eq("visibility", "public").eq("is_live", false);

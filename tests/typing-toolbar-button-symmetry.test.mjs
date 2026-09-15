@@ -17,7 +17,7 @@ test("every control in the workspace toolbar (Submit, Pause, timer, Settings, fu
   const toolbar = workspace.slice(start, end);
   const navStart = workspace.indexOf('aria-label="Practice test navigation"');
   const nav = navStart >= 0 ? workspace.slice(navStart, start) : "";
-  for (const label of ["Submit", "Pause", "role=\"timer\"", "Settings", "Enter full screen", "Print / PDF", "Printout Mode"]) {
+  for (const label of ["Submit", "Pause", "role=\"timer\"", "Settings", "Enter full screen", "Print or save this passage as a PDF", "Printout Mode"]) {
     assert.ok(toolbar.includes(label), `toolbar missing ${label}`);
   }
   const h9Count = (toolbar.match(/h-9/g) ?? []).length;
