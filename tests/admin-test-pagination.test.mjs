@@ -40,3 +40,17 @@ test("the admin test manager shows a total test count, paginates the filtered li
   assert.match(manager, />Next ›<\/button>/);
   assert.match(manager, />Last »<\/button>/);
 });
+
+// Real reported request: /admin/practice-tests (and every other section
+// built on the shared TestManager) defaulted to "Recently updated", so
+// "TEST - 8" published before "TEST - 6" showed out of series. The list now
+// defaults to the same numbered-title "serial" sort already used on the
+// student-facing exam category navigator (lib/exam-category-navigator.ts),
+// with the old sorts still offered as alternatives.
+test("the admin test manager defaults to serial (numbered-title) sort, reusing the exam category navigator's sort helper", async () => {
+  const manager = await read("app/admin/tests/test-manager.tsx");
+  assert.match(manager, /import \{ sortExamCategoryNavigatorItems \} from "@\/lib\/exam-category-navigator";/);
+  assert.match(manager, /const \[sort,setSort\] = useState\("serial"\);/);
+  assert.match(manager, /if \(sort==="serial"\) return sortExamCategoryNavigatorItems\(matches,"ascending"\);/);
+  assert.match(manager, /<option value="serial">Serial \(1, 2, 3…\)<\/option><option value="updated">Recently updated<\/option>/);
+});

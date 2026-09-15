@@ -7,6 +7,7 @@ import { hindiInputSystemsFor } from "@/lib/typing-curriculum";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { STENOGRAPHY_CATEGORIES } from "@/lib/stenography-categories";
 import { STENOGRAPHY_TASK_CATEGORIES } from "@/lib/stenography-task-library";
+import { sortExamCategoryNavigatorItems } from "@/lib/exam-category-navigator";
 import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, type HalfErrorCategory } from "@/lib/typing-test";
 import { encodingValidationMessage, type HindiTextFormat } from "@/lib/hindi-font-converter";
 import { FontConverter } from "@/app/admin/font-converter/font-converter";
@@ -57,7 +58,13 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
   // wants to find their own uploads quickly. Only shown at all once we
   // actually know who "mine" is.
   const [ownership,setOwnership] = useState<"all"|"mine">("all");
-  const [sort,setSort] = useState("updated");
+  // Real reported request: the admin list defaulted to "Recently updated",
+  // so a title like "TEST - 8" published before "TEST - 6" showed out of
+  // series. "serial" is the default now -- same numbered-title sort already
+  // used for the student-facing exam category navigator -- so the list
+  // reads 1, 2, 3... regardless of save order; the other sorts remain
+  // available for when that's what's actually wanted.
+  const [sort,setSort] = useState("serial");
   // How many rows show per page, and which page -- the admin asked for
   // this explicitly (previously every matching test rendered in one long
   // list with no count or paging at all). 20/30 are the two sizes
@@ -156,7 +163,11 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
     resync("highlightMode", highlightMode);
     resync("visibility", visibility);
   }, [state, language, inputSystem, examCategorySlug, stenoCategorySlug, taskCategory, backspaceMode, wordMethod, highlightMode, visibility]);
-  const filtered = useMemo(() => tests.filter((item) => { const q=query.toLowerCase(); const languageMatch=filterLanguage==="all"||item.language===filterLanguage||item.input_system_id.includes(filterLanguage); const modeMatch=filterMode==="all"||item.mode===filterMode||(filterMode==="typing"&&item.mode!=="stenography"); const ownershipMatch=ownership==="all"||!currentAdminId||item.created_by===currentAdminId; return (!q||`${item.title} ${item.slug}`.toLowerCase().includes(q))&&(status==="all"||item.status===status)&&languageMatch&&modeMatch&&ownershipMatch; }).sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="attempts"?b.attempts-a.attempts:new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime()), [tests,query,status,filterLanguage,filterMode,ownership,currentAdminId,sort]);
+  const filtered = useMemo(() => {
+    const matches = tests.filter((item) => { const q=query.toLowerCase(); const languageMatch=filterLanguage==="all"||item.language===filterLanguage||item.input_system_id.includes(filterLanguage); const modeMatch=filterMode==="all"||item.mode===filterMode||(filterMode==="typing"&&item.mode!=="stenography"); const ownershipMatch=ownership==="all"||!currentAdminId||item.created_by===currentAdminId; return (!q||`${item.title} ${item.slug}`.toLowerCase().includes(q))&&(status==="all"||item.status===status)&&languageMatch&&modeMatch&&ownershipMatch; });
+    if (sort==="serial") return sortExamCategoryNavigatorItems(matches,"ascending");
+    return [...matches].sort((a,b)=>sort==="title"?a.title.localeCompare(b.title):sort==="attempts"?b.attempts-a.attempts:new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime());
+  }, [tests,query,status,filterLanguage,filterMode,ownership,currentAdminId,sort]);
   useEffect(()=>{setPage(1);},[query,status,filterLanguage,filterMode,ownership,sort,pageSize]);
   const pageCount = Math.max(1,Math.ceil(filtered.length/pageSize));
   const safePage = Math.min(page,pageCount);
@@ -240,7 +251,7 @@ export default function TestManager({ tests, lockedMode, lockedLanguage, lockedI
     <section className="rounded-2xl bg-white p-5 shadow">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><span className="inline-flex rounded-full bg-slate-900 px-3 py-1.5 text-sm font-black text-white">{tests.length.toLocaleString("en-IN")} test{tests.length===1?"":"s"} total</span>{filtered.length!==tests.length && <span className="text-xs font-bold text-slate-500">{filtered.length.toLocaleString("en-IN")} match the filters below</span>}</div>
       {currentAdminId && <div role="radiogroup" aria-label="Show tests created by" className="mb-3 flex gap-4 text-sm font-bold text-slate-700"><label className="flex items-center gap-1.5"><input type="radio" name="ownership" checked={ownership==="all"} onChange={()=>setOwnership("all")}/>Public (everyone&apos;s)</label><label className="flex items-center gap-1.5"><input type="radio" name="ownership" checked={ownership==="mine"} onChange={()=>setOwnership("mine")}/>Personal (mine only)</label></div>}
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5"><input aria-label="Search tests" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search title or slug" className="input"/><select aria-label="Filter status" value={status} onChange={(event)=>setStatus(event.target.value)} className="input"><option value="all">All statuses</option>{["draft","published","unpublished","archived"].map((value)=><option key={value}>{value}</option>)}</select>{!lockedLanguage && <select aria-label="Filter language" value={filterLanguage} onChange={(event)=>setFilterLanguage(event.target.value)} className="input"><option value="all">All languages</option><option>English</option><option>Hindi</option><option value="unicode">Hindi Unicode</option><option value="krutidev">Kruti Dev</option></select>}{!effectiveMode && <select aria-label="Filter mode" value={filterMode} onChange={(event)=>setFilterMode(event.target.value)} className="input"><option value="all">All modes</option><option value="typing">Typing</option>{["learn","practice","exam","stenography"].map((value)=><option key={value}>{value}</option>)}</select>}<select aria-label="Sort tests" value={sort} onChange={(event)=>setSort(event.target.value)} className="input"><option value="updated">Recently updated</option><option value="title">Title</option><option value="attempts">Attempts</option></select></div>
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5"><input aria-label="Search tests" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search title or slug" className="input"/><select aria-label="Filter status" value={status} onChange={(event)=>setStatus(event.target.value)} className="input"><option value="all">All statuses</option>{["draft","published","unpublished","archived"].map((value)=><option key={value}>{value}</option>)}</select>{!lockedLanguage && <select aria-label="Filter language" value={filterLanguage} onChange={(event)=>setFilterLanguage(event.target.value)} className="input"><option value="all">All languages</option><option>English</option><option>Hindi</option><option value="unicode">Hindi Unicode</option><option value="krutidev">Kruti Dev</option></select>}{!effectiveMode && <select aria-label="Filter mode" value={filterMode} onChange={(event)=>setFilterMode(event.target.value)} className="input"><option value="all">All modes</option><option value="typing">Typing</option>{["learn","practice","exam","stenography"].map((value)=><option key={value}>{value}</option>)}</select>}<select aria-label="Sort tests" value={sort} onChange={(event)=>setSort(event.target.value)} className="input"><option value="serial">Serial (1, 2, 3…)</option><option value="updated">Recently updated</option><option value="title">Title</option><option value="attempts">Attempts</option></select></div>
       <Pagination page={safePage} pageCount={pageCount} pageSize={pageSize} rangeStart={rangeStart} rangeEnd={rangeEnd} total={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} position="top"/>
       <div className="mt-3 space-y-1.5">{pageItems.length ? pageItems.map((test)=><TestRow key={test.id} test={test} learningOnly={learningOnly} onEdit={()=>choose(test)}/>) : <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">No tests match these filters.</p>}</div>
       <Pagination page={safePage} pageCount={pageCount} pageSize={pageSize} rangeStart={rangeStart} rangeEnd={rangeEnd} total={filtered.length} onPageChange={setPage} onPageSizeChange={setPageSize} position="bottom"/>
