@@ -328,6 +328,56 @@ test("Delhi Police HCM is researched with no half-mistake concession -- every mi
   assert.equal(english.scoringProfile.halfErrorPenalty, 10);
 });
 
+// Real requested deep research: a dedicated EMRS/KVS-specific source
+// (centralized testing agency, same pattern across both) confirms no live
+// word/error highlight and no auto-scroll for both, plus a flat "any wrong
+// word costs one full word" penalty with no half-mistake leniency --
+// halfErrorPenalty raised to match fullErrorPenalty (1) instead of the
+// platform default 0.5. Also confirms EMRS's typing carries 50 marks (20
+// to qualify), not previously documented.
+test("KVS JSA and EMRS JSA are researched with no live highlight/auto-scroll and a flat no-half-leniency penalty (halfErrorPenalty raised to match fullErrorPenalty)", () => {
+  for (const slug of ["kvs-jsa", "emrs-jsa"]) {
+    const category = getExamCategory(slug);
+    assert.ok(category, `expected ${slug} to exist`);
+    assert.equal(category.highlightMode, "none");
+    assert.equal(category.halfErrorPenalty, 1);
+    assert.equal(category.fullErrorPenalty, undefined, `${slug} fullErrorPenalty should stay at the platform default (1)`);
+    const english = getExamPreset(examCategoryPresetId(slug, "English"));
+    assert.equal(english.highlightMode, "none");
+    assert.equal(english.scoringProfile.fullErrorPenalty, 1);
+    assert.equal(english.scoringProfile.halfErrorPenalty, 1);
+  }
+  assert.ok(getExamCategory("emrs-jsa").patternNotes.some((note) => note.includes("50 marks")));
+});
+
+// Real requested deep research: Jharkhand High Court Assistant's English
+// and Hindi typing tests genuinely run different durations (200 words / 5
+// minutes / 40 WPM English vs 300 words / 10 minutes / 30 WPM Hindi) --
+// every other category's two languages share one duration, so this needed
+// a new durationMinutesHindi override (falling back to durationMinutes for
+// every other category, unaffected).
+test("Jharkhand High Court Assistant's English and Hindi presets each get their own real, confirmed duration via durationMinutesHindi", () => {
+  const category = getExamCategory("jharkhand-hc-assistant");
+  assert.equal(category.durationMinutes, 5);
+  assert.equal(category.durationMinutesHindi, 10);
+  const english = getExamPreset(examCategoryPresetId("jharkhand-hc-assistant", "English"));
+  const hindi = getExamPreset(examCategoryPresetId("jharkhand-hc-assistant", "Hindi"));
+  assert.equal(english.durationSeconds, 5 * 60);
+  assert.equal(english.speedRequirement, 40);
+  assert.equal(hindi.durationSeconds, 10 * 60);
+  assert.equal(hindi.speedRequirement, 30);
+});
+
+test("durationMinutesHindi defaults to durationMinutes for every category that doesn't set it (unchanged behavior)", () => {
+  for (const slug of ["ssc-chsl", "rrb-ntpc", "rajasthan-ldc"]) {
+    const category = getExamCategory(slug);
+    assert.equal(category.durationMinutesHindi, undefined, `${slug} should not set durationMinutesHindi`);
+    const english = getExamPreset(examCategoryPresetId(slug, "English"));
+    const hindi = getExamPreset(examCategoryPresetId(slug, "Hindi"));
+    assert.equal(hindi.durationSeconds, english.durationSeconds, `${slug} both languages should share one duration`);
+  }
+});
+
 // Real requested research: which Rajasthan/RSSB posts beyond the existing
 // "Rajasthan LDC" category genuinely need their own typing exam category.
 // Clerk/Clerk Grade-II and Personal Assistant Grade-II turned out to be the

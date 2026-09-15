@@ -29,16 +29,23 @@ test("every exam category's patternNotes are individually researched (not templa
 });
 
 // A category whose real pattern genuinely could not be confirmed (Bihar
-// Civil Court Clerk, Jharkhand High Court Assistant) must stay honestly
-// marked unsourced rather than have a fabricated-sounding pattern applied
-// to it just because most other categories now have rich research.
-test("categories with no confirmed official notification stay marked unsourced, not silently upgraded", () => {
+// Civil Court Clerk) must stay honestly marked unsourced rather than have a
+// fabricated-sounding pattern applied to it just because most other
+// categories now have rich research. Jharkhand High Court Assistant, by
+// contrast, WAS genuinely upgraded during a later deep-research pass (a
+// real source gave 200 words/5 min/40 WPM English vs 300 words/10 min/30
+// WPM Hindi) -- a real fact-finding upgrade, not a silent/fabricated one.
+test("a category with no confirmed official notification stays marked unsourced (Bihar Civil Court Clerk), while one genuinely upgraded by later research (Jharkhand HC Assistant) is marked sourced with its own real, asymmetric per-language duration", () => {
   const bihar = EXAM_CATEGORIES.find((category) => category.slug === "bihar-civil-court-clerk");
   const jharkhand = EXAM_CATEGORIES.find((category) => category.slug === "jharkhand-hc-assistant");
   assert.ok(bihar && jharkhand);
   assert.equal(bihar.patternSourced, false);
-  assert.equal(jharkhand.patternSourced, false);
   assert.ok(bihar.patternNotes.some((note) => /no confirmed pattern|verify/i.test(note)));
+  assert.equal(jharkhand.patternSourced, true);
+  assert.equal(jharkhand.durationMinutes, 5);
+  assert.equal(jharkhand.durationMinutesHindi, 10);
+  assert.equal(jharkhand.speedEnglish, 40);
+  assert.equal(jharkhand.speedHindi, 30);
 });
 
 // The exam simulator's own start screen (not just the /category/[slug] rules

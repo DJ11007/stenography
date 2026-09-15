@@ -202,7 +202,13 @@ export const EXAM_PRESETS: ExamPreset[] = [
 
 function categoryPreset(category: ExamCategoryDefinition, language: "English" | "Hindi"): ExamPreset {
   const id = examCategoryPresetId(category.slug, language);
-  const durationSeconds = category.durationMinutes * 60;
+  // durationMinutesHindi lets a category's Hindi test run a genuinely
+  // different duration than its English one (e.g. Jharkhand High Court
+  // Assistant's confirmed 5-minute English / 10-minute Hindi split) --
+  // undefined for every other category, so durationMinutes still covers
+  // both languages exactly as before this field existed.
+  const durationMinutes = language === "Hindi" ? (category.durationMinutesHindi ?? category.durationMinutes) : category.durationMinutes;
+  const durationSeconds = durationMinutes * 60;
   const subtitle = `${category.fullName} (${category.patternSourced ? "researched exam pattern" : "estimated baseline — verify official pattern"})`;
   // Rajasthan LDC/RSMSSB is the one category with a genuinely confirmed,
   // exact marks scheme (25 max, 9 to qualify, 0.05/0.0625 marks per correct
@@ -222,10 +228,10 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
     // 15-minute duration would otherwise only produce 750) -- required for
     // preset()'s build-time check against RSSB_DEO_MARKS_METHOD's
     // passageWordLimit to pass.
-    const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(500 * (category.durationMinutes / 10)));
+    const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(500 * (durationMinutes / 10)));
     return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedEnglish, { fullErrorPenalty: category.fullErrorPenalty, halfErrorPenalty: category.halfErrorPenalty, errorRelaxationPercent: category.errorRelaxationPercent }), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
   }
-  const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(400 * (category.durationMinutes / 10)));
+  const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(400 * (durationMinutes / 10)));
   // Kruti Dev's passageOverride is otherwise a fixed 400-word constant
   // (see HINDI_KRUTI_DEV) -- Rajasthan DEO needs its own 1250-word variant
   // of the same source text, or preset()'s build-time word-count check

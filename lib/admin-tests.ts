@@ -16,7 +16,10 @@ import { LEGACY_SIGNAL } from "./hindi-font-converter.ts";
 // (wordMethod/highlightMode were forgotten in one of the two places).
 export function examCategoryTypingRules(category: ExamCategoryDefinition, language: "English" | "Hindi") {
   return {
-    durationSeconds: category.durationMinutes * 60,
+    // durationMinutesHindi lets a category's Hindi test run a genuinely
+    // different duration than English (e.g. Jharkhand High Court
+    // Assistant's confirmed 5-minute English / 10-minute Hindi split).
+    durationSeconds: (language === "Hindi" ? (category.durationMinutesHindi ?? category.durationMinutes) : category.durationMinutes) * 60,
     requiredWpm: language === "Hindi" ? category.speedHindi : category.speedEnglish,
     requiredAccuracy: category.accuracy,
     backspaceMode: category.backspaceMode,
