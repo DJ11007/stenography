@@ -13,7 +13,22 @@ export type ResultCalculation = {
   netWpmFormula: string;
   efficiency: number;
   qualified: boolean;
+  qualifiedFormula: string;
 };
+
+type MarksMethod = NonNullable<import("./typing-curriculum.ts").ExamPreset["marksMethod"]>;
+
+// RSMSSB's real qualifying rule is a raw correct-word count against its marks
+// scheme (correctWords x marksPerCorrectWord >= minimumPassingMarks) -- it has
+// no separate WPM gate at all. The category's speedEnglish/speedHindi value
+// (surfaced as ExamPreset.speedRequirement and scoringProfile.passNetWpm) is
+// the pace for FULL marks (500/400 words in 10 minutes), not the pace needed
+// to pass, so using it as a "Required WPM" qualification threshold understates
+// how much speed is actually required to qualify -- e.g. Hindi's 40 WPM
+// full-marks pace vs. the true ~14.4 WPM needed for the 9-mark minimum.
+export function requiredWpmForMarksMethod(method: MarksMethod) {
+  return method.minimumPassingMarks / method.marksPerCorrectWord / (method.requiredDurationSeconds / 60);
+}
 
 export function comparisonWordDisplay(entry: WordAnalysisEntry) {
   return {
@@ -89,6 +104,7 @@ export function buildResultCalculations(args: {
   elapsedSeconds: number;
   scoringProfile: ScoringProfile;
   hasMarksMethod?: boolean;
+  marksMethod?: MarksMethod;
 }) {
   return (["characters", "spaces"] as WordMethod[]).map((method): ResultCalculation => {
     const score = calculateTypingScore({ ...args, wordMethod: method, includeUntypedWords: true });
@@ -100,6 +116,19 @@ export function buildResultCalculations(args: {
     const netWpm = args.hasMarksMethod ? Math.round(score.correctWords / elapsedMinutes) : score.netWpm;
     const netWpmFormula = args.hasMarksMethod ? "Fully correct words ÷ elapsed minutes (RSMSSB has no negative marking)." : "Gross WPM − combined error penalty ÷ elapsed minutes; minimum zero.";
     const efficiency = score.grossWpm > 0 ? Math.min(100, Math.round((netWpm / score.grossWpm) * 100)) : 100;
+    // Mirrors calculateConfiguredRssbMarks()'s own qualifying rule exactly, so
+    // this table's "Qualification" can never disagree with the Configured
+    // Marks Method panel above it: both are correctWords x marksPerCorrectWord
+    // >= minimumPassingMarks, independent of elapsed time and of which word
+    // method is selected. Comparing netWpm against scoringProfile.passNetWpm
+    // (the full-marks pace) instead, as this used to, could show "Not
+    // qualified" here for an attempt the marks panel already marked Qualified.
+    const qualified = args.marksMethod
+      ? score.correctWords * args.marksMethod.marksPerCorrectWord >= args.marksMethod.minimumPassingMarks
+      : netWpm >= args.scoringProfile.passNetWpm && score.accuracy >= args.scoringProfile.passAccuracy;
+    const qualifiedFormula = args.marksMethod
+      ? `Correct words × ${args.marksMethod.marksPerCorrectWord} ≥ ${args.marksMethod.minimumPassingMarks} minimum passing marks (RSMSSB's real, time-independent qualifying rule).`
+      : "Both net-speed and accuracy requirements must pass.";
     return {
       method,
       label: method === "characters" ? "Character-based calculation (5 characters = 1 word)" : "Space-separated word calculation",
@@ -111,7 +140,8 @@ export function buildResultCalculations(args: {
       netWpm,
       netWpmFormula,
       efficiency,
-      qualified: netWpm >= args.scoringProfile.passNetWpm && score.accuracy >= args.scoringProfile.passAccuracy,
+      qualified,
+      qualifiedFormula,
     };
   });
 }

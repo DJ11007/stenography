@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { EXAM_PRESETS, HINDI_KRUTI_DEV } from "../lib/typing-curriculum.ts";
 import { getInputSystemPassage, getScoringText } from "../lib/typing-language.ts";
-import { buildRequirementResults, buildResultCalculations, buildResultSummary, categoryTotalsReconcile, comparisonWordDisplay, resultCategoryTotals } from "../lib/typing-results.ts";
+import { buildRequirementResults, buildResultCalculations, buildResultSummary, categoryTotalsReconcile, comparisonWordDisplay, requiredWpmForMarksMethod, resultCategoryTotals } from "../lib/typing-results.ts";
 import { calculateTypingScore } from "../lib/typing-test.ts";
 
 function resultFor(preset, inputSystem = preset.inputSystems[0]) {
@@ -125,6 +125,43 @@ test("buildResultCalculations uses the correct-words/time Net WPM for marks-meth
     assert.equal(calculation.efficiency, calculation.score.grossWpm > 0 ? Math.min(100, Math.round((calculation.netWpm / calculation.score.grossWpm) * 100)) : 100);
     assert.equal(calculation.qualified, calculation.netWpm >= preset.scoringProfile.passNetWpm && calculation.score.accuracy >= preset.scoringProfile.passAccuracy);
   }
+});
+
+// Real reported bug: the Summary tab's "Qualification" row compared netWpm
+// against scoringProfile.passNetWpm -- the category's FULL-marks pace (e.g.
+// Rajasthan LDC English's 35/50 WPM), not RSMSSB's actual, much lower
+// qualifying threshold (9 minimum marks / 0.05 per word = 180 correct words,
+// 18 WPM over a 10-minute attempt). An attempt with plenty of correct words
+// but a below-full-marks pace could show "Not qualified" here while the
+// Configured Marks Method panel right above it -- built from the same
+// correct-word count -- already said "Qualified", a visible contradiction on
+// one results page. Passing marksMethod must make the two agree.
+test("buildResultCalculations' Qualification mirrors calculateConfiguredRssbMarks exactly when a marksMethod is supplied, instead of the full-marks-pace WPM threshold", () => {
+  const preset = EXAM_PRESETS.find((item) => item.id === "rssb-ldc-english");
+  assert.ok(preset);
+  assert.ok(preset.marksMethod);
+  const passage = Array.from({ length: 200 }, () => "word").join(" ");
+  const typedText = passage;
+  const elapsedSeconds = 600; // a full 10-minute attempt, so RSMSSB's marks scheme applies cleanly
+  const withoutMarksMethod = buildResultCalculations({ passage, typedText, elapsedSeconds, scoringProfile: preset.scoringProfile, hasMarksMethod: true });
+  const withMarksMethod = buildResultCalculations({ passage, typedText, elapsedSeconds, scoringProfile: preset.scoringProfile, hasMarksMethod: true, marksMethod: preset.marksMethod });
+  for (const calculation of withoutMarksMethod) {
+    assert.equal(calculation.netWpm, 20); // 200 correct words / 10 minutes
+    assert.equal(calculation.qualified, false); // 20 < scoringProfile.passNetWpm (35) -- the bug
+    assert.match(calculation.qualifiedFormula, /Both net-speed and accuracy/);
+  }
+  for (const calculation of withMarksMethod) {
+    assert.equal(calculation.netWpm, 20);
+    assert.equal(calculation.qualified, true); // 200 * 0.05 = 10 marks >= 9 minimum -- the fix
+    assert.match(calculation.qualifiedFormula, /RSMSSB's real, time-independent qualifying rule/);
+  }
+});
+
+test("requiredWpmForMarksMethod derives the real qualifying pace from the marks scheme, distinct from the category's full-marks pace", () => {
+  const english = EXAM_PRESETS.find((item) => item.id === "rssb-ldc-english");
+  const hindi = EXAM_PRESETS.find((item) => item.id === "rssb-ldc-hindi");
+  assert.equal(requiredWpmForMarksMethod(english.marksMethod), 18); // 9 / 0.05 = 180 words / 10 min
+  assert.equal(requiredWpmForMarksMethod(hindi.marksMethod), 14.4); // 9 / 0.0625 = 144 words / 10 min
 });
 
 test("comparison display pairs substitutions and half mistakes with originals only", () => {
@@ -272,7 +309,7 @@ test("the Error Scoring Guide shows \"-\" for Applied penalty instead of asserti
 
 test("the Summary tab's calculations are told whether this preset uses the RSSB marks method, so its Net WPM formula can switch", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
-  assert.match(component, /buildResultCalculations\(\{ passage, typedText, elapsedSeconds: score\.elapsedSeconds, scoringProfile: preset\.scoringProfile, hasMarksMethod: Boolean\(preset\.marksMethod\) \}\)/);
+  assert.match(component, /buildResultCalculations\(\{ passage, typedText, elapsedSeconds: score\.elapsedSeconds, scoringProfile: preset\.scoringProfile, hasMarksMethod: Boolean\(preset\.marksMethod\), marksMethod: preset\.marksMethod \}\)/);
   assert.match(component, /\["Net WPM",String\(calculation\.netWpm\),calculation\.netWpmFormula\]/);
   assert.match(component, /\["Efficiency",`\$\{calculation\.efficiency\}%`/);
 });
