@@ -198,6 +198,15 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
   assert.match(component, /unit === "wpm"\s*\n\s*\? \[\["Gross Speed \(WPM\)", `\$\{summary\.grossWordsPerMinute\.toFixed\(2\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{summary\.netWordsPerMinute\.toFixed\(2\)\} WPM`\]\]/);
 });
 
+// Real reported request: RSSB's configured marks method (Rajasthan LDC,
+// Rajasthan DEO) has no negative marking, so the penalty-based "Half
+// mistake / Full mistake" scoring guide misstates its real rules and must
+// not render for any test using that marks method.
+test("the penalty-based Error Scoring Guide is hidden for RSSB marks-method tests, shown otherwise", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.match(component, /\{!marksResult && <ErrorScoringGuide profile=\{preset\.scoringProfile\} textLanguage=\{textLanguage\} entries=\{score\.analysis\.entries\} savedPenalty=\{score\.analysis\.totalPenalty\}\/>\}/);
+});
+
 test("the shared result exposes every accessible view and interactive error details", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /export function AdvancedTypingResults\(/);
