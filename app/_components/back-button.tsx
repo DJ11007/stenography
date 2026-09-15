@@ -11,21 +11,19 @@ function ArrowIcon({ className }: { className?: string }) {
   );
 }
 
+// Icon-only, solid, high-contrast by design -- the previous pill-with-text
+// version used a translucent/pale background (white/10 on dark headers,
+// white/90 on light pages) that students reported as hard to notice. label
+// still carries the real destination (e.g. "Admin panel", "Typing Hub") via
+// title/aria-label, so hovering or a screen reader still gets that context;
+// it's just never shown as visible text any more.
 export function BackButton({ href, label = "Back", dark = false, className = "" }: { href?: string; label?: string; dark?: boolean; className?: string }) {
   const router = useRouter();
-  const base = "group inline-flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-4 text-sm font-bold shadow-sm backdrop-blur transition-all hover:pl-2 hover:pr-5 hover:shadow-md";
+  const base = "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform hover:scale-105 active:scale-95";
   const theme = dark
-    ? "border border-white/20 bg-white/10 text-white hover:border-white/40 hover:bg-white/20"
-    : "border border-slate-200 bg-white/90 text-slate-700 hover:border-blue-300 hover:bg-blue-50";
-  const badgeTheme = dark ? "bg-white/15 text-white group-hover:bg-white group-hover:text-slate-900" : "bg-slate-100 text-slate-600 group-hover:bg-blue-600 group-hover:text-white";
-  const content = (
-    <>
-      <span className={`flex h-6 w-6 items-center justify-center rounded-full transition-colors ${badgeTheme}`}>
-        <ArrowIcon className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-      </span>
-      {label}
-    </>
-  );
-  if (href) return <Link href={href} className={`${base} ${theme} ${className}`}>{content}</Link>;
-  return <button type="button" onClick={() => router.back()} className={`${base} ${theme} ${className}`}>{content}</button>;
+    ? "bg-white text-slate-900 hover:bg-blue-50"
+    : "bg-slate-900 text-white hover:bg-blue-700";
+  const content = <ArrowIcon className="h-5 w-5" />;
+  if (href) return <Link href={href} aria-label={label} title={label} className={`${base} ${theme} ${className}`}>{content}</Link>;
+  return <button type="button" onClick={() => router.back()} aria-label={label} title={label} className={`${base} ${theme} ${className}`}>{content}</button>;
 }
