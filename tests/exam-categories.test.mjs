@@ -48,7 +48,7 @@ test("category rules disclose affiliation, the target pattern, and whether it wa
   assert.ok(english.some((rule) => /not affiliated/i.test(rule)));
   assert.ok(english.some((rule) => /Target pattern:/.test(rule)));
   assert.ok(english.some((rule) => /based on published exam-pattern research/i.test(rule)));
-  assert.ok(hindi.some((rule) => /Target pattern:/.test(rule)));
+  assert.ok(hindi.some((rule) => /लक्ष्य पैटर्न:/.test(rule)));
   const unsourcedRules = defaultExamCategoryRules(unsourced, "English");
   assert.ok(unsourcedRules.some((rule) => /reasoned baseline/i.test(rule)));
 });
@@ -141,41 +141,73 @@ test("the category rules page shows English and Hindi rules with distinct start 
 });
 
 // Real requested research: NCERT LDC's typing/computer skill test, confirmed
-// directly (NCERT's own live 2026 LDC recruitment cycle result page, plus
-// DDA's official JSA typing instructions for the shared formula/UX this
-// pattern follows) rather than only inferred from the closest comparable
-// exam family: 35 WPM English / 30 WPM Hindi, 10,500/9,000 KDPH, 10 minutes,
-// full backspace, and real word-level (green/red) highlighting on the live
-// exam screen. The real scoring formula -- Net Speed = (gross keystrokes / 5
-// - incorrect words x 10) / minutes -- draws no full/half mistake
-// distinction at all, unlike this platform's default 1/0.5 split, so it's
-// now implemented exactly via the fullErrorPenalty/halfErrorPenalty category
-// override (both set to 10), not just approximated with the standard flat
-// accuracy target as before.
-test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace, word-highlighted pattern and exact flat-10-per-mistake formula, resolving to a working preset in both languages", () => {
+// directly (NCERT's own live 2026 LDC recruitment cycle result page, DDA's
+// official JSA typing instructions for the shared scoring formula, and
+// independent corroboration that NCERT's typing test actually runs on the
+// TCS-iON platform -- same software as SSC/RRB-style exams) rather than
+// only inferred from the closest comparable exam family: 35 WPM English /
+// 30 WPM Hindi, 10,500/9,000 KDPH, 10 minutes, full backspace, and NO live
+// word/error highlighting or auto-scroll on the real exam screen -- a
+// correction from an earlier assumption that borrowed DDA's own "green/red
+// word highlight" UX, which turned out not to be what NCERT's own TCS-iON
+// screen actually does. The real scoring formula -- Net Speed = (gross
+// keystrokes / 5 - incorrect words x 10) / minutes -- draws no full/half
+// mistake distinction at all, unlike this platform's default 1/0.5 split,
+// so it's implemented exactly via the fullErrorPenalty/halfErrorPenalty
+// category override (both set to 10).
+test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace, no-highlight pattern and exact flat-10-per-mistake formula, resolving to a working preset in both languages", () => {
   const category = getExamCategory("ncert-ldc");
   assert.ok(category);
   assert.equal(category.speedEnglish, 35);
   assert.equal(category.speedHindi, 30);
   assert.equal(category.durationMinutes, 10);
   assert.equal(category.backspaceMode, "full");
-  assert.equal(category.highlightMode, "word");
+  assert.equal(category.highlightMode, "none");
   assert.equal(category.fullErrorPenalty, 10);
   assert.equal(category.halfErrorPenalty, 10);
   assert.equal(category.patternSourced, true);
   assert.ok(category.patternNotes.some((note) => note.includes("10,500")));
   assert.ok(category.patternNotes.some((note) => note.includes("gross keystrokes")));
   assert.ok(category.patternNotes.some((note) => note.includes("now the real formula, not an approximation")));
+  assert.ok(category.patternNotes.some((note) => note.includes("TCS-iON") && note.includes("OFF")));
   const english = getExamPreset(examCategoryPresetId("ncert-ldc", "English"));
   const hindi = getExamPreset(examCategoryPresetId("ncert-ldc", "Hindi"));
   assert.equal(english.speedRequirement, 35);
   assert.equal(hindi.speedRequirement, 30);
   assert.equal(english.durationSeconds, 600);
-  assert.equal(english.highlightMode, "word");
+  assert.equal(english.highlightMode, "none");
+  assert.equal(hindi.highlightMode, "none");
   assert.equal(english.scoringProfile.fullErrorPenalty, 10);
   assert.equal(english.scoringProfile.halfErrorPenalty, 10);
   assert.equal(hindi.scoringProfile.fullErrorPenalty, 10);
   assert.equal(hindi.scoringProfile.halfErrorPenalty, 10);
+});
+
+// Real reported bug: the Hindi half of a category's rules page (and its
+// Hindi preset's own "Instructions to Candidate" screen) rendered the exact
+// same English sentences as the English half -- only the "हिंदी नियम एवं
+// शर्तें" heading above them was actually Hindi. NCERT LDC now has a real
+// Hindi translation (patternNotesHindi); every other category still falls
+// back to its English patternNotes until translated, so nothing else
+// regresses.
+test("NCERT LDC's Hindi rules and Hindi preset's instructions are genuinely translated, not the English text under a Hindi heading", () => {
+  const category = getExamCategory("ncert-ldc");
+  assert.ok(category.patternNotesHindi);
+  assert.equal(category.patternNotesHindi.length, category.patternNotes.length);
+  for (const note of category.patternNotesHindi) assert.ok(/[ऀ-ॿ]/.test(note), `expected Hindi text, got: ${note}`);
+  const hindiRules = defaultExamCategoryRules(category, "Hindi");
+  for (const rule of hindiRules) assert.ok(/[ऀ-ॿ]/.test(rule), `expected every Hindi rules-page line to contain Hindi text, got: ${rule}`);
+  const hindiPreset = getExamPreset(examCategoryPresetId("ncert-ldc", "Hindi"));
+  assert.deepEqual(hindiPreset.instructionNotes, category.patternNotesHindi);
+});
+
+test("a category without its own patternNotesHindi falls back to the English patternNotes on both the rules page and the Hindi preset (pre-existing, unchanged behavior)", () => {
+  const category = EXAM_CATEGORIES.find((item) => item.slug !== "ncert-ldc" && !item.patternNotesHindi);
+  assert.ok(category, "expected at least one untranslated category to exist");
+  const hindiRules = defaultExamCategoryRules(category, "Hindi");
+  for (const note of category.patternNotes) assert.ok(hindiRules.includes(note));
+  const hindiPreset = getExamPreset(examCategoryPresetId(category.slug, "Hindi"));
+  assert.deepEqual(hindiPreset.instructionNotes, category.patternNotes);
 });
 
 // Every other category must be completely untouched by adding this
