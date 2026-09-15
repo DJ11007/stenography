@@ -93,7 +93,7 @@ test("header toolbar contains only submit pause timer settings and full-screen c
   assert.match(toolbar, />Submit</);
   assert.match(toolbar, /\{paused \? "Resume" : "Pause"\}/);
   assert.match(toolbar, /role="timer"/);
-  assert.match(toolbar, />\{showSettings \? "Close Settings" : "Settings"\}</);
+  assert.match(toolbar, /aria-label=\{showSettings \? "Close Settings" : "Settings"\}/);
   for (const removed of ["preset.title", "Timer starts on your first keystroke", "Font-size controls", "A−", "A+", "Auto Scroll:", "Show Scrollbar"]) assert.ok(!toolbar.includes(removed));
 });
 
