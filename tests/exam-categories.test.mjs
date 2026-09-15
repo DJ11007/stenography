@@ -286,6 +286,48 @@ test("RRB NTPC is researched with its real 5%-relaxation, flat-10-per-mistake fo
   assert.equal(hindi.scoringProfile.errorRelaxationPercent, 5);
 });
 
+// Real requested deep research pass across every exam category: the CAPF
+// Head Constable (Ministerial) family (CRPF/BSF/SSB) already narrated the
+// same 5%-relaxation, flat-10-word-per-mistake formula as RRB NTPC in
+// prose, confirmed independently here too (400 words, 25 mistakes -> 20
+// forgiven, 5 penalized, 50-word penalty, 35.00 net WPM), but never had it
+// actually implemented -- same gap RRB NTPC had. Also corrects a genuine,
+// specifically-confirmed difference this research surfaced: BSF's own
+// skill test runs backspace ENABLED (paper-to-screen), unlike CRPF's
+// confirmed backspace-disabled (screen-to-screen) -- previously all three
+// were set to the same conservative "disabled" baseline.
+test("the CAPF Head Constable (Ministerial) family (CRPF/BSF/SSB) all get the real 5%-relaxation formula, and BSF's confirmed backspace-enabled setting no longer matches CRPF's disabled one", () => {
+  for (const slug of ["crpf-hcm", "bsf-hcm", "ssb-hcm"]) {
+    const category = getExamCategory(slug);
+    assert.ok(category, `expected ${slug} to exist`);
+    assert.equal(category.fullErrorPenalty, 10, `${slug} fullErrorPenalty`);
+    assert.equal(category.halfErrorPenalty, 5, `${slug} halfErrorPenalty`);
+    assert.equal(category.errorRelaxationPercent, 5, `${slug} errorRelaxationPercent`);
+    const english = getExamPreset(examCategoryPresetId(slug, "English"));
+    assert.equal(english.scoringProfile.errorRelaxationPercent, 5, `${slug} preset relaxation`);
+  }
+  assert.equal(getExamCategory("crpf-hcm").backspaceMode, "disabled");
+  assert.equal(getExamCategory("bsf-hcm").backspaceMode, "full");
+  assert.equal(getExamCategory("ssb-hcm").backspaceMode, "disabled");
+});
+
+// Real requested deep research: Delhi Police HCM's typing test confirmed to
+// have NO half-mistake concession at all -- spacing, capitalization, and
+// punctuation are graded as FULL errors, each costing a flat 1 WPM (10
+// words over the 10-minute test), the same shape as NCERT's flat penalty --
+// genuinely different from this platform's default full/half split, and
+// not previously implemented (only narrated in prose).
+test("Delhi Police HCM is researched with no half-mistake concession -- every mistake costs a flat 10-word penalty, matching NCERT's flat-penalty shape", () => {
+  const category = getExamCategory("delhi-police-hcm");
+  assert.ok(category);
+  assert.equal(category.fullErrorPenalty, 10);
+  assert.equal(category.halfErrorPenalty, 10);
+  assert.equal(category.errorRelaxationPercent, undefined);
+  const english = getExamPreset(examCategoryPresetId("delhi-police-hcm", "English"));
+  assert.equal(english.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(english.scoringProfile.halfErrorPenalty, 10);
+});
+
 // Real requested research: which Rajasthan/RSSB posts beyond the existing
 // "Rajasthan LDC" category genuinely need their own typing exam category.
 // Clerk/Clerk Grade-II and Personal Assistant Grade-II turned out to be the
