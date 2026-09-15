@@ -64,7 +64,7 @@ test("every category resolves to a preset carrying its own instructionNotes and 
     for (const language of ["English", "Hindi"]) {
       const preset = getExamPreset(`exam-cat-${category.slug}-${language.toLowerCase()}`);
       assert.ok(preset, `missing preset for ${category.slug}/${language}`);
-      assert.deepEqual(preset.instructionNotes, category.patternNotes);
+      assert.deepEqual(preset.instructionNotes, language === "Hindi" ? (category.patternNotesHindi ?? category.patternNotes) : category.patternNotes);
       assert.equal(preset.patternSourced, category.patternSourced);
     }
   }

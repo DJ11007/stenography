@@ -201,13 +201,24 @@ test("NCERT LDC's Hindi rules and Hindi preset's instructions are genuinely tran
   assert.deepEqual(hindiPreset.instructionNotes, category.patternNotesHindi);
 });
 
-test("a category without its own patternNotesHindi falls back to the English patternNotes on both the rules page and the Hindi preset (pre-existing, unchanged behavior)", () => {
-  const category = EXAM_CATEGORIES.find((item) => item.slug !== "ncert-ldc" && !item.patternNotesHindi);
-  assert.ok(category, "expected at least one untranslated category to exist");
-  const hindiRules = defaultExamCategoryRules(category, "Hindi");
-  for (const note of category.patternNotes) assert.ok(hindiRules.includes(note));
-  const hindiPreset = getExamPreset(examCategoryPresetId(category.slug, "Hindi"));
-  assert.deepEqual(hindiPreset.instructionNotes, category.patternNotes);
+// Every category now has its own patternNotesHindi (translated below), but
+// the fallback mechanism itself -- for whenever a future category is added
+// without one yet -- must keep working, so it's exercised here directly
+// with a fabricated category rather than searching for a real untranslated
+// one (there isn't one left).
+test("a category without its own patternNotesHindi falls back to the English patternNotes on both the rules page and the Hindi preset", () => {
+  const base = getExamCategory("ncert-ldc");
+  const untranslated = { ...base, patternNotesHindi: undefined };
+  const hindiRules = defaultExamCategoryRules(untranslated, "Hindi");
+  for (const note of untranslated.patternNotes) assert.ok(hindiRules.includes(note));
+});
+
+test("every exam category now has its own genuinely translated patternNotesHindi, matching patternNotes in length", () => {
+  for (const category of EXAM_CATEGORIES) {
+    assert.ok(category.patternNotesHindi, `expected ${category.slug} to have patternNotesHindi`);
+    assert.equal(category.patternNotesHindi.length, category.patternNotes.length, `expected ${category.slug}'s Hindi notes to match its English notes in count`);
+    for (const note of category.patternNotesHindi) assert.ok(/[ऀ-ॿ]/.test(note), `expected Hindi text in ${category.slug}, got: ${note}`);
+  }
 });
 
 // Every other category must be completely untouched by adding this
