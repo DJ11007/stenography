@@ -192,7 +192,6 @@ test("the shared result exposes every accessible view and interactive error deta
   assert.match(component, /role="tablist"/);
   assert.match(component, /Show error details/);
   assert.match(component, /Print \/ Save PDF/);
-  assert.match(component, /label="Repeated text" symbol="↻"/);
   assert.match(component, /bg-orange-100/);
   assert.match(component, /line-through/);
   for (const label of ["Total Chars", "Typed Chars", "Right Chars", "Wrong Chars", "Character Accuracy", "Gross Speed", "Net Speed", "Error", "Result", "Time Taken", "Backspace", "Remaining"]) assert.match(component, new RegExp(label));

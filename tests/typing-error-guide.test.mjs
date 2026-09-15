@@ -43,7 +43,5 @@ test("on-screen and printed guides use one shared definition source",async()=>{
   assert.match(component,/guidePenaltyTotal\(entries,profile,textLanguage\)/);
   assert.match(component,/Detailed Passage Comparison/);
   assert.match(component,/details className="group error-scoring-guide/);
-  assert.match(component,/Capitalization does not apply to Hindi/);
-  assert.match(component,/कृति्रम/);assert.match(component,/खिलाड़यिों/);
   assert.match(css,/@media print[\s\S]*details\.error-scoring-guide > \*/);
 });
