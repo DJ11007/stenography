@@ -15,6 +15,15 @@
 // keeps using the generic iconKind-based badge, unaffected.
 import type { JSX } from "react";
 
+// Real reported bug: Math.cos/Math.sin on the same angle can differ in
+// their last one or two significant digits between the server's Node.js
+// V8 and the client browser's V8 (different native math library builds),
+// which made a handful of circular-dashed badges below hydrate-mismatch
+// on an SVG line/circle coordinate. Rounding to 3 decimal places -- far
+// more precision than a 100x100 viewBox icon needs -- makes the
+// server-rendered and client-rendered strings identical.
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
+
 export const CUSTOM_EXAM_BADGES: Partial<Record<string, () => JSX.Element>> = {
   "ssc-chsl": SscChslBadge,
   "ssc-cgl": SscCglBadge,
@@ -261,7 +270,7 @@ function RajasthanHighCourtLdcBadge() {
       <g stroke="#eab308" strokeWidth="1.2" strokeLinecap="round">
         {Array.from({ length: 24 }, (_, i) => {
           const a = (i / 24) * 2 * Math.PI;
-          return <line key={i} x1={50 + 44 * Math.cos(a)} y1={50 + 44 * Math.sin(a)} x2={50 + 47.5 * Math.cos(a)} y2={50 + 47.5 * Math.sin(a)} />;
+          return <line key={i} x1={r3(50 + 44 * Math.cos(a))} y1={r3(50 + 44 * Math.sin(a))} x2={r3(50 + 47.5 * Math.cos(a))} y2={r3(50 + 47.5 * Math.sin(a))} />;
         })}
       </g>
       <g fill="white">
@@ -433,7 +442,7 @@ function BombayHcClerkBadge() {
   const rIn = 44.5, rOut = 49;
   const scallops = Array.from({ length: 28 }, (_, i) => {
     const a = (i / 28) * 2 * Math.PI;
-    return `${50 + rOut * Math.cos(a)},${50 + rOut * Math.sin(a)}`;
+    return `${r3(50 + rOut * Math.cos(a))},${r3(50 + rOut * Math.sin(a))}`;
   }).join(" ");
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%">
@@ -544,7 +553,7 @@ function SupremeCourtJcaBadge() {
   const dashes = Array.from({ length: 48 }, (_, i) => {
     const a = (i / 48) * 2 * Math.PI;
     const color = rings[Math.floor(i / 8) % rings.length];
-    return <line key={i} x1={50 + 45 * Math.cos(a)} y1={50 + 45 * Math.sin(a)} x2={50 + 48.5 * Math.cos(a)} y2={50 + 48.5 * Math.sin(a)} stroke={color} strokeWidth="1.6" strokeLinecap="round" />;
+    return <line key={i} x1={r3(50 + 45 * Math.cos(a))} y1={r3(50 + 45 * Math.sin(a))} x2={r3(50 + 48.5 * Math.cos(a))} y2={r3(50 + 48.5 * Math.sin(a))} stroke={color} strokeWidth="1.6" strokeLinecap="round" />;
   });
   return (
     <svg viewBox="0 0 100 100" width="100%" height="100%">
@@ -669,7 +678,7 @@ function RajasthanLdcBadge() {
           const a = (i / 32) * 2 * Math.PI;
           const colors = ["#b91c3c", "#e8a33d", "#0f766e"];
           return (
-            <line key={i} x1={50 + 45.5 * Math.cos(a)} y1={50 + 45.5 * Math.sin(a)} x2={50 + 48.5 * Math.cos(a)} y2={50 + 48.5 * Math.sin(a)} stroke={colors[i % 3]} />
+            <line key={i} x1={r3(50 + 45.5 * Math.cos(a))} y1={r3(50 + 45.5 * Math.sin(a))} x2={r3(50 + 48.5 * Math.cos(a))} y2={r3(50 + 48.5 * Math.sin(a))} stroke={colors[i % 3]} />
           );
         })}
       </g>
@@ -724,9 +733,9 @@ function EmrsJsaBadge() {
           const a = (i / 40) * 2 * Math.PI;
           const colors = ["#1e3a6e", "#1e3a6e", "#e8746a", "#0f766e"];
           return i % 2 === 0 ? (
-            <line key={i} x1={50 + 45 * Math.cos(a)} y1={50 + 45 * Math.sin(a)} x2={50 + 47.5 * Math.cos(a)} y2={50 + 47.5 * Math.sin(a)} stroke={colors[i % 4]} />
+            <line key={i} x1={r3(50 + 45 * Math.cos(a))} y1={r3(50 + 45 * Math.sin(a))} x2={r3(50 + 47.5 * Math.cos(a))} y2={r3(50 + 47.5 * Math.sin(a))} stroke={colors[i % 4]} />
           ) : (
-            <circle key={i} cx={50 + 46.2 * Math.cos(a)} cy={50 + 46.2 * Math.sin(a)} r="0.6" fill="#1c1917" />
+            <circle key={i} cx={r3(50 + 46.2 * Math.cos(a))} cy={r3(50 + 46.2 * Math.sin(a))} r="0.6" fill="#1c1917" />
           );
         })}
       </g>
