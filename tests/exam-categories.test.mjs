@@ -140,19 +140,19 @@ test("the category rules page shows English and Hindi rules with distinct start 
   assert.match(page, /<BackButton href="\/typing\/exams" label="Exam Categories" \/>/);
 });
 
-// Real requested addition: NCERT LDC, researched (35 WPM English / 30 WPM
-// Hindi, 10 minutes, 10,500/9,000 KDPH -- the same standardised
-// government pattern DDA's Junior Secretariat Assistant post uses, since
-// NCERT's own notification wasn't directly available), full backspace,
-// and real word-level (green/red) highlighting on the live exam screen --
-// a genuine deviation from this platform's character-highlight default,
-// so it's encoded as an explicit highlightMode override rather than only
-// narrated in prose (unlike the real (gross/5 - mistakes*10)/minutes
-// scoring formula, which -- like every other non-Rajasthan-LDC category's
-// own more nuanced real rule -- is approximated with the platform's
-// standard flat accuracy target and explained honestly in patternNotes,
-// not a bespoke scoring engine).
-test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace, word-highlighted pattern, and resolves to a working preset in both languages", () => {
+// Real requested research: NCERT LDC's typing/computer skill test, confirmed
+// directly (NCERT's own live 2026 LDC recruitment cycle result page, plus
+// DDA's official JSA typing instructions for the shared formula/UX this
+// pattern follows) rather than only inferred from the closest comparable
+// exam family: 35 WPM English / 30 WPM Hindi, 10,500/9,000 KDPH, 10 minutes,
+// full backspace, and real word-level (green/red) highlighting on the live
+// exam screen. The real scoring formula -- Net Speed = (gross keystrokes / 5
+// - incorrect words x 10) / minutes -- draws no full/half mistake
+// distinction at all, unlike this platform's default 1/0.5 split, so it's
+// now implemented exactly via the fullErrorPenalty/halfErrorPenalty category
+// override (both set to 10), not just approximated with the standard flat
+// accuracy target as before.
+test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace, word-highlighted pattern and exact flat-10-per-mistake formula, resolving to a working preset in both languages", () => {
   const category = getExamCategory("ncert-ldc");
   assert.ok(category);
   assert.equal(category.speedEnglish, 35);
@@ -160,15 +160,37 @@ test("NCERT LDC is researched with its real 35/30 WPM, 10-minute, full-backspace
   assert.equal(category.durationMinutes, 10);
   assert.equal(category.backspaceMode, "full");
   assert.equal(category.highlightMode, "word");
+  assert.equal(category.fullErrorPenalty, 10);
+  assert.equal(category.halfErrorPenalty, 10);
   assert.equal(category.patternSourced, true);
   assert.ok(category.patternNotes.some((note) => note.includes("10,500")));
   assert.ok(category.patternNotes.some((note) => note.includes("gross keystrokes")));
+  assert.ok(category.patternNotes.some((note) => note.includes("now the real formula, not an approximation")));
   const english = getExamPreset(examCategoryPresetId("ncert-ldc", "English"));
   const hindi = getExamPreset(examCategoryPresetId("ncert-ldc", "Hindi"));
   assert.equal(english.speedRequirement, 35);
   assert.equal(hindi.speedRequirement, 30);
   assert.equal(english.durationSeconds, 600);
   assert.equal(english.highlightMode, "word");
+  assert.equal(english.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(english.scoringProfile.halfErrorPenalty, 10);
+  assert.equal(hindi.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(hindi.scoringProfile.halfErrorPenalty, 10);
+});
+
+// Every other category must be completely untouched by adding this
+// override mechanism -- the default flat 1/0.5 split stays exactly as
+// before for any category that doesn't set fullErrorPenalty/halfErrorPenalty.
+test("the fullErrorPenalty/halfErrorPenalty category override defaults to the platform's standard 1/0.5 split for every other category", () => {
+  for (const slug of ["ssc-chsl", "rajasthan-high-court-ldc", "dsssb-ldc"]) {
+    const category = getExamCategory(slug);
+    assert.ok(category, `expected category ${slug} to exist`);
+    assert.equal(category.fullErrorPenalty, undefined);
+    assert.equal(category.halfErrorPenalty, undefined);
+    const english = getExamPreset(examCategoryPresetId(slug, "English"));
+    assert.equal(english.scoringProfile.fullErrorPenalty, 1);
+    assert.equal(english.scoringProfile.halfErrorPenalty, 0.5);
+  }
 });
 
 // Real requested research: which Rajasthan/RSSB posts beyond the existing
