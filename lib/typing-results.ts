@@ -9,6 +9,9 @@ export type ResultCalculation = {
   correctWords: number;
   incorrectWords: number;
   score: TypingScore;
+  netWpm: number;
+  netWpmFormula: string;
+  efficiency: number;
   qualified: boolean;
 };
 
@@ -85,9 +88,18 @@ export function buildResultCalculations(args: {
   typedText: string;
   elapsedSeconds: number;
   scoringProfile: ScoringProfile;
+  hasMarksMethod?: boolean;
 }) {
   return (["characters", "spaces"] as WordMethod[]).map((method): ResultCalculation => {
     const score = calculateTypingScore({ ...args, wordMethod: method, includeUntypedWords: true });
+    const elapsedMinutes = Math.max(args.elapsedSeconds / 60, 1 / 60);
+    // RSMSSB has no negative marking: for a marks-method-configured test, Net
+    // WPM must be correct words / time, never the generic gross-minus-penalty
+    // figure, or it would misstate this exam's real rules the same way the
+    // penalty-based Error Scoring Guide used to.
+    const netWpm = args.hasMarksMethod ? Math.round(score.correctWords / elapsedMinutes) : score.netWpm;
+    const netWpmFormula = args.hasMarksMethod ? "Fully correct words ÷ elapsed minutes (RSMSSB has no negative marking)." : "Gross WPM − combined error penalty ÷ elapsed minutes; minimum zero.";
+    const efficiency = score.grossWpm > 0 ? Math.min(100, Math.round((netWpm / score.grossWpm) * 100)) : 100;
     return {
       method,
       label: method === "characters" ? "Character-based calculation (5 characters = 1 word)" : "Space-separated word calculation",
@@ -96,7 +108,10 @@ export function buildResultCalculations(args: {
       correctWords: score.correctWords,
       incorrectWords: score.analysis.counts.substituted + score.analysis.counts.extra + score.analysis.counts.repeated,
       score,
-      qualified: score.netWpm >= args.scoringProfile.passNetWpm && score.accuracy >= args.scoringProfile.passAccuracy,
+      netWpm,
+      netWpmFormula,
+      efficiency,
+      qualified: netWpm >= args.scoringProfile.passNetWpm && score.accuracy >= args.scoringProfile.passAccuracy,
     };
   });
 }

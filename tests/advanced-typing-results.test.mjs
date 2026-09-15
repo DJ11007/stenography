@@ -96,6 +96,37 @@ test("result calculations exclude untouched remaining words from incorrect total
   assert.ok(calculations.every((item) => item.score.analysis.totalPenalty === 0));
 });
 
+// Real reported confusion: the Summary tab showed a "Net WPM" computed as
+// Gross WPM minus a combined error penalty, right alongside the Speed
+// Details card's "Net Speed (WPM)" computed as correct words / time --
+// two different numbers under the same name on the same results page.
+// RSMSSB has no negative marking (confirmed by research), so for a
+// marks-method-configured test only the correct-words/time definition is
+// real; buildResultCalculations must use it -- and everything derived
+// from it (efficiency, qualification) -- whenever hasMarksMethod is set,
+// while leaving every other (non-RSSB) preset's penalty-based Net WPM
+// untouched.
+test("buildResultCalculations uses the correct-words/time Net WPM for marks-method tests, not the generic gross-minus-penalty figure", () => {
+  const preset = EXAM_PRESETS.find((item) => item.id === "rssb-ldc-english");
+  assert.ok(preset);
+  const passage = "one two three four five six seven eight";
+  const typedText = "One two three four five Sixx seven eight";
+  const elapsedSeconds = 60;
+  const withoutFlag = buildResultCalculations({ passage, typedText, elapsedSeconds, scoringProfile: preset.scoringProfile });
+  const withFlag = buildResultCalculations({ passage, typedText, elapsedSeconds, scoringProfile: preset.scoringProfile, hasMarksMethod: true });
+  for (const calculation of withoutFlag) {
+    assert.equal(calculation.netWpm, calculation.score.netWpm);
+    assert.match(calculation.netWpmFormula, /combined error penalty/);
+  }
+  for (const calculation of withFlag) {
+    assert.equal(calculation.netWpm, Math.round(calculation.correctWords / (elapsedSeconds / 60)));
+    assert.notEqual(calculation.netWpm, calculation.score.netWpm);
+    assert.match(calculation.netWpmFormula, /RSMSSB has no negative marking/);
+    assert.equal(calculation.efficiency, calculation.score.grossWpm > 0 ? Math.min(100, Math.round((calculation.netWpm / calculation.score.grossWpm) * 100)) : 100);
+    assert.equal(calculation.qualified, calculation.netWpm >= preset.scoringProfile.passNetWpm && calculation.score.accuracy >= preset.scoringProfile.passAccuracy);
+  }
+});
+
 test("comparison display pairs substitutions and half mistakes with originals only", () => {
   const entry = (status, original, typed, halfErrorCategories = []) => ({ id: status, status, original, typed, halfErrorCategories, separatorAfter: " " });
   assert.deepEqual(comparisonWordDisplay(entry("substituted", "young", "Yong")), { text: "Yong", expected: "young" });
@@ -205,6 +236,13 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
 test("the penalty-based Error Scoring Guide is hidden for RSSB marks-method tests, shown otherwise", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /\{!marksResult && <ErrorScoringGuide profile=\{preset\.scoringProfile\} textLanguage=\{textLanguage\} entries=\{score\.analysis\.entries\} savedPenalty=\{score\.analysis\.totalPenalty\}\/>\}/);
+});
+
+test("the Summary tab's calculations are told whether this preset uses the RSSB marks method, so its Net WPM formula can switch", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.match(component, /buildResultCalculations\(\{ passage, typedText, elapsedSeconds: score\.elapsedSeconds, scoringProfile: preset\.scoringProfile, hasMarksMethod: Boolean\(preset\.marksMethod\) \}\)/);
+  assert.match(component, /\["Net WPM",String\(calculation\.netWpm\),calculation\.netWpmFormula\]/);
+  assert.match(component, /\["Efficiency",`\$\{calculation\.efficiency\}%`/);
 });
 
 test("the shared result exposes every accessible view and interactive error details", () => {
