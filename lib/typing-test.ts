@@ -141,6 +141,18 @@ export type ScoringProfile = {
   halantErrors?: boolean;
   genderErrors?: boolean;
   vachanErrors?: boolean;
+  // RRB NTPC's real formula (confirmed via research) forgives a percentage
+  // of typed words' worth of mistakes before the per-mistake penalty
+  // applies at all: Total_Mistakes = fullErrors + halfErrors/2, Ignored =
+  // errorRelaxationPercent% x grossWordCount, and only mistakes beyond that
+  // allowance cost anything. Expressed here in penalty-point terms (not raw
+  // mistake-unit terms) so it composes with fullErrorPenalty/halfErrorPenalty
+  // directly: relaxationPoints = errorRelaxationPercent/100 x grossWordCount
+  // x fullErrorPenalty (a full-mistake-equivalent word is the reference
+  // unit a forgiven word is worth). Undefined (every other profile) means
+  // zero relaxation -- calculateTypingScore()'s existing behavior,
+  // unchanged.
+  errorRelaxationPercent?: number;
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -795,7 +807,14 @@ export function calculateTypingScore({
   const grossWordCount = wordMethod === "characters" ? totalCharacters / 5 : spaceWords;
   const grossWpm = Math.round(grossWordCount / elapsedMinutes);
   const analysis = analyzeTyping(passage, typedText, scoringProfile, includeUntypedWords);
-  const netWpm = Math.max(Math.round(grossWpm - analysis.totalPenalty / elapsedMinutes), 0);
+  // RRB NTPC's real formula forgives errorRelaxationPercent% of grossWordCount
+  // worth of mistakes before any penalty applies at all (see ScoringProfile's
+  // own doc comment for the exact derivation) -- zero for every profile that
+  // doesn't set it, leaving effectivePenalty === analysis.totalPenalty and
+  // this line's behavior completely unchanged from before.
+  const relaxationPoints = scoringProfile.errorRelaxationPercent ? (scoringProfile.errorRelaxationPercent / 100) * grossWordCount * scoringProfile.fullErrorPenalty : 0;
+  const effectivePenalty = Math.max(0, analysis.totalPenalty - relaxationPoints);
+  const netWpm = Math.max(Math.round(grossWpm - effectivePenalty / elapsedMinutes), 0);
   const efficiency = grossWpm > 0 ? Math.min(100, Math.round((netWpm / grossWpm) * 100)) : 100;
   const accuracy = totalCharacters > 0
     ? Math.round((correctCharacters / (correctCharacters + incorrectCharacters)) * 100)

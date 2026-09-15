@@ -109,6 +109,56 @@ test("managedVersionToPreset's viewAsCategorySlug overrides duration/speed/accur
   assert.equal(native.speedRequirement, 40);
 });
 
+// Real reported bug, found while deep-researching RRB NTPC: viewing a
+// shared exercise "as" NCERT LDC or RRB NTPC correctly showed their real
+// researched instructions (10,500 KDPH, the flat-10-per-mistake formula,
+// etc.) but was still SCORED with the generic 1/0.5 penalty and zero error
+// relaxation underneath -- examCategoryTypingRules()/managedVersionToPreset()
+// never carried fullErrorPenalty/halfErrorPenalty/errorRelaxationPercent
+// through at all, silently understating how harsh those boards' real
+// formulas are. Also fixes a second bug found alongside it: a shared
+// Hindi-language exercise's ExamStart instructions always showed the
+// category's ENGLISH patternNotes, ignoring patternNotesHindi entirely.
+test("managedVersionToPreset's viewAsCategorySlug also overrides fullErrorPenalty/halfErrorPenalty/errorRelaxationPercent (not just the display fields), and instructionNotes respects the exercise's own language", async () => {
+  const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
+  const base = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 600, passage: "passage text long enough", requiredWpm: 40, requiredAccuracy: 95, backspaceMode: "word", wordMethod: "spaces", highlightMode: "none", visibility: "public", examCategory: "rajasthan-ldc" };
+  // More important than the viewAs case below: an exercise natively tied to
+  // NCERT LDC or RRB NTPC (no viewAs override at all -- this is what every
+  // real admin-uploaded exercise linked to one of these two categories
+  // actually renders as day to day) must also get their real penalty
+  // formula, not the platform default.
+  const nativeNcert = managedVersionToPreset({ ...base, examCategory: "ncert-ldc" });
+  assert.equal(nativeNcert.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(nativeNcert.scoringProfile.halfErrorPenalty, 10);
+  const nativeNtpc = managedVersionToPreset({ ...base, examCategory: "rrb-ntpc" });
+  assert.equal(nativeNtpc.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(nativeNtpc.scoringProfile.halfErrorPenalty, 5);
+  assert.equal(nativeNtpc.scoringProfile.errorRelaxationPercent, 5);
+  const viewedAsNcert = managedVersionToPreset(base, "ncert-ldc");
+  assert.equal(viewedAsNcert.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(viewedAsNcert.scoringProfile.halfErrorPenalty, 10);
+  assert.equal(viewedAsNcert.highlightMode, "none");
+  const viewedAsNtpc = managedVersionToPreset(base, "rrb-ntpc");
+  assert.equal(viewedAsNtpc.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(viewedAsNtpc.scoringProfile.halfErrorPenalty, 5);
+  assert.equal(viewedAsNtpc.scoringProfile.errorRelaxationPercent, 5);
+  // Viewed as a category with no override (e.g. SSC CHSL) falls back to the
+  // platform default 1/0.5, zero relaxation -- unaffected by this fix.
+  const viewedAsSscChsl = managedVersionToPreset(base, "ssc-chsl");
+  assert.equal(viewedAsSscChsl.scoringProfile.fullErrorPenalty, 1);
+  assert.equal(viewedAsSscChsl.scoringProfile.halfErrorPenalty, 0.5);
+  assert.equal(viewedAsSscChsl.scoringProfile.errorRelaxationPercent, undefined);
+  // instructionNotes: English exercise still gets the category's English
+  // notes; a Hindi exercise gets the category's Hindi translation instead.
+  const { getExamCategory } = await import("../lib/exam-categories.ts");
+  const ncertCategory = getExamCategory("ncert-ldc");
+  assert.deepEqual(viewedAsNcert.instructionNotes, ncertCategory.patternNotes);
+  const hindiBase = { ...base, language: "Hindi", inputSystemId: "hindi-krutidev-010" };
+  const hindiViewedAsNcert = managedVersionToPreset(hindiBase, "ncert-ldc");
+  assert.deepEqual(hindiViewedAsNcert.instructionNotes, ncertCategory.patternNotesHindi);
+  assert.notDeepEqual(hindiViewedAsNcert.instructionNotes, ncertCategory.patternNotes);
+});
+
 test("managedVersionToPreset's marksMethod (RSSB marks scheme) turns off when a Rajasthan LDC exercise is viewed as a different category, and stays on for Rajasthan LDC's own native page", async () => {
   const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
   const base = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 600, passage: "passage text long enough", requiredWpm: 40, requiredAccuracy: 95, backspaceMode: "word", wordMethod: "spaces", highlightMode: "none", visibility: "public", examCategory: "rajasthan-ldc" };

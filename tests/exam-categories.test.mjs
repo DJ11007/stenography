@@ -252,6 +252,40 @@ test("the fullErrorPenalty/halfErrorPenalty category override defaults to the pl
   }
 });
 
+// Real requested deep research: RRB NTPC's typing skill test, confirmed
+// across two independent, detailed sources that reproduce an identical
+// worked example end to end (309 keystrokes / 62 words, 14 full mistakes,
+// 0 half -> 6.20 gross WPM, 140-point penalty, 31-point 5% relaxation,
+// 109 effective penalty, 0.00 net WPM). Corrects an earlier, thinner pass
+// that already narrated this 5%-relaxation formula in prose but never
+// actually implemented it (the engine used the platform default 1/0.5
+// penalty with no relaxation at all), and fixes an inaccurate "InScript"
+// keyboard-layout mention (the real layout is Kruti Dev 010 or Mangal on
+// Remington Gail, same as every other Hindi-typing category here).
+test("RRB NTPC is researched with its real 5%-relaxation, flat-10-per-mistake formula and no-highlight/no-scroll screen, resolving to a preset that reproduces the sourced worked example exactly", () => {
+  const category = getExamCategory("rrb-ntpc");
+  assert.ok(category);
+  assert.equal(category.speedEnglish, 30);
+  assert.equal(category.speedHindi, 25);
+  assert.equal(category.durationMinutes, 10);
+  assert.equal(category.backspaceMode, "disabled");
+  assert.equal(category.highlightMode, "none");
+  assert.equal(category.fullErrorPenalty, 10);
+  assert.equal(category.halfErrorPenalty, 5);
+  assert.equal(category.errorRelaxationPercent, 5);
+  assert.equal(category.patternSourced, true);
+  assert.ok(category.patternNotes.some((note) => note.includes("Kruti Dev 010 or Mangal") && note.includes("Remington Gail")), "expected the corrected real Hindi layout to be documented");
+  assert.ok(category.patternNotesHindi.some((note) => note.includes("रेमिंग्टन गेल")), "expected the corrected real Hindi layout to be documented in the Hindi translation too");
+  const english = getExamPreset(examCategoryPresetId("rrb-ntpc", "English"));
+  const hindi = getExamPreset(examCategoryPresetId("rrb-ntpc", "Hindi"));
+  assert.equal(english.highlightMode, "none");
+  assert.equal(hindi.highlightMode, "none");
+  assert.equal(english.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(english.scoringProfile.halfErrorPenalty, 5);
+  assert.equal(english.scoringProfile.errorRelaxationPercent, 5);
+  assert.equal(hindi.scoringProfile.errorRelaxationPercent, 5);
+});
+
 // Real requested research: which Rajasthan/RSSB posts beyond the existing
 // "Rajasthan LDC" category genuinely need their own typing exam category.
 // Clerk/Clerk Grade-II and Personal Assistant Grade-II turned out to be the

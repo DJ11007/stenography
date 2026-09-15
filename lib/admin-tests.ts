@@ -135,6 +135,14 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     ? EXAM_CATEGORIES.find((category) => category.slug === viewAsCategorySlug) : undefined;
   const effectiveCategory = viewCategory ?? nativeCategory;
   const rules = viewCategory ? examCategoryTypingRules(viewCategory, version.language) : null;
+  // Unlike duration/speed/backspace/wordMethod/highlightMode above (which
+  // the native, non-viewAs case can safely read off the stored version.*
+  // columns, since parseDraft() already forced them from this exact
+  // category at save time), there is no DB column for a category's
+  // fullErrorPenalty/halfErrorPenalty/errorRelaxationPercent override --
+  // so unlike `rules`, this must be derived from effectiveCategory
+  // (native OR viewed) every time, not only when viewAsCategorySlug is set.
+  const scoringOverride = effectiveCategory ? { fullErrorPenalty: effectiveCategory.fullErrorPenalty, halfErrorPenalty: effectiveCategory.halfErrorPenalty, errorRelaxationPercent: effectiveCategory.errorRelaxationPercent } : null;
   return {
     id: version.testId, slug: version.slug, title: version.title,
     subtitle: version.description || "Samradhi Classes managed test",
@@ -158,13 +166,26 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     // stenography sets a real base (true); halant is then narrowed to
     // true/false per attempt by scoringProfileWithSelectedCategories,
     // matching the dictation gate's category checklist.
-    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
+    // fullErrorPenalty/halfErrorPenalty/errorRelaxationPercent (scoringOverride,
+    // above) must also come from the effective category -- real bug: an
+    // exercise natively tied to NCERT LDC or RRB NTPC (or shared and viewed
+    // through their page) showed their real researched instructions (10,500
+    // KDPH, the flat-10-per-mistake formula, etc.) but was still SCORED
+    // with the generic 1/0.5 penalty and zero error relaxation underneath,
+    // silently understating how harsh those boards' real formulas are.
+    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, fullErrorPenalty: scoringOverride?.fullErrorPenalty ?? DEFAULT_SCORING_PROFILE.fullErrorPenalty, halfErrorPenalty: scoringOverride?.halfErrorPenalty ?? DEFAULT_SCORING_PROFILE.halfErrorPenalty, errorRelaxationPercent: scoringOverride?.errorRelaxationPercent, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
     audioUrl: null,
     pdfUrl: null,
     pdfFileName: version.pdfFileName ?? null,
     dictationCategories: version.dictationCategories ?? undefined,
     examCategorySlug: effectiveCategory?.slug,
-    instructionNotes: effectiveCategory?.patternNotes,
+    // Real bug: a shared Hindi-language exercise always showed
+    // effectiveCategory's ENGLISH patternNotes on its ExamStart screen,
+    // ignoring patternNotesHindi entirely -- the exact same "English text
+    // under a Hindi-facing screen" bug already fixed for the category rules
+    // page and the category's own hardcoded Hindi preset (categoryPreset()
+    // in typing-curriculum.ts), just missed here for shared/managed exercises.
+    instructionNotes: version.language === "Hindi" ? (effectiveCategory?.patternNotesHindi ?? effectiveCategory?.patternNotes) : effectiveCategory?.patternNotes,
     patternSourced: effectiveCategory?.patternSourced,
     // Real bug: an admin exercise linked to Rajasthan LDC showed the RSSB
     // marks-based instructions (25 max, 9 to qualify, 0.05/0.0625 marks per

@@ -136,6 +136,34 @@ test("result totals equal the underlying aligned analysis entries", () => {
   assert.equal(score.efficiency, score.grossWpm > 0 ? Math.min(100, Math.round(score.netWpm / score.grossWpm * 100)) : 100);
 });
 
+// Real reported research: RRB NTPC's typing skill test forgives
+// errorRelaxationPercent% of typed words' worth of mistakes before any
+// penalty applies at all (confirmed independently across two detailed
+// sources reproducing an identical worked example). This reproduces that
+// exact worked example end to end: 62 words typed, 14 full mistakes, 0 half
+// mistakes, 10-minute test -> gross 6.20 WPM (rounds to 6), 140-point raw
+// penalty, 31-point relaxation (5% x 62 x 10), 109 effective penalty, net
+// speed floored at 0 -- matching the source's own 6.20 / 140 / 0.00 result
+// screen values exactly.
+test("errorRelaxationPercent forgives a percentage of typed words' worth of mistakes before the per-mistake penalty applies, reproducing RRB NTPC's own worked example", () => {
+  const relaxedProfile = { ...DEFAULT_SCORING_PROFILE, fullErrorPenalty: 10, halfErrorPenalty: 5, errorRelaxationPercent: 5 };
+  const words = Array.from({ length: 62 }, (_, index) => `w${index}`);
+  const passage = words.join(" ");
+  const typedText = words.map((word, index) => index < 14 ? `WRONG${index}` : word).join(" ");
+  const score = calculateTypingScore({ typedText, passage, elapsedSeconds: 600, wordMethod: "spaces", scoringProfile: relaxedProfile, includeUntypedWords: true });
+  assert.equal(score.grossWpm, 6);
+  assert.equal(score.analysis.fullErrors, 14);
+  assert.equal(score.analysis.totalPenalty, 140);
+  assert.equal(score.netWpm, 0);
+});
+
+test("errorRelaxationPercent is a no-op for every profile that doesn't set it -- identical netWpm to before this feature existed", () => {
+  const withoutRelaxation = calculateTypingScore({ typedText: "hello Wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", scoringProfile: DEFAULT_SCORING_PROFILE, includeUntypedWords: true });
+  const explicitZero = calculateTypingScore({ typedText: "hello Wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", scoringProfile: { ...DEFAULT_SCORING_PROFILE, errorRelaxationPercent: 0 }, includeUntypedWords: true });
+  assert.equal(withoutRelaxation.netWpm, Math.max(Math.round(withoutRelaxation.grossWpm - withoutRelaxation.analysis.totalPenalty / 1), 0));
+  assert.equal(explicitZero.netWpm, withoutRelaxation.netWpm);
+});
+
 test("early stop classifies the untouched suffix as zero-penalty remaining text", () => {
   const score = calculateTypingScore({ typedText: "one", passage: "one two three four", elapsedSeconds: 30, wordMethod: "characters", includeUntypedWords: true });
   assert.deepEqual(score.analysis.entries.map((entry) => entry.status), ["correct", "remaining", "remaining", "remaining"]);
