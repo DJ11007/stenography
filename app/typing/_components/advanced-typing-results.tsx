@@ -46,7 +46,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
   return <main className="min-h-screen bg-slate-100 text-slate-950 print:bg-white"><TypingBrandHeader/><section className="mx-auto max-w-[1500px] px-3 py-6 sm:px-5 sm:py-8 print:max-w-none print:p-0 [&>:first-child]:mt-0">
     {gradedCategories.length < ALL_HALF_ERROR_CATEGORIES.length && <p role="status" className="rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-900 print:hidden">Graded for this attempt: {gradedCategories.length ? gradedCategories.map((category) => CATEGORY_LABELS[category]).join(", ") : "wrong, missing, extra, and repeated words only"}. Wrong, missing, extra, and repeated words are always graded.</p>}
     {marksResult && preset.marksMethod && <RssbMarksPanel result={marksResult} method={preset.marksMethod} language={preset.language}/>}
-    {marksResult ? <><RssbTypingDetails summary={summary}/><RssbSpeedDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : <><ScreenshotResultSummary passage={passage} score={score} backspaces={backspaces} entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError} resultLabel={resultLabel} resultPassed={resultPassed}/><DetailedResultBreakdown summary={summary}/><CategoryStrip categories={totals}/></>}
+    {marksResult ? <><RssbTypingDetails summary={summary}/><RssbSpeedDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : <><ScreenshotResultSummary passage={passage} score={score} backspaces={backspaces} entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError} resultLabel={resultLabel} resultPassed={resultPassed}/><DetailedResultBreakdown summary={summary}/>{mode !== "practice" && <KeyDepressionSpeedDetails summary={summary}/>}<CategoryStrip categories={totals}/></>}
     {/* RSSB's marks method has no negative marking, so this penalty-based guide would misstate its rules. Practice attempts aren't following any specific exam's official rules at all, so the guide is dropped there entirely rather than shown with blanked-out values. */}
     {!marksResult && mode !== "practice" && <ErrorScoringGuide profile={preset.scoringProfile} textLanguage={textLanguage} entries={score.analysis.entries} savedPenalty={score.analysis.totalPenalty}/>}
     <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7"><div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Result views">{TABS.map(([id,label]) => <button key={id} id={`tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold ${tab === id ? "border-blue-700 text-blue-800" : "border-transparent text-slate-500"}`}>{label}</button>)}</div><div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-6">
@@ -95,6 +95,35 @@ function RssbSpeedDetails({ summary }: { summary: ReturnType<typeof buildResultS
     </div>
     <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{metrics.map(([label,value]) => <ResultMetric key={label} label={label} value={value}/>)}</dl>
     <div className="mt-4 space-y-1.5 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700"><p><strong>Gross WPM:</strong> total words typed ÷ elapsed minutes. <strong>Gross CPM:</strong> typed characters ÷ elapsed minutes.</p><p><strong>Net WPM:</strong> fully correct words ÷ elapsed minutes. <strong>Net CPM:</strong> correctly typed characters ÷ elapsed minutes.</p><p><strong>Configured penalty-adjusted net speed:</strong> {number(summary.penaltyAdjustedNetWpm)} WPM = configured gross method − weighted full/half penalties per elapsed minute, minimum zero.</p></div>
+  </section>;
+}
+// Real reported request: several boards (NCERT, SSC, DDA...) publish their
+// speed requirement in KDPH (key depressions per hour), not just WPM --
+// e.g. NCERT's "35 WPM corresponds to 10,500 KDPH" -- on the standard
+// convention of 5 key depressions per word (WPM x 5 x 60 = KDPH). Derived
+// directly from summary.grossWpm/netWpm (the same numbers already shown
+// above as Gross/Net Speed, already computed with this test's own
+// configured mistake penalty) rather than raw character counts, so this
+// never shows a second, different "net speed" alongside the first one --
+// unlike RssbSpeedDetails above, whose own Net WPM is deliberately the
+// additive correct-words-only figure because RSSB's marks method has no
+// penalty at all. Hidden for Practice, which isn't following any specific
+// board's published benchmark.
+function KeyDepressionSpeedDetails({ summary }: { summary: ReturnType<typeof buildResultSummary> }) {
+  const [unit, setUnit] = useState<"wpm" | "kdph">("wpm");
+  const metrics = unit === "wpm"
+    ? [["Gross Speed (WPM)", `${number(summary.grossWpm)} WPM`], ["Net Speed (WPM)", `${number(summary.netWpm)} WPM`]]
+    : [["Gross Speed (KDPH)", number(summary.grossWpm * 300)], ["Net Speed (KDPH)", number(summary.netWpm * 300)]];
+  return <section aria-labelledby="kdph-speed-details-title" className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-5">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h2 id="kdph-speed-details-title" className="text-lg font-black">Speed Details</h2>
+      <div role="group" aria-label="Speed unit" className="flex h-9 overflow-hidden rounded-lg border border-slate-300 text-xs font-black">
+        <button type="button" aria-pressed={unit === "wpm"} onClick={() => setUnit("wpm")} className={`px-3 ${unit === "wpm" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>WPM</button>
+        <button type="button" aria-pressed={unit === "kdph"} onClick={() => setUnit("kdph")} className={`border-l border-slate-300 px-3 ${unit === "kdph" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>KDPH</button>
+      </div>
+    </div>
+    <dl className="mt-3 grid grid-cols-2 gap-2">{metrics.map(([label,value]) => <ResultMetric key={label} label={label} value={value}/>)}</dl>
+    <p className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700"><strong>KDPH</strong> (key depressions per hour) assumes 5 key depressions per word -- WPM × 5 × 60 -- the convention several boards (NCERT, SSC, DDA, and others) publish their speed requirement in, e.g. 35 WPM = 10,500 KDPH.</p>
   </section>;
 }
 function RssbMistakeDetails({ summary }: { summary: ReturnType<typeof buildResultSummary> }) { return <section aria-labelledby="mistake-details-title" className="mt-6 rounded-3xl bg-white p-5 shadow sm:p-7"><h2 id="mistake-details-title" className="text-xl font-black">Full / Half Mistake Breakdown</h2><div className="mt-5 grid gap-4 lg:grid-cols-2"><MistakeBreakdown title="Full mistakes" total={summary.fullMistakes} items={[["Omissions",summary.fullCategories.omissions],["Substitutions",summary.fullCategories.substitutions],["Additions",summary.fullCategories.additions],["Repetitions",summary.fullCategories.repetitions]]} tone="red"/><MistakeBreakdown title="Half mistakes" total={summary.halfMistakes} items={[["Capitalization",summary.halfCategories.capitalization],["Punctuation",summary.halfCategories.punctuation],["Spacing",summary.halfCategories.spacing],["Minor spelling",summary.halfCategories.spelling]]} tone="purple"/></div></section>; }

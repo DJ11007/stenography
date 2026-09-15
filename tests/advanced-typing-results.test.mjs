@@ -229,6 +229,23 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
   assert.match(component, /unit === "wpm"\s*\n\s*\? \[\["Gross Speed \(WPM\)", `\$\{summary\.grossWordsPerMinute\.toFixed\(2\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{summary\.netWordsPerMinute\.toFixed\(2\)\} WPM`\]\]/);
 });
 
+// Real reported request: several boards (NCERT, SSC, DDA...) publish their
+// speed requirement in KDPH, not just WPM (e.g. NCERT's "35 WPM = 10,500
+// KDPH", the 5-key-depressions-per-word convention), so non-RSSB results
+// need a WPM/KDPH view too -- derived from summary.grossWpm/netWpm (the
+// same, already-penalty-aware numbers shown as Gross/Net Speed elsewhere
+// on this exact results screen), not a second, different "net speed"
+// formula. Hidden for Practice, which isn't following any specific board's
+// published benchmark.
+test("non-RSSB results offer a WPM/KDPH Speed Details panel derived from summary.grossWpm/netWpm, hidden for Practice", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.match(component, /function KeyDepressionSpeedDetails\(/);
+  assert.match(component, /const \[unit, setUnit\] = useState<"wpm" \| "kdph">\("wpm"\);/);
+  assert.match(component, /\["Gross Speed \(WPM\)", `\$\{number\(summary\.grossWpm\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{number\(summary\.netWpm\)\} WPM`\]/);
+  assert.match(component, /\["Gross Speed \(KDPH\)", number\(summary\.grossWpm \* 300\)\], \["Net Speed \(KDPH\)", number\(summary\.netWpm \* 300\)\]/);
+  assert.match(component, /\{mode !== "practice" && <KeyDepressionSpeedDetails summary=\{summary\}\/>\}/);
+});
+
 // Real reported request: RSSB's configured marks method (Rajasthan LDC,
 // Rajasthan DEO) has no negative marking, so the penalty-based "Half
 // mistake / Full mistake" scoring guide misstates its real rules and must
