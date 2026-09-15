@@ -185,6 +185,19 @@ test("speed and reconciliation formulas apply to English, Hindi Unicode, and Kru
   }
 });
 
+// Real reported request: a WPM/KPM toggle in Speed Details so a student
+// isn't shown both unit families' cards at once -- WPM shows Gross/Net
+// Speed (WPM) only, KPM shows Gross/Net Speed (CPM/KPM) plus the KDPH
+// figures (which have no WPM equivalent), defaulting to WPM.
+test("Speed Details offers a WPM/KPM toggle instead of always showing every speed metric at once", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.match(component, /const \[unit, setUnit\] = useState<"wpm" \| "kpm">\("wpm"\);/);
+  assert.match(component, /role="group" aria-label="Speed unit"/);
+  assert.match(component, /aria-pressed=\{unit === "wpm"\} onClick=\{\(\) => setUnit\("wpm"\)\}/);
+  assert.match(component, /aria-pressed=\{unit === "kpm"\} onClick=\{\(\) => setUnit\("kpm"\)\}/);
+  assert.match(component, /unit === "wpm"\s*\n\s*\? \[\["Gross Speed \(WPM\)", `\$\{summary\.grossWordsPerMinute\.toFixed\(2\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{summary\.netWordsPerMinute\.toFixed\(2\)\} WPM`\]\]/);
+});
+
 test("the shared result exposes every accessible view and interactive error details", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /export function AdvancedTypingResults\(/);
