@@ -116,22 +116,22 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
   // ExamStart -- the exact same content the hardcoded preset for that
   // category shows, for free.
   const nativeCategory = version.examCategory ? EXAM_CATEGORIES.find((category) => category.slug === version.examCategory) : undefined;
-  // Real feature: every Rajasthan LDC exercise the admin uploads is shared
-  // across all 24 other exam categories automatically (see
+  // Real feature: every exam exercise the admin uploads, for ANY category,
+  // is shared across every OTHER exam category automatically (see
   // lib/exam-category-navigator-server.ts) -- when viewed through a
   // DIFFERENT category's own page, it renders with THAT category's own
   // real duration/speed/accuracy/backspace/word-method/highlight/
-  // instructions/marks-scheme, not Rajasthan LDC's, even though the
-  // stored passage and DB columns still hold Rajasthan LDC's own values
-  // (set at upload time by parseDraft(), which forces them from whichever
-  // category the admin actually chose). viewAsCategorySlug is only ever
-  // honored when the exercise's REAL, stored category is Rajasthan LDC --
-  // checked against server-trusted nativeCategory, never client input --
-  // so a hand-edited URL/payload can never rescore an SSC-CHSL-native (or
-  // any other) test under a different category's rules. Every other call
-  // site (direct slug access, Rajasthan LDC's own page) omits this
-  // parameter and gets today's exact behaviour, byte for byte.
-  const viewCategory = viewAsCategorySlug && nativeCategory?.slug === "rajasthan-ldc"
+  // instructions/marks-scheme, not its native category's, even though the
+  // stored passage and DB columns still hold the native category's own
+  // values (set at upload time by parseDraft(), which forces them from
+  // whichever category the admin actually chose). viewAsCategorySlug just
+  // needs to name a real category; it's resolved against the fixed,
+  // server-trusted EXAM_CATEGORIES list (never arbitrary client input), so
+  // a hand-edited URL can only ever pick a legitimate category's rules,
+  // never inject anything else. Every other call site (direct slug
+  // access, a category's own native page) omits this parameter and gets
+  // today's exact behaviour, byte for byte.
+  const viewCategory = viewAsCategorySlug
     ? EXAM_CATEGORIES.find((category) => category.slug === viewAsCategorySlug) : undefined;
   const effectiveCategory = viewCategory ?? nativeCategory;
   const rules = viewCategory ? examCategoryTypingRules(viewCategory, version.language) : null;

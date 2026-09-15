@@ -9,11 +9,12 @@ import { FreeExamLimitPaywall } from "@/app/typing/exams/_components/free-exam-l
 
 export default async function PublishedTestPage({params,searchParams}:PageProps<"/tests/[slug]">){
   const slug=(await params).slug; const supabase=await createClient();
-  // Set only by a shared-exercise link on a non-Rajasthan-LDC category
-  // page (see app/typing/exams/category/[slug]/[language]/page.tsx) --
-  // managedVersionToPreset() below only ever honors this when the test's
-  // real, stored category is Rajasthan LDC, so an invalid/absent/tampered
-  // value just falls back to today's exact native behaviour.
+  // Set by a shared-exercise link on any exam category's page (see
+  // app/typing/exams/category/[slug]/[language]/page.tsx, which now shares
+  // every exam exercise into every other category's list) -- resolved
+  // against the fixed EXAM_CATEGORIES list inside managedVersionToPreset(),
+  // so an invalid/absent/tampered value just falls back to today's exact
+  // native behaviour.
   const viewAsRaw=(await searchParams)?.viewAs; const viewAs=typeof viewAsRaw==="string"?viewAsRaw:undefined;
   const[{data:test},{data:{user}}]=await Promise.all([
     supabase.from("tests").select("id,slug,current_version_id,status,visibility,mode,language,input_system_id,is_live,live_starts_at,live_ends_at,results_publish_at").eq("slug",slug).maybeSingle(),

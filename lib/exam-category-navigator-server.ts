@@ -9,26 +9,18 @@ export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"
 // (lib/exam-categories.ts) via the exam_category key inside tests.settings --
 // no dedicated column exists, matching the zero-migration jsonb pattern
 // already used for task_category/audio_path/pdf_path/dictation_categories.
-// "settings->>exam_category" is a PostgREST jsonb-path filter forwarded
-// verbatim by supabase-js's .eq(); confirmed valid syntax, but this is the
-// first place in this codebase's JS (not raw SQL) that uses one.
+//
+// Every exam exercise, whichever category it was native-uploaded under, is
+// shared into every OTHER category's list too (no exam_category filter at
+// all here) -- managedVersionToPreset()'s viewAsCategorySlug parameter
+// (lib/admin-tests.ts) is what makes a shared exercise render/score with
+// THIS category's own rules instead of its native one's. This is a live
+// query (no caching on this route -- createClient() forces dynamic
+// rendering), so it's retroactive: a newly published exercise appears on
+// every category's list immediately, no admin re-save needed.
 export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilters){
  const supabase=await createClient();const oldest=filters.sort==="oldest";
- let query=supabase.from("tests").select("id,slug,title,published_at",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
- // Every Rajasthan LDC exercise the admin uploads is shared into every
- // other category's own list automatically (one-directional -- Rajasthan
- // LDC's own list stays exactly its own uploads, never broadened, so this
- // branch is skipped there). exam_category is a single scalar string per
- // test, so a row can never match both sides of the .or() and duplicate
- // itself in the result set. This is a live query (no caching on this
- // route -- createClient() forces dynamic rendering), so it's retroactive:
- // already-published Rajasthan LDC exercises appear here immediately, no
- // admin re-save needed. See managedVersionToPreset()'s viewAsCategorySlug
- // parameter (lib/admin-tests.ts) for how the shared exercise then renders
- // with THIS category's own rules, not Rajasthan LDC's.
- query=filters.categorySlug==="rajasthan-ldc"
-   ?query.eq("settings->>exam_category","rajasthan-ldc")
-   :query.or(`settings->>exam_category.eq.${filters.categorySlug},settings->>exam_category.eq.rajasthan-ldc`);
+ const query=supabase.from("tests").select("id,slug,title,published_at",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
  const requested=normalizeExamCategoryPage(filters.page);const from=(requested-1)*EXAM_CATEGORY_PAGE_SIZE;const{data,error,count}=await query.order("published_at",{ascending:oldest}).order("id",{ascending:true}).range(from,from+EXAM_CATEGORY_PAGE_SIZE-1);
  if(error){console.error("Exam category navigator query failed",{code:error.code,message:error.message});throw new Error(`Exam exercises could not be loaded (${error.code||"database error"}).`);}
  const total=count??0;const bounds=examCategoryPageBounds(requested,total);

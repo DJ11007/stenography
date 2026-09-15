@@ -30,11 +30,16 @@ test("server query filters mode/status/visibility/is_live/language, ordered by p
 // double-counting risk since exam_category is a single scalar string per
 // test), every other category's list also matches Rajasthan-LDC-tagged
 // tests via a PostgREST .or() filter.
-test("Rajasthan LDC's own list is unbroadened; every other category's list also includes Rajasthan-LDC-tagged tests via .or()", async () => {
+// Real reported request: every category's list should include every exam
+// exercise, whichever category it was native-uploaded under -- not just
+// its own uploads plus Rajasthan LDC's. No exam_category filter at all
+// (managedVersionToPreset's viewAsCategorySlug is what re-scopes a shared
+// exercise's rules to the category page it's actually viewed from).
+test("every category's list includes every exam exercise -- no exam_category filter, no Rajasthan-LDC-specific broadening", async () => {
   const server = await read("lib/exam-category-navigator-server.ts");
-  assert.match(server, /filters\.categorySlug==="rajasthan-ldc"/);
-  assert.match(server, /\?query\.eq\("settings->>exam_category","rajasthan-ldc"\)/);
-  assert.match(server, /:query\.or\(`settings->>exam_category\.eq\.\$\{filters\.categorySlug\},settings->>exam_category\.eq\.rajasthan-ldc`\)/);
+  assert.doesNotMatch(server, /settings->>exam_category/);
+  assert.doesNotMatch(server, /filters\.categorySlug==="rajasthan-ldc"/);
+  assert.match(server, /\.eq\("mode","exam"\)\.eq\("status","published"\)\.eq\("visibility","public"\)\.eq\("is_live",false\)\.eq\("language",filters\.language\)/);
 });
 
 test("the exercise-selection page shows the permanent Official Pattern card, a numbered paginated grid, and a newest/oldest toggle", async () => {
@@ -47,11 +52,12 @@ test("the exercise-selection page shows the permanent Official Pattern card, a n
   assert.match(page, /href=\{`\/typing\/exams\/\$\{officialPresetId\}`\}/);
 });
 
-// A Rajasthan LDC exercise reached via a different category's list must
-// render/score with THAT category's own rules -- the ?viewAs= param is
-// what tells managedVersionToPreset() which category that is. Rajasthan
-// LDC's own list never needs it (it only ever lists its own exercises).
-test("exercise links carry ?viewAs=<category> on every category page except Rajasthan LDC's own", async () => {
+// An exercise reached via any category's list must render/score with
+// THAT category's own rules -- the ?viewAs= param is what tells
+// managedVersionToPreset() which category that is. Every category page
+// (including a native-category item on its own home page, where viewAs
+// resolves to the same rules either way) always carries it now.
+test("exercise links carry ?viewAs=<category> on every category page, unconditionally", async () => {
   const page = await read("app/typing/exams/category/[slug]/[language]/page.tsx");
-  assert.match(page, /href=\{slug==="rajasthan-ldc"\?`\/tests\/\$\{item\.slug\}`:`\/tests\/\$\{item\.slug\}\?viewAs=\$\{slug\}`\}/);
+  assert.match(page, /href=\{`\/tests\/\$\{item\.slug\}\?viewAs=\$\{slug\}`\}/);
 });

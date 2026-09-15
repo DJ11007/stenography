@@ -123,16 +123,30 @@ test("managedVersionToPreset's marksMethod (RSSB marks scheme) turns off when a 
 // never rescore a non-Rajasthan-LDC test under a different category's
 // rules. Checked against server-trusted version.examCategory, never
 // client input.
-test("managedVersionToPreset ignores viewAsCategorySlug entirely when the exercise's real stored category is not Rajasthan LDC (or has none) -- the tamper-resistance gate", async () => {
+// Real reported request: every exam exercise (any native category) should
+// be shareable across every OTHER exam category, not just Rajasthan LDC's
+// -- viewAsCategorySlug now overrides ANY native category, as long as it
+// names a real EXAM_CATEGORIES slug (resolved server-side, so a tampered/
+// nonexistent slug still can't inject anything -- see the second test).
+test("managedVersionToPreset's viewAsCategorySlug overrides ANY native category's rules, not just Rajasthan LDC's", async () => {
   const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
   const sscNative = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 900, passage: "passage text long enough", requiredWpm: 35, requiredAccuracy: 90, backspaceMode: "full", wordMethod: "characters", highlightMode: "character", visibility: "public", examCategory: "ssc-chsl" };
-  const attemptedOverride = managedVersionToPreset(sscNative, "rajasthan-ldc");
-  assert.equal(attemptedOverride.durationSeconds, sscNative.durationSeconds);
-  assert.equal(attemptedOverride.speedRequirement, sscNative.requiredWpm);
-  assert.equal(attemptedOverride.examCategorySlug, "ssc-chsl");
-  assert.equal(attemptedOverride.marksMethod, undefined);
+  const viewedAsRajasthanLdc = managedVersionToPreset(sscNative, "rajasthan-ldc");
+  assert.notEqual(viewedAsRajasthanLdc.durationSeconds, sscNative.durationSeconds);
+  assert.equal(viewedAsRajasthanLdc.examCategorySlug, "rajasthan-ldc");
+  assert.notEqual(viewedAsRajasthanLdc.marksMethod, undefined); // Rajasthan LDC's RSSB marks scheme now applies
   const unlinked = { ...sscNative, examCategory: null };
-  assert.equal(managedVersionToPreset(unlinked, "rajasthan-ldc").examCategorySlug, undefined);
+  assert.equal(managedVersionToPreset(unlinked, "rajasthan-ldc").examCategorySlug, "rajasthan-ldc");
+});
+
+test("managedVersionToPreset ignores an invalid/nonexistent viewAsCategorySlug -- resolved against the fixed EXAM_CATEGORIES list, never arbitrary input", async () => {
+  const { managedVersionToPreset } = await import("../lib/admin-tests.ts");
+  const sscNative = { id: "v1", testId: "t1", versionNumber: 1, title: "X", description: "", slug: "x", language: "English", inputSystemId: "english-qwerty", mode: "exam", durationSeconds: 900, passage: "passage text long enough", requiredWpm: 35, requiredAccuracy: 90, backspaceMode: "full", wordMethod: "characters", highlightMode: "character", visibility: "public", examCategory: "ssc-chsl" };
+  const attemptedTamper = managedVersionToPreset(sscNative, "not-a-real-category");
+  assert.equal(attemptedTamper.durationSeconds, sscNative.durationSeconds);
+  assert.equal(attemptedTamper.speedRequirement, sscNative.requiredWpm);
+  assert.equal(attemptedTamper.examCategorySlug, "ssc-chsl");
+  assert.equal(attemptedTamper.marksMethod, undefined);
 });
 
 // Regression safety: omitting viewAsCategorySlug entirely (every existing
