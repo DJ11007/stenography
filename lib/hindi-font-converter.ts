@@ -25,6 +25,19 @@ preferredLegacy.set("ः", "%");
 preferredLegacy.set(",", "]");
 preferredLegacy.set("?", "\\");
 preferredLegacy.set("-", "&");
+// Real reported bug: an admin's word-set drill wrapped every word in
+// typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
+// garbage glyphs around each word instead of quote marks. These curly
+// quotes aren't Devanagari, so the general loop above (which only keeps
+// entries whose *decoded* side contains a Devanagari character) never
+// mapped them, and unicodeToKrutiDev passed the raw ' '/' ' Unicode code
+// points straight through -- codepoints the bundled Kruti Dev 010 font has
+// no sensible glyph for. The @anthro-ai dictionary confirms the correct
+// legacy bytes: krutiDevToUnicode("^") decodes to '‘' and
+// krutiDevToUnicode("*") decodes to '’', and both are already
+// ordinary keyboard keys, needing no further Alt-code folding.
+preferredLegacy.set("‘", "^");
+preferredLegacy.set("’", "*");
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
 // The @anthro-ai dictionary optimises for the shortest byte sequence,

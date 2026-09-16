@@ -138,3 +138,18 @@ test("long passage repair advances the affected test to a new immutable version"
 test("font converter route is protected by administrator MFA",async()=>{
   const [page,dashboard]=await Promise.all([readFile(new URL("../app/admin/font-converter/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/admin/page.tsx",import.meta.url),"utf8")]);assert.match(page,/await requireAdmin\(\)/);assert.match(dashboard,/\/admin\/font-converter/);
 });
+
+// Real reported bug: an admin's Kruti Dev word-set drill wrapped every word
+// in typographic quotes ('कमल' 'कलम' ...), and the "Student preview"
+// rendered garbage glyphs around each word instead of quote marks. The
+// curly quotes (U+2018/U+2019) aren't Devanagari, so the generic table-
+// building loop (which only keeps entries whose decoded side contains a
+// Devanagari character) never mapped them, and they passed straight
+// through into the Kruti Dev byte stream unconverted -- code points the
+// bundled font has no sensible glyph for.
+test("typographic single quotes convert to their real Kruti Dev keyboard keys and decode back losslessly",()=>{
+  const withQuotes="‘कमल’ ‘कलम’ ‘नगर’ ‘गगन’";
+  const legacy=unicodeToKrutiDev(withQuotes);
+  assert.equal(legacy,"^dey* ^dye* ^uxj* ^xxu*");
+  assert.equal(krutiDevToUnicode(legacy),withQuotes);
+});
