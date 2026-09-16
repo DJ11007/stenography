@@ -153,3 +153,20 @@ test("typographic single quotes convert to their real Kruti Dev keyboard keys an
   assert.equal(legacy,"^dey* ^dye* ^uxj* ^xxu*");
   assert.equal(krutiDevToUnicode(legacy),withQuotes);
 });
+
+// Follow-up to the bug above: a student typing a quoted word on an
+// ordinary keyboard presses the plain apostrophe key twice ('कलम'), not a
+// genuine curly opening/closing pair -- there's no easy way to type a
+// real '‘'/'’' at all. Confirmed against the bundled Kruti Dev 010
+// font: pressing Shift+6 then Shift+8 ("^dye*") is the one keyboard-
+// accurate spelling, so a straight apostrophe must be resolved by
+// position -- one right after whitespace/start is opening, one right
+// before whitespace/end is closing -- to the same "^"/"*" keys, matching
+// exactly what typing "^कलम*" directly already produces.
+test("a plain straight apostrophe wrapping a word converts by position to the same Shift+6/Shift+8 keys as typing them directly",()=>{
+  assert.equal(unicodeToKrutiDev("'कलम'"),unicodeToKrutiDev("^कलम*"));
+  assert.equal(unicodeToKrutiDev("'कमल' 'कलम' 'नगर' 'गगन'"),"^dey* ^dye* ^uxj* ^xxu*");
+  // An apostrophe that isn't wrapping a whole word (no whitespace/edge on
+  // either side) is left alone -- it's not this quoting pattern.
+  assert.equal(unicodeToKrutiDev("मिल'ना"),"fey'uk");
+});

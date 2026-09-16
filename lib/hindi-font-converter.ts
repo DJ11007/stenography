@@ -178,6 +178,16 @@ export function krutiDevToUnicode(text: string) {
 
 export function unicodeToKrutiDev(text: string) {
   let working = normalizeUnicodeHindi(text);
+  // Real reported bug: a drill wrapped every word in plain straight
+  // apostrophes ('कमल' 'कलम' ...) -- what a student actually gets by
+  // pressing the ' key, since typing a genuine curly opening/closing pair
+  // needs an input method nobody here uses. A straight apostrophe can't
+  // tell open from close by itself, but its position can: one right after
+  // whitespace/start-of-text is opening (Shift+6, "^"), one right before
+  // whitespace/end-of-text is closing (Shift+8, "*") -- the same rule a
+  // smart-quotes autocorrect uses. Normalize to the curly equivalents
+  // first so the existing ‘/’ legacy mapping below does the rest.
+  working = working.replace(/(^|\s)'/gu, "$1‘").replace(/'(?=\s|$)/gu, "’");
   // Kruti Dev stores reph after the complete orthographic syllable.
   working = working.replace(/र्([क-हक़-य़](?:्[क-हक़-य़])*(?:[ािीुूृॄेैोौॅॉंःँ]*)?)/gu, "$1Z");
   // Its pre-base i-matra marker is stored before the consonant cluster.
