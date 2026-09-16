@@ -23,7 +23,7 @@ test("formatIST renders a UTC instant as its IST wall-clock time, not the server
 
 test("every server-rendered schedule/timestamp display uses the shared IST-pinned formatter instead of a bare toLocaleString()", async () => {
   const files = [
-    "app/live-test/page.tsx",
+    "app/live-test/live-test-list.tsx",
     "app/tests/[slug]/page.tsx",
     "app/admin/excel-efficiency-tests/page.tsx",
     "app/admin/word-efficiency-tests/page.tsx",

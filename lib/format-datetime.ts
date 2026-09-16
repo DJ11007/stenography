@@ -11,3 +11,15 @@ export const formatIST = (value: string | null | undefined, options?: Intl.DateT
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", ...options });
 };
+
+export const formatISTDate = (value: string | null | undefined, options?: Intl.DateTimeFormatOptions) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", ...options });
+};
+
+export const formatISTTime = (value: string | null | undefined, options?: Intl.DateTimeFormatOptions) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", ...options });
+};
