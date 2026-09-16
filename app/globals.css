@@ -518,3 +518,32 @@ ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-ite
 .word-thumbnail-page { position: relative; overflow: hidden; border: 1px solid #cbd5e1; background: #fff; box-shadow: 0 1px 3px rgb(15 23 42 / .12); cursor: pointer; }
 .word-thumbnail-page:hover { border-color: #0891b2; }
 .word-thumbnail-page-inner { pointer-events: none; transform-origin: top left; }
+
+/* Real reported bug: Windows 7 students (frozen at Chrome ~109, since
+   Chrome dropped Windows 7 support after v109) saw hero-section gradient
+   backgrounds vanish entirely. Tailwind v4's bg-gradient-to-* utilities
+   set `--tw-gradient-position: to bottom right in oklab` and only
+   combine it with the actual colors later, at paint time, via
+   `linear-gradient(var(--tw-gradient-stops))` -- the "in oklab" color-
+   interpolation hint never appears as a literal argument to a
+   linear-gradient() call in the stylesheet text, so no PostCSS build-time
+   tool (including postcss-preset-env's own gradient-interpolation
+   feature, wired up above in postcss.config.mjs) can see or fix it. An
+   old browser that doesn't understand that hint invalidates the whole
+   computed background-image value at substitution time, so the gradient
+   (and anything relying on it, like white hero text over it) disappears
+   completely. A plain `linear-gradient(to bottom right, ...)` with no
+   interpolation hint is valid everywhere and looks effectively
+   identical, so this overrides the hint away with a plain direction
+   instead of trying to polyfill it. `!important` is required because
+   Tailwind's own utility selectors here carry artificially boosted
+   specificity (chained :not(#\#)) that a plain selector can't outweigh
+   through source order alone. */
+.bg-gradient-to-t { --tw-gradient-position: to top !important; }
+.bg-gradient-to-tr { --tw-gradient-position: to top right !important; }
+.bg-gradient-to-r { --tw-gradient-position: to right !important; }
+.bg-gradient-to-br { --tw-gradient-position: to bottom right !important; }
+.bg-gradient-to-b { --tw-gradient-position: to bottom !important; }
+.bg-gradient-to-bl { --tw-gradient-position: to bottom left !important; }
+.bg-gradient-to-l { --tw-gradient-position: to left !important; }
+.bg-gradient-to-tl { --tw-gradient-position: to top left !important; }
