@@ -105,7 +105,7 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
         {groups.map((group) => (
           <div key={group.heading}>
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{group.heading}</h3>
-            <div className="mt-3 grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-3 grid items-start justify-items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {group.items.map(({ test, state }) => <LiveTestCard key={test.id} test={test} state={state} />)}
             </div>
           </div>
@@ -123,8 +123,8 @@ function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState })
   const [open, setOpen] = useState(false);
   const action = state === "open" ? "Start" : state === "upcoming" ? "Schedule" : state === "results-published" ? "Results" : "Closed";
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
+    <article className="inline-flex w-full max-w-xs flex-col rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
+      <div className="flex items-center gap-2">
         <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">LIVE</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${STATUS_BADGE[state]}`}>{STATUS_LABEL[state]}</span>
       </div>
@@ -134,7 +134,7 @@ function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState })
         <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{Math.round(test.duration_seconds / 60)} min</span>
         {test.live_starts_at && <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span>}
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="mt-2 flex items-center gap-3">
         <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex items-center gap-1 text-[11px] font-black text-blue-700">
           <span className={`inline-block text-[9px] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true">▶</span>Details
         </button>

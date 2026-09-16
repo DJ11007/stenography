@@ -38,7 +38,7 @@ test("LiveTestList offers a status filter (upcoming/open/results-published/close
 
 test("LiveTestList renders a 4-column grid at desktop (matching the breakpoints already used by the lesson catalogue and stenography library), and does not let a taller sibling card stretch a shorter one", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
-  assert.match(list, /grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
+  assert.match(list, /grid items-start justify-items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
 });
 
 // Real reported follow-up: the first compact card still had a big blank
@@ -53,5 +53,17 @@ test("each live-test card hides Starts/Ends/Results and the description behind a
   assert.match(list, /\{open && \(/);
   assert.match(list, /formatISTTime\(test\.live_starts_at, \{ hour: "numeric", minute: "2-digit", hour12: true \}\)/);
   assert.doesNotMatch(list, /min-h-9/);
-  assert.match(list, /<div className="mt-2 flex items-center justify-between gap-2">\s*<button type="button" onClick/);
+  assert.match(list, /<div className="mt-2 flex items-center gap-3">\s*<button type="button" onClick/);
+});
+
+// Second reported follow-up: on a wide screen with only a couple of live
+// tests, the grid still divided its full width evenly between columns,
+// so each mostly-empty card stretched wide and its badge/CTA -- pinned to
+// the far right via justify-between -- left a big blank rectangle in the
+// middle. A card should size to its own content, not to however wide an
+// mostly-empty grid column happens to be.
+test("a live-test card caps its own width and left-aligns its rows instead of stretching to fill a wide, sparsely-populated grid column", async () => {
+  const list = await read("app/live-test/live-test-list.tsx");
+  assert.match(list, /className="inline-flex w-full max-w-xs flex-col rounded-xl/);
+  assert.doesNotMatch(list, /flex items-center justify-between gap-2">\s*<span className="rounded-full bg-red-100/);
 });
