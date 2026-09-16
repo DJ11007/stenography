@@ -5,6 +5,7 @@ import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tes
 import { repeatPassageToExactWordCount } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/lib/typing-language";
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories, type HalfErrorCategory } from "@/lib/typing-test";
+import { calculateConfiguredRssbMarks } from "@/lib/typing-results";
 
 type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[]; passageWordCount?: number | null; examCategorySlug?: string | null };
 
@@ -107,7 +108,24 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // comparison again, only the numbers. Storing these lets an admin
   // detail view rebuild the exact same preset/passage/AdvancedTypingResults
   // breakdown a student saw right after submitting, on demand later.
-  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null };
+  // RSMSSB has no negative marking, so its real Net WPM (correctWords/time)
+  // and real qualification (correctWords x marksPerCorrectWord >=
+  // minimumPassingMarks) are neither the generic penalty-based netWpm above
+  // nor a plain WPM-vs-requiredWpm check -- requiredWpm/requiredAccuracy on
+  // this test's own version row is the pace for FULL marks (e.g. Hindi's 40
+  // WPM), not the pace to merely pass (~14.4 WPM), the same distinction
+  // fixed on the student's own results screen (see
+  // requiredWpmForMarksMethod's doc comment). Every admin dashboard that
+  // reads this stored row (the per-test leaderboard, a student's Track
+  // page, the student's own Results page) was comparing netWpm against
+  // required_wpm and silently mis-judging Pass/Fail for Rajasthan LDC/DEO.
+  // Storing these three fields alongside the generic ones -- never
+  // replacing them, so every other exam and every already-recorded attempt
+  // (frozen at submission, per this project's convention) is unaffected --
+  // lets each of those dashboards prefer the real figures when present.
+  const marksResult = preset.marksMethod ? calculateConfiguredRssbMarks(score, preset.marksMethod) : null;
+  const marksNetWpm = marksResult ? Math.round(score.correctWords / Math.max(score.elapsedSeconds / 60, 1 / 60)) : null;
+  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : null };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   if (error) return error.code === "23505" && test.is_live ? { status: "already-submitted" as const, resultsPublishAt: test.results_publish_at } : null;
   return test.is_live ? { status: "submitted" as const, resultsPublishAt: test.results_publish_at } : { status: "scored" as const, score };

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Test Results | Admin" };
 
-type ResultData = { netWpm?: number; accuracy?: number; fullErrors?: number; halfErrors?: number };
+type ResultData = { netWpm?: number; accuracy?: number; fullErrors?: number; halfErrors?: number; marksNetWpm?: number | null; marksQualified?: boolean | null };
 
 // Per-TEST view of every student who has attempted it, ranked by score --
 // the counterpart to /admin/students/[id] (which is per-STUDENT, across
@@ -37,9 +37,14 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
   const ranked = rows
     .map((row) => {
       const result = (row.result ?? {}) as ResultData;
-      const netWpm = Number(result.netWpm ?? 0);
+      // RSMSSB (Rajasthan LDC/DEO) has no negative marking and no WPM pass
+      // threshold at all -- requiredWpm here is the version's full-marks
+      // pace, not the real ~14.4-18 WPM needed to pass -- so an attempt
+      // recorded with marksQualified/marksNetWpm (see recordManagedAttempt)
+      // uses those real figures instead of misjudging Pass/Fail generically.
+      const netWpm = Number(result.marksNetWpm ?? result.netWpm ?? 0);
       const accuracy = Number(result.accuracy ?? 0);
-      const passed = requiredWpm != null && requiredAccuracy != null ? netWpm >= requiredWpm && accuracy >= requiredAccuracy : null;
+      const passed = result.marksQualified != null ? result.marksQualified : requiredWpm != null && requiredAccuracy != null ? netWpm >= requiredWpm && accuracy >= requiredAccuracy : null;
       return { ...row, student: studentById.get(row.student_id), netWpm, accuracy, fullErrors: Number(result.fullErrors ?? 0), halfErrors: Number(result.halfErrors ?? 0), passed };
     })
     .sort((a, b) => b.netWpm - a.netWpm || b.accuracy - a.accuracy);
