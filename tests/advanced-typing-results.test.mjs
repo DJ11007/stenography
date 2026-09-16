@@ -314,6 +314,17 @@ test("the Summary tab's calculations are told whether this preset uses the RSSB 
   assert.match(component, /\["Efficiency",`\$\{calculation\.efficiency\}%`/);
 });
 
+// Real reported request: the two reconciliation panels always rendered in a
+// fixed characters-then-spaces order, regardless of which one is the test's
+// actual configured/authoritative method -- for Rajasthan LDC (spaces) the
+// informal 5-characters convention rendered above the panel that actually
+// decides qualification. The configured method's panel must render first.
+test("the Summary tab's two calculation panels are reordered so the configured/authoritative method always renders first", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.match(component, /const orderedCalculations = \[\.\.\.calculations\]\.sort\(\(a, b\) => Number\(b\.method === selectedMethod\) - Number\(a\.method === selectedMethod\)\);/);
+  assert.match(component, /\{orderedCalculations\.map\(\(calculation\) =>/);
+});
+
 test("the shared result exposes every accessible view and interactive error details", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /export function AdvancedTypingResults\(/);
