@@ -36,15 +36,22 @@ test("LiveTestList offers a status filter (upcoming/open/results-published/close
   assert.match(list, /<option value="oldest">Oldest first<\/option>/);
 });
 
-test("LiveTestList renders a 4-column grid at desktop, matching the breakpoints already used by the lesson catalogue and stenography library", async () => {
+test("LiveTestList renders a 4-column grid at desktop (matching the breakpoints already used by the lesson catalogue and stenography library), and does not let a taller sibling card stretch a shorter one", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
-  assert.match(list, /grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
+  assert.match(list, /grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
 });
 
-test("each live-test card hides Starts/Ends/Results and the description behind a collapsible Details toggle, showing only language/duration/start-time and status by default", async () => {
+// Real reported follow-up: the first compact card still had a big blank
+// gap above the CTA button. Putting the "Details" toggle and the CTA on
+// the same row (instead of the CTA as a separate full-width block below)
+// removes that row entirely, and dropping the title's reserved two-line
+// min-height stops a short one-line title from padding out empty space.
+test("each live-test card hides Starts/Ends/Results and the description behind a collapsible Details toggle placed on the same row as the CTA, with no reserved title height", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
   assert.match(list, /const \[open, setOpen\] = useState\(false\);/);
   assert.match(list, /aria-expanded=\{open\}/);
   assert.match(list, /\{open && \(/);
   assert.match(list, /formatISTTime\(test\.live_starts_at, \{ hour: "numeric", minute: "2-digit", hour12: true \}\)/);
+  assert.doesNotMatch(list, /min-h-9/);
+  assert.match(list, /<div className="mt-2 flex items-center justify-between gap-2">\s*<button type="button" onClick/);
 });

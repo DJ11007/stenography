@@ -105,7 +105,7 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
         {groups.map((group) => (
           <div key={group.heading}>
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{group.heading}</h3>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-3 grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {group.items.map(({ test, state }) => <LiveTestCard key={test.id} test={test} state={state} />)}
             </div>
           </div>
@@ -121,31 +121,33 @@ function StatusTab({ label, active, onClick }: { label: string; active: boolean;
 
 function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState }) {
   const [open, setOpen] = useState(false);
-  const action = state === "open" ? "Start test" : state === "upcoming" ? "View schedule" : state === "results-published" ? "View results" : "Closed";
+  const action = state === "open" ? "Start" : state === "upcoming" ? "Schedule" : state === "results-published" ? "Results" : "Closed";
   return (
-    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">LIVE</span>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${STATUS_BADGE[state]}`}>{STATUS_LABEL[state]}</span>
       </div>
-      <h3 className="mt-2 line-clamp-2 min-h-9 text-sm font-black leading-5 text-slate-950">{test.title}</h3>
-      <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-bold text-slate-500">
-        <span className="rounded-md bg-slate-100 px-2 py-1">{test.language}</span>
-        <span className="rounded-md bg-slate-100 px-2 py-1">{Math.round(test.duration_seconds / 60)} min</span>
-        {test.live_starts_at && <span className="rounded-md bg-slate-100 px-2 py-1">{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span>}
+      <h3 className="mt-1.5 line-clamp-2 text-sm font-black leading-5 text-slate-950">{test.title}</h3>
+      <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-bold text-slate-500">
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{test.language}</span>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{Math.round(test.duration_seconds / 60)} min</span>
+        {test.live_starts_at && <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span>}
       </div>
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="mt-2.5 flex items-center gap-1 text-[11px] font-black text-blue-700">
-        <span className={`inline-block text-[9px] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true">▶</span>Details
-      </button>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex items-center gap-1 text-[11px] font-black text-blue-700">
+          <span className={`inline-block text-[9px] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true">▶</span>Details
+        </button>
+        <Link href={state === "results-published" ? "/live-test" : `/tests/${test.slug}`} aria-disabled={state === "closed"} className={`rounded-lg px-3 py-1 text-center text-[11px] font-black ${state === "open" ? "bg-green-600 text-white" : state === "closed" ? "pointer-events-none bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-700"}`}>{action}</Link>
+      </div>
       {open && (
-        <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-[11px]">
+        <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-lg bg-slate-50 p-2 text-[11px]">
           <div><dt className="text-slate-400">Starts</dt><dd className="font-bold text-slate-700">{formatIST(test.live_starts_at) || "—"}</dd></div>
           <div><dt className="text-slate-400">Ends</dt><dd className="font-bold text-slate-700">{formatIST(test.live_ends_at) || "—"}</dd></div>
           <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{formatIST(test.results_publish_at) || "—"}</dd></div>
           {test.description && <div className="col-span-2"><dt className="text-slate-400">Note</dt><dd className="text-slate-600">{test.description}</dd></div>}
         </dl>
       )}
-      <Link href={state === "results-published" ? "/live-test" : `/tests/${test.slug}`} aria-disabled={state === "closed"} className={`mt-3 block rounded-xl px-3 py-2 text-center text-xs font-black ${state === "open" ? "bg-green-600 text-white" : state === "closed" ? "pointer-events-none bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-700"}`}>{action}</Link>
     </article>
   );
 }
