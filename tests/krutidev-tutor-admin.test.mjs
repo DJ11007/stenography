@@ -125,6 +125,20 @@ test("the tutor page reads from the DB with a bundled fallback, and the admin ma
   assert.match(manager, /deleteKrutiDevExercise/);
 });
 
+// Real reported bug: "+ New" always opened the editor with Order defaulting
+// to 0 -- easy to miss among the other two fields on that row, and every
+// existing lesson of a kind (even a freshly-seeded curriculum) already has
+// an entry at 0, so a new lesson silently tied with it and sorted into the
+// wrong place (list order is kind, display_order, created_at) unless the
+// admin remembered to type a different number in by hand. Bit the same
+// admin twice in a row live. Now the button computes one past this kind's
+// current highest Order and seeds the form with that instead.
+test("+ New suggests one past the current highest Order for that kind, instead of always defaulting to 0", async () => {
+  const manager = await read("app/admin/krutidev-lessons/krutidev-lessons-manager.tsx");
+  assert.match(manager, /setEditing\(\{ kind, suggestedOrder: groupRows\.length \? Math\.max\(\.\.\.groupRows\.map\(\(row\) => row\.display_order\)\) \+ 1 : 0 \}\)/);
+  assert.match(manager, /defaultValue=\{draft\?\.display_order \?\? \(editing && "suggestedOrder" in editing \? editing\.suggestedOrder : 0\)\}/);
+});
+
 test("the tutor has a full-screen toggle", async () => {
   const tutor = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
   assert.match(tutor, /requestFullscreen/);

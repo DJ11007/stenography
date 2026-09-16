@@ -36,7 +36,14 @@ function Feedback({ state }: { state: KrutiDevLessonActionState }) {
 }
 
 export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; dbReady?: boolean }) {
-  const [editing, setEditing] = useState<Row | { kind: Row["kind"] } | null>(null);
+  // Real reported bug: "+ New" always opened the form with Order defaulting
+  // to 0 -- easy to miss among the other two fields on that row, so a new
+  // lesson silently tied with whatever existing lesson also happens to sit
+  // at 0 (often the very first one) instead of continuing the series. New
+  // entries now suggest one past this kind's current highest Order, so the
+  // form already shows the right next number -- still editable, just no
+  // longer defaulting to a value that's virtually always wrong.
+  const [editing, setEditing] = useState<Row | { kind: Row["kind"]; suggestedOrder: number } | null>(null);
   const [liveContent, setLiveContent] = useState("");
   const [saveState, saveAction, savePending] = useActionState(saveKrutiDevExercise, initial);
   const [deleteState, deleteAction] = useActionState(deleteKrutiDevExercise, initial);
@@ -87,7 +94,7 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
           <section key={kind}>
             <div className="flex items-center justify-between">
               <h2 className="font-black text-slate-950">{KIND_LABEL[kind]}s <span className="font-normal text-slate-500">({groupRows.length})</span></h2>
-              {dbReady && <button type="button" onClick={() => setEditing({ kind })} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800">+ New {KIND_LABEL[kind]}</button>}
+              {dbReady && <button type="button" onClick={() => setEditing({ kind, suggestedOrder: groupRows.length ? Math.max(...groupRows.map((row) => row.display_order)) + 1 : 0 })} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800">+ New {KIND_LABEL[kind]}</button>}
             </div>
             <div className="mt-3 grid gap-2">
               {groupRows.length === 0 && <p className="rounded-xl border border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500">None yet — the bundled defaults are shown to students until you add one.</p>}
@@ -164,7 +171,7 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
               <input name="focusKeys" defaultValue={draft?.focus_keys ?? ""} placeholder="d j" className="input mt-1 w-full" />
             </label>
             <label className="text-xs font-bold text-slate-600">Order
-              <input name="displayOrder" type="number" defaultValue={draft?.display_order ?? 0} className="input mt-1 w-full" />
+              <input name="displayOrder" type="number" defaultValue={draft?.display_order ?? (editing && "suggestedOrder" in editing ? editing.suggestedOrder : 0)} className="input mt-1 w-full" />
             </label>
             <label className="mt-5 flex items-center gap-2 text-xs font-bold text-slate-600">
               <input type="checkbox" name="isPublished" defaultChecked={draft?.is_published ?? true} /> Published (shown to students)
