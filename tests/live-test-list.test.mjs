@@ -36,9 +36,22 @@ test("LiveTestList offers a status filter (upcoming/open/results-published/close
   assert.match(list, /<option value="oldest">Oldest first<\/option>/);
 });
 
-test("LiveTestList renders a 4-column grid at desktop (matching the breakpoints already used by the lesson catalogue and stenography library), and does not let a taller sibling card stretch a shorter one", async () => {
+// Third reported follow-up, with a screenshot: fixed sm/lg/xl column
+// breakpoints divide the FULL row width evenly among however many
+// columns that breakpoint declares, regardless of how many cards
+// actually exist. With only 2 cards but (say) 3 declared columns, each
+// populated track was still stretched to its 1/3 share, so the capped-
+// width, left-aligned card only occupied the front of its own wide
+// track -- the unused remainder of that track read as a big gap between
+// card 1 and card 2, even though no column was technically empty.
+// auto-fill with a max-content ceiling sizes each track to its actual
+// card instead of an even division of the row, so populated cards sit
+// flush next to each other with only the grid gap between them, and it
+// naturally yields four or five columns on a wide screen without any
+// breakpoint tuning.
+test("LiveTestList auto-fills columns sized to each card's own content, instead of dividing the full row evenly among a fixed column count", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
-  assert.match(list, /grid items-start justify-items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4/);
+  assert.match(list, /grid items-start justify-items-start gap-3 grid-cols-\[repeat\(auto-fill,minmax\(250px,max-content\)\)\]/);
 });
 
 // Real reported follow-up: the first compact card still had a big blank

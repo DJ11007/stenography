@@ -105,7 +105,7 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
         {groups.map((group) => (
           <div key={group.heading}>
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{group.heading}</h3>
-            <div className="mt-3 grid items-start justify-items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-3 grid items-start justify-items-start gap-3 grid-cols-[repeat(auto-fill,minmax(250px,max-content))]">
               {group.items.map(({ test, state }) => <LiveTestCard key={test.id} test={test} state={state} />)}
             </div>
           </div>
