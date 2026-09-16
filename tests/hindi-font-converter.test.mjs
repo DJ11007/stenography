@@ -47,6 +47,39 @@ test("order-sensitive production Kruti Dev fixtures convert exactly",()=>{
   assert.match(krutiDevToUnicode(economic),/[\u0900-\u097f]/u);
 });
 
+// Real reported bug, confirmed by rendering every candidate byte order
+// directly through the bundled Kruti Dev 010 webfont in a live browser:
+// \u0915\u094d\u0930 (\u00d8, keyboard-typeable fold "dz") is the one ligature this converter
+// folds that the font mis-renders when the pre-base \u093f marker ("f")
+// immediately precedes it -- "\u092a\u094d\u0930\u0915\u094d\u0930\u093f\u092f\u093e" used to fold all the way to
+// "izfdz;k" and render as "\u092a\u094d\u0930\u0915\u093f\u092f\u093e" (the \u094d\u0930 silently disappears visually),
+// and "\u0915\u094d\u0930\u093f\u0915\u0947\u091f" the same way rendered "\u0915\u093f\u0915\u0947\u091f". Every OTHER ligature this
+// converter folds -- \u092a\u094d\u0930/\u0917\u094d\u0930/\u0924\u094d\u0930/\u0936\u094d\u0930/\u092c\u094d\u0930 (iz/xz/=/J/Cj), and \u00d8 itself
+// whenever \u093f does NOT immediately precede it -- was verified the same way
+// to render correctly, so \u00d8 is now left unfolded (the raw ligature byte)
+// specifically in that one position; every other position still folds to
+// "dz" exactly as before. Scoring is unaffected either way: both forms
+// decode to the identical Unicode, and a student can only ever type the
+// keyboard-typeable "dz" form regardless of which one the reference
+// passage stores.
+test("\u0915\u094d\u0930 (\u00d8) is not folded to its keyboard-typeable \"dz\" spelling when the pre-base \u093f marker immediately precedes it -- the one ligature+position this font mis-renders",()=>{
+  const O="\u00d8";
+  assert.equal(unicodeToKrutiDev("\u092a\u094d\u0930\u0915\u094d\u0930\u093f\u092f\u093e"),"izf"+O+";k");
+  assert.equal(unicodeToKrutiDev("\u0915\u094d\u0930\u093f\u0915\u0947\u091f"),"f"+O+"dsV");
+  assert.equal(unicodeToKrutiDev("\u0905\u0915\u094d\u0930\u093f\u092f"),"vf"+O+";");
+  // decoding both the old buggy form and the new correct form must still
+  // agree -- this is a pure display fix, not a scoring/meaning change.
+  assert.equal(krutiDevToUnicode("izf"+O+";k"),"\u092a\u094d\u0930\u0915\u094d\u0930\u093f\u092f\u093e");
+  assert.equal(krutiDevToUnicode("izfdz;k"),"\u092a\u094d\u0930\u0915\u094d\u0930\u093f\u092f\u093e");
+  // every other position for \u00d8, and every other ligature immediately after
+  // "f", are unaffected -- still folded to their keyboard-typeable spelling.
+  assert.equal(unicodeToKrutiDev("\u0915\u094d\u0930\u092e"),"dze");
+  assert.equal(unicodeToKrutiDev("\u0938\u0902\u0915\u094d\u0930\u092e\u0923"),"ladze.k");
+  assert.equal(unicodeToKrutiDev("\u092a\u094d\u0930\u093f\u092f"),"fiz;");
+  assert.equal(unicodeToKrutiDev("\u0917\u094d\u0930\u093f\u0921"),"fxzM");
+  for(const word of ["\u092a\u094d\u0930\u0915\u094d\u0930\u093f\u092f\u093e","\u0915\u094d\u0930\u093f\u0915\u0947\u091f","\u0905\u0915\u094d\u0930\u093f\u092f","\u0915\u094d\u0930\u092e","\u0915\u094d\u0930\u094b\u0927","\u0938\u0902\u0915\u094d\u0930\u092e\u0923","\u092a\u094d\u0930\u093f\u092f","\u0917\u094d\u0930\u093f\u0921"]){assert.equal(krutiDevToUnicode(unicodeToKrutiDev(word)),word);}
+});
+
 test("long-passage decoding isolates repeated matra and reph operations",async()=>{
   const raw=(await readFile(new URL("./fixtures/affected-krutidev-long-passage.txt",import.meta.url),"utf8")).trimEnd();
   assert.equal(raw.length,5408);

@@ -38,9 +38,25 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // by a correctly-typed answer. unicodeToKrutiDev folds every ligature to
 // its keyboard sequence as its last step; each pair is verified to decode
 // back to the same Unicode through krutiDevToUnicode.
+// Real reported bug, confirmed by rendering every candidate byte order
+// directly through the bundled Kruti Dev 010 webfont: क्र (Ø) is the one
+// ligature in this table whose keyboard-typeable fold ("dz") the font
+// mis-renders when the pre-base ि marker ("f") immediately precedes it --
+// "प्रक्रिया" (izfØ;k, correct) folds to "izfdz;k" and renders as "प्रकिया"
+// (the ्र is dropped visually), and "क्रिकेट" the same way renders
+// "किकेट". Every OTHER ligature in this table -- प्र/ग्र/त्र/श्र (iz/xz/=/J),
+// tested the same way -- renders correctly after "f" (e.g. "प्रिय",
+// "ग्रिड", "त्रिवेणी", "श्रिया" all display correctly), so this is a
+// narrow, font-specific limitation of "dz" specifically, not a general
+// "any ligature after f" problem. Scoring is unaffected either way --
+// krutiDevToUnicode("izfØ;k") and krutiDevToUnicode("izfdz;k") both decode
+// to the identical "प्रक्रिया", and a student can only ever type the
+// keyboard-typeable "dz" form anyway -- so keeping Ø unfolded here only
+// changes how the REFERENCE PASSAGE renders, fixing the visual corruption
+// with zero effect on typing/scoring compatibility.
 const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ùk/g, "Rr"], [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
-  [/ç/g, "iz"], [/æ/g, "nz"], [/Ø/g, "dz"], [/—/g, "d`"],
+  [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"], [/—/g, "d`"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
   [/ê/g, "V~V"], [/î/g, "~;"],
 ];
