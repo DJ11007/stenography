@@ -429,6 +429,47 @@ test("errorGraceCount is a no-op for every category that doesn't set it (unchang
   }
 });
 
+// Real requested deep research: CSIR JSA's 5%-relaxation formula was already
+// narrated in prose but never actually implemented (the engine used the
+// platform default 1/0.5 penalty with no relaxation at all) -- same gap RRB
+// NTPC and UPSSSC had. Confirmed against CSIR's own official circular (CSIR
+// letter No. 5-1(116)/2011-PD dated 13.07.2015, Annexure-I to the CSIR-CRRI
+// JSA typing-test notification dated 05.06.2025), which explicitly adopts
+// SSC's methodology and reproduces a worked example end to end: 1,600
+// keystrokes / 320 words typed, 19 mistakes, 16 ignored (5% of 320), 3
+// admissible mistakes each costing 1 WPM over the 10-minute test -> 29 net
+// WPM from 32 gross WPM. Only the general/UR-category 5% figure is
+// implemented, since the platform has no reservation-category input to vary
+// it per candidate -- the ST/HH/Ex-servicemen 7% figure stays prose-only.
+test("CSIR JSA's 5%-relaxation formula is now implemented exactly, reproducing CSIR's own sourced worked example (1,600 keystrokes, 19 mistakes, 16 ignored, 29 net WPM)", () => {
+  const category = getExamCategory("csir-jsa");
+  assert.ok(category);
+  assert.equal(category.fullErrorPenalty, 10);
+  assert.equal(category.halfErrorPenalty, 5);
+  assert.equal(category.errorRelaxationPercent, 5);
+  assert.equal(category.wordMethod, undefined, "CSIR JSA should stay on the default 5-characters-per-word convention");
+  assert.ok(category.patternNotes.some((note) => note.includes("29 net WPM") && note.includes("32 gross WPM")), "expected the sourced worked example to be documented");
+  assert.ok(category.patternNotesHindi.some((note) => note.includes("29 नेट डब्ल्यूपीएम")), "expected the sourced worked example to be documented in the Hindi translation too");
+
+  const english = getExamPreset(examCategoryPresetId("csir-jsa", "English"));
+  assert.equal(english.scoringProfile.fullErrorPenalty, 10);
+  assert.equal(english.scoringProfile.halfErrorPenalty, 5);
+  assert.equal(english.scoringProfile.errorRelaxationPercent, 5);
+
+  // Reproduce CSIR's own worked example: 320 words (1,600 characters at the
+  // 5-characters-per-word convention), 19 full mistakes, 0 half mistakes.
+  const words = Array.from({ length: 320 }, (_, index) => index === 0 ? "w0000" : `w${String(index).padStart(3, "0")}`);
+  const passage = words.join(" ");
+  const wrongLetters = "ABCDEFGHIJKLMNOPQRS"; // 19 distinct, same-length (4-char), maximally different replacements
+  const typedText = words.map((word, index) => index >= 1 && index <= 19 ? wrongLetters[index - 1].repeat(4) : word).join(" ");
+  const score = calculateTypingScore({ typedText, passage, elapsedSeconds: 600, wordMethod: "characters", scoringProfile: english.scoringProfile, includeUntypedWords: true });
+  assert.equal(score.analysis.fullErrors, 19);
+  assert.equal(score.analysis.halfErrors, 0);
+  assert.equal(score.analysis.totalPenalty, 190);
+  assert.equal(score.grossWpm, 32);
+  assert.equal(score.netWpm, 29);
+});
+
 // Real requested research: which Rajasthan/RSSB posts beyond the existing
 // "Rajasthan LDC" category genuinely need their own typing exam category.
 // Clerk/Clerk Grade-II and Personal Assistant Grade-II turned out to be the
