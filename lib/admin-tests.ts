@@ -106,7 +106,7 @@ export function validateManagedTest(input: ManagedTestDraft) {
   if (input.mode === "stenography" && !input.isLive && !STENOGRAPHY_CATEGORIES.some((category) => category.slug === input.stenoCategory)) addError("stenoCategory", "Choose the stenography category this test belongs to.");
   const matter = validateMatterText(input.passage, input.language, input.inputSystemId);
   matter.errors.forEach((message) => addError("passage", message));
-  errors.push(...validateLiveSchedule({ isLive: input.isLive ?? false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, resultsPublishAt: input.resultsPublishAt ?? null }));
+  errors.push(...validateLiveSchedule({ isLive: input.isLive ?? false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, resultsPublishAt: input.resultsPublishAt ?? null, resultsDelayMinutes: input.resultsDelayMinutes ?? null }));
   if (matter.characterCount < 20) addError("passage", "Passage must contain at least 20 characters.");
   return { errors, fieldErrors, passage: matter.text, characterCount: matter.characterCount, wordCount: matter.wordCount };
 }

@@ -5,10 +5,10 @@ import TestManager, { type ManagedTestRow } from "./test-manager";
 
 export default async function AdminTestsPage() {
   const { user } = await requireAdmin(); const supabase = await createClient();
-  let { data: tests, error } = await supabase.from("tests").select("id,title,slug,description,language,status,mode,input_system_id,visibility,duration_seconds,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,created_by,created_at").order("updated_at",{ascending:false});
+  let { data: tests, error } = await supabase.from("tests").select("id,title,slug,description,language,status,mode,input_system_id,visibility,duration_seconds,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes,created_by,created_at").order("updated_at",{ascending:false});
   if (error) {
     const fallback = await supabase.from("tests").select("id,title,slug,description,language,status,mode,input_system_id,visibility,duration_seconds,current_version_id,current_version_number,updated_at,created_by,created_at").order("updated_at",{ascending:false});
-    tests = (fallback.data ?? []).map((test) => ({ ...test, is_live: false, live_starts_at: null, live_ends_at: null, results_publish_at: null }));
+    tests = (fallback.data ?? []).map((test) => ({ ...test, is_live: false, live_starts_at: null, live_ends_at: null, results_publish_at: null, results_delay_minutes: null }));
     error = fallback.error;
   }
   const ids=(tests??[]).map((test)=>test.id); const versionIds=(tests??[]).flatMap((test)=>test.current_version_id?[test.current_version_id]:[]);

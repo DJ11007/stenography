@@ -38,7 +38,7 @@ test("TestManager's lockedLive forces isLive on, shows the schedule fields witho
   const manager = await read("app/admin/tests/test-manager.tsx");
   assert.match(manager, /const \[isLive,setIsLive\] = useState\(lockedLive\);/);
   assert.match(manager, /lockedLive && effectiveMode === "exam" \? saveLiveExamManagedTest : lockedLive && effectiveMode === "stenography" \? saveLiveStenographyManagedTest/);
-  assert.match(manager, /\{lockedLive\?<><input type="hidden" name="isLive" value="on"\/>/);
+  assert.match(manager, /\{lockedLive\?<input type="hidden" name="isLive" value="on"\/>:/);
 });
 
 test("persistManagedTest routes a live-locked section through save_scheduled_managed_test (which has no mode restriction), not save_section_managed_test (which rejects is_live outright)", async () => {

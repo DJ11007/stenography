@@ -37,6 +37,14 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   const modeValue = text(formData, "mode");
   const mode = (["learn", "practice", "exam", "stenography"].includes(modeValue) ? modeValue : "practice") as ManagedTestDraft["mode"];
   const isLive = formData.get("isLive") === "on";
+  // "anytime" mode: no fixed start/end window, results unlock per-student a
+  // fixed delay after their own submission instead of one shared time for
+  // everyone. Defaults to "scheduled" (today's exact existing behavior) so
+  // a form submission that doesn't send liveMode at all -- an older cached
+  // page, or a locked-live section that hasn't been given the selector --
+  // keeps working unchanged.
+  const liveMode = text(formData, "liveMode") === "anytime" ? "anytime" : "scheduled";
+  const resultsDelayMinutesRaw = text(formData, "resultsDelayMinutes");
   const durationMinutes = text(formData, "durationMinutes");
   const iso = (name: string) => { const value = text(formData, name); const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.toISOString() : value || null; };
   // Practice (non-live) tests don't ask the admin to configure
@@ -97,7 +105,11 @@ function parseDraft(formData: FormData): ManagedTestDraft {
     wordMethod: practiceFixedDefaults ? "characters" : categoryRules?.wordMethod ?? (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
     highlightMode: practiceFixedDefaults ? "character" : categoryRules?.highlightMode ?? ((["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"]),
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
-    isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
+    isLive,
+    startsAt: isLive && liveMode === "scheduled" ? iso("startsAt") : null,
+    endsAt: isLive && liveMode === "scheduled" ? iso("endsAt") : null,
+    resultsPublishAt: isLive && liveMode === "scheduled" ? iso("resultsPublishAt") : null,
+    resultsDelayMinutes: isLive && liveMode === "anytime" ? (Number.isInteger(Number(resultsDelayMinutesRaw)) ? Number(resultsDelayMinutesRaw) : null) : null,
     examCategory, stenoCategory,
   });
 }
@@ -144,7 +156,7 @@ async function resolvePdfPath(formData: FormData, testId: string | null, supabas
 async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode, lockedLive?: boolean): Promise<TestFormState> {
   await requireAdmin(); const draft = parseDraft(formData); const validation = validateManagedTest(draft);
   if (lockedMode && draft.mode !== lockedMode) return { error: `This section only accepts ${lockedMode} tests.` };
-  if (lockedLive && !draft.isLive) return { error: "This section only accepts scheduled live tests." };
+  if (lockedLive && !draft.isLive) return { error: "This section only accepts live tests." };
   if (validation.errors.length) return { error: validation.errors[0], fieldErrors: validation.fieldErrors };
   const id = text(formData, "testId") || null; const publish = formData.get("intent") === "publish"; const supabase = await createClient();
   let audioPath: string | null = null;
@@ -168,7 +180,7 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     const defaults = parse("dictationDefaults").filter((item) => available.includes(item));
     return { available, defaults };
   })() : null;
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null, steno_category: draft.stenoCategory ?? null };
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, results_delay_minutes: draft.resultsDelayMinutes ?? null, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null, steno_category: draft.stenoCategory ?? null };
   // A live-locked section (Live Typing Test / Live Stenography Test) still
   // has a fixed mode, but save_section_managed_test hard-rejects is_live --
   // it routes through save_scheduled_managed_test instead (the same RPC the

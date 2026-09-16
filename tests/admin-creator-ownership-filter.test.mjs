@@ -12,7 +12,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // on every row.
 test("both admin test-list entry points fetch created_by/created_at and resolve the creator's profile name", async () => {
   const section = await read("app/admin/tests/section-test-page.tsx");
-  assert.match(section, /"id,title,slug,description,language,status,mode,input_system_id,visibility,duration_seconds,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,created_by,created_at"/);
+  assert.match(section, /"id,title,slug,description,language,status,mode,input_system_id,visibility,duration_seconds,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes,created_by,created_at"/);
   assert.match(section, /supabase\.from\("profiles"\)\.select\("id,full_name"\)\.in\("id", creatorIds\)/);
   assert.match(section, /creatorName: test\.created_by \? creatorNameMap\.get\(test\.created_by\) \?\? null : null/);
 

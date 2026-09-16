@@ -27,9 +27,9 @@ test("LiveTestList groups tests by calendar day in IST, independent of the serve
   assert.match(list, /function dayHeading/);
 });
 
-test("LiveTestList offers a status filter (upcoming/open/results-published/closed), a language filter, and a newest/oldest sort", async () => {
+test("LiveTestList offers a status filter (anytime/upcoming/open/results-published/closed), a language filter, and a newest/oldest sort", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
-  assert.match(list, /const STATUS_TABS = \["upcoming", "open", "results-published", "closed"\] as const;/);
+  assert.match(list, /const STATUS_TABS = \["anytime", "upcoming", "open", "results-published", "closed"\] as const;/);
   assert.match(list, /aria-label="Filter by language"/);
   assert.match(list, /languages\.length > 1/);
   assert.match(list, /<option value="newest">Newest first<\/option>/);

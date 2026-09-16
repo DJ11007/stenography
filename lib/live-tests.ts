@@ -3,12 +3,22 @@ export type LiveTestSchedule = {
   startsAt: string | null;
   endsAt: string | null;
   resultsPublishAt: string | null;
+  // Real reported request: some live tests should be attemptable "any day,
+  // any time" (no fixed start/end window) with each STUDENT's own result
+  // unlocking a fixed delay after THEIR OWN submission, instead of one
+  // shared reveal time for everyone. Non-null here switches the whole
+  // schedule to that "anytime" mode; startsAt/endsAt/resultsPublishAt are
+  // meaningless (and left null) in that mode. Kept as a sibling field
+  // rather than a separate "mode" enum so a schedule object still fully
+  // describes itself without extra plumbing.
+  resultsDelayMinutes: number | null;
 };
 
-export type LiveTestState = "ordinary" | "upcoming" | "open" | "closed" | "results-published";
+export type LiveTestState = "ordinary" | "upcoming" | "open" | "closed" | "results-published" | "anytime";
 
 export function liveTestState(schedule: LiveTestSchedule, now = new Date()): LiveTestState {
   if (!schedule.isLive) return "ordinary";
+  if (schedule.resultsDelayMinutes != null) return "anytime";
   const starts = schedule.startsAt ? new Date(schedule.startsAt).getTime() : Number.NaN;
   const ends = schedule.endsAt ? new Date(schedule.endsAt).getTime() : Number.NaN;
   const results = schedule.resultsPublishAt ? new Date(schedule.resultsPublishAt).getTime() : Number.NaN;
@@ -21,6 +31,10 @@ export function liveTestState(schedule: LiveTestSchedule, now = new Date()): Liv
 
 export function validateLiveSchedule(schedule: LiveTestSchedule) {
   if (!schedule.isLive) return [];
+  if (schedule.resultsDelayMinutes != null) {
+    return Number.isInteger(schedule.resultsDelayMinutes) && schedule.resultsDelayMinutes > 0 && schedule.resultsDelayMinutes <= 1440
+      ? [] : ["The results delay must be a whole number of minutes, from 1 to 1440 (24 hours)."];
+  }
   const starts = schedule.startsAt ? new Date(schedule.startsAt).getTime() : Number.NaN;
   const ends = schedule.endsAt ? new Date(schedule.endsAt).getTime() : Number.NaN;
   const results = schedule.resultsPublishAt ? new Date(schedule.resultsPublishAt).getTime() : Number.NaN;

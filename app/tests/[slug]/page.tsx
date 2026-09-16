@@ -18,7 +18,7 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   // native behaviour.
   const viewAsRaw=(await searchParams)?.viewAs; const viewAs=typeof viewAsRaw==="string"?viewAsRaw:undefined;
   const[{data:test},{data:{user}}]=await Promise.all([
-    supabase.from("tests").select("id,slug,current_version_id,status,visibility,mode,language,input_system_id,is_live,live_starts_at,live_ends_at,results_publish_at").eq("slug",slug).maybeSingle(),
+    supabase.from("tests").select("id,slug,current_version_id,status,visibility,mode,language,input_system_id,is_live,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes").eq("slug",slug).maybeSingle(),
     supabase.auth.getUser(),
   ]);
   if(!test?.current_version_id)notFound();
@@ -69,9 +69,11 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   // student who has actually used up their free exam attempts.
   const studentIdentity={name:profile?.full_name?.trim()||"Student",email:user.email||"",phone:profile?.phone||user.phone||null};
   if(examFreeStatus.data?.blocked)return <TypingStudentProvider student={studentIdentity}><FreeExamLimitPaywall used={examFreeStatus.data.used_count} limit={examFreeStatus.data.free_limit??0}/></TypingStudentProvider>;
-  const schedule={isLive:Boolean(test.is_live),startsAt:test.live_starts_at,endsAt:test.live_ends_at,resultsPublishAt:test.results_publish_at};
+  const schedule={isLive:Boolean(test.is_live),startsAt:test.live_starts_at,endsAt:test.live_ends_at,resultsPublishAt:test.results_publish_at,resultsDelayMinutes:test.results_delay_minutes};
   const state=liveTestState(schedule);
-  if(test.is_live&&state!=="open")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${formatIST(test.live_starts_at)}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":`Results publish ${formatIST(test.results_publish_at)}`}/>;
+  // "anytime" mode has no fixed window -- it's always open, so it never
+  // shows the upcoming/closed/results-published gate below.
+  if(test.is_live&&state!=="open"&&state!=="anytime")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${formatIST(test.live_starts_at)}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":`Results publish ${formatIST(test.results_publish_at)}`}/>;
   const{data:v}=await supabase.from("test_versions").select("*").eq("id",test.current_version_id).maybeSingle();if(!v)notFound();
   const configuration=v.configuration as Record<string,unknown>|null;
   const version:ManagedTestVersion={id:v.id,testId:v.test_id,versionNumber:v.version_number,title:v.title,description:v.description??"",slug:test.slug,language:v.language,inputSystemId:v.input_system_id,mode:v.mode,durationSeconds:v.duration_seconds,passage:v.passage,requiredWpm:Number(v.required_wpm),requiredAccuracy:Number(v.required_accuracy),backspaceMode:v.backspace_mode,wordMethod:v.word_method,highlightMode:v.highlight_mode,visibility:v.visibility,audioPath:configuration?.audio_path as string|null??null,pdfPath:configuration?.pdf_path as string|null??null,pdfFileName:configuration?.pdf_file_name as string|null??null,dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"]??null,examCategory:configuration?.exam_category as string|null??null};
@@ -79,7 +81,7 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   if(version.audioPath){const{data:signed}=await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath,3600);preset.audioUrl=signed?.signedUrl??null;}
   if(version.pdfPath){const{data:signed}=await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath,3600);preset.pdfUrl=signed?.signedUrl??null;}
   return <TypingStudentProvider student={studentIdentity}>
-    <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at}} adminPreview={isAdmin}/>
+    <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at,resultsDelayMinutes:test.results_delay_minutes}} adminPreview={isAdmin}/>
   </TypingStudentProvider>;
 }
 

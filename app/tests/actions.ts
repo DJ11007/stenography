@@ -29,7 +29,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // reported.
   const [{ data: { user } }, { data: test }, { data: v }] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from("tests").select("id,slug,current_version_id,status,visibility,is_live,live_starts_at,live_ends_at,results_publish_at").eq("id", payload.testId).maybeSingle(),
+    supabase.from("tests").select("id,slug,current_version_id,status,visibility,is_live,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes").eq("id", payload.testId).maybeSingle(),
     supabase.from("test_versions").select("*").eq("id", payload.versionId).maybeSingle(),
   ]);
   if (!user || !Number.isFinite(payload.elapsedSeconds) || payload.elapsedSeconds < 0 || payload.typedText.length > 100000) return null;
@@ -47,7 +47,11 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   if (accessError) return { status: "locked" as const };
   if (v.mode === "practice" && practiceLimitResult?.error) return { status: "locked" as const };
   if (v.mode === "exam" && !test.is_live && examLimitResult?.error) return { status: "locked" as const };
-  if (test.is_live) {
+  // An "anytime" live test (results_delay_minutes set) has no fixed
+  // start/end window -- it's attemptable whenever a student opens it, so
+  // the scheduled-window check below only ever applies to the original
+  // "everyone attempts in one shared window" live-test shape.
+  if (test.is_live && test.results_delay_minutes == null) {
     const now = Date.now(); const starts = new Date(test.live_starts_at ?? "").getTime(); const ends = new Date(test.live_ends_at ?? "").getTime();
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || now < starts || now > ends) return { status: "closed" as const };
   }
@@ -127,6 +131,14 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   const marksNetWpm = marksResult ? Math.round(score.correctWords / Math.max(score.elapsedSeconds / 60, 1 / 60)) : null;
   const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : null };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
-  if (error) return error.code === "23505" && test.is_live ? { status: "already-submitted" as const, resultsPublishAt: test.results_publish_at } : null;
-  return test.is_live ? { status: "submitted" as const, resultsPublishAt: test.results_publish_at } : { status: "scored" as const, score };
+  // Anytime mode's per-student unlock time is submitted_at + delay, not a
+  // shared resultsPublishAt -- and the DB row can't be re-read to fetch its
+  // real submitted_at right after insert (the same RLS policy that hides an
+  // unlocked live result from anyone else also hides it from the very
+  // request that just created it, until the delay elapses). A coarse
+  // (whole-minute) delay makes the tiny gap between "now, in this request"
+  // and the DB's own `default now()` stamp irrelevant, so this just uses
+  // the current time directly instead.
+  if (error) return error.code === "23505" && test.is_live ? { status: "already-submitted" as const, resultsPublishAt: test.results_publish_at, resultsDelayMinutes: test.results_delay_minutes } : null;
+  return test.is_live ? { status: "submitted" as const, resultsPublishAt: test.results_publish_at, resultsDelayMinutes: test.results_delay_minutes, submittedAt: test.results_delay_minutes != null ? new Date().toISOString() : null } : { status: "scored" as const, score };
 }

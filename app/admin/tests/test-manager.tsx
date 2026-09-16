@@ -15,7 +15,7 @@ import { deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearn
 import { PermanentDeleteDangerZone } from "./permanent-delete-danger-zone";
 
 type Version = { id:string; description:string|null; language:"English"|"Hindi"; mode:ManagedTestMode; input_system_id:string; duration_seconds:number; passage:string; required_wpm:number; required_accuracy:number; backspace_mode:string; word_method:string; highlight_mode:string; visibility:"public"|"private"; passage_characters:number; passage_words:number; configuration?:Record<string,unknown>|null };
-export type ManagedTestRow = { id:string; title:string; slug:string; description:string|null; language:string|null; status:ManagedTestStatus; mode:ManagedTestMode; input_system_id:string; visibility:"public"|"private"; duration_seconds:number|null; current_version_id:string|null; current_version_number:number; updated_at:string; is_live:boolean; live_starts_at:string|null; live_ends_at:string|null; results_publish_at:string|null; currentVersion:Version|null; attempts:number; created_by?:string|null; created_at?:string|null; creatorName?:string|null };
+export type ManagedTestRow = { id:string; title:string; slug:string; description:string|null; language:string|null; status:ManagedTestStatus; mode:ManagedTestMode; input_system_id:string; visibility:"public"|"private"; duration_seconds:number|null; current_version_id:string|null; current_version_number:number; updated_at:string; is_live:boolean; live_starts_at:string|null; live_ends_at:string|null; results_publish_at:string|null; results_delay_minutes:number|null; currentVersion:Version|null; attempts:number; created_by?:string|null; created_at?:string|null; creatorName?:string|null };
 const initialState: TestFormState = {};
 const localDateTime = (value:string|null|undefined) => value ? new Date(value).toISOString().slice(0,16) : "";
 // Real reported bug: a datetime-local input's own native picker renders as
@@ -139,6 +139,12 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   const [startsAt,setStartsAt] = useState("");
   const [endsAt,setEndsAt] = useState("");
   const [resultsPublishAt,setResultsPublishAt] = useState("");
+  // "anytime" mode: no fixed start/end window -- attemptable any day, any
+  // time, one attempt per student like the scheduled shape, but each
+  // student's OWN result unlocks resultsDelayMinutes after THEIR OWN
+  // submission instead of one shared resultsPublishAt for everyone.
+  const [liveMode,setLiveMode] = useState<"scheduled"|"anytime">("scheduled");
+  const [resultsDelayMinutes,setResultsDelayMinutes] = useState(10);
   const [state,action,pending] = useActionState(saveAction,initialState);
   // Puts a red box on the exact field a validation error is about (see
   // validateManagedTest's fieldErrors) and scrolls/focuses it, instead of
@@ -211,6 +217,8 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
     setStartsAt(localDateTime(test?.live_starts_at));
     setEndsAt(localDateTime(test?.live_ends_at));
     setResultsPublishAt(localDateTime(test?.results_publish_at));
+    setLiveMode(test?.results_delay_minutes != null ? "anytime" : "scheduled");
+    setResultsDelayMinutes(test?.results_delay_minutes ?? 10);
   };
   // Hindi typing (Learn/Practice) offers Kruti Dev 010 only -- Exam/Stenography
   // keep every input system, unaffected by this restriction.
@@ -323,7 +331,27 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
         </Field>}
         {showAdminRules ? <><Field label="Backspace"><select className="input" name="backspaceMode" value={backspaceMode} onChange={(event)=>setBackspaceMode(event.target.value)}><option value="full">Full</option><option value="word">Current word</option><option value="disabled">Disabled</option></select></Field><Field label="Word calculation"><select className="input" name="wordMethod" value={wordMethod} onChange={(event)=>setWordMethod(event.target.value)}><option value="characters">5 characters</option><option value="spaces">Space-separated words</option></select></Field><Field label="Highlight default"><select className="input" name="highlightMode" value={highlightMode} onChange={(event)=>setHighlightMode(event.target.value)}><option value="character">Character</option><option value="word">Current word</option><option value="none">None</option></select></Field></> : <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm font-black text-blue-900">{formMode==="exam"?(selectedExamCategory?`Backspace follows ${selectedExamCategory.name}'s official policy (${selectedExamCategory.backspaceMode==="disabled"?"not allowed":selectedExamCategory.backspaceMode==="word"?"current word only":"full"}); word calculation is ${selectedExamCategory.wordMethod==="spaces"?"space-separated words":"5 characters"} and highlighting is ${selectedExamCategory.highlightMode==="none"?"off":selectedExamCategory.highlightMode==="word"?"current word":"character"} -- also that category's own setting, not this platform's generic default -- and none of this can be changed here.`:"Choose an exam category above to set the backspace, word calculation, and highlight policy automatically."):"Practice settings are controlled by the student."}</p>}
         <Field label="Visibility"><select className="input" name="visibility" value={visibility} onChange={(event)=>setVisibility(event.target.value as "private"|"public")}><option value="private">Private</option><option value="public">Public</option></select></Field>
-        {(!effectiveMode||lockedLive)&&<fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">{lockedLive?<><input type="hidden" name="isLive" value="on"/><p className="font-black text-blue-950">Scheduled live test</p></>:<label className="flex items-center gap-2 font-black text-blue-950"><input type="checkbox" name="isLive" checked={isLive} onChange={(event)=>setIsLive(event.target.checked)}/>Free scheduled live test</label>}<p className="mt-1 text-xs text-blue-800">Live tests must be public. Each registered student receives one attempt; results unlock at the publication time.</p>{isLive&&<div className="mt-3 grid gap-2"><Field label="Starts"><input className="input" name="startsAt" type="datetime-local" value={startsAt} onChange={(event)=>setStartsAt(event.target.value)}/>{startsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(startsAt)}</p>}</Field><Field label="Ends"><input className="input" name="endsAt" type="datetime-local" value={endsAt} onChange={(event)=>setEndsAt(event.target.value)}/>{endsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(endsAt)}</p>}</Field><Field label="Publish results"><input className="input" name="resultsPublishAt" type="datetime-local" value={resultsPublishAt} onChange={(event)=>setResultsPublishAt(event.target.value)}/>{resultsPublishAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(resultsPublishAt)}</p>}</Field></div>}</fieldset>}
+        {(!effectiveMode||lockedLive)&&<fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+          {lockedLive?<input type="hidden" name="isLive" value="on"/>:<label className="flex items-center gap-2 font-black text-blue-950"><input type="checkbox" name="isLive" checked={isLive} onChange={(event)=>setIsLive(event.target.checked)}/>Free live test</label>}
+          <p className="mt-1 text-xs text-blue-800">Live tests must be public. Each registered student receives one attempt.</p>
+          {isLive&&<>
+            <div className="mt-3 flex flex-wrap gap-4 text-sm font-black text-blue-950">
+              <label className="flex items-center gap-1.5"><input type="radio" name="liveMode" value="scheduled" checked={liveMode==="scheduled"} onChange={()=>setLiveMode("scheduled")}/>Scheduled window</label>
+              <label className="flex items-center gap-1.5"><input type="radio" name="liveMode" value="anytime" checked={liveMode==="anytime"} onChange={()=>setLiveMode("anytime")}/>Anytime</label>
+            </div>
+            {liveMode==="scheduled"
+              ? <div className="mt-3 grid gap-2">
+                  <p className="text-xs text-blue-800">Everyone attempts within this one window; results unlock for everyone at the publication time.</p>
+                  <Field label="Starts"><input className="input" name="startsAt" type="datetime-local" value={startsAt} onChange={(event)=>setStartsAt(event.target.value)}/>{startsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(startsAt)}</p>}</Field>
+                  <Field label="Ends"><input className="input" name="endsAt" type="datetime-local" value={endsAt} onChange={(event)=>setEndsAt(event.target.value)}/>{endsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(endsAt)}</p>}</Field>
+                  <Field label="Publish results"><input className="input" name="resultsPublishAt" type="datetime-local" value={resultsPublishAt} onChange={(event)=>setResultsPublishAt(event.target.value)}/>{resultsPublishAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(resultsPublishAt)}</p>}</Field>
+                </div>
+              : <div className="mt-3 grid gap-2">
+                  <p className="text-xs text-blue-800">Attemptable any day, any time -- no start/end window. Each student's own result unlocks only for them, this many minutes after THEY submit.</p>
+                  <Field label="Results delay (minutes after the student submits)"><input className="input" name="resultsDelayMinutes" type="number" min={1} max={1440} value={resultsDelayMinutes} onChange={(event)=>setResultsDelayMinutes(Math.max(1,Math.min(1440,Number(event.target.value)||1)))}/></Field>
+                </div>}
+          </>}
+        </fieldset>}
         <button type="button" onClick={()=>setPreview((value)=>!value)} className="w-full rounded-lg border py-2 font-bold">{preview?"Hide preview":"Preview"}</button>
         {preview&&<div className="max-h-56 overflow-auto rounded-xl bg-slate-50 p-4"><h3 className="font-bold">Passage preview</h3>{passageFormat==="krutidev"&&<span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">Kruti Dev 010 · Legacy encoded text</span>}<p className="mt-2 whitespace-pre-wrap text-lg leading-8" style={{fontFamily:inputSystem.includes("krutidev")?'"Kruti Dev 010", sans-serif':language==="Hindi"?'"Nirmala UI", Mangal, sans-serif':"Arial, sans-serif"}}>{passage||"No passage entered."}</p></div>}
         {state.error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}{state.success&&<p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{state.success}</p>}
@@ -345,7 +373,11 @@ const ICON_BUTTON = "flex h-8 w-8 items-center justify-center rounded-lg bg-slat
 function TestRow({test,onEdit,learningOnly}:{test:ManagedTestRow;onEdit:()=>void;learningOnly:boolean}) {
   const version = test.currentVersion;
   const hasAudio = Boolean(version?.configuration?.audio_path);
-  const liveSchedule = test.is_live ? `${new Date(test.live_starts_at??"").toLocaleString("en-IN")} → ${new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results ${new Date(test.results_publish_at??"").toLocaleString("en-IN")}` : undefined;
+  const liveSchedule = test.is_live
+    ? (test.results_delay_minutes != null
+      ? `Anytime · results ${test.results_delay_minutes} min after each student submits`
+      : `${new Date(test.live_starts_at??"").toLocaleString("en-IN")} → ${new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results ${new Date(test.results_publish_at??"").toLocaleString("en-IN")}`)
+    : undefined;
   // Everything this row used to spell out on its own lines, still available
   // in one hover instead of gone entirely.
   const details = `${test.language} · ${test.input_system_id} · ${test.mode} · ${Math.round((test.duration_seconds??0)/60)} min\n${version?.passage_characters??0} characters · ${version?.passage_words??0} words · ${test.attempts} attempts · ${test.visibility}\nCreator: ${test.creatorName??"—"} · Created ${test.created_at?new Date(test.created_at).toLocaleDateString("en-IN"):"—"}`;

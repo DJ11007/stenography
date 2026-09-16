@@ -14,6 +14,7 @@ type LiveTest = {
   live_starts_at: string | null;
   live_ends_at: string | null;
   results_publish_at: string | null;
+  results_delay_minutes: number | null;
   is_live: boolean;
 };
 
@@ -33,6 +34,7 @@ const STATUS_LABEL: Record<LiveTestState, string> = {
   open: "Open now",
   closed: "Closed",
   "results-published": "Results out",
+  anytime: "Anytime",
 };
 const STATUS_BADGE: Record<LiveTestState, string> = {
   ordinary: "bg-slate-100 text-slate-600",
@@ -40,6 +42,7 @@ const STATUS_BADGE: Record<LiveTestState, string> = {
   open: "bg-green-100 text-green-700",
   closed: "bg-slate-200 text-slate-500",
   "results-published": "bg-violet-100 text-violet-700",
+  anytime: "bg-amber-100 text-amber-700",
 };
 const STATUS_ACCENT: Record<LiveTestState, string> = {
   ordinary: "bg-slate-300",
@@ -47,8 +50,9 @@ const STATUS_ACCENT: Record<LiveTestState, string> = {
   open: "bg-green-500",
   closed: "bg-slate-300",
   "results-published": "bg-violet-500",
+  anytime: "bg-amber-500",
 };
-const STATUS_TABS = ["upcoming", "open", "results-published", "closed"] as const;
+const STATUS_TABS = ["anytime", "upcoming", "open", "results-published", "closed"] as const;
 
 function dayKey(iso: string | null) {
   return iso ? formatISTDate(iso, { year: "numeric", month: "2-digit", day: "2-digit" }) || "unscheduled" : "unscheduled";
@@ -64,7 +68,7 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
   const languages = useMemo(() => [...new Set(tests.map((test) => test.language))], [tests]);
 
   const withState = useMemo(
-    () => tests.map((test) => ({ test, state: liveTestState({ isLive: test.is_live, startsAt: test.live_starts_at, endsAt: test.live_ends_at, resultsPublishAt: test.results_publish_at }) })),
+    () => tests.map((test) => ({ test, state: liveTestState({ isLive: test.is_live, startsAt: test.live_starts_at, endsAt: test.live_ends_at, resultsPublishAt: test.results_publish_at, resultsDelayMinutes: test.results_delay_minutes }) })),
     [tests],
   );
 
@@ -79,14 +83,22 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
     [withState, language, status, sort],
   );
 
+  // Anytime tests have no live_starts_at to group/sort by, and "always
+  // attemptable" is more useful pinned at the very top than scattered to
+  // whichever end of the list a null timestamp happens to sort to --
+  // students shouldn't have to hunt for them depending on the Newest/
+  // Oldest toggle.
   const groups = useMemo(() => {
+    const anytimeItems = filtered.filter(({ state }) => state === "anytime");
+    const scheduledItems = filtered.filter(({ state }) => state !== "anytime");
     const map = new Map<string, { heading: string; items: typeof filtered }>();
-    for (const item of filtered) {
+    for (const item of scheduledItems) {
       const key = dayKey(item.test.live_starts_at);
       if (!map.has(key)) map.set(key, { heading: dayHeading(item.test.live_starts_at), items: [] });
       map.get(key)!.items.push(item);
     }
-    return [...map.values()];
+    const dayGroups = [...map.values()];
+    return anytimeItems.length ? [{ heading: "Available anytime", items: anytimeItems }, ...dayGroups] : dayGroups;
   }, [filtered]);
 
   return (
@@ -128,7 +140,7 @@ function StatusTab({ label, active, onClick }: { label: string; active: boolean;
 
 function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState }) {
   const [open, setOpen] = useState(false);
-  const action = state === "open" ? "Start test" : state === "upcoming" ? "Schedule" : state === "results-published" ? "Results" : "Closed";
+  const action = state === "open" || state === "anytime" ? "Start test" : state === "upcoming" ? "Schedule" : state === "results-published" ? "Results" : "Closed";
   return (
     <article className="relative w-full max-w-xs overflow-hidden rounded-xl border border-slate-200 bg-white pl-3.5 shadow-sm">
       <span className={`absolute inset-y-0 left-0 w-1.5 ${STATUS_ACCENT[state]}`} aria-hidden="true"/>
@@ -142,19 +154,25 @@ function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState })
           <span>{test.language}</span>
           <span className="mx-1.5 text-slate-300">•</span>
           <span>{Math.round(test.duration_seconds / 60)} min</span>
-          {test.live_starts_at && <><span className="mx-1.5 text-slate-300">•</span><span>{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span></>}
+          {state === "anytime"
+            ? <><span className="mx-1.5 text-slate-300">•</span><span>Results in {test.results_delay_minutes} min</span></>
+            : test.live_starts_at && <><span className="mx-1.5 text-slate-300">•</span><span>{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span></>}
         </p>
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
           <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex items-center gap-1 text-xs font-black text-blue-700">
             <span className={`inline-block text-[9px] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true">▶</span>Details
           </button>
-          <Link href={state === "results-published" ? "/live-test" : `/tests/${test.slug}`} aria-disabled={state === "closed"} className={`rounded-lg px-4 py-1.5 text-center text-xs font-black ${state === "open" ? "bg-green-600 text-white" : state === "closed" ? "pointer-events-none bg-slate-100 text-slate-400" : "bg-blue-600 text-white"}`}>{action}</Link>
+          <Link href={state === "results-published" ? "/live-test" : `/tests/${test.slug}`} aria-disabled={state === "closed"} className={`rounded-lg px-4 py-1.5 text-center text-xs font-black ${state === "open" || state === "anytime" ? "bg-green-600 text-white" : state === "closed" ? "pointer-events-none bg-slate-100 text-slate-400" : "bg-blue-600 text-white"}`}>{action}</Link>
         </div>
         {open && (
           <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-[11px]">
-            <div><dt className="text-slate-400">Starts</dt><dd className="font-bold text-slate-700">{formatIST(test.live_starts_at) || "—"}</dd></div>
-            <div><dt className="text-slate-400">Ends</dt><dd className="font-bold text-slate-700">{formatIST(test.live_ends_at) || "—"}</dd></div>
-            <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{formatIST(test.results_publish_at) || "—"}</dd></div>
+            {state === "anytime" ? (
+              <div className="col-span-2"><dt className="text-slate-400">Availability</dt><dd className="font-bold text-slate-700">Any day, any time · your result unlocks {test.results_delay_minutes} minutes after you submit</dd></div>
+            ) : (<>
+              <div><dt className="text-slate-400">Starts</dt><dd className="font-bold text-slate-700">{formatIST(test.live_starts_at) || "—"}</dd></div>
+              <div><dt className="text-slate-400">Ends</dt><dd className="font-bold text-slate-700">{formatIST(test.live_ends_at) || "—"}</dd></div>
+              <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{formatIST(test.results_publish_at) || "—"}</dd></div>
+            </>)}
             {test.description && <div className="col-span-2"><dt className="text-slate-400">Note</dt><dd className="text-slate-600">{test.description}</dd></div>}
           </dl>
         )}
