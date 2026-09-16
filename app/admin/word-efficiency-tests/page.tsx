@@ -19,6 +19,7 @@ import { DeliveryPdfFields } from "./delivery-pdf-fields";
 import { WorkingMatterDocxFields } from "./working-matter-docx-fields";
 import { SaveLocalDraftButton } from "./draft-preserver";
 import{PermanentDeleteDangerZone}from"./permanent-delete-danger-zone";
+import { formatIST } from "@/lib/format-datetime";
 export const metadata: Metadata = { title: "Word Efficiency Tests | Admin" };
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
 
@@ -275,7 +276,7 @@ export default async function Page({
                           </p>
                         </div>
                         <span className="flex h-fit shrink-0 items-center gap-1.5">
-                          {test.is_live && <span title={`${new Date(test.live_starts_at??"").toLocaleString("en-IN")} → ${new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results ${new Date(test.results_publish_at??"").toLocaleString("en-IN")}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
+                          {test.is_live && <span title={`${formatIST(test.live_starts_at)} → ${formatIST(test.live_ends_at)} · results ${formatIST(test.results_publish_at)}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">{test.status}</span>
                         </span>
                       </div>
@@ -359,7 +360,7 @@ export default async function Page({
                         <strong>Attempt {index + 1}</strong> · {attempt.status}{" "}
                         ·{" "}
                         {attempt.submitted_at
-                          ? new Date(attempt.submitted_at).toLocaleString()
+                          ? formatIST(attempt.submitted_at)
                           : "Not submitted"}
                         {(["submitted","completed"].includes(attempt.status))&&<Link href={`/admin/word-efficiency-tests/attempts/${attempt.id}`} className="ml-3 font-black text-blue-700">{attempt.status==="completed"?"View result":"Grade attempt"}</Link>}
                       </article>

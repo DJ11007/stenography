@@ -8,6 +8,7 @@ import { deleteExcelEfficiencyTest, duplicateExcelEfficiencyTest, saveExcelEffic
 import { QuestionEditor } from "./question-editor";
 import { WorkingMatterXlsxFields } from "./working-matter-xlsx-fields";
 import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
+import { formatIST } from "@/lib/format-datetime";
 
 export const metadata: Metadata = { title: "Excel Efficiency Tests | Admin" };
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
@@ -102,7 +103,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                           <p className="mt-1 text-sm text-slate-500">{test.language} · Version {test.current_version_number} · {version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks</p>
                         </div>
                         <span className="flex h-fit shrink-0 items-center gap-1.5">
-                          {test.is_live && <span title={`${new Date(test.live_starts_at??"").toLocaleString("en-IN")} → ${new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results ${new Date(test.results_publish_at??"").toLocaleString("en-IN")}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
+                          {test.is_live && <span title={`${formatIST(test.live_starts_at)} → ${formatIST(test.live_ends_at)} · results ${formatIST(test.results_publish_at)}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
                           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">{test.status}</span>
                         </span>
                       </div>
@@ -131,7 +132,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                   <div className="mt-3 space-y-2">
                     {selectedAttempts.map((attempt, index) => (
                       <article key={`${attempt.student_id}-${attempt.prepared_at}-${index}`} className="rounded-lg bg-slate-50 p-3 text-sm">
-                        <strong>Attempt {index + 1}</strong> · {attempt.status} · {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "Not submitted"}
+                        <strong>Attempt {index + 1}</strong> · {attempt.status} · {attempt.submitted_at ? formatIST(attempt.submitted_at) : "Not submitted"}
                         {["submitted", "completed"].includes(attempt.status) && <Link href={`/admin/excel-efficiency-tests/attempts/${attempt.id}`} className="ml-3 font-black text-emerald-700">{attempt.status === "completed" ? "View result" : "Grade attempt"}</Link>}
                       </article>
                     ))}

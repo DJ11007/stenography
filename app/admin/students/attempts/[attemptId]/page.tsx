@@ -9,6 +9,7 @@ import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/l
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories } from "@/lib/typing-test";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { AttemptReviewClient } from "./attempt-review-client";
+import { formatIST } from "@/lib/format-datetime";
 
 export const metadata: Metadata = { title: "Attempt Review | Admin" };
 
@@ -57,7 +58,7 @@ export default async function AdminAttemptReviewPage({ params }: { params: Promi
         <section className="mt-4 rounded-2xl bg-white p-6 shadow">
           <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attempt review</p>
           <h1 className="mt-1 text-2xl font-black">{test?.title ?? "Typing test"}</h1>
-          <p className="mt-1 text-sm text-slate-600">{student?.full_name || "(no name)"} · {student?.email} · Submitted {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "In progress"}</p>
+          <p className="mt-1 text-sm text-slate-600">{student?.full_name || "(no name)"} · {student?.email} · Submitted {attempt.submitted_at ? formatIST(attempt.submitted_at) : "In progress"}</p>
         </section>
         {reviewData ? (
           // AdvancedTypingResults renders TypingBrandHeader internally, which

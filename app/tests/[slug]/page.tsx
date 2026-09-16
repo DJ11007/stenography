@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
 import { liveTestState } from "@/lib/live-tests";
+import { formatIST } from "@/lib/format-datetime";
 import { ConfigurableTypingExam } from "@/app/typing/_components/configurable-typing-exam";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { FreeExamLimitPaywall } from "@/app/typing/exams/_components/free-exam-limit-paywall";
@@ -70,7 +71,7 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   if(examFreeStatus.data?.blocked)return <TypingStudentProvider student={studentIdentity}><FreeExamLimitPaywall used={examFreeStatus.data.used_count} limit={examFreeStatus.data.free_limit??0}/></TypingStudentProvider>;
   const schedule={isLive:Boolean(test.is_live),startsAt:test.live_starts_at,endsAt:test.live_ends_at,resultsPublishAt:test.results_publish_at};
   const state=liveTestState(schedule);
-  if(test.is_live&&state!=="open")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${new Date(test.live_starts_at).toLocaleString()}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":`Results publish ${new Date(test.results_publish_at).toLocaleString()}`}/>;
+  if(test.is_live&&state!=="open")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${formatIST(test.live_starts_at)}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":`Results publish ${formatIST(test.results_publish_at)}`}/>;
   const{data:v}=await supabase.from("test_versions").select("*").eq("id",test.current_version_id).maybeSingle();if(!v)notFound();
   const configuration=v.configuration as Record<string,unknown>|null;
   const version:ManagedTestVersion={id:v.id,testId:v.test_id,versionNumber:v.version_number,title:v.title,description:v.description??"",slug:test.slug,language:v.language,inputSystemId:v.input_system_id,mode:v.mode,durationSeconds:v.duration_seconds,passage:v.passage,requiredWpm:Number(v.required_wpm),requiredAccuracy:Number(v.required_accuracy),backspaceMode:v.backspace_mode,wordMethod:v.word_method,highlightMode:v.highlight_mode,visibility:v.visibility,audioPath:configuration?.audio_path as string|null??null,pdfPath:configuration?.pdf_path as string|null??null,pdfFileName:configuration?.pdf_file_name as string|null??null,dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"]??null,examCategory:configuration?.exam_category as string|null??null};

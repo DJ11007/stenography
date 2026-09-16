@@ -3,6 +3,7 @@ import { requireStudent } from "@/lib/auth";
 import { getPublishedClassroomUpdates, getLiveClassLink } from "@/lib/classroom-server";
 import { TypingBrandHeader } from "../typing/_components/typing-brand";
 import { BackButton } from "../_components/back-button";
+import { formatIST } from "@/lib/format-datetime";
 
 export const metadata: Metadata = { title: "Classroom | Samradhi Classes" };
 
@@ -36,7 +37,7 @@ export default async function ClassroomPage() {
             <article key={update.id} className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
               <h3 className="font-black text-blue-900">{update.title}</h3>
               {update.body && <p className="mt-2 text-sm leading-6 text-slate-700">{update.body}</p>}
-              <p className="mt-2 text-xs text-slate-400">{new Date(update.createdAt).toLocaleString()}</p>
+              <p className="mt-2 text-xs text-slate-400">{formatIST(update.createdAt)}</p>
             </article>
           ))}
         </div>

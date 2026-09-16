@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { formatIST } from "@/lib/format-datetime";
 
 export const metadata: Metadata = { title: "Test Results | Admin" };
 
@@ -82,7 +83,7 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
                   <td className="p-3">{row.accuracy}%</td>
                   <td className="p-3">{row.fullErrors + row.halfErrors}</td>
                   <td className="p-3">{row.passed === null ? "—" : row.passed ? <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-black text-green-800">Pass</span> : <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-black text-red-800">Fail</span>}</td>
-                  <td className="p-3">{row.submitted_at ? new Date(row.submitted_at).toLocaleString() : "In progress"}</td>
+                  <td className="p-3">{row.submitted_at ? formatIST(row.submitted_at) : "In progress"}</td>
                   <td className="p-3">{row.submitted_at && <EyeLink href={`/admin/students/attempts/${row.id}`} label="View this attempt's full result"/>}</td>
                 </tr>
               ))}
