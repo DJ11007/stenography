@@ -105,7 +105,7 @@ test("directWorkspace (the practice-hub entry point every student actually uses,
   // the previous duration fix landed) would still see the admin's fixed
   // duration regardless of their own preference.
   assert.match(workspace, /setTimeLeft\(activeDurationSeconds\)/);
-  assert.match(workspace, /\}, \[activeDurationSeconds, directWorkspace, loaded, managedRulesLocked, officialSettings, preferences, preset\.highlightMode, resolvedAttemptVariant\]\);/);
+  assert.match(workspace, /\}, \[activeDurationSeconds, directWorkspace, highlightLocked, loaded, manualUnlock, officialSettings, preferences, preset\.highlightMode, resolvedAttemptVariant\]\);/);
 });
 
 test("duration can be changed from the in-workspace Settings popup too (not just ExamStart, which directWorkspace students never see), and locks once typing has actually started", async () => {

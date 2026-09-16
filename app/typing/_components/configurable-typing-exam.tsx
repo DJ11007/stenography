@@ -13,6 +13,7 @@ import { changeTypingFontSize, defaultTypingFontPreferences, MAX_TYPING_FONT_SIZ
 import { UniversalTypingSettings } from "./universal-typing-settings";
 import { useTypingPlatformSettings } from "./typing-platform-provider";
 import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
+import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { BackButton } from "../../_components/back-button";
 
 // Formal serif face used only for the exam-mode ("Simulation") pre-start
@@ -57,6 +58,20 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   const [endTimestamp, setEndTimestamp] = useState<number | null>(null);
   const [timerStarted, setTimerStarted] = useState(false);
   const [backspaces, setBackspaces] = useState(0);
+  // Real requested feature: a student sometimes has a genuine reason to
+  // deviate from an official/managed test's locked Backspace rule (e.g.
+  // practicing a passage without the real exam's harsh "no correction at
+  // all" restriction) -- rather than guessing whether every category's
+  // rule is exactly right, give them an explicit, visible unlock they can
+  // choose to use "when necessary", defaulting to locked (today's exact
+  // behavior) and only ever available before typing starts. Deliberately
+  // does NOT extend to Word calculation: recordManagedAttempt (app/tests/
+  // actions.ts) always rescores using the test's own real wordMethod
+  // server-side regardless of what the client's settings panel shows, so
+  // "unlocking" it here would only desync the live on-screen number from
+  // the actually-saved score -- a convincing-looking control with no real
+  // effect, worse than not offering it at all.
+  const [manualUnlock, setManualUnlock] = useState(false);
   // Stenography dictation phase (only ever reachable when preset.audioUrl is
   // set -- every other test takes the exact same path as before this
   // feature existed). dictationReady flips true the moment Start Typing is
@@ -113,6 +128,26 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // typing against, not silently revert to the natural passage the instant
   // the (separate, UI-only) passageWordCountLocked flag flips true.
   const rulesLocked = attemptVariant === "official" || managedRulesLocked || (customPreset && !managedTest);
+  // Real reported bug: AIIMS CRE LDC (and 23 of the other 24 exam
+  // categories) never actually researched/confirmed what highlighting the
+  // real exam uses -- examCategoryTypingRules() silently defaulted
+  // highlightMode to "character" for any category that didn't specify one,
+  // and that manufactured default then got locked exactly like a genuine
+  // researched rule, with no way to tell the two apart downstream. Backspace
+  // and word-calculation are scoring-relevant (they change the actual
+  // penalty/WPM math), so those stay locked to the platform's best default
+  // when unconfirmed -- but highlighting is purely visual with zero effect
+  // on the score, so when it was never actually confirmed for this
+  // category, the student should be free to turn it on/off/word-level
+  // themselves instead of being stuck with an invented default. Re-derives
+  // from EXAM_CATEGORIES directly (not preset.highlightMode, which may
+  // still hold an old manufactured "character" from before this fix, for
+  // an admin-uploaded exercise saved under the old logic).
+  const categoryHighlightConfirmed = preset.examCategorySlug
+    ? Boolean(EXAM_CATEGORIES.find((category) => category.slug === preset.examCategorySlug)?.highlightMode)
+    : Boolean(preset.highlightMode);
+  const highlightLocked = rulesLocked && categoryHighlightConfirmed;
+  const backspaceLocked = rulesLocked && !manualUnlock;
   const showPassageWordCount = preset.category !== "stenography";
   const wordCountEditable = showPassageWordCount && !rulesLocked;
   const passageWordCountLocked = !wordCountEditable || timerStarted;
@@ -138,7 +173,8 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     if (!directWorkspace || !loaded || directSettingsInitialized.current) return;
     directSettingsInitialized.current = true;
     const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant);
-    if ((managedRulesLocked || resolvedAttemptVariant === "official") && preset.highlightMode) resolved.highlightMode = preset.highlightMode;
+    if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"];
+    if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode;
     // timeLeft's own useState always initializes to preset.durationSeconds
     // (activeDurationSeconds isn't computed yet at that point in the
     // component), which is correct for a locked test but wrong for an
@@ -148,7 +184,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     // right value either way, so just adopt it here, once.
     const timer = window.setTimeout(() => { setSettings(resolved); setAutoScroll(resolved.autoScroll); setShowScrollbar(preferences.showScrollbar); setTimeLeft(activeDurationSeconds); }, 0);
     return () => window.clearTimeout(timer);
-  }, [activeDurationSeconds, directWorkspace, loaded, managedRulesLocked, officialSettings, preferences, preset.highlightMode, resolvedAttemptVariant]);
+  }, [activeDurationSeconds, directWorkspace, highlightLocked, loaded, manualUnlock, officialSettings, preferences, preset.highlightMode, resolvedAttemptVariant]);
 
   useEffect(() => {
     if (!started || finished || paused || !endTimestamp) return;
@@ -162,7 +198,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   useEffect(() => { if (!timerStarted || finished) return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [finished, timerStarted]);
   useEffect(() => { sessionStorage.setItem("practice-attempt-active", String(timerStarted && !finished)); return () => sessionStorage.setItem("practice-attempt-active", "false"); }, [finished, timerStarted]);
 
-  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if ((managedRulesLocked || resolvedAttemptVariant === "official") && preset.highlightMode) resolved.highlightMode = preset.highlightMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
+  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"]; if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
   const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
   // Duration is only actually changeable through this same set of
   // conditions that stop activeDurationSeconds from being forced -- plus
@@ -224,7 +260,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     : "Return to Tests"
     : "Return to Tests";
   if (finished && finalScore) return <AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={effectivePassage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel} mode={mode}/>;
-  return <ExamWorkspace preset={scoredPreset} passage={effectivePassage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} rulesLocked={rulesLocked} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCountLocked ? naturalWordCount : (preferences.passageWordCount ?? naturalWordCount)} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={changePassageWordCount} backHref={backHref} adminPreview={adminPreview}/>;
+  return <ExamWorkspace preset={scoredPreset} passage={effectivePassage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} manualUnlock={manualUnlock} onManualUnlockChange={!timerStarted ? setManualUnlock : undefined} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCountLocked ? naturalWordCount : (preferences.passageWordCount ?? naturalWordCount)} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={changePassageWordCount} backHref={backHref} adminPreview={adminPreview}/>;
 }
 
 // Real requested feature: an "anytime" live test has no shared release
@@ -313,7 +349,7 @@ function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChan
   </main>;
 }
 
-type WorkspaceProps = { preset: ExamPreset; passage: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; rulesLocked: boolean; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void; durationMinutes: number; durationLocked: boolean; onDurationChange: (value: number) => void; showPassageWordCount: boolean; passageWordCount: number; passageWordCountLocked: boolean; onPassageWordCountChange: (value: number | null) => void; backHref?: string; adminPreview: boolean };
+type WorkspaceProps = { preset: ExamPreset; passage: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; rulesLocked: boolean; highlightLocked: boolean; backspaceLocked: boolean; manualUnlock: boolean; onManualUnlockChange?: (value: boolean) => void; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void; durationMinutes: number; durationLocked: boolean; onDurationChange: (value: number) => void; showPassageWordCount: boolean; passageWordCount: number; passageWordCountLocked: boolean; onPassageWordCountChange: (value: number | null) => void; backHref?: string; adminPreview: boolean };
 
 type SettingsPopupProps = {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
@@ -381,7 +417,7 @@ function TypingSettingsPopup({ triggerRef, onClose, children }: SettingsPopupPro
   </div>;
 }
 
-function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPreferences, setFontPreferences, encodingMismatch, rulesLocked, typedText, setTypedText, onFirstTypingInput, timerStarted, onInputSystemChange, timeLeft, paused, onPauseToggle, settings, setSettings, autoScroll, setAutoScroll, showScrollbar, setShowScrollbar, setBackspaces, onSubmit, practiceNavigation, onNavigateTest, durationMinutes, durationLocked, onDurationChange, showPassageWordCount, passageWordCount, passageWordCountLocked, onPassageWordCountChange, backHref, adminPreview }: WorkspaceProps) {
+function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPreferences, setFontPreferences, encodingMismatch, rulesLocked, highlightLocked, backspaceLocked, manualUnlock, onManualUnlockChange, typedText, setTypedText, onFirstTypingInput, timerStarted, onInputSystemChange, timeLeft, paused, onPauseToggle, settings, setSettings, autoScroll, setAutoScroll, showScrollbar, setShowScrollbar, setBackspaces, onSubmit, practiceNavigation, onNavigateTest, durationMinutes, durationLocked, onDurationChange, showPassageWordCount, passageWordCount, passageWordCountLocked, onPassageWordCountChange, backHref, adminPreview }: WorkspaceProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null); const passageRef = useRef<HTMLDivElement>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -477,7 +513,7 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
     setFontPreferences(defaultTypingFontPreferences(inputSystem.script));
     setAutoScroll(true);
     setShowScrollbar(true);
-    update({ highlightMode: DEFAULT_TYPING_SETTINGS.highlightMode, ...(rulesLocked ? {} : { backspaceMode: DEFAULT_TYPING_SETTINGS.backspaceMode, wordMethod: DEFAULT_TYPING_SETTINGS.wordMethod }) });
+    update({ ...(highlightLocked ? {} : { highlightMode: DEFAULT_TYPING_SETTINGS.highlightMode }), ...(backspaceLocked ? {} : { backspaceMode: DEFAULT_TYPING_SETTINGS.backspaceMode }), ...(rulesLocked ? {} : { wordMethod: DEFAULT_TYPING_SETTINGS.wordMethod }) });
     if (!passageWordCountLocked) onPassageWordCountChange(null);
   };
   const closeSettings = (restoreFocus = false) => { setShowSettings(false); if (restoreFocus) window.setTimeout(() => settingsTriggerRef.current?.focus(), 0); };
@@ -501,7 +537,7 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
         {!preset.audioUrl && <button type="button" onClick={printPassage} title="Print or save this passage as a PDF" aria-label="Print or save this passage as a PDF" className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-300 text-base hover:bg-blue-600">🖨️</button>}
         {preset.pdfUrl && <a href={preset.pdfUrl} target="_blank" rel="noopener noreferrer" download={preset.pdfFileName ?? undefined} title="Download the question paper PDF the admin attached to this test" className="flex h-9 items-center justify-center rounded-lg border border-blue-300 px-3 text-xs font-black hover:bg-blue-600">📄 Download PDF</a>}
         {!preset.audioUrl && <button type="button" disabled={timerStarted} aria-pressed={printoutMode} onClick={() => (printoutMode ? setPrintoutMode(false) : setShowPrintoutConfirm(true))} title={printoutMode ? "Show the passage on screen again" : "Type from a printed copy instead of the on-screen passage"} aria-label={printoutMode ? "Exit Printout Mode" : "Printout Mode"} className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-300 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50">{printoutMode ? <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 20h8M12 17v3"/></svg> : <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h6"/></svg>}</button>}
-        {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} durationMinutes={durationMinutes} durationLocked={durationLocked} onDurationChange={onDurationChange} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCount} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={onPassageWordCountChange}/></TypingSettingsPopup>}
+        {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} manualUnlock={manualUnlock} onManualUnlockChange={onManualUnlockChange} durationMinutes={durationMinutes} durationLocked={durationLocked} onDurationChange={onDurationChange} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCount} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={onPassageWordCountChange}/></TypingSettingsPopup>}
       </div>
     </div></header>
     <section className="mx-auto min-h-0 w-full max-w-[1800px] flex-1 overflow-hidden p-2 sm:p-3" aria-label="Active typing workspace">
