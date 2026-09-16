@@ -7,6 +7,26 @@ import { calculateTypingScore } from "../lib/typing-test.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+// Real reported confusion: a category's own rules never stated WHICH word-
+// counting convention its speed formula actually uses -- an admin comparing
+// an AIIMS CRE LDC result against Practice mode's (identical, as it turns
+// out) formula had no way to confirm from the rules text alone that both
+// really do use the same 5-characters-per-word convention, since Rajasthan
+// LDC's real, genuinely different space-separated convention exists
+// elsewhere in this same platform. Every category that has no wordMethod
+// override (defaults to "characters" in categoryPreset()) now says so
+// explicitly, in both languages.
+test("every category with no wordMethod override (defaults to the 5-characters-per-word convention) says so explicitly in its own rules, in both languages", () => {
+  for (const slug of ["ssc-chsl", "ssc-cgl", "aiims-cre-ldc", "dsssb-ldc", "up-police-computer-operator", "supreme-court-jca", "csir-jsa"]) {
+    const category = getExamCategory(slug);
+    assert.ok(category, `${slug} should exist`);
+    assert.equal(category.wordMethod, undefined, `${slug} should have no wordMethod override (this test is about the ones that default to "characters")`);
+    assert.ok(category.patternNotes.some((note) => /5-characters-per-word/.test(note)), `${slug}'s patternNotes should state the 5-characters-per-word convention`);
+    assert.ok(category.patternNotesHindi?.some((note) => /5-अक्षर-प्रति-शब्द/.test(note)), `${slug}'s patternNotesHindi should state the convention in Hindi too`);
+    assert.equal(category.patternNotes.length, category.patternNotesHindi?.length, `${slug}'s patternNotes/patternNotesHindi should stay the same length`);
+  }
+});
+
 test("exam categories are unique, non-empty, and each carries a badge/tone for original iconography", () => {
   assert.ok(EXAM_CATEGORIES.length >= 25);
   const slugs = new Set(EXAM_CATEGORIES.map((category) => category.slug));
