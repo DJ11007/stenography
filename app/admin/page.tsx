@@ -27,6 +27,15 @@ const groups = [
     ],
   },
   {
+    heading: "Live tests",
+    description: "Scheduled, free live tests -- each of these creates a test with a fixed start/end/results window that shows up on the public Live Test hub, so there's no generic mode selector or checkbox to hunt for.",
+    items: [
+      ["/admin/live-typing-tests", "Live Typing Test", "Create a scheduled live typing test -- optionally pick one of the 25 exam-category presets to auto-fill speed, duration and backspace, or set everything by hand.", "Manage →"],
+      ["/admin/live-stenography-tests", "Live Stenography Test", "Create a scheduled live stenography test -- optionally pick one of the researched stenography-category presets, or set dictation speed and accuracy by hand.", "Manage →"],
+      ["/admin/live-efficiency-tests", "Live Efficiency Test", "Create a scheduled live Word or Excel Efficiency test.", "Manage →"],
+    ],
+  },
+  {
     heading: "Typing & exams",
     description: "Learning content, practice tests, exam-mode simulations, and live scheduled tests all use the same test engine.",
     items: [

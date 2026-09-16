@@ -82,6 +82,25 @@ const COURSES = [
 
 type IconName = (typeof COURSES)[number]["icon"] | (typeof EXAM_CATEGORIES)[number]["icon"];
 
+const RESULT_CARD_TONES = { blue: "border-blue-200 bg-blue-50 text-blue-900", violet: "border-violet-200 bg-violet-50 text-violet-900", emerald: "border-emerald-200 bg-emerald-50 text-emerald-900" } as const;
+function MyResultCard({ label, tone, href, title, metrics }: { label: string; tone: keyof typeof RESULT_CARD_TONES; href: string; title: string; metrics: [string, string][] }) {
+  return (
+    <Link href={href} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${RESULT_CARD_TONES[tone]}`}>
+      <div>
+        <p className="text-xs font-black uppercase tracking-wide opacity-70">{label}</p>
+        <p className="mt-0.5 font-black text-slate-950">{title}</p>
+      </div>
+      <div className="flex flex-wrap gap-4">
+        {metrics.map(([metricLabel, value]) => (
+          <div key={metricLabel} className="text-right">
+            <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">{metricLabel}</p>
+            <p className="font-black text-slate-950">{value}</p>
+          </div>
+        ))}
+      </div>
+    </Link>
+  );
+}
 function Icon({ name, className }: { name: IconName; className: string }) {
   const common = {
     "aria-hidden": true,
@@ -110,6 +129,47 @@ export default async function Home() {
     getPublishedOfficialWebsites(),
     getCurrentUser(),
   ]);
+
+  // Personalized "my latest result" cards, in the requested Typing ->
+  // Stenography -> Efficiency order -- distinct from the anonymized
+  // LiveResultsTicker below (everyone's recent live-test results); these
+  // show only the CURRENT visitor's own most recent attempt in each
+  // category, each linking to that attempt's full passage-vs-typed result
+  // (typing/stenography: the new /typing/attempts/[id] page; efficiency:
+  // the existing /typing/word-efficiency or excel-efficiency results
+  // page, which already withholds marks until the teacher publishes
+  // grading). Nothing renders here for a logged-out visitor.
+  let typingResult: { href: string; title: string; netWpm: number; grossWpm: number } | null = null;
+  let stenographyResult: { href: string; title: string; netWpm: number; passed: boolean } | null = null;
+  let efficiencyResult: { href: string; title: string; subject: "Word" | "Excel"; marks: number; maximumMarks: number; passed: boolean | null } | null = null;
+  if (user) {
+    const [{ data: attempts }, { data: wordAttempt }, { data: excelAttempt }] = await Promise.all([
+      supabase.from("test_attempts").select("id,test_id,test_version_id,result,submitted_at").eq("student_id", user.id).not("submitted_at", "is", null).order("submitted_at", { ascending: false }).limit(30),
+      supabase.from("word_efficiency_attempts").select("id,result,submitted_at").eq("student_id", user.id).eq("evaluation_status", "published").order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("excel_efficiency_attempts").select("id,result,submitted_at").eq("student_id", user.id).eq("evaluation_status", "published").order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const testIds = [...new Set((attempts ?? []).map((attempt) => attempt.test_id))];
+    const { data: tests } = testIds.length ? await supabase.from("tests").select("id,mode,title").in("id", testIds) : { data: [] };
+    const testMap = new Map((tests ?? []).map((test) => [test.id, test]));
+    const typingAttempt = (attempts ?? []).find((attempt) => testMap.get(attempt.test_id)?.mode !== "stenography");
+    const stenographyAttempt = (attempts ?? []).find((attempt) => testMap.get(attempt.test_id)?.mode === "stenography");
+    if (typingAttempt) {
+      const r = (typingAttempt.result ?? {}) as Record<string, unknown>;
+      typingResult = { href: `/typing/attempts/${typingAttempt.id}`, title: testMap.get(typingAttempt.test_id)?.title ?? "Typing test", netWpm: Number(r.marksNetWpm ?? r.netWpm ?? 0), grossWpm: Number(r.grossWpm ?? 0) };
+    }
+    if (stenographyAttempt) {
+      const r = (stenographyAttempt.result ?? {}) as Record<string, unknown>;
+      const { data: version } = stenographyAttempt.test_version_id ? await supabase.from("test_versions").select("required_wpm,required_accuracy").eq("id", stenographyAttempt.test_version_id).maybeSingle() : { data: null };
+      const netWpm = Number(r.marksNetWpm ?? r.netWpm ?? 0);
+      const passed = r.marksQualified != null ? Boolean(r.marksQualified) : version ? netWpm >= Number(version.required_wpm) && Number(r.accuracy ?? 0) >= Number(version.required_accuracy) : false;
+      stenographyResult = { href: `/typing/attempts/${stenographyAttempt.id}`, title: testMap.get(stenographyAttempt.test_id)?.title ?? "Stenography test", netWpm, passed };
+    }
+    const latestEfficiency = [wordAttempt ? { ...wordAttempt, subject: "Word" as const } : null, excelAttempt ? { ...excelAttempt, subject: "Excel" as const } : null].filter((attempt): attempt is NonNullable<typeof attempt> => attempt !== null).sort((a, b) => new Date(b.submitted_at ?? 0).getTime() - new Date(a.submitted_at ?? 0).getTime())[0];
+    if (latestEfficiency) {
+      const r = (latestEfficiency.result ?? {}) as Record<string, unknown>;
+      efficiencyResult = { href: `/typing/${latestEfficiency.subject === "Word" ? "word-efficiency" : "excel-efficiency"}/results/${latestEfficiency.id}`, title: latestEfficiency.subject === "Word" ? "Word Efficiency" : "Excel Efficiency", subject: latestEfficiency.subject, marks: Number(r.marks ?? 0), maximumMarks: Number(r.maximum_marks ?? 0), passed: r.passed == null ? null : Boolean(r.passed) };
+    }
+  }
   return (
     <main className="min-h-screen bg-white">
       <SiteHeader />
@@ -222,6 +282,16 @@ export default async function Home() {
           <Reveal className="mt-8">
             <VacancySections vacancies={vacancies} officialWebsites={officialWebsites} compact />
           </Reveal>
+          {(typingResult || stenographyResult || efficiencyResult) && (
+            <Reveal className="mt-8">
+              <p className="text-xs font-black uppercase tracking-widest text-blue-700">Your latest results</p>
+              <div className="mt-3 grid gap-4">
+                {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
+                {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
+                {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
+              </div>
+            </Reveal>
+          )}
           <Reveal className="mt-8">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Published automatically</p><h2 className="mt-1 text-2xl font-black">Latest live-test results</h2></div><Link href="/live-test" className="text-sm font-black text-blue-700">Open live-test centre →</Link></div><LiveResultsTicker results={(liveResults??[]) as PublicLiveResult[]}/>
           </Reveal>

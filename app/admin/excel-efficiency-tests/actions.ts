@@ -8,6 +8,7 @@ import { parseWorkingSheetXlsx, validateWorkingSheetFile, type WorkingSheetSnaps
 import { safePdfName } from "@/lib/word-efficiency";
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
+const toIsoOrNull = (raw: string) => { const parsed = raw ? new Date(raw) : null; return parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null; };
 const refresh = (testId?: string) => {
   revalidatePath("/admin/excel-efficiency-tests");
   revalidatePath("/typing/excel-efficiency");
@@ -68,6 +69,9 @@ export async function saveExcelEfficiencyTest(form: FormData) {
   const gradingRules = questions.flatMap((question) => (question.gradingRule ? [{ questionNumber: question.question_number, exactTarget: question.gradingRule.target, expectedOperation: question.gradingRule.expectedOperation, expectedValue: question.gradingRule.expectedValue, allocatedMarks: question.gradingRule.allocatedMarks, partialMarks: question.gradingRule.partialMarks }] : []));
   const { error: ruleError } = await supabase.rpc("save_excel_efficiency_grading_rules", { p_version_id: savedTest?.current_version_id, p_rules: gradingRules });
   if (ruleError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but grading rules failed: ${ruleError.message}`)}`);
+  const isLive = form.get("isLive") === "on";
+  const { error: scheduleError } = await supabase.rpc("set_excel_efficiency_live_schedule", { p_test_id: savedId, p_is_live: isLive, p_starts_at: isLive ? toIsoOrNull(value(form, "startsAt")) : null, p_ends_at: isLive ? toIsoOrNull(value(form, "endsAt")) : null, p_results_publish_at: isLive ? toIsoOrNull(value(form, "resultsPublishAt")) : null });
+  if (scheduleError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but live schedule failed: ${scheduleError.message}`)}`);
   refresh(savedId);
   redirect("/admin/excel-efficiency-tests?saved=1");
 }

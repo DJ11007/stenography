@@ -10,12 +10,13 @@ import { WorkingMatterXlsxFields } from "./working-matter-xlsx-fields";
 import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 
 export const metadata: Metadata = { title: "Excel Efficiency Tests | Admin" };
+const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await requireAdmin();
   const params = await searchParams;
   const supabase = await createClient();
-  const { data: tests, error } = await supabase.from("excel_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,updated_at").order("updated_at", { ascending: false });
+  const { data: tests, error } = await supabase.from("excel_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at").order("updated_at", { ascending: false });
   const { data: versions } = await supabase.from("excel_efficiency_versions").select("*");
   const { data: attempts } = await supabase.from("excel_efficiency_attempts").select("id,test_id,status,result,prepared_at,submitted_at,student_id");
   const map = new Map((versions ?? []).map((version) => [version.id, version as ExcelVersion]));
@@ -61,6 +62,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
               </div>
               <WorkingMatterXlsxFields initialSnapshot={current?.working_matter_snapshot ?? null} />
               <QuestionEditor initialQuestions={initialQuestions} />
+              <fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                <label className="flex items-center gap-2 font-black text-blue-950">
+                  <input type="checkbox" name="isLive" defaultChecked={editing?.is_live ?? false} />
+                  Free scheduled live test
+                </label>
+                <p className="mt-1 text-xs text-blue-800">Live tests must be published. Each registered student receives one attempt; results additionally unlock at the publication time below (once you've also published grading for that attempt). The three fields below are only used when the checkbox above is checked.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <Field label="Starts"><input className="input" name="startsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_starts_at)} /></Field>
+                  <Field label="Ends"><input className="input" name="endsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_ends_at)} /></Field>
+                  <Field label="Publish results"><input className="input" name="resultsPublishAt" type="datetime-local" defaultValue={localDateTime(editing?.results_publish_at)} /></Field>
+                </div>
+              </fieldset>
               <div className="grid gap-3 sm:grid-cols-2">
                 <button name="intent" value="draft" className="rounded-xl bg-slate-200 px-5 py-3 font-black text-slate-800">Save as Draft</button>
                 <button name="intent" value="publish" className="rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">Save and Publish</button>
@@ -88,7 +101,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                           <h3 className="font-black">{test.title}</h3>
                           <p className="mt-1 text-sm text-slate-500">{test.language} · Version {test.current_version_number} · {version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks</p>
                         </div>
-                        <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">{test.status}</span>
+                        <span className="flex h-fit shrink-0 items-center gap-1.5">
+                          {test.is_live && <span title={`${new Date(test.live_starts_at??"").toLocaleString("en-IN")} → ${new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results ${new Date(test.results_publish_at??"").toLocaleString("en-IN")}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">{test.status}</span>
+                        </span>
                       </div>
                       <p className="mt-3 text-xs text-slate-500">{count} attempt{count === 1 ? "" : "s"} · On-screen delivery</p>
                       <div className="mt-4 grid grid-cols-2 gap-2">

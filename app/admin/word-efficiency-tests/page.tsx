@@ -20,6 +20,7 @@ import { WorkingMatterDocxFields } from "./working-matter-docx-fields";
 import { SaveLocalDraftButton } from "./draft-preserver";
 import{PermanentDeleteDangerZone}from"./permanent-delete-danger-zone";
 export const metadata: Metadata = { title: "Word Efficiency Tests | Admin" };
+const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
 
 export default async function Page({
   searchParams,
@@ -32,7 +33,7 @@ export default async function Page({
   const { data: tests, error } = await supabase
     .from("word_efficiency_tests")
     .select(
-      "id,slug,title,language,status,current_version_id,current_version_number,updated_at",
+      "id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at",
     )
     .order("updated_at", { ascending: false });
   const { data: versions } = await supabase.from("word_efficiency_versions").select("*");
@@ -203,6 +204,18 @@ export default async function Page({
                   edit-save -- form.get("deliveryRealFile") simply always reads
                   absent now, same as it always defaulted to for every test. */}
               <QuestionEditor initialQuestions={initialQuestions} />
+              <fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                <label className="flex items-center gap-2 font-black text-blue-950">
+                  <input type="checkbox" name="isLive" defaultChecked={editing?.is_live ?? false} />
+                  Free scheduled live test
+                </label>
+                <p className="mt-1 text-xs text-blue-800">Live tests must be published. Each registered student receives one attempt; results additionally unlock at the publication time below (once you've also published grading for that attempt). The three fields below are only used when the checkbox above is checked.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <Field label="Starts"><input className="input" name="startsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_starts_at)} /></Field>
+                  <Field label="Ends"><input className="input" name="endsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_ends_at)} /></Field>
+                  <Field label="Publish results"><input className="input" name="resultsPublishAt" type="datetime-local" defaultValue={localDateTime(editing?.results_publish_at)} /></Field>
+                </div>
+              </fieldset>
               <div className="grid gap-3 sm:grid-cols-2">
                 <SaveLocalDraftButton />
                 <button
@@ -261,8 +274,9 @@ export default async function Page({
                             {version?.maximum_marks ?? 0} marks
                           </p>
                         </div>
-                        <span className="h-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">
-                          {test.status}
+                        <span className="flex h-fit shrink-0 items-center gap-1.5">
+                          {test.is_live && <span title={`${new Date(test.live_starts_at??"").toLocaleString("en-IN")} → ${new Date(test.live_ends_at??"").toLocaleString("en-IN")} · results ${new Date(test.results_publish_at??"").toLocaleString("en-IN")}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">{test.status}</span>
                         </span>
                       </div>
                       <p className="mt-3 text-xs text-slate-500">

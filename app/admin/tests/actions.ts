@@ -39,61 +39,63 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   const isLive = formData.get("isLive") === "on";
   const durationMinutes = text(formData, "durationMinutes");
   const iso = (name: string) => { const value = text(formData, name); const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.toISOString() : value || null; };
-  // Practice (non-live) and Exam (non-live) tests don't ask the admin to
-  // configure typing-behaviour settings at all any more -- the form
-  // doesn't even render duration/required-speed/accuracy/backspace/word-
-  // method/highlight fields for these modes (see test-manager.tsx's
-  // showAdminRules). Force the same fixed platform defaults here too,
-  // authoritatively, so a tampered or stale form submission can't sneak in
-  // an arbitrary value where nothing is meant to be admin-configurable.
-  // These values are exactly what this form's own defaultValues already
-  // were before the fields were removed (DEFAULT_TYPING_SETTINGS' full
-  // backspace / 5-character words / character highlighting, plus the same
-  // 30 WPM / 90% reference target plain Practice already used) -- so no
-  // existing test's stored settings change on its next save, and Exam-mode
-  // students see exactly the same defaults the exam simulator's own
-  // built-in presets already use.
-  const forcedDefaultRules = (mode === "practice" || mode === "exam") && !isLive;
-  // Exam (non-live) tests must belong to one of the 25 real exam categories
-  // -- once chosen, that category's OWN researched pattern (duration/speed/
-  // accuracy/backspace/wordMethod/highlightMode) is forced instead of the
-  // flat generic default plain Practice uses. wordMethod/highlightMode fall
-  // back to the flat "characters"/"character" default for any category that
-  // doesn't specify its own (every category except Rajasthan LDC, today) --
-  // this must mirror categoryPreset()'s own fallback in
-  // lib/typing-curriculum.ts exactly, or an admin-managed exercise linked to
-  // a category ends up with different typing behaviour than that same
-  // category's own hardcoded "Official Pattern" preset. Practice mode is
-  // completely unaffected -- it never had an examCategory and its own
-  // forcedDefaultRules branch is unchanged.
-  const examCategory = mode === "exam" && !isLive ? (text(formData, "examCategory") || null) : null;
+  // Practice (non-live) tests don't ask the admin to configure
+  // typing-behaviour settings at all -- the form doesn't even render
+  // duration/required-speed/accuracy/backspace/word-method/highlight fields
+  // for that mode (see test-manager.tsx's showAdminRules). Force the same
+  // fixed platform defaults here too, authoritatively, so a tampered or
+  // stale form submission can't sneak in an arbitrary value where nothing
+  // is meant to be admin-configurable. These values are exactly what this
+  // form's own defaultValues already were before the fields were removed
+  // (DEFAULT_TYPING_SETTINGS' full backspace / 5-character words /
+  // character highlighting, plus the same 30 WPM / 90% reference target).
+  const practiceFixedDefaults = mode === "practice" && !isLive;
+  // Exam tests may belong to one of the 25 real exam categories -- once
+  // chosen, that category's OWN researched pattern (duration/speed/
+  // accuracy/backspace/wordMethod/highlightMode) is forced instead of
+  // whatever the form's own manual fields hold. This used to only ever
+  // apply when !isLive (a live exam test forced examCategory to null and
+  // fell back to fully manual entry, unconditionally) -- category presets
+  // are now available for a live exam test too (test-manager.tsx no longer
+  // hides the picker when isLive), making one optional rather than
+  // required there (see validateManagedTest); a live exam test that leaves
+  // it unset still falls through to manual fields exactly as before.
+  // wordMethod/highlightMode fall back to the flat "characters"/"character"
+  // default for any category that doesn't specify its own (every category
+  // except Rajasthan LDC, today) -- this must mirror categoryPreset()'s own
+  // fallback in lib/typing-curriculum.ts exactly, or an admin-managed
+  // exercise linked to a category ends up with different typing behaviour
+  // than that same category's own hardcoded "Official Pattern" preset.
+  const examCategory = mode === "exam" ? (text(formData, "examCategory") || null) : null;
   const examCategoryDefinition = examCategory ? EXAM_CATEGORIES.find((category) => category.slug === examCategory) : undefined;
   // Shared with managedVersionToPreset()'s own category-derivation (see
   // lib/admin-tests.ts) so the two can never drift apart again -- they
   // already did once this session.
   const categoryRules = examCategoryDefinition ? examCategoryTypingRules(examCategoryDefinition, language) : null;
-  // Stenography tests must belong to one of the researched stenography
-  // categories (lib/stenography-categories.ts), same requirement as Exam
-  // mode's examCategory above -- but the force is partial, not total: the
-  // category's own dictation speed and accuracy always override the form
-  // (stenoCategoryRules.requiredWpm/requiredAccuracy are never null), while
-  // Duration is only overridden when a confirmed single transcription-time
-  // figure exists for this category/language (durationSeconds is null
-  // otherwise) -- see stenographyCategoryTypingRules for why some
-  // categories can't honestly claim an exact number here.
-  const stenoCategory = mode === "stenography" && !isLive ? (text(formData, "stenoCategory") || null) : null;
+  // Stenography tests may belong to one of the researched stenography
+  // categories (lib/stenography-categories.ts), same optional-once-isLive
+  // treatment as Exam mode's examCategory above -- but the force is
+  // partial, not total: the category's own dictation speed and accuracy
+  // always override the form (stenoCategoryRules.requiredWpm/
+  // requiredAccuracy are never null), while Duration is only overridden
+  // when a confirmed single transcription-time figure exists for this
+  // category/language (durationSeconds is null otherwise) -- see
+  // stenographyCategoryTypingRules for why some categories can't honestly
+  // claim an exact number here. It never overrides backspace/wordMethod/
+  // highlightMode, live or not.
+  const stenoCategory = mode === "stenography" ? (text(formData, "stenoCategory") || null) : null;
   const stenoCategoryDefinition = stenoCategory ? STENOGRAPHY_CATEGORIES.find((category) => category.slug === stenoCategory) : undefined;
   const stenoCategoryRules = stenoCategoryDefinition ? stenographyCategoryTypingRules(stenoCategoryDefinition, language) : null;
   return normalizeManagedTestRules({
     title: text(formData, "title"), description: text(formData, "description"), slug: slugifyTest(text(formData, "slug") || text(formData, "title")), language,
     inputSystemId: text(formData, "inputSystemId"), mode,
-    durationSeconds: forcedDefaultRules ? (categoryRules?.durationSeconds ?? 600) : stenoCategoryRules?.durationSeconds != null ? stenoCategoryRules.durationSeconds : (durationMinutes ? Number(durationMinutes) * 60 : 600),
+    durationSeconds: practiceFixedDefaults ? 600 : categoryRules?.durationSeconds ?? (stenoCategoryRules?.durationSeconds != null ? stenoCategoryRules.durationSeconds : (durationMinutes ? Number(durationMinutes) * 60 : 600)),
     passage: String(formData.get("passage") ?? "").replace(/\r\n?/g, "\n"),
-    requiredWpm: forcedDefaultRules ? (categoryRules?.requiredWpm ?? 30) : stenoCategoryRules ? stenoCategoryRules.requiredWpm : Number(formData.get("requiredWpm")),
-    requiredAccuracy: forcedDefaultRules ? (categoryRules?.requiredAccuracy ?? 90) : stenoCategoryRules ? stenoCategoryRules.requiredAccuracy : Number(formData.get("requiredAccuracy")),
-    backspaceMode: forcedDefaultRules ? (categoryRules?.backspaceMode ?? "full") : (["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"],
-    wordMethod: forcedDefaultRules ? (categoryRules?.wordMethod ?? "characters") : (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
-    highlightMode: forcedDefaultRules ? (categoryRules?.highlightMode ?? "character") : (["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"],
+    requiredWpm: practiceFixedDefaults ? 30 : categoryRules?.requiredWpm ?? (stenoCategoryRules ? stenoCategoryRules.requiredWpm : Number(formData.get("requiredWpm"))),
+    requiredAccuracy: practiceFixedDefaults ? 90 : categoryRules?.requiredAccuracy ?? (stenoCategoryRules ? stenoCategoryRules.requiredAccuracy : Number(formData.get("requiredAccuracy"))),
+    backspaceMode: practiceFixedDefaults ? "full" : categoryRules?.backspaceMode ?? ((["full", "word", "disabled"].includes(text(formData, "backspaceMode")) ? text(formData, "backspaceMode") : "full") as ManagedTestDraft["backspaceMode"]),
+    wordMethod: practiceFixedDefaults ? "characters" : categoryRules?.wordMethod ?? (text(formData, "wordMethod") === "spaces" ? "spaces" : "characters"),
+    highlightMode: practiceFixedDefaults ? "character" : categoryRules?.highlightMode ?? ((["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"]),
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive, startsAt: isLive ? iso("startsAt") : null, endsAt: isLive ? iso("endsAt") : null, resultsPublishAt: isLive ? iso("resultsPublishAt") : null,
     examCategory, stenoCategory,
@@ -139,9 +141,10 @@ async function resolvePdfPath(formData: FormData, testId: string | null, supabas
   return { pdfPath: path, pdfFileName: safeName };
 }
 
-async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode): Promise<TestFormState> {
+async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode, lockedLive?: boolean): Promise<TestFormState> {
   await requireAdmin(); const draft = parseDraft(formData); const validation = validateManagedTest(draft);
   if (lockedMode && draft.mode !== lockedMode) return { error: `This section only accepts ${lockedMode} tests.` };
+  if (lockedLive && !draft.isLive) return { error: "This section only accepts scheduled live tests." };
   if (validation.errors.length) return { error: validation.errors[0], fieldErrors: validation.fieldErrors };
   const id = text(formData, "testId") || null; const publish = formData.get("intent") === "publish"; const supabase = await createClient();
   let audioPath: string | null = null;
@@ -166,7 +169,12 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     return { available, defaults };
   })() : null;
   const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null, steno_category: draft.stenoCategory ?? null };
-  const runSave = (attemptPayload: typeof payload) => lockedMode
+  // A live-locked section (Live Typing Test / Live Stenography Test) still
+  // has a fixed mode, but save_section_managed_test hard-rejects is_live --
+  // it routes through save_scheduled_managed_test instead (the same RPC the
+  // generic unlocked live checkbox already uses, with no mode restriction
+  // of its own), relying on the lockedMode check above for the mode lock.
+  const runSave = (attemptPayload: typeof payload) => lockedMode && !lockedLive
     ? supabase.rpc("save_section_managed_test", { p_test_id: id, p_payload: attemptPayload, p_publish: publish, p_mode: lockedMode })
     : draft.isLive
     ? supabase.rpc("save_scheduled_managed_test", { p_test_id: id, p_payload: attemptPayload, p_publish: publish })
@@ -231,6 +239,14 @@ export async function saveLearningManagedTest(state: TestFormState, formData: Fo
 export async function savePracticeManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { formData.set("mode", "practice"); return persistManagedTest(formData, "practice"); }
 export async function saveExamManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { formData.set("mode", "exam"); return persistManagedTest(formData, "exam"); }
 export async function saveStenographyManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { formData.set("mode", "stenography"); return persistManagedTest(formData, "stenography"); }
+// Dedicated "Live Typing Test" / "Live Stenography Test" admin sections --
+// mode-locked exactly like the two above, but also live-locked: isLive is
+// forced true here too (defense-in-depth against a tampered submission;
+// the client already sends a hidden isLive="on" field on these pages)
+// rather than left as an admin choice, since every test on these pages
+// only exists to be scheduled.
+export async function saveLiveExamManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { formData.set("mode", "exam"); formData.set("isLive", "on"); return persistManagedTest(formData, "exam", true); }
+export async function saveLiveStenographyManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { formData.set("mode", "stenography"); formData.set("isLive", "on"); return persistManagedTest(formData, "stenography", true); }
 
 export async function setManagedTestStatus(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); const value=text(formData,"status"); if(!id||!["draft","published","unpublished","archived"].includes(value))return; const supabase=await createClient(); await supabase.rpc("set_managed_test_status",{p_test_id:id,p_status:value as ManagedTestStatus}); revalidateTestRoutes(); }
 export async function duplicateManagedTest(formData: FormData) { await requireAdmin(); const id=text(formData,"testId"); if(!id)return; const supabase=await createClient(); await supabase.rpc("duplicate_managed_test",{p_test_id:id}); revalidateTestRoutes(); }

@@ -24,9 +24,9 @@ test("Practice Tests admin form no longer asks for Description or Required WPM/A
 // fixed defaults anyway -- pure duplicate work. Exam (non-live) now hides
 // these fields exactly like plain Practice already did, with its own
 // explanatory copy, and the admin supplies only title/language/passage.
-test("Exam Tests admin form (non-live) hides the same typing-behaviour fields as Practice, with exam-specific explanatory copy", async () => {
+test("Exam Tests admin form hides the same typing-behaviour fields as Practice whenever a category is chosen (required unless live), with exam-specific explanatory copy", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
-  assert.match(manager, /const showAdminRules = \(formMode !== "practice" && formMode !== "exam"\) \|\| isLive;/);
+  assert.match(manager, /const showAdminRules = formMode === "learn" \|\| formMode === "stenography" \|\| \(formMode === "practice" && isLive\) \|\| \(formMode === "exam" && !selectedExamCategory\);/);
   assert.match(manager, /formMode==="exam"\?\(selectedExamCategory\?`Duration follows \$\{selectedExamCategory\.name\}'s official pattern/);
   assert.match(manager, /formMode==="exam"\?\(selectedExamCategory\?`This test uses \$\{selectedExamCategory\.name\}'s official target of/);
   assert.match(manager, /formMode==="exam"\?\(selectedExamCategory\?`Backspace follows \$\{selectedExamCategory\.name\}'s official policy/);
@@ -38,10 +38,10 @@ test("Exam Tests admin form (non-live) hides the same typing-behaviour fields as
 // caught and fixed the earlier Rajasthan LDC "backspace disabled" bug for
 // good, since the admin form's copy and the stored value can no longer
 // silently drift apart the way they did when both were separately hardcoded.
-test("the server derives duration/wpm/accuracy/backspace from the chosen exam category (falling back to the flat Practice default only for Practice)", async () => {
+test("the server derives duration/wpm/accuracy/backspace from the chosen exam category, live or not (falling back to manual entry only when no category was chosen; flat Practice default only for Practice)", async () => {
   const actions = await read("app/admin/tests/actions.ts");
-  assert.match(actions, /const forcedDefaultRules = \(mode === "practice" \|\| mode === "exam"\) && !isLive;/);
-  assert.match(actions, /const examCategory = mode === "exam" && !isLive \? \(text\(formData, "examCategory"\) \|\| null\) : null;/);
+  assert.match(actions, /const practiceFixedDefaults = mode === "practice" && !isLive;/);
+  assert.match(actions, /const examCategory = mode === "exam" \? \(text\(formData, "examCategory"\) \|\| null\) : null;/);
   assert.match(actions, /const examCategoryDefinition = examCategory \? EXAM_CATEGORIES\.find\(\(category\) => category\.slug === examCategory\) : undefined;/);
   // durationSeconds/requiredWpm/requiredAccuracy/backspaceMode/wordMethod/
   // highlightMode all derive from a shared examCategoryTypingRules() helper
@@ -51,12 +51,12 @@ test("the server derives duration/wpm/accuracy/backspace from the chosen exam ca
   // through a different category's page) from ever drifting apart from
   // this save-time one again.
   assert.match(actions, /const categoryRules = examCategoryDefinition \? examCategoryTypingRules\(examCategoryDefinition, language\) : null;/);
-  assert.match(actions, /durationSeconds: forcedDefaultRules \? \(categoryRules\?\.durationSeconds \?\? 600\) : /);
-  assert.match(actions, /requiredWpm: forcedDefaultRules \? \(categoryRules\?\.requiredWpm \?\? 30\) : /);
-  assert.match(actions, /requiredAccuracy: forcedDefaultRules \? \(categoryRules\?\.requiredAccuracy \?\? 90\) : /);
-  assert.match(actions, /backspaceMode: forcedDefaultRules \? \(categoryRules\?\.backspaceMode \?\? "full"\) : /);
-  assert.match(actions, /wordMethod: forcedDefaultRules \? \(categoryRules\?\.wordMethod \?\? "characters"\) : /);
-  assert.match(actions, /highlightMode: forcedDefaultRules \? \(categoryRules\?\.highlightMode \?\? "character"\) : /);
+  assert.match(actions, /durationSeconds: practiceFixedDefaults \? 600 : categoryRules\?\.durationSeconds \?\? /);
+  assert.match(actions, /requiredWpm: practiceFixedDefaults \? 30 : categoryRules\?\.requiredWpm \?\? /);
+  assert.match(actions, /requiredAccuracy: practiceFixedDefaults \? 90 : categoryRules\?\.requiredAccuracy \?\? /);
+  assert.match(actions, /backspaceMode: practiceFixedDefaults \? "full" : categoryRules\?\.backspaceMode \?\? /);
+  assert.match(actions, /wordMethod: practiceFixedDefaults \? "characters" : categoryRules\?\.wordMethod \?\? /);
+  assert.match(actions, /highlightMode: practiceFixedDefaults \? "character" : categoryRules\?\.highlightMode \?\? /);
   assert.match(actions, /exam_category: draft\.examCategory \?\? null/);
 });
 
@@ -79,10 +79,10 @@ test("ExamStart's duration control is the stepped picker, not a free-form 1-60 n
 
 test("SectionTestPage accepts an optional language/inputSystemId scope, filters the test list by it, and passes it through to TestManager as a lock", async () => {
   const page = await read("app/admin/tests/section-test-page.tsx");
-  assert.match(page, /language\?: "English" \| "Hindi"; inputSystemId\?: string; backHref\?: string/);
+  assert.match(page, /live\?: boolean; language\?: "English" \| "Hindi"; inputSystemId\?: string; backHref\?: string/);
   assert.match(page, /if \(language\) query = query\.eq\("language", language\);/);
   assert.match(page, /if \(inputSystemId\) query = query\.eq\("input_system_id", inputSystemId\);/);
-  assert.match(page, /<TestManager tests=\{rows\} lockedMode=\{mode\} lockedLanguage=\{language\} lockedInputSystemId=\{inputSystemId\} currentAdminId=\{user\.id\}\/>/);
+  assert.match(page, /<TestManager tests=\{rows\} lockedMode=\{mode\} lockedLive=\{live\} lockedLanguage=\{language\} lockedInputSystemId=\{inputSystemId\} currentAdminId=\{user\.id\}\/>/);
 });
 
 test("TestManager locks Language/Input system to hidden inputs (not an editable select) when given lockedLanguage, and seeds a new test's language from it instead of always defaulting to English", async () => {

@@ -12,9 +12,10 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // that category (see tests/practice-tests-redesign.test.mjs for that
 // derivation logic), and surfacing it on a new per-category exercise list.
 
-test("the admin exam form offers a required Exam category select, only for exam mode non-live, placed before the auto-derived fields", async () => {
+test("the admin exam form offers an Exam category select for exam mode -- required unless live, optional (falling back to manual entry) for a live exam test", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
-  assert.match(manager, /formMode==="exam" && !isLive && <Field label="Exam category">/);
+  assert.match(manager, /formMode==="exam" && <Field label="Exam category">/);
+  assert.match(manager, /required=\{!isLive\}/);
   assert.match(manager, /name="examCategory"/);
   assert.match(manager, /EXAM_CATEGORIES\.map\(\(category\)=><option key=\{category\.slug\} value=\{category\.slug\}>\{category\.name\}/);
   assert.match(manager, /setExamCategorySlug\(\(test\?\.currentVersion\?\.configuration\?\.exam_category as string\|undefined\) \?\? ""\)/);
@@ -39,8 +40,8 @@ test("validateManagedTest requires a real EXAM_CATEGORIES slug for exam-mode non
 test("parseDraft derives wordMethod/highlightMode from the chosen exam category too, not just duration/speed/accuracy/backspace", async () => {
   const actions = await read("app/admin/tests/actions.ts");
   assert.match(actions, /const categoryRules = examCategoryDefinition \? examCategoryTypingRules\(examCategoryDefinition, language\) : null;/);
-  assert.match(actions, /wordMethod: forcedDefaultRules \? \(categoryRules\?\.wordMethod \?\? "characters"\) : /);
-  assert.match(actions, /highlightMode: forcedDefaultRules \? \(categoryRules\?\.highlightMode \?\? "character"\) : /);
+  assert.match(actions, /wordMethod: practiceFixedDefaults \? "characters" : categoryRules\?\.wordMethod \?\? /);
+  assert.match(actions, /highlightMode: practiceFixedDefaults \? "character" : categoryRules\?\.highlightMode \?\? /);
 });
 
 test("managedVersionToPreset attaches examCategorySlug/instructionNotes/patternSourced from EXAM_CATEGORIES when configured, and leaves them undefined otherwise", async () => {
