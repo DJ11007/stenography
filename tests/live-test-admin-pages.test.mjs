@@ -53,3 +53,21 @@ test("Live Efficiency Test is a small Word/Excel chooser linking into the existi
   assert.match(page, /href="\/admin\/word-efficiency-tests"/);
   assert.match(page, /href="\/admin\/excel-efficiency-tests"/);
 });
+
+// Real reported bug: a datetime-local input's native picker rendered as a
+// 24-hour clock with no AM/PM indicator at all on the admin's browser --
+// nothing in the field told them a PM time needs 12 added to the hour, so
+// "1:11 PM" typed as "01:11" silently became 1:11 AM with no warning, and
+// a real scheduled live test went out with a start time in the middle of
+// the night by accident. Since a native datetime-local picker's own
+// rendering isn't ours to control, each of the three schedule fields now
+// pairs with an always-visible, unambiguous 12-hour-with-AM/PM readout
+// computed from the exact value just typed, so a wrong AM/PM (or day) is
+// obvious before saving.
+test("each live-schedule field (Starts/Ends/Publish results) shows an always-visible 12-hour AM/PM readout of its own current value", async () => {
+  const manager = await read("app/admin/tests/test-manager.tsx");
+  assert.match(manager, /hour12:true/);
+  assert.match(manager, /\{startsAt&&<p className="mt-1 text-xs font-black text-blue-900">= \{scheduleReadout\(startsAt\)\}<\/p>\}/);
+  assert.match(manager, /\{endsAt&&<p className="mt-1 text-xs font-black text-blue-900">= \{scheduleReadout\(endsAt\)\}<\/p>\}/);
+  assert.match(manager, /\{resultsPublishAt&&<p className="mt-1 text-xs font-black text-blue-900">= \{scheduleReadout\(resultsPublishAt\)\}<\/p>\}/);
+});
