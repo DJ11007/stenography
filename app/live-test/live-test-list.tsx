@@ -41,6 +41,13 @@ const STATUS_BADGE: Record<LiveTestState, string> = {
   closed: "bg-slate-200 text-slate-500",
   "results-published": "bg-violet-100 text-violet-700",
 };
+const STATUS_ACCENT: Record<LiveTestState, string> = {
+  ordinary: "bg-slate-300",
+  upcoming: "bg-blue-500",
+  open: "bg-green-500",
+  closed: "bg-slate-300",
+  "results-published": "bg-violet-500",
+};
 const STATUS_TABS = ["upcoming", "open", "results-published", "closed"] as const;
 
 function dayKey(iso: string | null) {
@@ -121,33 +128,37 @@ function StatusTab({ label, active, onClick }: { label: string; active: boolean;
 
 function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState }) {
   const [open, setOpen] = useState(false);
-  const action = state === "open" ? "Start" : state === "upcoming" ? "Schedule" : state === "results-published" ? "Results" : "Closed";
+  const action = state === "open" ? "Start test" : state === "upcoming" ? "Schedule" : state === "results-published" ? "Results" : "Closed";
   return (
-    <article className="inline-flex w-full max-w-xs flex-col rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">LIVE</span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${STATUS_BADGE[state]}`}>{STATUS_LABEL[state]}</span>
+    <article className="relative w-full max-w-xs overflow-hidden rounded-xl border border-slate-200 bg-white pl-3.5 shadow-sm">
+      <span className={`absolute inset-y-0 left-0 w-1.5 ${STATUS_ACCENT[state]}`} aria-hidden="true"/>
+      <div className="p-3 pl-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">LIVE</span>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${STATUS_BADGE[state]}`}>{STATUS_LABEL[state]}</span>
+        </div>
+        <h3 className="mt-2 line-clamp-2 text-[15px] font-black leading-5 text-slate-950">{test.title}</h3>
+        <p className="mt-1.5 text-xs font-semibold text-slate-500">
+          <span>{test.language}</span>
+          <span className="mx-1.5 text-slate-300">•</span>
+          <span>{Math.round(test.duration_seconds / 60)} min</span>
+          {test.live_starts_at && <><span className="mx-1.5 text-slate-300">•</span><span>{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span></>}
+        </p>
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+          <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex items-center gap-1 text-xs font-black text-blue-700">
+            <span className={`inline-block text-[9px] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true">▶</span>Details
+          </button>
+          <Link href={state === "results-published" ? "/live-test" : `/tests/${test.slug}`} aria-disabled={state === "closed"} className={`rounded-lg px-4 py-1.5 text-center text-xs font-black ${state === "open" ? "bg-green-600 text-white" : state === "closed" ? "pointer-events-none bg-slate-100 text-slate-400" : "bg-blue-600 text-white"}`}>{action}</Link>
+        </div>
+        {open && (
+          <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-slate-50 p-2.5 text-[11px]">
+            <div><dt className="text-slate-400">Starts</dt><dd className="font-bold text-slate-700">{formatIST(test.live_starts_at) || "—"}</dd></div>
+            <div><dt className="text-slate-400">Ends</dt><dd className="font-bold text-slate-700">{formatIST(test.live_ends_at) || "—"}</dd></div>
+            <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{formatIST(test.results_publish_at) || "—"}</dd></div>
+            {test.description && <div className="col-span-2"><dt className="text-slate-400">Note</dt><dd className="text-slate-600">{test.description}</dd></div>}
+          </dl>
+        )}
       </div>
-      <h3 className="mt-1.5 line-clamp-2 text-sm font-black leading-5 text-slate-950">{test.title}</h3>
-      <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-bold text-slate-500">
-        <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{test.language}</span>
-        <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{Math.round(test.duration_seconds / 60)} min</span>
-        {test.live_starts_at && <span className="rounded-md bg-slate-100 px-1.5 py-0.5">{formatISTTime(test.live_starts_at, { hour: "numeric", minute: "2-digit", hour12: true })}</span>}
-      </div>
-      <div className="mt-2 flex items-center gap-3">
-        <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex items-center gap-1 text-[11px] font-black text-blue-700">
-          <span className={`inline-block text-[9px] transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true">▶</span>Details
-        </button>
-        <Link href={state === "results-published" ? "/live-test" : `/tests/${test.slug}`} aria-disabled={state === "closed"} className={`rounded-lg px-3 py-1 text-center text-[11px] font-black ${state === "open" ? "bg-green-600 text-white" : state === "closed" ? "pointer-events-none bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-700"}`}>{action}</Link>
-      </div>
-      {open && (
-        <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 rounded-lg bg-slate-50 p-2 text-[11px]">
-          <div><dt className="text-slate-400">Starts</dt><dd className="font-bold text-slate-700">{formatIST(test.live_starts_at) || "—"}</dd></div>
-          <div><dt className="text-slate-400">Ends</dt><dd className="font-bold text-slate-700">{formatIST(test.live_ends_at) || "—"}</dd></div>
-          <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{formatIST(test.results_publish_at) || "—"}</dd></div>
-          {test.description && <div className="col-span-2"><dt className="text-slate-400">Note</dt><dd className="text-slate-600">{test.description}</dd></div>}
-        </dl>
-      )}
     </article>
   );
 }

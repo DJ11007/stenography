@@ -66,7 +66,7 @@ test("each live-test card hides Starts/Ends/Results and the description behind a
   assert.match(list, /\{open && \(/);
   assert.match(list, /formatISTTime\(test\.live_starts_at, \{ hour: "numeric", minute: "2-digit", hour12: true \}\)/);
   assert.doesNotMatch(list, /min-h-9/);
-  assert.match(list, /<div className="mt-2 flex items-center gap-3">\s*<button type="button" onClick/);
+  assert.match(list, /border-t border-slate-100 pt-2\.5">\s*<button type="button" onClick/);
 });
 
 // Second reported follow-up: on a wide screen with only a couple of live
@@ -75,8 +75,23 @@ test("each live-test card hides Starts/Ends/Results and the description behind a
 // the far right via justify-between -- left a big blank rectangle in the
 // middle. A card should size to its own content, not to however wide an
 // mostly-empty grid column happens to be.
-test("a live-test card caps its own width and left-aligns its rows instead of stretching to fill a wide, sparsely-populated grid column", async () => {
+test("a live-test card caps its own width instead of stretching to fill a wide, sparsely-populated grid column", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
-  assert.match(list, /className="inline-flex w-full max-w-xs flex-col rounded-xl/);
-  assert.doesNotMatch(list, /flex items-center justify-between gap-2">\s*<span className="rounded-full bg-red-100/);
+  assert.match(list, /className="relative w-full max-w-xs overflow-hidden rounded-xl/);
+});
+
+// Fourth reported follow-up: everything was crammed against the left
+// edge with plain grey chips -- readable, but flat. A colored left
+// accent bar (matching the status badge's color) gives an at-a-glance
+// status cue the way a real dashboard card would, a slightly larger
+// title establishes hierarchy, the language/duration/time metadata reads
+// as one flowing line instead of three separate boxes, a divider
+// separates that metadata from the action row, and the CTA is a solid
+// filled button instead of a pale text-link-style pill.
+test("the card layout gives a professional visual hierarchy: a status-colored accent bar, a divider before the action row, and a solid CTA button", async () => {
+  const list = await read("app/live-test/live-test-list.tsx");
+  assert.match(list, /const STATUS_ACCENT: Record<LiveTestState, string> = \{/);
+  assert.match(list, /<span className=\{`absolute inset-y-0 left-0 w-1\.5 \$\{STATUS_ACCENT\[state\]\}`\} aria-hidden="true"\/>/);
+  assert.match(list, /border-t border-slate-100 pt-2\.5/);
+  assert.match(list, /bg-blue-600 text-white/);
 });
