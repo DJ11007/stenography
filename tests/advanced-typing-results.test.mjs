@@ -283,7 +283,7 @@ test("non-RSSB results offer a WPM/KDPH Speed Details panel derived from summary
   assert.match(component, /const \[unit, setUnit\] = useState<"wpm" \| "kdph">\("wpm"\);/);
   assert.match(component, /\["Gross Speed \(WPM\)", `\$\{number\(summary\.grossWpm\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{number\(summary\.netWpm\)\} WPM`\]/);
   assert.match(component, /\["Gross Speed \(KDPH\)", number\(summary\.grossWpm \* 300\)\], \["Net Speed \(KDPH\)", number\(summary\.netWpm \* 300\)\]/);
-  assert.match(component, /<><ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/><KeyDepressionSpeedDetails summary=\{summary\}\/><\/>/);
+  assert.match(component, /<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/>/);
   assert.doesNotMatch(component, /mode !== "practice" && <KeyDepressionSpeedDetails/);
 });
 

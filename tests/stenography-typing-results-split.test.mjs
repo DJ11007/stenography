@@ -26,8 +26,8 @@ test("stenography renders its own single-report layout (banner + full passage, n
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
   assert.match(source, /function ResultBanner\(/);
   assert.match(source, /\{isStenography \? \(/);
-  assert.match(source, /<ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/>/);
-  assert.match(source, /<DetailedResultBreakdown summary=\{summary\} isStenography\/>\s*<KeyDepressionSpeedDetails summary=\{summary\}\/>\s*<CategoryStrip categories=\{totals\}\/>\s*<ComparisonTextPanel/);
+  assert.match(source, /<ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\} requiredWpm=\{preset\.speedRequirement\} achievedWpm=\{summary\.netWpm\} requiredAccuracy=\{preset\.accuracyRequirement\} achievedAccuracy=\{summary\.accuracy\}\/>\}/);
+  assert.match(source, /<DetailedResultBreakdown summary=\{summary\} isStenography\/>\s*<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/>\s*<CategoryStrip categories=\{totals\}\/>\s*<ComparisonTextPanel/);
 });
 
 // Real reported feedback, round 3: a reference screenshot the user
@@ -105,7 +105,7 @@ test("stenography-only grammar categories are excluded from CategoryStrip for no
 // sections and the Summary tab are gone entirely, for every typing mode.
 test("typing (practice/exam simulator) results drop the redundant character cards, Detailed Result block, category tile strip, and Summary tab -- keeping only the pass/fail banner and Speed Details", async () => {
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
-  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : <><ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/><KeyDepressionSpeedDetails summary=\{summary\}\/><\/>\}/);
+  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : <>\{insufficientAttempt \? <InsufficientAttemptBanner title=\{preset\.title\} minimumStrokes=\{minimumStrokesRequired\} achievedStrokes=\{score\.totalCharacters\}\/> : <ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\} requiredWpm=\{preset\.speedRequirement\} achievedWpm=\{summary\.netWpm\} requiredAccuracy=\{preset\.accuracyRequirement\} achievedAccuracy=\{summary\.accuracy\}\/>\}<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/><\/>\}/);
   assert.doesNotMatch(source, /function ScreenshotResultSummary/);
   assert.doesNotMatch(source, /function Summary\(/);
   assert.doesNotMatch(source, /function CalculationTable\(/);

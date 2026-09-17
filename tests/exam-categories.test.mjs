@@ -9,13 +9,16 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 // Real reported confusion: a category's own rules never stated WHICH word-
 // counting convention its speed formula actually uses -- an admin comparing
-// an AIIMS CRE LDC result against Practice mode's (identical, as it turns
-// out) formula had no way to confirm from the rules text alone that both
-// really do use the same 5-characters-per-word convention, since Rajasthan
-// LDC's real, genuinely different space-separated convention exists
-// elsewhere in this same platform. Every category that has no wordMethod
-// override (defaults to "characters" in categoryPreset()) now says so
-// explicitly, in both languages.
+// an AIIMS CRE LDC result against Practice mode's formula had no way to
+// confirm from the rules text alone that both use the same 5-characters-
+// per-word convention (word COUNTING, not the mistake-penalty formula
+// itself -- AIIMS's own fullErrorPenalty/halfErrorPenalty/capMistakeUnits
+// PerWord/minorSpellingIsFullMistake now genuinely differ from Practice's
+// defaults, see this category's own row in exam-categories.ts), since
+// Rajasthan LDC's real, genuinely different space-separated convention
+// exists elsewhere in this same platform. Every category that has no
+// wordMethod override (defaults to "characters" in categoryPreset()) now
+// says so explicitly, in both languages.
 test("every category with no wordMethod override (defaults to the 5-characters-per-word convention) says so explicitly in its own rules, in both languages", () => {
   for (const slug of ["ssc-chsl", "ssc-cgl", "aiims-cre-ldc", "dsssb-ldc", "up-police-computer-operator", "supreme-court-jca", "csir-jsa"]) {
     const category = getExamCategory(slug);

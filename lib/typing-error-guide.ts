@@ -1,4 +1,4 @@
-import type { HalfErrorCategory, ScoringProfile, WordAnalysisEntry, WordEntryStatus } from "./typing-test.ts";
+import { entryMistakeUnits, type HalfErrorCategory, type ScoringProfile, type WordAnalysisEntry, type WordEntryStatus } from "./typing-test.ts";
 
 export type ErrorGuideKind = "full" | "half";
 export type ErrorGuideKey = WordEntryStatus | HalfErrorCategory;
@@ -65,12 +65,19 @@ export function errorDefinitionForEntry(entry: WordAnalysisEntry, profile: Scori
   return definitions.find((definition) => definition.key === key);
 }
 
-export function guidePenaltyTotal(entries: WordAnalysisEntry[], profile: ScoringProfile, language: "en" | "hi") {
+// Real pre-existing bug this shares with ErrorDetail's per-word penalty
+// popup (advanced-typing-results.tsx): the old per-entry sum below charged
+// a flat fullErrorPenalty for any full-status entry and separately summed
+// every half category on a half-error entry, without ever considering
+// that a SINGLE entry can carry both at once (e.g. a substituted word
+// that also picked up "spacing") -- silently over-counting that one word
+// versus what a per-word cap should give, for any profile, independent of
+// AIIMS. Now shares entryMistakeUnits() with analyzeTyping's own totals,
+// so this reconciliation always agrees with the saved score by
+// construction instead of by coincidence.
+export function guidePenaltyTotal(entries: WordAnalysisEntry[], profile: ScoringProfile) {
   return entries.reduce((total, entry) => {
-    if (entry.status === "correct" || entry.status === "remaining") return total;
-    if (entry.status === "half-error") {
-      return total + entry.halfErrorCategories.reduce((sum, category) => sum + (buildErrorGuide(profile, language).find((item) => item.key === category)?.penalty ?? 0), 0);
-    }
-    return total + (errorDefinitionForEntry(entry, profile, language)?.penalty ?? 0);
+    const units = entryMistakeUnits(entry, profile);
+    return total + units.full * profile.fullErrorPenalty + units.half * profile.halfErrorPenalty;
   }, 0);
 }

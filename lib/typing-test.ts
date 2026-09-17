@@ -164,6 +164,52 @@ export type ScoringProfile = {
   // errorRelaxationPercent if a profile ever set both, though no current
   // category needs both at once.
   errorGraceCount?: number;
+  // AIIMS CRE-5's real DEST/typing evaluation criteria (confirmed via the
+  // board's own published PDF): its "FULL MISTAKES" list explicitly
+  // includes letter-level spelling errors (repetition/addition/omission/
+  // substitution of a letter, or a Matra error in Hindi) -- exactly what
+  // this codebase already tracks as the "minorSpelling" half-error
+  // category, just counted on the other side of the line for this board.
+  // Does NOT change entry.status/entry.halfErrorCategories/categoryCounts
+  // (those keep displaying and counting minorSpelling occurrences exactly
+  // as today, for every profile) -- only the final fullErrors/halfErrors
+  // aggregate in analyzeTyping moves minorSpelling's contribution across.
+  // Undefined (every other profile) leaves the half-error sum unchanged.
+  minorSpellingIsFullMistake?: boolean;
+  // AIIMS's NOTE 1: "Maximum Penalty - 1 Full Mistake for a word", even if
+  // that one word racks up multiple mistake types at once (the PDF's own
+  // example: capitalization + spacing + a spelling substitution on one
+  // word is "2 Half & 1 Full Mistakes... treated as 1 Full Mistake", not
+  // summed as 1 Full + (2 Half = 1 Full) = 2). See entryMistakeUnits()
+  // just above analyzeTyping for the exact per-word capping rule this
+  // flag switches on. Presumes halfErrorPenalty === fullErrorPenalty / 2
+  // (true for AIIMS's 10/5 and the platform default 1/0.5, NOT true for
+  // every profile e.g. KVS JSA's 1/1) -- only ever set alongside a
+  // matching penalty pair, never derived from the ratio at runtime.
+  // Undefined (every other profile) leaves fullErrors/halfErrors as the
+  // simple category-count sums, unchanged.
+  capMistakeUnitsPerWord?: boolean;
+  // AIIMS's real Accuracy = Net Speed / Gross Speed x 100 -- which is
+  // already exactly what TypingScore.efficiency computes today (see
+  // calculateTypingScore). This flag just makes calculateTypingScore's
+  // `accuracy` field report that same ratio instead of the platform's
+  // default character-based accuracy, for boards whose own published
+  // formula defines accuracy this way. Undefined (every other profile)
+  // leaves accuracy as the character-based figure, unchanged.
+  accuracyFromSpeedRatio?: boolean;
+  // AIIMS's "Insufficient Attempt" rule: if gross typed strokes fall short
+  // of what the required qualifying pace (passNetWpm) would produce over
+  // the full test duration, the attempt isn't scored normally at all --
+  // e.g. 35 WPM x 5 strokes/word x 15 minutes = 2625 minimum strokes for
+  // English. This flag has NO effect inside this file / analyzeTyping --
+  // it can never change a stored pass/fail (falling short of the
+  // qualifying pace already implies passed === false via the existing
+  // netWpm/passNetWpm check), so it's read only by the results UI
+  // (AdvancedTypingResults), which has the test's real configured
+  // duration available to compute the threshold. Kept off TypingScore
+  // entirely so old, already-frozen attempts are unaffected. Undefined
+  // (every other profile) shows no Insufficient Attempt banner, unchanged.
+  minimumStrokesFromPassSpeed?: boolean;
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -670,6 +716,36 @@ export function alignWords(
   return entries;
 }
 
+const FULL_MISTAKE_STATUSES = new Set<WordEntryStatus>(["missing", "extra", "repeated", "substituted"]);
+
+// AIIMS's NOTE 1: at most 1 full-mistake-equivalent penalty per word. A
+// full-status entry already equals the cap on its own -- any half
+// categories riding along on the same entry (e.g. a substituted word that
+// also picked up "spacing" from the separator-mismatch pass) are dropped
+// entirely, matching the PDF's own worked example ("2 Half & 1 Full
+// Mistakes... treated as 1 Full Mistake"). Otherwise, at most 2 half
+// categories count (2 x 0.5 = 1.0, the cap) -- a third-and-beyond is
+// dropped. Kept as plain integers (never fractional) so fullErrors/
+// halfErrors stay meaningful mistake COUNTS and totalPenalty's existing
+// formula needs no change at all. When minorSpellingIsFullMistake is set,
+// a "minorSpelling" category on a half-error entry is promoted to a full-
+// mistake count instead of a half one, exactly like a genuine wrong word,
+// before the cap (if any) is applied. Exported so guidePenaltyTotal and
+// the results page's per-entry penalty popup can use this exact same
+// rule instead of their own, simpler (and, for capMistakeUnitsPerWord
+// profiles, wrong) per-entry assumption.
+export function entryMistakeUnits(entry: WordAnalysisEntry, profile: ScoringProfile): { full: number; half: number } {
+  if (FULL_MISTAKE_STATUSES.has(entry.status)) return { full: 1, half: 0 };
+  if (entry.status !== "half-error") return { full: 0, half: 0 };
+  const promotedSpelling = profile.minorSpellingIsFullMistake === true && entry.halfErrorCategories.includes("minorSpelling");
+  const remainingHalfCategories = promotedSpelling ? entry.halfErrorCategories.length - 1 : entry.halfErrorCategories.length;
+  if (profile.capMistakeUnitsPerWord) {
+    if (promotedSpelling) return { full: 1, half: 0 };
+    return { full: 0, half: Math.min(remainingHalfCategories, 2) };
+  }
+  return { full: promotedSpelling ? 1 : 0, half: remainingHalfCategories };
+}
+
 export function analyzeTyping(
   passage: string,
   typedText: string,
@@ -696,8 +772,30 @@ export function analyzeTyping(
     }
   }
 
-  const fullErrors = counts.missing + counts.extra + counts.repeated + counts.substituted;
-  const halfErrors = categoryCounts.capitalization + categoryCounts.punctuation + categoryCounts.spacing + categoryCounts.minorSpelling + categoryCounts.matra + categoryCounts.halant + categoryCounts.gender + categoryCounts.vachan;
+  // The legacy two-expression sums below are kept as a literal, untouched
+  // branch for every profile that sets neither new flag -- mathematically
+  // equivalent to summing entryMistakeUnits() over every entry today, but
+  // that equivalence depends on ErrorCategoryCounts listing every
+  // HalfErrorCategory and WordEntryStatus gaining no new mistake status,
+  // both of which have changed before in this file's history (matra/
+  // halant/gender/vachan). A flagged profile switches to the per-entry
+  // reduce, which is the only way to express AIIMS's per-word cap at all.
+  let fullErrors: number;
+  let halfErrors: number;
+  if (profile.minorSpellingIsFullMistake || profile.capMistakeUnitsPerWord) {
+    let fullUnits = 0;
+    let halfUnits = 0;
+    for (const entry of entries) {
+      const units = entryMistakeUnits(entry, profile);
+      fullUnits += units.full;
+      halfUnits += units.half;
+    }
+    fullErrors = fullUnits;
+    halfErrors = halfUnits;
+  } else {
+    fullErrors = counts.missing + counts.extra + counts.repeated + counts.substituted;
+    halfErrors = categoryCounts.capitalization + categoryCounts.punctuation + categoryCounts.spacing + categoryCounts.minorSpelling + categoryCounts.matra + categoryCounts.halant + categoryCounts.gender + categoryCounts.vachan;
+  }
   const remainingEntries = entries.filter((entry) => entry.status === "remaining");
   return {
     entries,
@@ -830,9 +928,16 @@ export function calculateTypingScore({
   const effectivePenalty = Math.max(0, analysis.totalPenalty - relaxationPoints);
   const netWpm = Math.max(Math.round(grossWpm - effectivePenalty / elapsedMinutes), 0);
   const efficiency = grossWpm > 0 ? Math.min(100, Math.round((netWpm / grossWpm) * 100)) : 100;
-  const accuracy = totalCharacters > 0
-    ? Math.round((correctCharacters / (correctCharacters + incorrectCharacters)) * 100)
-    : 100;
+  // AIIMS's real Accuracy = Net Speed / Gross Speed x 100 is already
+  // exactly what `efficiency` above computes -- accuracyFromSpeedRatio
+  // just reports that same figure as `accuracy` instead of this
+  // platform's default character-based definition. Undefined/false for
+  // every other profile leaves this expression byte-identical to before.
+  const accuracy = scoringProfile.accuracyFromSpeedRatio
+    ? efficiency
+    : totalCharacters > 0
+      ? Math.round((correctCharacters / (correctCharacters + incorrectCharacters)) * 100)
+      : 100;
   const safeAccuracy = Number.isFinite(accuracy) ? accuracy : 0;
 
   return {

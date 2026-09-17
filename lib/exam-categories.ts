@@ -55,6 +55,26 @@ export type ExamCategoryDefinition = {
    * words were typed, only the remainder costs the per-mistake penalty. Undefined (every
    * other category) means zero grace, unchanged. */
   errorGraceCount?: number;
+  /** AIIMS CRE-5's real DEST/typing evaluation criteria (confirmed via the board's own
+   * published PDF): letter-level spelling errors are graded as a FULL mistake for this
+   * board, not the platform default half mistake. Undefined (every other category) leaves
+   * spelling as a half mistake, unchanged. */
+  minorSpellingIsFullMistake?: boolean;
+  /** AIIMS's NOTE 1: at most 1 full-mistake-equivalent penalty per word, even if that word
+   * racks up multiple mistake types at once. Undefined (every other category) applies no
+   * cap, unchanged -- see entryMistakeUnits() in typing-test.ts for the exact rule. */
+  capMistakeUnitsPerWord?: boolean;
+  /** AIIMS's real Accuracy = Net Speed / Gross Speed x 100 (already exactly what this
+   * platform computes as TypingScore.efficiency) instead of the platform default
+   * character-based accuracy. Undefined (every other category) keeps the character-based
+   * figure, unchanged. */
+  accuracyFromSpeedRatio?: boolean;
+  /** AIIMS's "Insufficient Attempt" rule: below a minimum keystroke count (the qualifying
+   * pace x 5 strokes/word x the full test duration), the official evaluation doesn't check
+   * accuracy at all. Read only by the results UI (see ScoringProfile's own doc comment) --
+   * has no effect on scoring or on the stored pass/fail. Undefined (every other category)
+   * shows no Insufficient Attempt banner, unchanged. */
+  minimumStrokesFromPassSpeed?: boolean;
   /** Hindi translation of patternNotes, shown on the Hindi half of the category rules page and
    * as this category's Hindi preset's own instructionNotes. Every category has one; kept optional
    * (defaultExamCategoryRules() falls back to the English patternNotes when absent) so a newly
@@ -90,10 +110,24 @@ const RAW_CATEGORIES: Array<Omit<ExamCategoryDefinition, "tone" | "toneDark">> =
     speedEnglish: 35, speedHindi: 30, durationMinutes: 15, accuracy: 90, backspaceMode: "full", patternSourced: true,
     patternNotes: ["The DEST is historically measured as about 2000 key depressions in 15 minutes (roughly 27–33 WPM); this simulation uses the standard SSC 35/30 WPM baseline.", "Qualifying only — it does not add to the final score, but you must clear it to remain in contention.", "Backspace is allowed at any point during the 15 minutes with no usage limit, but you cannot restart the passage from the beginning once you start typing — correct only as you go.", "Mistakes are graded as full mistakes (omitted, substituted, added, or repeated words; spelling errors) and half mistakes (spacing, capitalization, punctuation, transposition), converted to an error percentage of the whole passage. The pass threshold is category- and post-dependent — roughly 20% for general Group C/D posts down to 5% for higher-standard posts such as Tax Assistant or ASO — so always confirm against your specific post's notification.", "Word count uses the standard 5-characters-per-word convention (key depressions ÷ 5) — the same convention SSC's own real DEST test uses, not RSSB-style space-separated word counting."],
     patternNotesHindi: ["डेस्ट (DEST) परीक्षा पारंपरिक रूप से 15 मिनट में लगभग 2000 की-डिप्रेशन (लगभग 27–33 डब्ल्यूपीएम) के रूप में मापी जाती रही है; यह सिमुलेशन मानक एसएससी 35/30 डब्ल्यूपीएम आधार रेखा का उपयोग करता है।", "केवल अर्हकारी (क्वालिफाइंग) — यह अंतिम स्कोर में नहीं जुड़ता, लेकिन प्रतियोगिता में बने रहने के लिए इसे पास करना अनिवार्य है।", "15 मिनट के दौरान किसी भी समय बिना किसी सीमा के बैकस्पेस की अनुमति है, लेकिन टाइप करना शुरू करने के बाद आप गद्यांश को शुरू से दोबारा शुरू नहीं कर सकते — केवल आगे बढ़ते हुए ही सुधार करें।", "गलतियों को पूर्ण गलती (छूटे हुए, बदले हुए, जोड़े गए या दोहराए गए शब्द; वर्तनी की त्रुटियाँ) और आधी गलती (स्पेसिंग, कैपिटलाइज़ेशन, विराम चिह्न, अक्षर-क्रम बदलना) में आंका जाता है, जिन्हें पूरे गद्यांश के त्रुटि प्रतिशत में बदला जाता है। उत्तीर्ण सीमा श्रेणी और पद पर निर्भर करती है — सामान्य ग्रुप सी/डी पदों के लिए लगभग 20% से लेकर टैक्स असिस्टेंट या एएसओ जैसे उच्च-मानक पदों के लिए 5% तक — इसलिए हमेशा अपने विशिष्ट पद की अधिसूचना से पुष्टि करें।", "शब्द गणना मानक 5-अक्षर-प्रति-शब्द परंपरा (की-डिप्रेशन ÷ 5) का उपयोग करती है — यही परंपरा एसएससी के वास्तविक डेस्ट टेस्ट में भी उपयोग होती है, न कि आरएसएसबी-शैली की स्पेस-आधारित शब्द गणना।"] },
+  // Corrected/expanded from an earlier, thinner pass: the board's own
+  // published evaluation-criteria PDF (read in full) confirms a genuinely
+  // different formula from this platform's default, narrated in the
+  // patternNotes below since this category's very first pass but never
+  // actually implemented -- the same "prose but no engine wiring" gap
+  // RRB NTPC, CRPF HCM, and UPSSSC all had before their own fixes.
+  // fullErrorPenalty/halfErrorPenalty: 10/5 reproduces the PDF's own
+  // "50 strokes penalty per full mistake" (50 / 5 strokes-per-word = 10
+  // words) exactly, for any duration -- the same mechanism RRB NTPC/CRPF
+  // HCM already use. accuracy: 0 is deliberate -- the PDF's own qualifying
+  // standard states only a speed threshold ("35/30 w.p.m. or 12,000/8,000
+  // KDPH"), no separate accuracy percentage, so accuracy is computed and
+  // shown the board's real way (accuracyFromSpeedRatio) but never gates
+  // pass/fail for this one category.
   { slug: "aiims-cre-ldc", name: "AIIMS CRE LDC", badge: "AIIMS", fullName: "All India Institute of Medical Sciences — Common Recruitment Exam, Lower Division Clerk", iconKind: "medical",
-    speedEnglish: 35, speedHindi: 30, durationMinutes: 15, accuracy: 90, backspaceMode: "full", patternSourced: true,
-    patternNotes: ["Test duration is 15 minutes.", "Backspace is fully enabled — you can correct any earlier mistake at any point in the 15 minutes. Qualifying only.", "Minimum keystrokes to qualify: about 2625 in English or 2250 in Hindi within the 15 minutes, on top of the 35/30 WPM speed requirement.", "Word count uses the standard 5-characters-per-word convention (key depressions ÷ 5), matching the \"keystrokes to qualify\" figure above — not RSSB-style space-separated word counting."],
-    patternNotesHindi: ["परीक्षा की अवधि 15 मिनट है।", "बैकस्पेस पूरी तरह सक्षम है — आप 15 मिनट के दौरान किसी भी समय पहले की कोई भी गलती ठीक कर सकते हैं। केवल अर्हकारी (क्वालिफाइंग)।", "उत्तीर्ण होने के लिए न्यूनतम की-स्ट्रोक्स: 15 मिनट में अंग्रेज़ी में लगभग 2625 या हिंदी में लगभग 2250, 35/30 डब्ल्यूपीएम गति की आवश्यकता के अतिरिक्त।", "शब्द गणना मानक 5-अक्षर-प्रति-शब्द परंपरा (की-डिप्रेशन ÷ 5) का उपयोग करती है, जो ऊपर दिए गए \"न्यूनतम की-स्ट्रोक्स\" के आँकड़े से मेल खाती है — न कि आरएसएसबी-शैली की स्पेस-आधारित शब्द गणना।"] },
+    speedEnglish: 35, speedHindi: 30, durationMinutes: 15, accuracy: 0, backspaceMode: "full", fullErrorPenalty: 10, halfErrorPenalty: 5, minorSpellingIsFullMistake: true, capMistakeUnitsPerWord: true, accuracyFromSpeedRatio: true, minimumStrokesFromPassSpeed: true, patternSourced: true,
+    patternNotes: ["Test duration is 15 minutes.", "Backspace is fully enabled — you can correct any earlier mistake at any point in the 15 minutes. Qualifying only.", "Insufficient Attempt: at least 2625 keystrokes in English or 2250 in Hindi within the 15 minutes are required before accuracy is even checked, on top of the 35/30 WPM speed requirement.", "Word count uses the standard 5-characters-per-word convention (key depressions ÷ 5), matching the keystroke figure above — not RSSB-style space-separated word counting.", "Mistakes are graded as full mistakes (wrong, missing, extra, or repeated words, plus letter-level spelling errors) and half mistakes (spacing, punctuation, capitalization); a single badly-mangled word is capped at 1 full mistake even if it has several issues at once.", "Accuracy is Net Speed ÷ Gross Speed × 100 — only the 35/30 WPM (or 12,000/8,000 KDPH) speed requirement decides qualification, not a separate accuracy percentage."],
+    patternNotesHindi: ["परीक्षा की अवधि 15 मिनट है।", "बैकस्पेस पूरी तरह सक्षम है — आप 15 मिनट के दौरान किसी भी समय पहले की कोई भी गलती ठीक कर सकते हैं। केवल अर्हकारी (क्वालिफाइंग)।", "अपर्याप्त प्रयास (Insufficient Attempt): शुद्धता जांचे जाने से पहले 15 मिनट में अंग्रेज़ी में कम-से-कम 2625 या हिंदी में 2250 की-स्ट्रोक्स आवश्यक हैं, 35/30 डब्ल्यूपीएम गति की आवश्यकता के अतिरिक्त।", "शब्द गणना मानक 5-अक्षर-प्रति-शब्द परंपरा (की-डिप्रेशन ÷ 5) का उपयोग करती है, जो ऊपर दिए गए की-स्ट्रोक्स के आँकड़े से मेल खाती है — न कि आरएसएसबी-शैली की स्पेस-आधारित शब्द गणना।", "गलतियों को पूर्ण गलती (गलत, छूटा हुआ, अतिरिक्त या दोहराया गया शब्द, तथा अक्षर-स्तर की वर्तनी त्रुटियाँ) और आधी गलती (स्पेसिंग, विराम चिह्न, कैपिटलाइज़ेशन) में बांटा जाता है; एक ही बुरी तरह बिगड़े शब्द में भी अधिकतम 1 पूर्ण गलती ही गिनी जाती है, चाहे उसमें कई तरह की त्रुटियाँ क्यों न हों।", "शुद्धता (Accuracy) = नेट स्पीड ÷ ग्रॉस स्पीड × 100 होती है — केवल 35/30 डब्ल्यूपीएम (या 12,000/8,000 केडीपीएच) की गति आवश्यकता ही उत्तीर्णता तय करती है, कोई अलग शुद्धता प्रतिशत नहीं।"] },
   { slug: "rrb-ntpc", name: "RRB NTPC", badge: "NTPC", fullName: "Railway Recruitment Board — Non-Technical Popular Categories", iconKind: "train",
     speedEnglish: 30, speedHindi: 25, durationMinutes: 10, accuracy: 95, backspaceMode: "disabled", highlightMode: "none", fullErrorPenalty: 10, halfErrorPenalty: 5, errorRelaxationPercent: 5, patternSourced: true,
     // Corrected/expanded from an earlier, thinner pass: the 5%-relaxation

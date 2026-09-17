@@ -7,8 +7,10 @@ import {
   alignWords,
   analyzeTyping,
   calculateTypingScore,
+  entryMistakeUnits,
   isAllowedTypingEdit,
 } from "../lib/typing-test.ts";
+import { categoryTotalsReconcile } from "../lib/typing-results.ts";
 
 const statuses = (passage, typed) =>
   alignWords(passage, typed, DEFAULT_SCORING_PROFILE, true).map(
@@ -187,6 +189,149 @@ test("errorGraceCount is a no-op for every profile that doesn't set it -- identi
   const withoutGrace = calculateTypingScore({ typedText: "hello Wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", scoringProfile: DEFAULT_SCORING_PROFILE, includeUntypedWords: true });
   const explicitZero = calculateTypingScore({ typedText: "hello Wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", scoringProfile: { ...DEFAULT_SCORING_PROFILE, errorGraceCount: 0 }, includeUntypedWords: true });
   assert.equal(explicitZero.netWpm, withoutGrace.netWpm);
+});
+
+// Real reported research: AIIMS CRE-5's official DEST/typing evaluation
+// criteria PDF. Its "50 strokes penalty per full mistake" is exactly this
+// platform's existing fullErrorPenalty:10/halfErrorPenalty:5 convention
+// (50 strokes / 5 strokes-per-word = 10 penalty-words) -- no new engine
+// code needed for the WPM formula itself, confirmed by reproducing the
+// PDF's own worked example: 3000 strokes, 20 mistake-units, 10-minute
+// test -> gross 60 WPM, 200-word penalty, net 40 WPM.
+test("AIIMS's 50-strokes-per-full-mistake penalty (fullErrorPenalty 10 / halfErrorPenalty 5) reproduces its own worked example: 3000 strokes, 20 mistake units, 10 minutes -> 40 net WPM", () => {
+  const aiimsPenalty = { ...DEFAULT_SCORING_PROFILE, fullErrorPenalty: 10, halfErrorPenalty: 5 };
+  // 600 words, single-space separated: 599 x "aaaa" (4 chars) + 1 x
+  // "aaaaa" (5 chars) + 599 spaces = 2396 + 5 + 599 = 3000 characters.
+  const words = Array.from({ length: 600 }, (_, index) => (index === 599 ? "aaaaa" : "aaaa"));
+  const passage = words.join(" ");
+  // First 20 words wrong (substituted, same length so totalCharacters is
+  // unaffected) -- exactly 20 full mistakes, 0 half mistakes.
+  const typedText = words.map((word, index) => index < 20 ? "bbbb" : word).join(" ");
+  const score = calculateTypingScore({ typedText, passage, elapsedSeconds: 600, wordMethod: "characters", scoringProfile: aiimsPenalty, includeUntypedWords: true });
+  assert.equal(score.totalCharacters, 3000);
+  assert.equal(score.analysis.fullErrors, 20);
+  assert.equal(score.analysis.halfErrors, 0);
+  assert.equal(score.analysis.totalPenalty, 200);
+  assert.equal(score.grossWpm, 60);
+  assert.equal(score.netWpm, 40);
+});
+
+// AIIMS's real Accuracy = Net Speed / Gross Speed x 100 is already exactly
+// what TypingScore.efficiency computes -- accuracyFromSpeedRatio just
+// reports that instead of the platform's default character-based figure.
+test("accuracyFromSpeedRatio reports Net/Gross speed as accuracy instead of the character-based default, and is a no-op when unset", () => {
+  const base = { typedText: "hello wurld extra", passage: "hello world missing", elapsedSeconds: 60, wordMethod: "spaces", includeUntypedWords: true };
+  const withoutFlag = calculateTypingScore({ ...base, scoringProfile: DEFAULT_SCORING_PROFILE });
+  const withFlag = calculateTypingScore({ ...base, scoringProfile: { ...DEFAULT_SCORING_PROFILE, accuracyFromSpeedRatio: true } });
+  assert.equal(withFlag.accuracy, withFlag.efficiency);
+  assert.equal(withoutFlag.accuracy, Math.round((withoutFlag.correctCharacters / (withoutFlag.correctCharacters + withoutFlag.incorrectCharacters)) * 100));
+  assert.notEqual(withFlag.accuracy, withoutFlag.accuracy);
+});
+
+// AIIMS's real FULL MISTAKES list includes letter-level spelling errors --
+// exactly this platform's "minorSpelling" half-error category, just
+// counted as full for this board. entry.status/halfErrorCategories/
+// categoryCounts must NOT change (display/counting stays exactly as
+// today); only the final fullErrors/halfErrors aggregate moves.
+test("minorSpellingIsFullMistake moves a minorSpelling occurrence into fullErrors without touching entry.status, halfErrorCategories, or categoryCounts", () => {
+  const promoted = { ...DEFAULT_SCORING_PROFILE, minorSpellingIsFullMistake: true };
+  const passage = "hello world";
+  const typedText = "helllo world"; // one extra letter -> minorSpelling half-error
+  const withoutFlag = analyzeTyping(passage, typedText, DEFAULT_SCORING_PROFILE, true);
+  const withFlag = analyzeTyping(passage, typedText, promoted, true);
+  assert.equal(withoutFlag.fullErrors, 0);
+  assert.equal(withoutFlag.halfErrors, 1);
+  assert.equal(withFlag.fullErrors, 1);
+  assert.equal(withFlag.halfErrors, 0);
+  // Entries and category counts are identical between the two -- only the
+  // aggregate moved.
+  assert.deepEqual(withFlag.entries.map((e) => ({ status: e.status, categories: e.halfErrorCategories })), withoutFlag.entries.map((e) => ({ status: e.status, categories: e.halfErrorCategories })));
+  assert.deepEqual(withFlag.categoryCounts, withoutFlag.categoryCounts);
+});
+
+// entryMistakeUnits() is the pure function both analyzeTyping's aggregate
+// and guidePenaltyTotal/ErrorDetail's per-word display now share.
+test("entryMistakeUnits: a full-status entry is always exactly 1 full unit, ignoring any half categories riding along on the same entry", () => {
+  const entry = { id: "1", status: "substituted", original: "hope", typed: "Hopa", halfErrorCategories: ["capitalization", "spacing"] };
+  assert.deepEqual(entryMistakeUnits(entry, DEFAULT_SCORING_PROFILE), { full: 1, half: 0 });
+  assert.deepEqual(entryMistakeUnits(entry, { ...DEFAULT_SCORING_PROFILE, capMistakeUnitsPerWord: true }), { full: 1, half: 0 });
+});
+
+// AIIMS's NOTE 1, reproduced from the PDF's own example verbatim: a word
+// with capitalization + spacing + a spelling substitution (2 Half & 1
+// [promoted-to-]Full mistakes) is capped at exactly 1.0 mistake-equivalent
+// unit, never summed to 1.5 or 2.0.
+test("entryMistakeUnits caps a half-error entry with capitalization + spacing + a promoted spelling substitution at exactly 1 full unit (AIIMS's NOTE 1)", () => {
+  const aiims = { ...DEFAULT_SCORING_PROFILE, minorSpellingIsFullMistake: true, capMistakeUnitsPerWord: true };
+  const entry = { id: "1", status: "half-error", original: "hope", typed: "Ho pa", halfErrorCategories: ["capitalization", "spacing", "minorSpelling"] };
+  assert.deepEqual(entryMistakeUnits(entry, aiims), { full: 1, half: 0 });
+  // Without the cap, the same entry is 1 full (promoted spelling) + 1.0
+  // half-equivalent (2 x 0.5) worth of the other two categories -- shows
+  // the cap is doing real work, not a no-op.
+  const uncapped = { ...DEFAULT_SCORING_PROFILE, minorSpellingIsFullMistake: true };
+  assert.deepEqual(entryMistakeUnits(entry, uncapped), { full: 1, half: 2 });
+});
+
+test("entryMistakeUnits caps a half-error entry with 3 ordinary half categories (no promoted spelling) at 2 half units, never 3", () => {
+  const capped = { ...DEFAULT_SCORING_PROFILE, capMistakeUnitsPerWord: true };
+  const entry = { id: "1", status: "half-error", original: "I hope", typed: "i hope,", halfErrorCategories: ["capitalization", "spacing", "punctuation"] };
+  assert.deepEqual(entryMistakeUnits(entry, capped), { full: 0, half: 2 });
+  assert.deepEqual(entryMistakeUnits(entry, DEFAULT_SCORING_PROFILE), { full: 0, half: 3 });
+});
+
+test("minorSpellingIsFullMistake and capMistakeUnitsPerWord are each a strict no-op when absent or explicitly false -- identical analyzeTyping output to before either flag existed", () => {
+  const passage = "The quick brown fox jumps over the lazy dog, and I hope it goes well.";
+  const typedText = "The quikc brown fox fox jumps over lazy dog nearthe old barn today extra";
+  const base = analyzeTyping(passage, typedText, DEFAULT_SCORING_PROFILE, true);
+  const explicitFalse = analyzeTyping(passage, typedText, { ...DEFAULT_SCORING_PROFILE, minorSpellingIsFullMistake: false, capMistakeUnitsPerWord: false }, true);
+  assert.equal(explicitFalse.fullErrors, base.fullErrors);
+  assert.equal(explicitFalse.halfErrors, base.halfErrors);
+  assert.equal(explicitFalse.totalPenalty, base.totalPenalty);
+});
+
+// The legacy two-expression sum in analyzeTyping's tail is kept as a
+// literal, untouched branch for flagless profiles specifically so this
+// equivalence can never silently drift -- pinned directly rather than
+// relied upon structurally.
+test("the legacy fullErrors/halfErrors sum agrees exactly with summing entryMistakeUnits() over every entry, for a flagless profile", () => {
+  const passages = [
+    ["The quick brown fox jumps over the lazy dog.", "The quikc brown fox fox jumps over lazy dog nearthe."],
+    ["one two three four five six seven eight nine ten", "onee two three four fivee six  seven eight nine"],
+  ];
+  for (const [passage, typedText] of passages) {
+    const analysis = analyzeTyping(passage, typedText, DEFAULT_SCORING_PROFILE, true);
+    const reduced = analysis.entries.reduce((total, entry) => {
+      const units = entryMistakeUnits(entry, DEFAULT_SCORING_PROFILE);
+      return { full: total.full + units.full, half: total.half + units.half };
+    }, { full: 0, half: 0 });
+    assert.equal(reduced.full, analysis.fullErrors);
+    assert.equal(reduced.half, analysis.halfErrors);
+  }
+});
+
+test("categoryTotalsReconcile stays true for an AIIMS-flagged profile (capMistakeUnitsPerWord + minorSpellingIsFullMistake)", () => {
+  const aiims = { ...DEFAULT_SCORING_PROFILE, fullErrorPenalty: 10, halfErrorPenalty: 5, minorSpellingIsFullMistake: true, capMistakeUnitsPerWord: true };
+  const score = calculateTypingScore({ typedText: "Ho pa quikc brown fox extra", passage: "hope quick brown fox jumps", elapsedSeconds: 600, wordMethod: "characters", scoringProfile: aiims, includeUntypedWords: true });
+  assert.equal(categoryTotalsReconcile(score, aiims), true);
+});
+
+// AIIMS's "Insufficient Attempt" minimum-strokes threshold is read only by
+// the results UI (see ScoringProfile.minimumStrokesFromPassSpeed's own doc
+// comment) -- this confirms the derivation (passNetWpm x 5 x duration
+// minutes) matches the exact numbers already written in this category's
+// own patternNotes (2625 English / 2250 Hindi), so the UI and the
+// researched prose can never silently disagree.
+test("AIIMS's derived minimum-strokes threshold (passNetWpm x 5 x duration minutes) matches its own researched patternNotes (2625 English / 2250 Hindi)", async () => {
+  const { getExamPreset } = await import("../lib/typing-curriculum.ts");
+  const { examCategoryPresetId } = await import("../lib/exam-categories.ts");
+  const english = getExamPreset(examCategoryPresetId("aiims-cre-ldc", "English"));
+  const hindi = getExamPreset(examCategoryPresetId("aiims-cre-ldc", "Hindi"));
+  assert.ok(english && hindi, "both aiims-cre-ldc presets should exist");
+  const minimumStrokes = (preset) => Math.round(preset.scoringProfile.passNetWpm * 5 * (preset.durationSeconds / 60));
+  assert.equal(minimumStrokes(english), 2625);
+  assert.equal(minimumStrokes(hindi), 2250);
+  assert.equal(english.scoringProfile.minimumStrokesFromPassSpeed, true);
+  assert.equal(english.scoringProfile.passAccuracy, 0, "AIIMS's own qualifying standard states only a speed threshold, no separate accuracy percentage");
 });
 
 test("early stop classifies the untouched suffix as zero-penalty remaining text", () => {

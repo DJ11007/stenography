@@ -40,7 +40,7 @@ test("on-screen and printed guides use one shared definition source",async()=>{
   const [component,css]=await Promise.all([readFile(new URL("../app/typing/_components/advanced-typing-results.tsx",import.meta.url),"utf8"),readFile(new URL("../app/globals.css",import.meta.url),"utf8")]);
   assert.match(component,/Error Representation &amp; Scoring Guide/);
   assert.match(component,/buildErrorGuide\(profile,textLanguage\)/);
-  assert.match(component,/guidePenaltyTotal\(entries,profile,textLanguage\)/);
+  assert.match(component,/guidePenaltyTotal\(entries,profile\)/);
   assert.match(component,/Detailed Passage Comparison/);
   assert.match(component,/details className="group error-scoring-guide/);
   assert.match(css,/@media print[\s\S]*details\.error-scoring-guide > \*/);
