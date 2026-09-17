@@ -34,6 +34,6 @@ test("the typing hub and admin hub both link to the new classroom feature", asyn
   const hub = await read("app/typing/page.tsx");
   const admin = await read("app/admin/page.tsx");
   assert.match(hub, /href: "\/classroom"/);
-  assert.match(hub, /Seven focused typing areas/);
+  assert.match(hub, /Eight focused typing areas/);
   assert.match(admin, /"\/admin\/classroom", "Classroom"/);
 });

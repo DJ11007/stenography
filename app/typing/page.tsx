@@ -59,6 +59,14 @@ const sections = [
     icon: "◔",
     tone: "bg-green-700",
   },
+  {
+    title: "Games",
+    description: "WordTris: catch falling words before they land, in Hindi and English, with a Top-50 leaderboard.",
+    href: "/typing/games",
+    action: "Play games",
+    icon: "☁",
+    tone: "bg-cyan-600",
+  },
 ];
 
 export default function TypingHubPage() {
@@ -68,7 +76,7 @@ export default function TypingHubPage() {
       <section className="mx-auto max-w-7xl px-4 py-12">
         <BackButton href="/" label="Home" />
         <p className="mt-5 text-sm font-bold uppercase tracking-widest text-blue-600">Choose your path</p>
-        <h2 className="mt-2 text-3xl font-black">Seven focused typing areas</h2>
+        <h2 className="mt-2 text-3xl font-black">Eight focused typing areas</h2>
         <div className="mt-7 grid gap-5 md:grid-cols-2">
           {sections.map((section) => (
             <article

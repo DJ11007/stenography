@@ -48,6 +48,13 @@ const groups = [
     ],
   },
   {
+    heading: "Games",
+    description: "Word banks for the WordTris falling-word typing game.",
+    items: [
+      ["/admin/wordtris-words", "WordTris Word Banks", "Add or edit the words students catch, per category and language.", "Manage →"],
+    ],
+  },
+  {
     heading: "Stenography",
     description: "Dictation and transcription tests, including the Stenography Exam Simulator categories.",
     items: [
