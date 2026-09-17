@@ -129,7 +129,24 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // lets each of those dashboards prefer the real figures when present.
   const marksResult = preset.marksMethod ? calculateConfiguredRssbMarks(score, preset.marksMethod) : null;
   const marksNetWpm = marksResult ? Math.round(score.correctWords / Math.max(score.elapsedSeconds / 60, 1 / 60)) : null;
-  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : null };
+  // Real reported bug: an attempt's list-view "Errors" tile (this file's
+  // fullErrors/halfErrors, read verbatim by /student/results and the admin
+  // per-test results table) is frozen forever, per this project's own
+  // convention -- but the attempt-review pages (admin and student) used to
+  // reconstruct their own `score` by re-running calculateTypingScore()
+  // against the frozen snapshot passage/typedText with WHATEVER scoring
+  // logic is live *at view time*. Those two numbers only ever agreed by
+  // coincidence: any later change to analyzeTyping/managedVersionToPreset
+  // (which this project has repeatedly made -- new half-error categories,
+  // RSSB marks-method fixes, category-flag changes) silently made every
+  // already-submitted attempt's detailed breakdown disagree with its own
+  // list-page total, exactly the "half error and full calculation is not
+  // correct in total" report. Storing the complete, already-computed score
+  // (plus the exact resolved passage/typed text it was computed against)
+  // lets both review pages use this frozen object directly instead of ever
+  // recomputing it -- the list tiles and the detailed breakdown can no
+  // longer drift apart, for English or Hindi, typing or stenography.
+  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   // Anytime mode's per-student unlock time is submitted_at + delay, not a
   // shared resultsPublishAt -- and the DB row can't be re-read to fetch its

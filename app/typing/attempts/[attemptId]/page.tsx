@@ -41,15 +41,27 @@ export default async function StudentAttemptReviewPage({ params }: { params: Pro
 
   let reviewData: { passage: string; typedText: string; score: ReturnType<typeof calculateTypingScore>; backspaces: number } | null = null;
   if (typedText !== null) {
-    const wordCountCustomizable = version.mode === "practice" && !attempt.is_live_attempt && preset.category !== "stenography";
-    const resolvedPassage = getInputSystemPassage(inputSystem, version.passage);
-    const requestedWordCount = typeof result.passageWordCount === "number" ? result.passageWordCount : null;
-    const effectivePassage = wordCountCustomizable && requestedWordCount && requestedWordCount >= 150 && requestedWordCount <= 700 ? repeatPassageToExactWordCount(resolvedPassage, requestedWordCount) : resolvedPassage;
-    const normalized = normalizeTypingInput(typedText, inputSystem);
-    const scoringProfile = version.audioPath ? scoringProfileWithSelectedCategories(preset.scoringProfile, sanitizeSelectedCategories(Array.isArray(result.selectedCategories) ? result.selectedCategories as never[] : undefined)) : preset.scoringProfile;
-    const elapsedSeconds = typeof result.elapsedSeconds === "number" ? result.elapsedSeconds : 0;
-    const score = calculateTypingScore({ typedText: getScoringText(normalized.comparisonText, inputSystem), passage: getScoringText(effectivePassage, inputSystem), elapsedSeconds: Math.min(elapsedSeconds, preset.durationSeconds), wordMethod: preset.wordMethod, scoringProfile, includeUntypedWords: true });
-    reviewData = { passage: effectivePassage, typedText: normalized.comparisonText, score, backspaces: typeof result.backspaces === "number" ? result.backspaces : 0 };
+    // Prefer the score exactly as it was computed and saved at submission
+    // (see app/tests/actions.ts) over recomputing it here -- see the
+    // matching comment in the admin attempt-review page for why a
+    // recompute silently drifted from the frozen totals shown on
+    // /student/results, which was the real cause of a reported "half
+    // error and full calculation is not correct in total" mismatch. Older
+    // attempts recorded before this field existed still fall back to
+    // recomputing, same as before.
+    if (result.score && typeof result.score === "object" && typeof result.resolvedPassage === "string" && typeof result.comparisonText === "string") {
+      reviewData = { passage: result.resolvedPassage, typedText: result.comparisonText, score: result.score as ReturnType<typeof calculateTypingScore>, backspaces: typeof result.backspaces === "number" ? result.backspaces : 0 };
+    } else {
+      const wordCountCustomizable = version.mode === "practice" && !attempt.is_live_attempt && preset.category !== "stenography";
+      const resolvedPassage = getInputSystemPassage(inputSystem, version.passage);
+      const requestedWordCount = typeof result.passageWordCount === "number" ? result.passageWordCount : null;
+      const effectivePassage = wordCountCustomizable && requestedWordCount && requestedWordCount >= 150 && requestedWordCount <= 700 ? repeatPassageToExactWordCount(resolvedPassage, requestedWordCount) : resolvedPassage;
+      const normalized = normalizeTypingInput(typedText, inputSystem);
+      const scoringProfile = version.audioPath ? scoringProfileWithSelectedCategories(preset.scoringProfile, sanitizeSelectedCategories(Array.isArray(result.selectedCategories) ? result.selectedCategories as never[] : undefined)) : preset.scoringProfile;
+      const elapsedSeconds = typeof result.elapsedSeconds === "number" ? result.elapsedSeconds : 0;
+      const score = calculateTypingScore({ typedText: getScoringText(normalized.comparisonText, inputSystem), passage: getScoringText(effectivePassage, inputSystem), elapsedSeconds: Math.min(elapsedSeconds, preset.durationSeconds), wordMethod: preset.wordMethod, scoringProfile, includeUntypedWords: true });
+      reviewData = { passage: effectivePassage, typedText: normalized.comparisonText, score, backspaces: typeof result.backspaces === "number" ? result.backspaces : 0 };
+    }
   }
 
   return (

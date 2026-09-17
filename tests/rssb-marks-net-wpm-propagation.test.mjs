@@ -24,7 +24,7 @@ test("recordManagedAttempt stores RSSB's real, marks-based Net WPM/qualification
   assert.match(actions, /import \{ calculateConfiguredRssbMarks \} from "@\/lib\/typing-results";/);
   assert.match(actions, /const marksResult = preset\.marksMethod \? calculateConfiguredRssbMarks\(score, preset\.marksMethod\) : null;/);
   assert.match(actions, /const marksNetWpm = marksResult \? Math\.round\(score\.correctWords \/ Math\.max\(score\.elapsedSeconds \/ 60, 1 \/ 60\)\) : null;/);
-  assert.match(actions, /marksNetWpm, marksQualified: marksResult \? marksResult\.qualified : null, marksObtained: marksResult \? marksResult\.marksObtained : null \};/);
+  assert.match(actions, /marksNetWpm, marksQualified: marksResult \? marksResult\.qualified : null, marksObtained: marksResult \? marksResult\.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized\.comparisonText \};/);
   // never replaces the generic fields every other exam and every
   // already-recorded attempt still relies on
   assert.match(actions, /netWpm: score\.netWpm,/);
