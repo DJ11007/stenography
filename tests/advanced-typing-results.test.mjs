@@ -350,8 +350,20 @@ test("the shared result exposes every accessible view and interactive error deta
   for (const label of ["Typing Details", "Speed Details", "Full / Half Mistake Breakdown", "Detailed Passage Comparison", "Gross Speed (CPM / KPM)", "Net Speed (CPM / KPM)"]) assert.ok(component.includes(label));
   assert.match(component, /result\.durationWarning/);
   assert.doesNotMatch(component, /MARKS INVALID|Marks Invalid|>Invalid</);
-  const ordered = ["<RssbMarksPanel", "<RssbTypingDetails", "<RssbSpeedDetails", "<ComparisonTextPanel", "role=\"tablist\""];
-  assert.ok(ordered.every((needle, index) => index === 0 || component.indexOf(ordered[index - 1]) < component.indexOf(needle)));
+  // Stenography's own report (see isStenography branch) renders an earlier,
+  // independent <ComparisonTextPanel> before any of this -- so the
+  // ordering check below locates the ONE that follows <RssbSpeedDetails>
+  // (inside the RSSB marks-method branch) rather than the first occurrence
+  // in the file.
+  const marksPanelIndex = component.indexOf("<RssbMarksPanel");
+  const typingDetailsIndex = component.indexOf("<RssbTypingDetails");
+  const speedDetailsIndex = component.indexOf("<RssbSpeedDetails");
+  const comparisonAfterSpeedDetails = component.indexOf("<ComparisonTextPanel", speedDetailsIndex);
+  const tablistIndex = component.indexOf("role=\"tablist\"");
+  assert.ok(marksPanelIndex >= 0 && marksPanelIndex < typingDetailsIndex);
+  assert.ok(typingDetailsIndex < speedDetailsIndex);
+  assert.ok(speedDetailsIndex < comparisonAfterSpeedDetails);
+  assert.ok(comparisonAfterSpeedDetails < tablistIndex);
   // Real reported request: Full / Half Mistake Breakdown moved off the
   // always-visible summary and into the "Errors Only" tab specifically,
   // alongside the mistakes-only PassageFlow -- not shown unconditionally

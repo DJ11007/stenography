@@ -13,6 +13,24 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // tiles, while the headline "Full / Half Mistake Breakdown" never showed
 // them for stenography, where they actually matter. The two result methods
 // were "mixed" between sections instead of staying separate.
+// Real reported feedback: after the categories-only fix above, the same
+// user reported a real student's stenography attempt still "mixed" typing
+// and stenography -- the whole page still used the typing simulator's
+// character-count summary cards and 7-tab browsing UI (Combined/Original/
+// Typed/Errors/Category/Self Analysis), just with a few extra category
+// tiles bolted on. Stenography now gets its own single continuous report
+// (pass/fail banner -> word-based Detailed Result -> Speed Details ->
+// CategoryStrip -> full corrected passage), built from the same shared
+// data/components but not sharing the typing layout or its tabs.
+test("stenography renders its own single-report layout (banner + full passage, no tabs), separate from the typing simulator's tabbed layout", async () => {
+  const source = await read("app/typing/_components/advanced-typing-results.tsx");
+  assert.match(source, /function ResultBanner\(/);
+  assert.match(source, /\{isStenography \? \(/);
+  assert.match(source, /<ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/>/);
+  assert.match(source, /<DetailedResultBreakdown summary=\{summary\} isStenography\/>\s*<KeyDepressionSpeedDetails summary=\{summary\}\/>\s*<CategoryStrip categories=\{totals\}\/>\s*<ComparisonTextPanel/);
+  assert.match(source, /\{!isStenography && <button type="button" onClick=\{createPractice\}/);
+});
+
 test("stenography-only grammar categories are excluded from CategoryStrip for non-stenography results, and shown in the headline breakdown only for stenography", async () => {
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
   assert.match(source, /const isStenography = preset\.category === "stenography";/);
