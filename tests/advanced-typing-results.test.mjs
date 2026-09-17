@@ -355,7 +355,7 @@ test("the shared result exposes every accessible view and interactive error deta
   assert.match(component, /\[\{display\.expected\}\]/);
   for (const label of ["Detailed Result", "Total words typed", "Correct words typed", "Incorrect words typed", "Omitted / skipped words", "Full mistakes", "Half mistakes"]) assert.match(component, new RegExp(label));
   for (const label of ["Configured Marks Method", "Maximum Marks", "Minimum Passing Marks", "Marks Obtained", "Correct words used for marks", "Rules and Instructions"]) assert.match(component, new RegExp(label));
-  for (const label of ["Speed Details", "Full / Half Mistake Breakdown", "Detailed Passage Comparison", "Gross Speed (CPM / KPM)", "Net Speed (CPM / KPM)"]) assert.ok(component.includes(label));
+  for (const label of ["Speed Details", "Overview", "Detailed Passage Comparison", "Gross Speed (CPM / KPM)", "Net Speed (CPM / KPM)"]) assert.ok(component.includes(label));
   assert.match(component, /result\.durationWarning/);
   assert.doesNotMatch(component, /MARKS INVALID|Marks Invalid|>Invalid</);
   // Real reported feedback: "Typing Details" (the word-count breakdown) was
@@ -377,12 +377,18 @@ test("the shared result exposes every accessible view and interactive error deta
   assert.ok(marksPanelIndex >= 0 && marksPanelIndex < speedDetailsIndex);
   assert.ok(speedDetailsIndex < comparisonAfterSpeedDetails);
   assert.ok(comparisonAfterSpeedDetails < tablistIndex);
-  // Real reported request: Full / Half Mistake Breakdown moved off the
-  // always-visible summary and into the "Errors Only" tab specifically,
-  // alongside the mistakes-only PassageFlow -- not shown unconditionally
-  // above the tabs any more.
-  assert.ok(component.indexOf("role=\"tablist\"") < component.indexOf("<RssbMistakeDetails"));
-  assert.match(component, /\{tab === "errors" && <>\{marksResult && <RssbMistakeDetails summary=\{summary\}\/>\}<PassageFlow entries=\{mistakes\}/);
+  // Real reported feedback: a student looking at Speed Details had no way
+  // to tell which numbers were full mistakes, which were half mistakes,
+  // and which weren't mistakes at all -- everything was one flat,
+  // unlabeled grid. The Full/Half breakdown now lives inside
+  // RssbSpeedDetails itself (always visible, no tab click needed), reusing
+  // MistakeBreakdown directly; the standalone RssbMistakeDetails component
+  // (which used to render this same breakdown a second time, inside the
+  // "Errors Only" tab) no longer exists.
+  assert.ok(speedDetailsIndex < component.indexOf('title="Full mistakes"'));
+  assert.doesNotMatch(component, /function RssbMistakeDetails/);
+  assert.doesNotMatch(component, /<RssbMistakeDetails/);
+  assert.match(component, /\{tab === "errors" && <PassageFlow entries=\{mistakes\}/);
   assert.doesNotMatch(component, /Configured method · not officially verified/);
   assert.doesNotMatch(component, /Marks qualification uses/);
   assert.doesNotMatch(component, /<sup/);

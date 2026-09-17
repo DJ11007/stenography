@@ -128,11 +128,32 @@ test("RssbSpeedDetails always shows the word-count breakdown regardless of the W
   const componentStart = source.indexOf("function RssbSpeedDetails(");
   const componentBody = source.slice(componentStart, source.indexOf("\nfunction ", componentStart + 1));
   assert.match(componentBody, /const speedMetrics = unit === "wpm"/);
-  assert.match(componentBody, /const detailRows = \[\["Passage words",summary\.passageWords\],\["Total words typed",summary\.totalWordsTyped\],\["Fully correct words",summary\.correctWordsTyped\],\["Incorrect words typed",summary\.incorrectWordsTyped\],\["Substitutions",summary\.substitutedWords\],\["Additions \/ extra words",summary\.addedWords\],\["Repeated words",summary\.repeatedWords\],\["Half-mistake words",summary\.halfMistakeWords\],\["Omitted \/ skipped words",summary\.omittedWords\],\["Remaining \/ unattempted words",summary\.remainingWords\],\["Backspaces",summary\.backspaces\]\] as const;/);
-  // speedMetrics dl (unit-dependent) and detailRows dl (always shown) are
-  // two separate <dl> blocks in the same section, both after the toggle.
+  assert.match(componentBody, /const overviewRows = \[\["Passage words",summary\.passageWords\],\["Total words typed",summary\.totalWordsTyped\],\["Fully correct words",summary\.correctWordsTyped\],\["Remaining \/ unattempted words",summary\.remainingWords\],\["Backspaces",summary\.backspaces\]\] as const;/);
+  // speedMetrics dl (unit-dependent), the overviewRows dl, and the two
+  // MistakeBreakdown cards (always shown) all follow the toggle in order --
+  // see the dedicated Full/Half grouping test below for why the mistake
+  // breakdown moved in here instead of staying a flat, unlabeled row.
   const toggleIndex = componentBody.indexOf('aria-label="Speed unit"');
   const speedDl = componentBody.indexOf("speedMetrics.map", toggleIndex);
-  const detailDl = componentBody.indexOf("detailRows.map", toggleIndex);
-  assert.ok(toggleIndex >= 0 && toggleIndex < speedDl && speedDl < detailDl);
+  const overviewDl = componentBody.indexOf("overviewRows.map", toggleIndex);
+  const mistakeBreakdown = componentBody.indexOf("<MistakeBreakdown", toggleIndex);
+  assert.ok(toggleIndex >= 0 && toggleIndex < speedDl && speedDl < overviewDl && overviewDl < mistakeBreakdown);
+});
+
+// Real reported feedback: the Speed Details word-count grid used to list
+// Substitutions, Additions, Repeated words, Omitted words, and
+// Half-mistake words all in one flat row alongside neutral counts like
+// Passage words and Backspaces, with no way to tell which numbers were
+// full mistakes, which were half mistakes, and which weren't mistakes at
+// all. RssbSpeedDetails now reuses the same MistakeBreakdown cards (red
+// "Full mistakes" / purple "Half mistakes", each with its own total and
+// itemized sub-breakdown) already used elsewhere in this file, instead of
+// a standalone RssbMistakeDetails component shown a second time in a tab.
+test("RssbSpeedDetails groups mistakes into labeled Full/Half MistakeBreakdown cards instead of one flat, unlabeled word-count row", async () => {
+  const source = await read("app/typing/_components/advanced-typing-results.tsx");
+  const componentStart = source.indexOf("function RssbSpeedDetails(");
+  const componentBody = source.slice(componentStart, source.indexOf("\nfunction ", componentStart + 1));
+  assert.match(componentBody, /<MistakeBreakdown title="Full mistakes" total=\{summary\.fullMistakes\} items=\{\[\["Substitutions",summary\.fullCategories\.substitutions\],\["Additions",summary\.fullCategories\.additions\],\["Repetitions",summary\.fullCategories\.repetitions\],\["Omissions",summary\.fullCategories\.omissions\]\]\} tone="red"\/>/);
+  assert.match(componentBody, /<MistakeBreakdown title="Half mistakes" total=\{summary\.halfMistakes\} items=\{\[\["Capitalization",summary\.halfCategories\.capitalization\],\["Punctuation",summary\.halfCategories\.punctuation\],\["Spacing",summary\.halfCategories\.spacing\],\["Spelling",summary\.halfCategories\.spelling\]\]\} tone="purple"\/>/);
+  assert.doesNotMatch(source, /function RssbMistakeDetails/);
 });
