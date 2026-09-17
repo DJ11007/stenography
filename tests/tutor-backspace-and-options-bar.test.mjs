@@ -21,10 +21,22 @@ for (const [file, label] of [
     assert.match(content, /const \[backspaceCount, setBackspaceCount\] = useState\(0\);/);
     // reset alongside the other per-exercise state
     assert.match(content, /setBackspaceCount\(0\);/);
-    assert.match(content, new RegExp(`<Toggle checked=\\{backspaceEnabled\\} onChange=\\{setBackspaceEnabled\\} label="${label}" ?/>`));
+    assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
     // every Backspace press is counted, whether or not it's allowed through
     assert.match(content, /if \(event\.key !== "Backspace"\) return;\s*setBackspaceCount\(\(value\) => value \+ 1\);\s*if \(!backspaceEnabled\) event\.preventDefault\(\);/);
     assert.match(content, new RegExp(`<span>${label} <b className="text-sm text-slate-900">\\{backspaceCount\\}</b></span>`));
+  });
+
+  // Real requested polish: Backspace used to be an ordinary label + switch,
+  // no different from Bold/Sound -- now gets its own pill-shaped button
+  // with a backspace glyph (⌫), styled like the header's own arrow-link
+  // ("← सभी हिन्दी पाठ" / "← All English Lessons"), so its state is
+  // legible at a glance instead of blending into the row of plain toggles.
+  test(`${file} styles Backspace as a distinct pill button with a backspace glyph, not a plain toggle switch`, async () => {
+    const content = await read(file);
+    assert.match(content, /function BackspaceOption\(/);
+    assert.match(content, /⌫/);
+    assert.match(content, /aria-pressed=\{enabled\}/);
   });
 
   test(`${file} moved its settings toggles out of the right-side aside, to directly below the font-size controls and above the passage display`, async () => {

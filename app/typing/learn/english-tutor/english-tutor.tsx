@@ -261,7 +261,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" />}
                   <Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" />
                   <Toggle checked={sound} onChange={setSound} label="Sound" />
-                  <Toggle checked={backspaceEnabled} onChange={setBackspaceEnabled} label="Backspace" />
+                  <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="Backspace On" offLabel="Backspace Off" />
                   {step === 3 && <p className="w-full rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
                 </div>
 
@@ -540,5 +540,26 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${checked ? "left-4" : "left-0.5"}`} />
       </span>
     </label>
+  );
+}
+
+// Real requested polish: the Backspace setting used to be an ordinary
+// label + switch, no different from Bold text/Sound/Move on past mistakes
+// -- but disabling Backspace is a much bigger behavioural change (it locks
+// the student into forward-only typing, the same as a real exam's
+// backspace rule), so it gets its own pill-shaped button with a backspace
+// glyph (⌫) instead, styled like the header's own "← All English Lessons"
+// arrow link, so its current state reads clearly at a glance.
+function BackspaceOption({ enabled, onChange, onLabel, offLabel }: { enabled: boolean; onChange: (value: boolean) => void; onLabel: string; offLabel: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!enabled)}
+      aria-pressed={enabled}
+      className={`inline-flex items-center gap-1.5 rounded-lg border-2 px-3 py-1.5 text-sm font-black transition ${enabled ? "border-blue-300 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-400"}`}
+    >
+      <span aria-hidden className="text-base leading-none">⌫</span>
+      {enabled ? onLabel : offLabel}
+    </button>
   );
 }

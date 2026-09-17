@@ -268,7 +268,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="कीबोर्ड दिखाएँ" />}
                   <Toggle checked={moveOnError} onChange={setMoveOnError} label="गलती पर आगे बढ़ें" />
                   <Toggle checked={sound} onChange={setSound} label="ध्वनि" />
-                  <Toggle checked={backspaceEnabled} onChange={setBackspaceEnabled} label="बैकस्पेस" />
+                  <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="बैकस्पेस चालू" offLabel="बैकस्पेस बंद" />
                   <button type="button" onClick={() => setAltOpen(true)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-200">Alt कोड दिखाएँ</button>
                   {step === 3 && <p className="w-full rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">परीक्षा मोड — इस चरण में कीबोर्ड नहीं दिखता।</p>}
                 </div>
@@ -555,6 +555,27 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${checked ? "left-4" : "left-0.5"}`} />
       </span>
     </label>
+  );
+}
+
+// Real requested polish: the Backspace setting used to be an ordinary
+// label + switch, no different from Bold/Sound/Move-on-error -- but
+// disabling Backspace is a much bigger behavioural change (it locks the
+// student into forward-only typing, the same as a real exam's backspace
+// rule), so it gets its own pill-shaped button with a backspace glyph
+// (⌫) instead, styled like the header's own "← सभी हिन्दी पाठ" arrow
+// link, so its current state reads clearly at a glance.
+function BackspaceOption({ enabled, onChange, onLabel, offLabel }: { enabled: boolean; onChange: (value: boolean) => void; onLabel: string; offLabel: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!enabled)}
+      aria-pressed={enabled}
+      className={`inline-flex items-center gap-1.5 rounded-lg border-2 px-3 py-1.5 text-sm font-black transition ${enabled ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-400"}`}
+    >
+      <span aria-hidden className="text-base leading-none">⌫</span>
+      {enabled ? onLabel : offLabel}
+    </button>
   );
 }
 
