@@ -43,6 +43,8 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const [bold, setBold] = useState(false);
   const [sound, setSound] = useState(false);
   const [fontPx, setFontPx] = useState(28);
+  const [backspaceEnabled, setBackspaceEnabled] = useState(true);
+  const [backspaceCount, setBackspaceCount] = useState(0);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
@@ -106,6 +108,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
     setDone(false);
     setResult(null);
     setNow(0);
+    setBackspaceCount(0);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
@@ -239,6 +242,15 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   </div>
                 </div>
 
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700">
+                  <Toggle checked={bold} onChange={setBold} label="Bold text" />
+                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" />}
+                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" />
+                  <Toggle checked={sound} onChange={setSound} label="Sound" />
+                  <Toggle checked={backspaceEnabled} onChange={setBackspaceEnabled} label="Backspace" />
+                  {step === 3 && <p className="w-full rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
+                </div>
+
                 <div
                   className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100 sm:min-h-64 md:min-h-72 lg:min-h-80"
                   style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "min(45vh, 34rem)" }}
@@ -260,6 +272,11 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   ref={inputRef}
                   value={typed}
                   onChange={(event) => handleChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Backspace") return;
+                    setBackspaceCount((value) => value + 1);
+                    if (!backspaceEnabled) event.preventDefault();
+                  }}
                   onPaste={(event) => event.preventDefault()}
                   spellCheck={false}
                   autoFocus
@@ -318,21 +335,11 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   <span className="text-slate-900">Speed <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
                   <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>Accuracy <b className="text-sm">{live.accuracy}%</b></span>
                   <span>Errors <b className="text-sm text-slate-900">{live.errors}</b></span>
+                  <span>Backspace <b className="text-sm text-slate-900">{backspaceCount}</b></span>
                   <span>Complete <b className="text-sm text-slate-900">{live.progress}%</b></span>
                 </div>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
-                </div>
-              </div>
-
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-black text-slate-800">Settings</h2>
-                <div className="mt-3 space-y-2 text-sm font-bold text-slate-700">
-                  <Toggle checked={bold} onChange={setBold} label="Bold text" />
-                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" />}
-                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" />
-                  <Toggle checked={sound} onChange={setSound} label="Sound" />
-                  {step === 3 && <p className="rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
                 </div>
               </div>
             </aside>

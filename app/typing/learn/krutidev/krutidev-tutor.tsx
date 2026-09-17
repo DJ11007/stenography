@@ -50,6 +50,8 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
   const [sound, setSound] = useState(false);
   const [fontPx, setFontPx] = useState(30);
   const [altOpen, setAltOpen] = useState(false);
+  const [backspaceEnabled, setBackspaceEnabled] = useState(true);
+  const [backspaceCount, setBackspaceCount] = useState(0);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
@@ -110,6 +112,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
     setDone(false);
     setResult(null);
     setNow(0);
+    setBackspaceCount(0);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
@@ -246,6 +249,16 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   </div>
                 </div>
 
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700">
+                  <Toggle checked={bold} onChange={setBold} label="बोल्ड अक्षर" />
+                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="कीबोर्ड दिखाएँ" />}
+                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="गलती पर आगे बढ़ें" />
+                  <Toggle checked={sound} onChange={setSound} label="ध्वनि" />
+                  <Toggle checked={backspaceEnabled} onChange={setBackspaceEnabled} label="बैकस्पेस" />
+                  <button type="button" onClick={() => setAltOpen(true)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-200">Alt कोड दिखाएँ</button>
+                  {step === 3 && <p className="w-full rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">परीक्षा मोड — इस चरण में कीबोर्ड नहीं दिखता।</p>}
+                </div>
+
                 <div
                   className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100 sm:min-h-64 md:min-h-72 lg:min-h-80"
                   style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "min(45vh, 34rem)" }}
@@ -267,6 +280,11 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   ref={inputRef}
                   value={typed}
                   onChange={(event) => handleChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Backspace") return;
+                    setBackspaceCount((value) => value + 1);
+                    if (!backspaceEnabled) event.preventDefault();
+                  }}
                   onPaste={(event) => event.preventDefault()}
                   spellCheck={false}
                   autoFocus
@@ -327,23 +345,12 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   <span className="text-slate-900">गति <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
                   <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>शुद्धता <b className="text-sm">{live.accuracy}%</b></span>
                   <span>गलतियाँ <b className="text-sm text-slate-900">{live.errors}</b></span>
+                  <span>बैकस्पेस <b className="text-sm text-slate-900">{backspaceCount}</b></span>
                   <span>पूर्ण <b className="text-sm text-slate-900">{live.progress}%</b></span>
                 </div>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all" style={{ width: `${live.progress}%` }} />
                 </div>
-              </div>
-
-              <div className="rounded-2xl bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-black text-slate-800">सेटिंग्स</h2>
-                <div className="mt-3 space-y-2 text-sm font-bold text-slate-700">
-                  <Toggle checked={bold} onChange={setBold} label="बोल्ड अक्षर" />
-                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="कीबोर्ड दिखाएँ" />}
-                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="गलती पर आगे बढ़ें" />
-                  <Toggle checked={sound} onChange={setSound} label="ध्वनि" />
-                  {step === 3 && <p className="rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">परीक्षा मोड — इस चरण में कीबोर्ड नहीं दिखता।</p>}
-                </div>
-                <button type="button" onClick={() => setAltOpen(true)} className="mt-3 w-full rounded-lg bg-slate-100 px-3 py-2 text-xs font-black text-slate-600 hover:bg-slate-200">Alt कोड दिखाएँ</button>
               </div>
             </aside>
           </div>
