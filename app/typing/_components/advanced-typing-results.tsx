@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ExamPreset } from "@/lib/typing-curriculum";
 import { segmentGraphemes, type InputSystem } from "@/lib/typing-language";
 import { buildErrorGuide, guidePenaltyTotal, type ErrorGuideDefinition } from "@/lib/typing-error-guide";
@@ -20,6 +20,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
   const [tab, setTab] = useState<ResultTab>("combined");
   const [selectedError, setSelectedError] = useState<WordAnalysisEntry | null>(null);
   const [practicePassage, setPracticePassage] = useState("");
+  const resultPanelRef = useRef<HTMLDivElement>(null);
   // score.analysis.entries is already display-ready Unicode for every input
   // encoding, Kruti Dev included: calculateTypingScore() itself now receives
   // decoded text for Kruti Dev tests (see getScoringText() in
@@ -108,7 +109,17 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
         {marksResult ? <><RssbSpeedDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : <>{insufficientAttempt ? <InsufficientAttemptBanner title={preset.title} minimumStrokes={minimumStrokesRequired} achievedStrokes={score.totalCharacters}/> : <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title} requiredWpm={preset.speedRequirement} achievedWpm={summary.netWpm} requiredAccuracy={preset.accuracyRequirement} achievedAccuracy={summary.accuracy}/>}<KeyDepressionSpeedDetails summary={summary} profile={preset.scoringProfile}/></>}
         {/* RSSB's marks method has no negative marking, so this penalty-based guide would misstate its rules. Practice attempts aren't following any specific exam's official rules at all, so the guide is dropped there entirely rather than shown with blanked-out values. */}
         {!marksResult && mode !== "practice" && <ErrorScoringGuide profile={preset.scoringProfile} textLanguage={textLanguage} entries={score.analysis.entries} savedPenalty={score.analysis.totalPenalty}/>}
-        <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7"><div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Result views">{TABS.map(([id,label]) => <button key={id} id={`tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold ${tab === id ? "border-blue-700 text-blue-800" : "border-transparent text-slate-500"}`}>{label}</button>)}</div><div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-6">
+        <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7">
+          <div className="flex items-center justify-between gap-2 border-b">
+            <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Result views">{TABS.map(([id,label]) => <button key={id} id={`tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold ${tab === id ? "border-blue-700 text-blue-800" : "border-transparent text-slate-500"}`}>{label}</button>)}</div>
+            {/* Real requested feature: a downward arrow at the top-right of
+                this section, so a student who just scrolled past the
+                summary panels above (Speed Details, the Scoring Guide, ...)
+                has an obvious way to jump straight down into the detailed
+                passage-by-passage result instead of hunting for it. */}
+            <button type="button" onClick={() => resultPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} aria-label="Jump to detailed result" title="Jump to detailed result" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 print:hidden"><ChevronIcon/></button>
+          </div>
+          <div id={`panel-${tab}`} ref={resultPanelRef} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-6">
           {tab === "combined" && <PassageFlow entries={displayEntries} onSelect={setSelectedError} fontFamily={fontFamily} textLanguage={textLanguage}/>} {tab === "original" && <PassageFlow entries={displayEntries.filter((entry) => entry.status !== "extra" && entry.status !== "repeated")} onSelect={setSelectedError} fontFamily={fontFamily} textLanguage={textLanguage}/>} {tab === "typed" && (typedText ? <PassageFlow entries={displayEntries.filter((entry) => entry.status !== "missing" && entry.status !== "remaining")} onSelect={setSelectedError} fontFamily={fontFamily} textLanguage={textLanguage}/> : <PassageText text="No text was entered." fontFamily={fontFamily} textLanguage={textLanguage}/>)} {tab === "errors" && <PassageFlow entries={mistakes} onSelect={setSelectedError} fontFamily={fontFamily} textLanguage={textLanguage}/>} {tab === "categories" && <CategoryAnalysis categories={categories} fullErrors={score.analysis.fullErrors} halfErrors={score.analysis.halfErrors} fontFamily={fontFamily} textLanguage={textLanguage}/>} {tab === "self" && <SelfAnalysis repeated={score.analysis.topRepeatedMistakes} weakWords={weakWords} weakCharacters={weakCharacters} practicePassage={practicePassage} fontFamily={fontFamily} textLanguage={textLanguage}/>}
         </div>{selectedError && <ErrorDetail entry={selectedError} profile={preset.scoringProfile} fontFamily={fontFamily} textLanguage={textLanguage} onClose={() => setSelectedError(null)}/>}</section>
       </>

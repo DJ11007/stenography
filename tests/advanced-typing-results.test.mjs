@@ -412,3 +412,19 @@ test("all result consumers import the exact shared module and named export", () 
     assert.doesNotMatch(consumer, /AdvancedTypingResult(?:\s|<)/);
   }
 });
+
+// Real requested feature: a downward-arrow button at the top-right of the
+// "Result views" tab bar, so a student who just scrolled past the summary
+// panels above has an obvious way to jump straight to the detailed
+// passage-by-passage result instead of hunting for it.
+test("a jump-to-detailed-result arrow button sits at the top-right of the Result views tab bar and scrolls the tab panel into view", () => {
+  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
+  assert.match(component, /const resultPanelRef = useRef<HTMLDivElement>\(null\);/);
+  assert.match(component, /<button type="button" onClick=\{\(\) => resultPanelRef\.current\?\.scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)\} aria-label="Jump to detailed result"/);
+  assert.match(component, /<div id=\{`panel-\$\{tab\}`\} ref=\{resultPanelRef\} role="tabpanel"/);
+  // The button sits alongside the tablist in a flex row, not inside the
+  // scrollable tab strip itself, so it never scrolls out of view.
+  const tablistIndex = component.indexOf('role="tablist" aria-label="Result views"');
+  const buttonIndex = component.indexOf('aria-label="Jump to detailed result"');
+  assert.ok(tablistIndex >= 0 && tablistIndex < buttonIndex);
+});
