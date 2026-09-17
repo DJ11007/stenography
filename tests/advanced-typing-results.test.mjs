@@ -272,15 +272,19 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
 // need a WPM/KDPH view too -- derived from summary.grossWpm/netWpm (the
 // same, already-penalty-aware numbers shown as Gross/Net Speed elsewhere
 // on this exact results screen), not a second, different "net speed"
-// formula. Hidden for Practice, which isn't following any specific board's
-// published benchmark.
-test("non-RSSB results offer a WPM/KDPH Speed Details panel derived from summary.grossWpm/netWpm, hidden for Practice", () => {
+// formula.
+// Real reported feedback, follow-up: the character-based summary cards
+// (which used to cover Practice's speed display) were removed as
+// redundant with this panel -- so this is now the ONLY speed source for
+// every mode, including Practice, not hidden there any more.
+test("non-RSSB results offer a WPM/KDPH Speed Details panel derived from summary.grossWpm/netWpm, shown for every mode including Practice", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /function KeyDepressionSpeedDetails\(/);
   assert.match(component, /const \[unit, setUnit\] = useState<"wpm" \| "kdph">\("wpm"\);/);
   assert.match(component, /\["Gross Speed \(WPM\)", `\$\{number\(summary\.grossWpm\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{number\(summary\.netWpm\)\} WPM`\]/);
   assert.match(component, /\["Gross Speed \(KDPH\)", number\(summary\.grossWpm \* 300\)\], \["Net Speed \(KDPH\)", number\(summary\.netWpm \* 300\)\]/);
-  assert.match(component, /\{mode !== "practice" && <KeyDepressionSpeedDetails summary=\{summary\}\/>\}/);
+  assert.match(component, /<><ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/><KeyDepressionSpeedDetails summary=\{summary\}\/><\/>/);
+  assert.doesNotMatch(component, /mode !== "practice" && <KeyDepressionSpeedDetails/);
 });
 
 // Real reported request: RSSB's configured marks method (Rajasthan LDC,
@@ -307,37 +311,41 @@ test("the Error Scoring Guide shows \"-\" for Applied penalty instead of asserti
   assert.match(component, /\{definition\.kind==="full"\?"Full mistake":"Half mistake"\} · -<\/span>/);
 });
 
-test("the Summary tab's calculations are told whether this preset uses the RSSB marks method, so its Net WPM formula can switch", () => {
+// Real reported feedback: the Summary tab's two "Character-based
+// calculation" / "Space-separated word calculation" reconciliation panels
+// duplicated the same accuracy/speed numbers the WPM/KDPH-toggle Speed
+// Details panel already reports authoritatively -- "what is the need of
+// this two result... this is waste" -- so the Summary tab (and the
+// buildResultCalculations-driven Summary/CalculationTable components that
+// rendered it) was removed entirely, not just reordered.
+test("the redundant Summary tab and its dual calculation-method panels are removed from the typing results component", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
-  assert.match(component, /buildResultCalculations\(\{ passage, typedText, elapsedSeconds: score\.elapsedSeconds, scoringProfile: preset\.scoringProfile, hasMarksMethod: Boolean\(preset\.marksMethod\), marksMethod: preset\.marksMethod \}\)/);
-  assert.match(component, /\["Net WPM",String\(calculation\.netWpm\),calculation\.netWpmFormula\]/);
-  assert.match(component, /\["Efficiency",`\$\{calculation\.efficiency\}%`/);
-});
-
-// Real reported request: the two reconciliation panels always rendered in a
-// fixed characters-then-spaces order, regardless of which one is the test's
-// actual configured/authoritative method -- for Rajasthan LDC (spaces) the
-// informal 5-characters convention rendered above the panel that actually
-// decides qualification. The configured method's panel must render first.
-test("the Summary tab's two calculation panels are reordered so the configured/authoritative method always renders first", () => {
-  const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
-  assert.match(component, /const orderedCalculations = \[\.\.\.calculations\]\.sort\(\(a, b\) => Number\(b\.method === selectedMethod\) - Number\(a\.method === selectedMethod\)\);/);
-  assert.match(component, /\{orderedCalculations\.map\(\(calculation\) =>/);
+  assert.doesNotMatch(component, /function Summary\(/);
+  assert.doesNotMatch(component, /function CalculationTable\(/);
+  assert.doesNotMatch(component, /buildResultCalculations/);
+  assert.doesNotMatch(component, /categoryTotalsReconcile/);
+  assert.doesNotMatch(component, /requiredWpmForMarksMethod/);
+  assert.doesNotMatch(component, /"summary"/);
+  assert.match(component, /const \[tab, setTab\] = useState<ResultTab>\("combined"\);/);
 });
 
 test("the shared result exposes every accessible view and interactive error details", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /export function AdvancedTypingResults\(/);
-  for (const label of ["Summary", "Combined Analysis", "Original Passage", "Typed Passage", "Errors Only", "Category Analysis", "Self Analysis"]) assert.match(component, new RegExp(label));
+  for (const label of ["Combined Analysis", "Original Passage", "Typed Passage", "Errors Only", "Category Analysis", "Self Analysis"]) assert.match(component, new RegExp(label));
   assert.match(component, /role="tablist"/);
   assert.match(component, /Show error details/);
   assert.match(component, /Print \/ Save PDF/);
   assert.match(component, /bg-orange-100/);
   assert.match(component, /line-through/);
-  for (const label of ["Total Chars", "Typed Chars", "Right Chars", "Wrong Chars", "Character Accuracy", "Gross Speed", "Net Speed", "Error", "Result", "Time Taken", "Backspace", "Remaining"]) assert.match(component, new RegExp(label));
-  assert.match(component, /result-overview-title/);
+  // Real reported feedback: the character-based summary cards ("Total
+  // Chars"/"Character Accuracy"/...) duplicated the word-based Detailed
+  // Result and the WPM/KDPH Speed Details panel -- removed entirely for
+  // typing, along with their result-overview-title heading.
+  assert.doesNotMatch(component, /Total Chars/);
+  assert.doesNotMatch(component, /Character Accuracy/);
+  assert.doesNotMatch(component, /result-overview-title/);
   assert.match(component, /summary\.remainingWords/);
-  assert.match(component, /summary\.remainingCharacters/);
   assert.match(component, /<PassageFlow entries=\{entries\} onSelect=\{onSelect\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} compact\/>/);
   assert.match(component, /missing: "rounded border border-red-200/);
   assert.match(component, /extra: "font-bold text-red-700 line-through/);

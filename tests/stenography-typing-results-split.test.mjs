@@ -87,6 +87,27 @@ test("stenography-only grammar categories are excluded from CategoryStrip for no
   assert.match(source, /const isStenography = preset\.category === "stenography";/);
   assert.match(source, /const STENOGRAPHY_ONLY_CATEGORY_KEYS = new Set\(\["matra", "halant", "gender", "vachan"\]\);/);
   assert.match(source, /const totals = resultCategoryTotals\(score, backspaces, preset\.scoringProfile\)\.filter\(\(item\) => isStenography \|\| !STENOGRAPHY_ONLY_CATEGORY_KEYS\.has\(item\.key\)\);/);
-  assert.match(source, /<DetailedResultBreakdown summary=\{summary\} isStenography=\{isStenography\}\/>/);
+  // DetailedResultBreakdown is now stenography-only (the non-stenography
+  // branch dropped it entirely as part of the results-simplification pass
+  // below), so its own isStenography prop is hardcoded true rather than a
+  // ternary -- assert that instead of a call site that no longer exists.
+  assert.match(source, /<DetailedResultBreakdown summary=\{summary\} isStenography\/>/);
   assert.match(source, /const halfItems: \[string,number\]\[\] = \[\["Capitalization",summary\.halfCategories\.capitalization\],\["Punctuation",summary\.halfCategories\.punctuation\],\["Spacing",summary\.halfCategories\.spacing\],\["Spelling",summary\.halfCategories\.spelling\], \.\.\.\(isStenography \? /);
+});
+
+// Real reported feedback: a typing result showed the character-based
+// summary cards, the word-based Detailed Result + mistake-breakdown boxes,
+// and the category tile strip all at once, alongside a Summary tab that
+// duplicated the same numbers YET AGAIN via two separate calculation
+// methods -- "mix match everything... this is waste". Non-stenography
+// (practice/exam simulator) results now show only the pass/fail banner and
+// the WPM/KDPH-toggle Speed Details panel before the tabs; the redundant
+// sections and the Summary tab are gone entirely, for every typing mode.
+test("typing (practice/exam simulator) results drop the redundant character cards, Detailed Result block, category tile strip, and Summary tab -- keeping only the pass/fail banner and Speed Details", async () => {
+  const source = await read("app/typing/_components/advanced-typing-results.tsx");
+  assert.match(source, /\{marksResult \? <><RssbTypingDetails summary=\{summary\}\/><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : <><ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/><KeyDepressionSpeedDetails summary=\{summary\}\/><\/>\}/);
+  assert.doesNotMatch(source, /function ScreenshotResultSummary/);
+  assert.doesNotMatch(source, /function Summary\(/);
+  assert.doesNotMatch(source, /function CalculationTable\(/);
+  assert.doesNotMatch(source, /"summary"/);
 });
