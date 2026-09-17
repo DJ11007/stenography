@@ -81,6 +81,27 @@ preferredLegacy.set("ाँ", "k¡");
 // forces the explicit, always-correct "kz" spelling for the subjoined-र
 // instead.
 preferredLegacy.set("घ्र", "?kz");
+// Real reported bug, from an official Kruti Dev 010 Alt-code reference
+// chart (Samradhi Classes' own teaching material) cross-checked word by
+// word against this converter: ट्ट has two same-length dictionary entries
+// (ê, Í), and this loop's first-found tie-break happened to pick ê, which
+// KEYBOARD_KEY_SEQUENCES then folded to the keyboard-typeable "V~V" --
+// confirmed by rendering "खट्टा" in the bundled font that "V~V" leaves a
+// visible gap between the two ट (the doubled-consonant conjunct doesn't
+// join), while "Í" (the chart's own Alt+0205, example word "खट्टा") joins
+// cleanly. Overriding directly to Í makes ê (and its now-dead V~V fold)
+// unreachable, the same treatment as the कृ/Ñ override above.
+preferredLegacy.set("ट्ट", "Í");
+// Same reference chart also lists द्म as Alt+0249 ("ù", example word
+// "पद्मश्री"), which renders slightly more cleanly than the compositional
+// "n~e" this converter builds today (द्म has no dictionary entry at all) --
+// but unlike every fix above, "ù" has NO reverse-decode entry anywhere in
+// the @anthro-ai dictionary: krutiDevToUnicode("ù") passes it through
+// unchanged instead of turning it into "द्म" (confirmed directly). Using
+// it here would silently break SCORING -- a student who correctly typed
+// द्म would decode to gibberish and be marked wrong -- so this one stays
+// on the compositional "n~e" form despite the chart, until a decode path
+// for "ù" exists.
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
 // The @anthro-ai dictionary optimises for the shortest byte sequence,
@@ -129,7 +150,7 @@ const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
   [/ç/g, "iz"], [/æ/g, "nz"], [/‚/g, "kW"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"],
-  [/ê/g, "V~V"], [/î/g, "~;"],
+  [/î/g, "~;"],
 ];
 
 // Retained name -- unicodeToKrutiDev now always produces keyboard-typeable

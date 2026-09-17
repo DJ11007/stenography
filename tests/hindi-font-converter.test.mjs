@@ -228,3 +228,32 @@ test("त्त (Ù) is no longer folded to the keyboard-typeable Rr spelling --
   const source = await readFile(new URL("../lib/hindi-font-converter.ts", import.meta.url),"utf8");
   assert.doesNotMatch(source, /\[\/Ùk\/g, "Rr"\]/);
 });
+
+// Real reported bug, from an official Kruti Dev 010 Alt-code reference
+// chart (Samradhi Classes' own teaching material) cross-checked word by
+// word against this converter. ट्ट has two same-length dictionary
+// ligatures (ê, Í); this converter's first-found tie-break picked ê, which
+// then got folded to the keyboard-typeable "V~V" -- confirmed by rendering
+// "खट्टा" in the bundled font that "V~V" leaves the doubled ट visibly
+// unjoined, while the chart's own Alt+0205 ("Í") joins cleanly. Overridden
+// directly to Í, and ê's now-unreachable V~V fold removed.
+test("ट्ट uses the alt-code chart's Í spelling instead of the worse-rendering V~V fold",async()=>{
+  assert.equal(unicodeToKrutiDev("खट्टा"),"[kÍk");
+  assert.equal(krutiDevToUnicode("[kÍk"),"खट्टा");
+  // the old spelling still decodes correctly for any already-stored
+  // passage that used it -- only the ENCODING direction changed.
+  assert.equal(krutiDevToUnicode("[kV~Vk"),"खट्टा");
+  const source = await readFile(new URL("../lib/hindi-font-converter.ts", import.meta.url),"utf8");
+  assert.doesNotMatch(source, /\[\/ê\/g/);
+});
+
+// Same reference chart also lists द्म as Alt+0249 ("ù") -- deliberately
+// NOT applied, unlike ट्ट above: "ù" has no reverse-decode entry anywhere
+// in the @anthro-ai dictionary at all (confirmed directly), so using it
+// would silently break scoring instead of just being a display-only
+// preference -- a correctly-typed द्म would decode to gibberish instead of
+// matching the reference. Stays on the compositional "n~e" form.
+test("द्म deliberately keeps the compositional n~e spelling, not the alt-code chart's ù, because ù has no reverse-decode entry at all",()=>{
+  assert.equal(unicodeToKrutiDev("पद्मश्री"),"in~eJh");
+  assert.equal(krutiDevToUnicode("in~eJh"),"पद्मश्री");
+});
