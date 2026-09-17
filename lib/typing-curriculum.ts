@@ -248,10 +248,19 @@ function stenographyCategoryPreset(category: StenographyCategoryDefinition, lang
   const id = stenographyCategoryPresetId(category.slug, language);
   const durationSeconds = category.durationMinutes * 60;
   const subtitle = `${category.fullName} (${category.patternSourced ? "researched exam pattern" : "estimated baseline — verify official pattern"})`;
+  // Real bug (same as EXAM_CATEGORY_PRESETS' own history): a category's
+  // researched error-tolerance formula (e.g. Rajasthan HC's "up to 5%
+  // mistakes are free", stenography-categories.ts) was narrated in
+  // patternNotes but this preset always scored on the bare default penalty
+  // profile() gives when called with no override -- silently understating
+  // how forgiving that board's real formula is. Passing the category's own
+  // fields through (undefined for every not-yet-researched category, which
+  // is today's unchanged behavior) fixes that.
+  const penaltyOverride = { fullErrorPenalty: category.fullErrorPenalty, halfErrorPenalty: category.halfErrorPenalty, errorRelaxationPercent: category.errorRelaxationPercent };
   if (language === "English") {
-    return preset({ id, slug: id, title: `${category.name} — English Stenography`, subtitle, category: "stenography", language: "English", durationSeconds, passage: ENGLISH_STENO_PASSAGE, inputSystems: [ENGLISH_QWERTY], speedRequirement: category.dictationSpeedEnglish, accuracyRequirement: category.accuracy, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(category.dictationSpeedEnglish) });
+    return preset({ id, slug: id, title: `${category.name} — English Stenography`, subtitle, category: "stenography", language: "English", durationSeconds, passage: ENGLISH_STENO_PASSAGE, inputSystems: [ENGLISH_QWERTY], speedRequirement: category.dictationSpeedEnglish, accuracyRequirement: category.accuracy, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(category.dictationSpeedEnglish, penaltyOverride) });
   }
-  return preset({ id, slug: id, title: `${category.name} — Hindi Stenography`, subtitle, category: "stenography", language: "Hindi", durationSeconds, passage: HINDI_STENO_PASSAGE, inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.dictationSpeedHindi, accuracyRequirement: category.accuracy, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(category.dictationSpeedHindi) });
+  return preset({ id, slug: id, title: `${category.name} — Hindi Stenography`, subtitle, category: "stenography", language: "Hindi", durationSeconds, passage: HINDI_STENO_PASSAGE, inputSystems: HINDI_INPUT_SYSTEMS, speedRequirement: category.dictationSpeedHindi, accuracyRequirement: category.accuracy, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(category.dictationSpeedHindi, penaltyOverride) });
 }
 
 export const STENOGRAPHY_CATEGORY_PRESETS: ExamPreset[] = STENOGRAPHY_CATEGORIES.flatMap((category) => [stenographyCategoryPreset(category, "English"), stenographyCategoryPreset(category, "Hindi")]);

@@ -138,6 +138,14 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     ? EXAM_CATEGORIES.find((category) => category.slug === viewAsCategorySlug) : undefined;
   const effectiveCategory = viewCategory ?? nativeCategory;
   const rules = viewCategory ? examCategoryTypingRules(viewCategory, version.language) : null;
+  // Stenography tests reference a completely separate category list
+  // (lib/stenography-categories.ts) via version.stenoCategory instead of
+  // examCategory -- the exact same "researched formula narrated but never
+  // scored" bug existed here too (Rajasthan HC's "up to 5% mistakes are
+  // free" was in patternNotes but effectiveCategory below never looked at
+  // STENOGRAPHY_CATEGORIES at all). There's no cross-category viewAs
+  // sharing for stenography, so this only ever reads the native column.
+  const stenoCategoryDefinition = version.mode === "stenography" && version.stenoCategory ? STENOGRAPHY_CATEGORIES.find((category) => category.slug === version.stenoCategory) : undefined;
   // Unlike duration/speed/backspace/wordMethod/highlightMode above (which
   // the native, non-viewAs case can safely read off the stored version.*
   // columns, since parseDraft() already forced them from this exact
@@ -145,7 +153,11 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
   // fullErrorPenalty/halfErrorPenalty/errorRelaxationPercent override --
   // so unlike `rules`, this must be derived from effectiveCategory
   // (native OR viewed) every time, not only when viewAsCategorySlug is set.
-  const scoringOverride = effectiveCategory ? { fullErrorPenalty: effectiveCategory.fullErrorPenalty, halfErrorPenalty: effectiveCategory.halfErrorPenalty, errorRelaxationPercent: effectiveCategory.errorRelaxationPercent, errorGraceCount: effectiveCategory.errorGraceCount } : null;
+  const scoringOverride = effectiveCategory
+    ? { fullErrorPenalty: effectiveCategory.fullErrorPenalty, halfErrorPenalty: effectiveCategory.halfErrorPenalty, errorRelaxationPercent: effectiveCategory.errorRelaxationPercent, errorGraceCount: effectiveCategory.errorGraceCount }
+    : stenoCategoryDefinition
+    ? { fullErrorPenalty: stenoCategoryDefinition.fullErrorPenalty, halfErrorPenalty: stenoCategoryDefinition.halfErrorPenalty, errorRelaxationPercent: stenoCategoryDefinition.errorRelaxationPercent, errorGraceCount: undefined }
+    : null;
   return {
     id: version.testId, slug: version.slug, title: version.title,
     subtitle: version.description || "Samradhi Classes managed test",

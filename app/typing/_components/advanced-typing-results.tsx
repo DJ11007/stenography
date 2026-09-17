@@ -8,6 +8,7 @@ import { buildErrorGuide, guidePenaltyTotal, type ErrorGuideDefinition } from "@
 import { buildResultCalculations, buildResultSummary, calculateConfiguredRssbMarks, categoryTotalsReconcile, comparisonWordDisplay, requiredWpmForMarksMethod, resultCategoryTotals } from "@/lib/typing-results";
 import { ALL_HALF_ERROR_CATEGORIES, activeHalfErrorCategories, HALF_ERROR_CATEGORY_LABELS as CATEGORY_LABELS, type TypingScore, type WordAnalysisEntry } from "@/lib/typing-test";
 import { TypingBrandHeader } from "./typing-brand";
+import { useTypingStudent } from "./typing-student-provider";
 
 type ResultTab = "summary" | "combined" | "original" | "typed" | "errors" | "categories" | "self";
 type Props = { preset: ExamPreset; inputSystem: InputSystem; passage: string; typedText: string; score: TypingScore; backspaces: number; onRestart: () => void; returnHref?: string; returnLabel?: string; mode: "practice" | "exam" };
@@ -51,6 +52,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
   const resultPassed = marksResult ? marksResult.qualified : score.passed;
   const summary = buildResultSummary(passage, score, backspaces);
   const createPractice = () => { const words = weakWords.map((item) => item.text).filter(Boolean); setPracticePassage(words.length ? Array.from({ length: 3 }, () => words.join(" ")).join(". ") : "No mistakes are available for focused practice."); setTab("self"); };
+  const student = useTypingStudent();
   const gradedCategories = activeHalfErrorCategories(preset.scoringProfile);
   return <main className="min-h-screen bg-slate-100 text-slate-950 print:bg-white"><TypingBrandHeader/><section className="mx-auto max-w-[1500px] px-3 py-6 sm:px-5 sm:py-8 print:max-w-none print:p-0 [&>:first-child]:mt-0">
     {gradedCategories.length < ALL_HALF_ERROR_CATEGORIES.length && <p role="status" className="rounded-xl bg-blue-50 p-3 text-sm font-bold text-blue-900 print:hidden">Graded for this attempt: {gradedCategories.length ? gradedCategories.map((category) => CATEGORY_LABELS[category]).join(", ") : "wrong, missing, extra, and repeated words only"}. Wrong, missing, extra, and repeated words are always graded.</p>}
@@ -65,13 +67,17 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
       // typing layout below, just assembled and labeled for a dictation
       // transcript instead of a typing drill.
       <>
+        <StenographyHeader title={preset.title} studentName={student.name}/>
         <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title}/>
+        <StenographyStatsTables summary={summary}/>
         <DetailedResultBreakdown summary={summary} isStenography/>
         <KeyDepressionSpeedDetails summary={summary}/>
         <CategoryStrip categories={totals}/>
         <ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/>
         {selectedError && <ErrorDetail entry={selectedError} profile={preset.scoringProfile} fontFamily={fontFamily} textLanguage={textLanguage} onClose={() => setSelectedError(null)}/>}
         {mode !== "practice" && <ErrorScoringGuide profile={preset.scoringProfile} textLanguage={textLanguage} entries={score.analysis.entries} savedPenalty={score.analysis.totalPenalty}/>}
+        <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7"><h2 className="text-xl font-black">Category Analysis</h2><div className="mt-5"><CategoryAnalysis categories={categories} fullErrors={score.analysis.fullErrors} halfErrors={score.analysis.halfErrors} fontFamily={fontFamily} textLanguage={textLanguage}/></div></section>
+        <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7"><h2 className="text-xl font-black">Self Analysis</h2><div className="mt-5"><SelfAnalysis repeated={score.analysis.topRepeatedMistakes} weakWords={weakWords} weakCharacters={weakCharacters} practicePassage={practicePassage} fontFamily={fontFamily} textLanguage={textLanguage}/></div></section>
       </>
     ) : (
       <>
@@ -85,7 +91,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
         </div>{selectedError && <ErrorDetail entry={selectedError} profile={preset.scoringProfile} fontFamily={fontFamily} textLanguage={textLanguage} onClose={() => setSelectedError(null)}/>}</section>
       </>
     )}
-    <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 print:hidden"><button type="button" onClick={onRestart} className="rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Try Again</button>{!isStenography && <button type="button" onClick={createPractice} className="rounded-xl bg-purple-700 px-5 py-3 font-black text-white">Practice Mistakes</button>}<button type="button" onClick={() => window.print()} className="rounded-xl bg-slate-800 px-5 py-3 font-black text-white">Print / Save PDF</button><Link href={returnHref} className="rounded-xl border border-blue-700 bg-white px-5 py-3 text-center font-black text-blue-800">{returnLabel}</Link></section>
+    <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 print:hidden"><button type="button" onClick={onRestart} className="rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Try Again</button><button type="button" onClick={createPractice} className="rounded-xl bg-purple-700 px-5 py-3 font-black text-white">Practice Mistakes</button><button type="button" onClick={() => window.print()} className="rounded-xl bg-slate-800 px-5 py-3 font-black text-white">Print / Save PDF</button><Link href={returnHref} className="rounded-xl border border-blue-700 bg-white px-5 py-3 text-center font-black text-blue-800">{returnLabel}</Link></section>
   </section></main>;
 }
 
@@ -94,7 +100,28 @@ function formatDuration(seconds: number) { const safe = Math.max(0, Math.round(s
 // (a real evaluation sheet is read once, top to bottom, not browsed via
 // tabs like a typing drill) before any of the word-count or category detail
 // below it.
-function ResultBanner({ label, passed, title }: { label: string; passed: boolean; title: string }) { return <section aria-live="polite" className={`rounded-3xl p-6 text-center shadow sm:p-8 ${passed ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}><p className="text-xs font-black uppercase tracking-[.2em] opacity-90">{title}</p><p className="mt-2 text-3xl font-black sm:text-4xl">{label}</p><p className="mt-2 text-sm font-bold opacity-90">{passed ? "This attempt met the required speed and accuracy." : "This attempt did not meet the required speed and accuracy. Review the mistakes below and try again."}</p></section>; }
+function ResultBanner({ label, passed, title }: { label: string; passed: boolean; title: string }) { return <section aria-live="polite" className={`mt-6 rounded-3xl p-6 text-center shadow sm:p-8 ${passed ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}><p className="text-xs font-black uppercase tracking-[.2em] opacity-90">{title}</p><p className="mt-2 text-3xl font-black sm:text-4xl">{label}</p><p className="mt-2 text-sm font-bold opacity-90">{passed ? "This attempt met the required speed and accuracy." : "This attempt did not meet the required speed and accuracy. Review the mistakes below and try again."}</p></section>; }
+// Candidate/matter identification line, the same way a real evaluation
+// sheet is headed by whose attempt and which passage this is -- pulled
+// from context (useTypingStudent) rather than a new prop, since
+// TypingBrandHeader inside this same component already requires that
+// context to be present everywhere AdvancedTypingResults is used.
+function StenographyHeader({ title, studentName }: { title: string; studentName: string }) { return <section className="rounded-3xl bg-white p-4 shadow sm:p-5"><p className="text-xs font-black uppercase tracking-wide text-slate-500">Stenography attempt review</p><h1 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{title}</h1><p className="mt-1 text-sm font-bold text-slate-600">{studentName}</p></section>; }
+// Two different, both-legitimate accuracy readings on the same attempt --
+// the same distinction a real stenography evaluation sheet draws by
+// showing "words wrong" both counted against the full dictated passage
+// (harsher: an unattempted remainder counts against you) and counted only
+// against what was actually typed (a truer measure of transcription
+// accuracy for what you did attempt). Both derive from figures
+// buildResultSummary already computes -- no new scoring logic.
+function StenographyStatsTables({ summary }: { summary: ReturnType<typeof buildResultSummary> }) {
+  const pct = (numerator: number, denominator: number) => denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : 0;
+  const tables = [
+    { title: "Accuracy against full passage", wrong: Math.max(0, summary.passageWords - summary.correctWordsTyped), accuracyPct: pct(summary.correctWordsTyped, summary.passageWords) },
+    { title: "Accuracy against typed words", wrong: Math.max(0, summary.totalWordsTyped - summary.correctWordsTyped), accuracyPct: pct(summary.correctWordsTyped, summary.totalWordsTyped) },
+  ];
+  return <section className="mt-6 grid gap-4 lg:grid-cols-2">{tables.map((table) => { const errorPct = Math.round((100 - table.accuracyPct) * 10) / 10; return <div key={table.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow"><p className="bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-wide text-white">{table.title}</p><div className="grid grid-cols-3 divide-x divide-y divide-slate-200 text-center">{[["Total words", summary.passageWords], ["Typed words", summary.totalWordsTyped], ["Wrong words", table.wrong], ["Correct words", summary.correctWordsTyped], ["Accuracy", `${table.accuracyPct}%`], ["Error", `${errorPct}%`]].map(([label, value]) => <div key={label as string} className="p-3"><p className="text-[10px] font-black uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-lg font-black text-slate-950">{value}</p></div>)}</div></div>; })}</section>;
+}
 function ScreenshotResultSummary({ passage, score, backspaces, entries, fontFamily, textLanguage, onSelect, resultLabel, resultPassed }: { passage: string; score: TypingScore; backspaces: number; entries: WordAnalysisEntry[]; fontFamily: string; textLanguage: "hi" | "en"; onSelect: (entry: WordAnalysisEntry) => void; resultLabel: string; resultPassed: boolean }) {
   const summary = buildResultSummary(passage, score, backspaces);
   const cards = [
