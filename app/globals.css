@@ -146,7 +146,7 @@ section:has(> textarea[aria-label="Lesson typing area"]) > h2::after {
 }
 
 section:has(> textarea[aria-label="Lesson typing area"]) > p {
-  height: clamp(15rem, 38vh, 23rem);
+  height: clamp(9rem, 24vh, 14rem);
   min-height: 0;
   margin: 0;
   overflow-y: scroll;
