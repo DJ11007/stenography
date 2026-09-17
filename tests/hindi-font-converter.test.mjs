@@ -189,3 +189,31 @@ test("कृ converts to the single-byte Ñ, not the keyboard-typeable d` spelli
   assert.equal(krutiDevToUnicode("d`f\"k"),"कृषि");
   assert.equal(krutiDevToUnicode("—f\"k"),"कृषि");
 });
+
+// Real reported bug: an admin/teacher supplied a 385-word hand-typed
+// reference passage and compared it word-by-word against our own output --
+// 38 words differed, all tracing back to five root causes. The
+// @anthro-ai dictionary's compound entries for three vowel-sign+anusvara
+// pairs (ें/ों/ाँ) store the anusvara BEFORE the vowel sign, even though
+// both orders decode identically (so round-trip tests never caught it):
+// "में" came out as "eas" instead of "esa", every "...ों" word (वर्षों,
+// शहरों, नागरिकों, माध्यमों, ...) as "...kas" instead of "...ksa", and
+// "जाँचना" as "t¡kpuk" instead of "tk¡puk". घ्र has no dedicated ligature
+// (unlike प्र/ग्र/त्र/श्र/क्र), so it fell back to a "?"+"j" kerning
+// trick that doesn't render, producing "'kh?j" for "शीघ्र" instead of
+// "'kh?kz". And ‚ (ॉ, used in every English loanword like ऑनलाइन/कॉल) was
+// simply missing from the ligature-to-keyboard-sequence fold.
+test("systematic vowel-sign+anusवार ordering, घ्र's missing ligature, and ‚'s missing fold are fixed, confirmed against a real hand-typed reference passage",()=>{
+  assert.equal(unicodeToKrutiDev("भारत में डिजिटल"),"Hkkjr esa fMftVy");
+  assert.equal(krutiDevToUnicode("Hkkjr esa fMftVy"),"भारत में डिजिटल");
+  assert.equal(unicodeToKrutiDev("कुछ वर्षों में"),"dqN o\"kksZa esa");
+  assert.equal(krutiDevToUnicode("o\"kksZa"),"वर्षों");
+  assert.equal(unicodeToKrutiDev("शहरों"),"'kgjksa");
+  assert.equal(unicodeToKrutiDev("नागरिकों"),"ukxfjdksa");
+  assert.equal(unicodeToKrutiDev("राशि और ध्यानपूर्वक जाँचना"),"jkf'k vkSj /;kuiwoZd tk¡puk");
+  assert.equal(krutiDevToUnicode("tk¡puk"),"जाँचना");
+  assert.equal(unicodeToKrutiDev("शीघ्र"),"'kh?kz");
+  assert.equal(krutiDevToUnicode("'kh?kz"),"शीघ्र");
+  assert.equal(unicodeToKrutiDev("ऑनलाइन"),"vkWuykbu");
+  assert.equal(unicodeToKrutiDev("कॉल"),"dkWy");
+});

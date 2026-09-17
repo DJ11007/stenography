@@ -50,6 +50,37 @@ preferredLegacy.set("’", "*");
 // whole dictionary (grep confirmed), so preferring Ñ here is a fully
 // isolated change with no effect on any other word.
 preferredLegacy.set("कृ", "Ñ");
+// Real reported bug, this time via a full hand-typed reference passage
+// (385 words) an admin/teacher supplied and compared word-by-word against
+// our own output: a vowel-sign-plus-anusvara pair (ें/ों/ाँ) always came
+// out with the anusvara BEFORE the vowel sign -- "में" as "eas" instead of
+// "esa", every "...ों" word (वर्षों, शहरों, नागरिकों, ...) as "...kas"
+// instead of "...ksa", "जाँचना" as "t¡kpuk" instead of "tk¡puk". The
+// @anthro-ai dictionary's own compound entries for these three pairs
+// ("as", "kas", "¡k") happen to store the reversed order -- both orders
+// decode to the identical Unicode (confirmed via krutiDevToUnicode), so
+// this was invisible to round-trip tests, but only the natural
+// sequential order (vowel sign, then anusvara -- exactly Unicode's own
+// storage order, and what a real Kruti Dev keyboard actually produces
+// typing them in that order) renders correctly and matches what the
+// admin/teacher hand-typed. Confirmed these three combinations are used
+// for nothing else in the dictionary, so this is isolated to exactly
+// these three vowel-sign+anusvara pairs.
+preferredLegacy.set("ें", "sa");
+preferredLegacy.set("ों", "ksa");
+preferredLegacy.set("ाँ", "k¡");
+// Real reported bug, same reference-passage comparison: "शीघ्र" converted
+// to "'kh?j" -- घ्र (gha + halant + subjoined-र) has no dedicated ligature
+// byte in the @anthro-ai dictionary (unlike प्र/ग्र/त्र/श्र/क्र, which all
+// do), so the tokenizer fell back to greedily matching the precomposed
+// half-form "घ्" ("?") first and then plain "र" ("j") after it, relying on
+// the font to visually kern "?" immediately followed by "j" into the
+// subjoined-र tail -- the same class of kerning trick already documented
+// above for Ø, except this one doesn't render correctly. Matching घ्र as
+// its own 3-character token (longer than "घ्" alone, so it's tried first)
+// forces the explicit, always-correct "kz" spelling for the subjoined-र
+// instead.
+preferredLegacy.set("घ्र", "?kz");
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
 // The @anthro-ai dictionary optimises for the shortest byte sequence,
@@ -85,9 +116,17 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // folding it would be dead code. See that override's comment for why Ñ
 // was chosen over both — and the keyboard-sequence "d`" this table used
 // to fold — instead.
+// Real reported bug, same reference-passage comparison: "ऑनलाइन"/"कॉल"
+// (English loanword sounds used constantly in real Hindi passages)
+// converted to "v‚uykbu"/"d‚y" -- ‚ (U+201A) was simply missing from this
+// fold entirely, an oversight from whenever the rest of this table was
+// built. Confirmed against the admin/teacher's real keyboard: "kW" is the
+// typed sequence, and scoring is unaffected either way it's stored, since
+// krutiDevToUnicode decodes whichever spelling was actually stored
+// consistently on both the passage and the student's typed answer.
 const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ùk/g, "Rr"], [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
-  [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"],
+  [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"], [/‚/g, "kW"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
   [/ê/g, "V~V"], [/î/g, "~;"],
 ];
@@ -206,8 +245,14 @@ export function unicodeToKrutiDev(text: string) {
   // smart-quotes autocorrect uses. Normalize to the curly equivalents
   // first so the existing ‘/’ legacy mapping below does the rest.
   working = working.replace(/(^|\s)'/gu, "$1‘").replace(/'(?=\s|$)/gu, "’");
-  // Kruti Dev stores reph after the complete orthographic syllable.
-  working = working.replace(/र्([क-हक़-य़](?:्[क-हक़-य़])*(?:[ािीुूृॄेैोौॅॉंःँ]*)?)/gu, "$1Z");
+  // Kruti Dev stores reph after the complete orthographic syllable --
+  // but BEFORE any trailing anusvara/visarga/chandrabindu, not after.
+  // Real reported bug: वर्षों converted to "o"kksaZ" (reph Z placed
+  // after the ों anusvara) instead of the correct "o"kksZa" (reph
+  // between the ो matra and the ं anusvara), confirmed against a
+  // hand-typed reference passage. Excluding ंःँ from this capture
+  // group stops them being swept up before the reph marker is inserted.
+  working = working.replace(/र्([क-हक़-य़](?:्[क-हक़-य़])*(?:[ािीुूृॄेैोौॅॉ]*)?)/gu, "$1Z");
   // Its pre-base i-matra marker is stored before the consonant cluster.
   working = working.replace(/([क-हक़-य़](?:्[क-हक़-य़])*)ि/gu, "ि$1");
   let output = "";
