@@ -124,8 +124,14 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // typed sequence, and scoring is unaffected either way it's stored, since
 // krutiDevToUnicode decodes whichever spelling was actually stored
 // consistently on both the passage and the student's typed answer.
+// Real reported bug, follow-up: unlike ‚ above, "Ùk" -> "Rr" (त्त, e.g.
+// "वित्तीय") was folded the WRONG direction -- the admin/teacher confirmed
+// "Ù" itself is what their real Kruti Dev keyboard produces and renders
+// correctly for this conjunct (their hand-typed reference used "foÙkh;",
+// not our then-output "foRrh;"), so this fold was removed entirely rather
+// than assumed to need one like the genuine alt-code ligatures below.
 const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
-  [/Ùk/g, "Rr"], [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
+  [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
   [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"], [/‚/g, "kW"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
   [/ê/g, "V~V"], [/î/g, "~;"],

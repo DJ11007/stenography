@@ -217,3 +217,17 @@ test("systematic vowel-sign+anusवार ordering, घ्र's missing ligature
   assert.equal(unicodeToKrutiDev("ऑनलाइन"),"vkWuykbu");
   assert.equal(unicodeToKrutiDev("कॉल"),"dkWy");
 });
+
+// Real reported bug, follow-up after the admin/teacher re-confirmed their
+// hand-typed reference word by word: "वित्तीय" converted to "foRrh;"
+// (folding the Ù ligature down to "Rr"), but the admin/teacher's real
+// keyboard produces and correctly renders "Ù" itself for त्त -- unlike
+// every other entry in KEYBOARD_KEY_SEQUENCES (which genuinely need
+// Alt-codes), this one was folded the wrong direction, so it's removed
+// entirely rather than assumed to need a keyboard-typeable substitute.
+test("त्त (Ù) is no longer folded to the keyboard-typeable Rr spelling -- the admin/teacher's real keyboard confirms Ù renders correctly",async()=>{
+  assert.equal(unicodeToKrutiDev("वित्तीय"),"foÙkh;");
+  assert.equal(krutiDevToUnicode("foÙkh;"),"वित्तीय");
+  const source = await readFile(new URL("../lib/hindi-font-converter.ts", import.meta.url),"utf8");
+  assert.doesNotMatch(source, /\[\/Ùk\/g, "Rr"\]/);
+});
