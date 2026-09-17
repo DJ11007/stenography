@@ -170,3 +170,22 @@ test("a plain straight apostrophe wrapping a word converts by position to the sa
   // either side) is left alone -- it's not this quoting pattern.
   assert.equal(unicodeToKrutiDev("मिल'ना"),"fey'uk");
 });
+
+// Real reported bug: कृषि converted to "d`f\"k" -- the @anthro-ai
+// dictionary's own iteration order happened to pick "—" (em dash) as the
+// shortest legacy byte for कृ, and the KEYBOARD_KEY_SEQUENCES fold then
+// turned that into the keyboard-typeable "d`" (क + the standalone ृ
+// matra). The admin/teacher reported this as visibly wrong in the
+// rendered Kruti Dev 010 webfont, where "Ñ" (the OTHER single-byte legacy
+// form the same dictionary maps to कृ -- confirmed via
+// @anthro-ai/krutidev-unicode directly, both decode to the identical कृ)
+// reads correctly. "—"/"Ñ" are used for nothing else in the whole
+// dictionary, so preferring Ñ is fully isolated to this one word-part.
+test("कृ converts to the single-byte Ñ, not the keyboard-typeable d` spelling the font mis-renders",()=>{
+  assert.equal(unicodeToKrutiDev("कृषि"),"Ñf\"k");
+  assert.equal(krutiDevToUnicode("Ñf\"k"),"कृषि");
+  // d` and — still decode correctly for any already-stored passage that
+  // used them before this fix -- only the ENCODING direction changed.
+  assert.equal(krutiDevToUnicode("d`f\"k"),"कृषि");
+  assert.equal(krutiDevToUnicode("—f\"k"),"कृषि");
+});

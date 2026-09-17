@@ -38,6 +38,18 @@ preferredLegacy.set("-", "&");
 // ordinary keyboard keys, needing no further Alt-code folding.
 preferredLegacy.set("‘", "^");
 preferredLegacy.set("’", "*");
+// Real reported bug: कृषि converted to "d`f\"k" -- the @anthro-ai
+// dictionary's own iteration order happened to pick "—" (em dash) as the
+// shortest legacy byte for कृ, which the KEYBOARD_KEY_SEQUENCES fold below
+// then turned into the keyboard-typeable "d`" (क + the standalone ृ
+// matra). Confirmed live in the bundled Kruti Dev 010 webfont
+// (/admin/font-converter) against "Ñf\"k" (the OTHER single-byte legacy
+// form the same dictionary also maps to कृ): both decode to the identical
+// कृषि, but the admin/teacher reported "d`" as visibly wrong on screen
+// where "Ñ" reads correctly -- "—"/"Ñ" are used for nothing else in the
+// whole dictionary (grep confirmed), so preferring Ñ here is a fully
+// isolated change with no effect on any other word.
+preferredLegacy.set("कृ", "Ñ");
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
 // The @anthro-ai dictionary optimises for the shortest byte sequence,
@@ -67,9 +79,15 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // keyboard-typeable "dz" form anyway -- so keeping Ø unfolded here only
 // changes how the REFERENCE PASSAGE renders, fixing the visual corruption
 // with zero effect on typing/scoring compatibility.
+// — (em dash, the dictionary's other single-byte legacy form for कृ) is
+// deliberately NOT in this table any more -- preferredLegacy.set("कृ", "Ñ")
+// above means unicodeToKrutiDev never produces it in the first place, so
+// folding it would be dead code. See that override's comment for why Ñ
+// was chosen over both — and the keyboard-sequence "d`" this table used
+// to fold — instead.
 const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ùk/g, "Rr"], [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
-  [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"], [/—/g, "d`"],
+  [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
   [/ê/g, "V~V"], [/î/g, "~;"],
 ];
