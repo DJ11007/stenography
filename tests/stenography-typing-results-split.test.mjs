@@ -105,9 +105,34 @@ test("stenography-only grammar categories are excluded from CategoryStrip for no
 // sections and the Summary tab are gone entirely, for every typing mode.
 test("typing (practice/exam simulator) results drop the redundant character cards, Detailed Result block, category tile strip, and Summary tab -- keeping only the pass/fail banner and Speed Details", async () => {
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
-  assert.match(source, /\{marksResult \? <><RssbTypingDetails summary=\{summary\}\/><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : <><ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/><KeyDepressionSpeedDetails summary=\{summary\}\/><\/>\}/);
+  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : <><ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\}\/><KeyDepressionSpeedDetails summary=\{summary\}\/><\/>\}/);
   assert.doesNotMatch(source, /function ScreenshotResultSummary/);
   assert.doesNotMatch(source, /function Summary\(/);
   assert.doesNotMatch(source, /function CalculationTable\(/);
   assert.doesNotMatch(source, /"summary"/);
+});
+
+// Real reported feedback, follow-up on the RSSB marks-method path
+// specifically: "Typing Details" (the word-count breakdown: passage words,
+// total/correct/incorrect words, backspaces, ...) rendered as its own
+// section above "Speed Details" (the WPM/KPM-toggle speed figures) --
+// "image first details should come in wpm section... if anyone click on
+// kpm all the information should there". Merged into one RssbSpeedDetails
+// section: the word-count breakdown is always visible under both units,
+// only the speed-specific metrics switch between WPM and KPM/KDPH.
+test("RssbSpeedDetails always shows the word-count breakdown regardless of the WPM/KPM toggle, replacing the separate Typing Details section", async () => {
+  const source = await read("app/typing/_components/advanced-typing-results.tsx");
+  assert.doesNotMatch(source, /function RssbTypingDetails/);
+  assert.doesNotMatch(source, /<RssbTypingDetails/);
+  assert.match(source, /function RssbSpeedDetails\(/);
+  const componentStart = source.indexOf("function RssbSpeedDetails(");
+  const componentBody = source.slice(componentStart, source.indexOf("\nfunction ", componentStart + 1));
+  assert.match(componentBody, /const speedMetrics = unit === "wpm"/);
+  assert.match(componentBody, /const detailRows = \[\["Passage words",summary\.passageWords\],\["Total words typed",summary\.totalWordsTyped\],\["Fully correct words",summary\.correctWordsTyped\],\["Incorrect words typed",summary\.incorrectWordsTyped\],\["Substitutions",summary\.substitutedWords\],\["Additions \/ extra words",summary\.addedWords\],\["Repeated words",summary\.repeatedWords\],\["Half-mistake words",summary\.halfMistakeWords\],\["Omitted \/ skipped words",summary\.omittedWords\],\["Remaining \/ unattempted words",summary\.remainingWords\],\["Backspaces",summary\.backspaces\]\] as const;/);
+  // speedMetrics dl (unit-dependent) and detailRows dl (always shown) are
+  // two separate <dl> blocks in the same section, both after the toggle.
+  const toggleIndex = componentBody.indexOf('aria-label="Speed unit"');
+  const speedDl = componentBody.indexOf("speedMetrics.map", toggleIndex);
+  const detailDl = componentBody.indexOf("detailRows.map", toggleIndex);
+  assert.ok(toggleIndex >= 0 && toggleIndex < speedDl && speedDl < detailDl);
 });

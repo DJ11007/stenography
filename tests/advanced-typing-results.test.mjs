@@ -355,21 +355,26 @@ test("the shared result exposes every accessible view and interactive error deta
   assert.match(component, /\[\{display\.expected\}\]/);
   for (const label of ["Detailed Result", "Total words typed", "Correct words typed", "Incorrect words typed", "Omitted / skipped words", "Full mistakes", "Half mistakes"]) assert.match(component, new RegExp(label));
   for (const label of ["Configured Marks Method", "Maximum Marks", "Minimum Passing Marks", "Marks Obtained", "Correct words used for marks", "Rules and Instructions"]) assert.match(component, new RegExp(label));
-  for (const label of ["Typing Details", "Speed Details", "Full / Half Mistake Breakdown", "Detailed Passage Comparison", "Gross Speed (CPM / KPM)", "Net Speed (CPM / KPM)"]) assert.ok(component.includes(label));
+  for (const label of ["Speed Details", "Full / Half Mistake Breakdown", "Detailed Passage Comparison", "Gross Speed (CPM / KPM)", "Net Speed (CPM / KPM)"]) assert.ok(component.includes(label));
   assert.match(component, /result\.durationWarning/);
   assert.doesNotMatch(component, /MARKS INVALID|Marks Invalid|>Invalid</);
+  // Real reported feedback: "Typing Details" (the word-count breakdown) was
+  // a separate section above Speed Details -- merged into RssbSpeedDetails
+  // itself so the breakdown is always visible under either unit toggle
+  // (see the dedicated merge test below), so that heading/component no
+  // longer exists on its own.
+  assert.doesNotMatch(component, /id="typing-details-title"/);
+  assert.doesNotMatch(component, /function RssbTypingDetails/);
   // Stenography's own report (see isStenography branch) renders an earlier,
   // independent <ComparisonTextPanel> before any of this -- so the
   // ordering check below locates the ONE that follows <RssbSpeedDetails>
   // (inside the RSSB marks-method branch) rather than the first occurrence
   // in the file.
   const marksPanelIndex = component.indexOf("<RssbMarksPanel");
-  const typingDetailsIndex = component.indexOf("<RssbTypingDetails");
   const speedDetailsIndex = component.indexOf("<RssbSpeedDetails");
   const comparisonAfterSpeedDetails = component.indexOf("<ComparisonTextPanel", speedDetailsIndex);
   const tablistIndex = component.indexOf("role=\"tablist\"");
-  assert.ok(marksPanelIndex >= 0 && marksPanelIndex < typingDetailsIndex);
-  assert.ok(typingDetailsIndex < speedDetailsIndex);
+  assert.ok(marksPanelIndex >= 0 && marksPanelIndex < speedDetailsIndex);
   assert.ok(speedDetailsIndex < comparisonAfterSpeedDetails);
   assert.ok(comparisonAfterSpeedDetails < tablistIndex);
   // Real reported request: Full / Half Mistake Breakdown moved off the
