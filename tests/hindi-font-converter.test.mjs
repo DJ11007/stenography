@@ -200,7 +200,7 @@ test("कृ converts to the single-byte Ñ, not the keyboard-typeable d` spelli
 // trick that doesn't render, producing "'kh?j" for "शीघ्र" instead of
 // "'kh?kz". And ‚ (ॉ, used in every English loanword like ऑनलाइन/कॉल) was
 // simply missing from the ligature-to-keyboard-sequence fold.
-test("systematic vowel-sign+anusवार ordering, घ्र's missing ligature, and ‚'s missing fold are fixed, confirmed against a real hand-typed reference passage",()=>{
+test("systematic vowel-sign+anusवार ordering and घ्र's missing ligature are fixed, confirmed against a real hand-typed reference passage",()=>{
   assert.equal(unicodeToKrutiDev("भारत में डिजिटल"),"Hkkjr esa fMftVy");
   assert.equal(krutiDevToUnicode("Hkkjr esa fMftVy"),"भारत में डिजिटल");
   assert.equal(unicodeToKrutiDev("कुछ वर्षों में"),"dqN o\"kksZa esa");
@@ -211,8 +211,10 @@ test("systematic vowel-sign+anusवार ordering, घ्र's missing ligature
   assert.equal(krutiDevToUnicode("tk¡puk"),"जाँचना");
   assert.equal(unicodeToKrutiDev("शीघ्र"),"'kh?kz");
   assert.equal(krutiDevToUnicode("'kh?kz"),"शीघ्र");
-  assert.equal(unicodeToKrutiDev("ऑनलाइन"),"vkWuykbu");
-  assert.equal(unicodeToKrutiDev("कॉल"),"dkWy");
+  // ‚ (ऑ/ॉ's alt-code-only byte) is left unfolded -- see the dedicated
+  // "kW" regression test below for why.
+  assert.equal(unicodeToKrutiDev("ऑनलाइन"),"v‚uykbu");
+  assert.equal(unicodeToKrutiDev("कॉल"),"d‚y");
 });
 
 // Real reported bug, follow-up after the admin/teacher re-confirmed their
@@ -282,4 +284,43 @@ test("}/)/| already encode and decode correctly -- द्व, द्ध, and द
   // spelling of विद्वान.
   assert.equal(krutiDevToUnicode("fo)ku"),"विद्धान");
   assert.equal(unicodeToKrutiDev("घ"),"?k");
+});
+
+// Found via a systematic audit of the complete Kruti Dev010 keyboard
+// (checked at the user's request): a literal ".", ";", or "/" in a Hindi
+// passage used to pass straight through unconverted, but those exact raw
+// bytes already draw Devanagari half-forms in this font (ण्, य, ध् --
+// confirmed against krutiDevToUnicode directly), silently corrupting any
+// passage containing an abbreviation ("डॉ.", "आई.ए.एस."), a decimal number,
+// a semicolon-joined clause, or a slash ("पर/खिलाफ"). Each now uses a safe,
+// already-typeable keyboard byte that decodes to exactly that punctuation
+// mark and nothing else.
+test("literal . ; and / round-trip correctly instead of colliding with this font's Devanagari half-forms",()=>{
+  assert.equal(unicodeToKrutiDev("."),"-");
+  assert.equal(unicodeToKrutiDev(";"),"(");
+  assert.equal(unicodeToKrutiDev("/"),"@");
+  for (const word of ["डॉ.","3.5","पेज 12.","एक; दो","पर/खिलाफ","श्री राम राव, आई.ए.एस."]) {
+    assert.equal(krutiDevToUnicode(unicodeToKrutiDev(word)), word);
+  }
+});
+
+// Found by the same audit: a "‚" (U+201A) -> "kW" fold was added earlier
+// this session on the unverified claim that "kW" is ॉ's (candra-O)
+// keyboard-typeable form with "scoring unaffected either way it's
+// stored". Direct testing disproves it: krutiDevToUnicode("kW") decodes to
+// ॅ (candra-E, U+0945) -- a different character -- so a student correctly
+// typing ॉ via its real, already-documented Alt+0130 would decode to ॉ
+// while the "kW"-folded passage decoded to ॅ, silently marking a correct
+// answer wrong. ‚ has no keyboard-typeable form at all (same as ँ) and is
+// left unfolded.
+test("ॉ (candra-O) is never folded to \"kW\", which actually decodes to the different character ॅ (candra-E)",async()=>{
+  for (const word of ["डॉक्टर","कॉल","स्कूल","कॉलेज","डॉलर","ऑनलाइन"]) {
+    const encoded = unicodeToKrutiDev(word);
+    assert.doesNotMatch(encoded, /kW/);
+    assert.equal(krutiDevToUnicode(encoded), word);
+  }
+  assert.equal(krutiDevToUnicode("‚"),"ॉ");
+  assert.equal(krutiDevToUnicode("kW"),"ॅ");
+  const source = await readFile(new URL("../lib/hindi-font-converter.ts", import.meta.url),"utf8");
+  assert.doesNotMatch(source, /\[\/‚\/g/);
 });

@@ -26,10 +26,24 @@ const STEPS = [
   { hi: "अनुच्छेद टाइप करें", en: "Type Paragraphs" },
 ];
 
-// Legacy bytes that no ordinary key emits -- surfaced in the Alt-code helper.
+// Legacy bytes that no ordinary key emits -- surfaced in the Alt-code
+// helper. Found incomplete by a systematic audit of every character this
+// converter can actually produce (checked at the user's request): only 2
+// of the 11 real Alt-code-only bytes were listed here, leaving a student
+// with no in-app reference for 9 of them if their passage happened to
+// contain कृ/ट्ट/ड्ड/ट्ठ/त्त्/the ट-cluster rakar/क्र/न्न/ह्म.
 const ALT_CODES: Array<{ glyph: string; code: string; note: string }> = [
-  { glyph: "ँ", code: "Alt + 0161", note: "चन्द्रबिंदु (ँ)" },
-  { glyph: "ॉ", code: "Alt + 0130", note: "ऑ की मात्रा (ॉ)" },
+  { glyph: "ँ", code: "Alt + 0161", note: "चन्द्रबिंदु (ँ), जैसे पाँच" },
+  { glyph: "ॉ", code: "Alt + 0130", note: "ऑ की मात्रा (ॉ), जैसे डॉक्टर" },
+  { glyph: "कृ", code: "Alt + 0209", note: "कृ, जैसे कृषि" },
+  { glyph: "ट्ट", code: "Alt + 0205", note: "ट्ट, जैसे खट्टा" },
+  { glyph: "ड्ड", code: "Alt + 0236", note: "ड्ड, जैसे हड्डी" },
+  { glyph: "ट्ठ", code: "Alt + 0235", note: "ट्ठ, जैसे चिट्ठी" },
+  { glyph: "त्त्", code: "Alt + 0217", note: "त्त् (आधा), जैसे वित्तीय" },
+  { glyph: "्र", code: "Alt + 0170", note: "ट-रकार, जैसे राष्ट्रीय" },
+  { glyph: "क्र", code: "Alt + 0216", note: "क्र, जैसे क्रम, चक्रवात" },
+  { glyph: "न्न", code: "Alt + 0233", note: "न्न, जैसे अन्न" },
+  { glyph: "ह्म", code: "Alt + 0227", note: "ह्म, जैसे ब्रह्म" },
 ];
 
 export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSets, paragraphs }: Props) {

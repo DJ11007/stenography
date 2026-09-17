@@ -25,6 +25,26 @@ preferredLegacy.set("ः", "%");
 preferredLegacy.set(",", "]");
 preferredLegacy.set("?", "\\");
 preferredLegacy.set("-", "&");
+// Found via a systematic audit of every key on the Kruti Dev 010 keyboard
+// (checked at the user's request): a literal ".", ";", or "/" in a Hindi
+// passage was previously passed straight through unconverted (the loop
+// above only overrides characters whose DECODED meaning is Devanagari --
+// plain ASCII punctuation was assumed to need no help). But in this font
+// those exact raw bytes already draw Devanagari half-forms -- "." is ण्,
+// ";" is य, "/" is ध् -- so a passage containing "डॉ." or "आई.ए.एस." or
+// "एक; दो" or "पर/खिलाफ" would encode to legacy bytes that decode back to
+// gibberish (डॅण्, आईण्एण्एसण्, एकय दो, परध्खिलाफ), not the original text
+// -- confirmed by round-tripping through krutiDevToUnicode. Each of these
+// three has a genuinely safe target: the ordinary "-", "(", and "@" keys
+// decode to exactly "." / ";" / "/" and nothing else, so claiming them
+// here doesn't touch any existing mapping, and all three are already
+// typeable on the plain keyboard with no Alt-code needed. Other collided
+// punctuation (":", '"', "&", "%", "@", parentheses, ...) has no such safe
+// keyboard byte in this dictionary at all -- a real limitation of Kruti
+// Dev 010 itself, not something a byte substitution here can fix.
+preferredLegacy.set(".", "-");
+preferredLegacy.set(";", "(");
+preferredLegacy.set("/", "@");
 // Real reported bug: an admin's word-set drill wrapped every word in
 // typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
 // garbage glyphs around each word instead of quote marks. These curly
@@ -132,14 +152,16 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // folding it would be dead code. See that override's comment for why Ñ
 // was chosen over both — and the keyboard-sequence "d`" this table used
 // to fold — instead.
-// Real reported bug, same reference-passage comparison: "ऑनलाइन"/"कॉल"
-// (English loanword sounds used constantly in real Hindi passages)
-// converted to "v‚uykbu"/"d‚y" -- ‚ (U+201A) was simply missing from this
-// fold entirely, an oversight from whenever the rest of this table was
-// built. Confirmed against the admin/teacher's real keyboard: "kW" is the
-// typed sequence, and scoring is unaffected either way it's stored, since
-// krutiDevToUnicode decodes whichever spelling was actually stored
-// consistently on both the passage and the student's typed answer.
+// A ‚ (U+201A) -> "kW" fold briefly lived here, added on an unverified
+// claim that "kW" was the keyboard-typeable form of ॉ (candra-O, e.g.
+// "ऑनलाइन"/"कॉल") with "scoring unaffected either way it's stored". Found
+// wrong by a later systematic audit of the whole keyboard: krutiDevToUnicode
+// ("kW") decodes to ॅ (candra-E, U+0945) -- a DIFFERENT character from ॉ --
+// so any student correctly typing ॉ via its real, already-documented
+// Alt+0130 (see ALT_CODES in the Kruti Dev tutor, same as चन्द्रबिंदु/ँ,
+// also Alt-code-only with no keyboard form) would decode to ॉ while the
+// "kW"-folded passage decoded to ॅ, silently marking a correct answer
+// wrong. Left unfolded entirely, same treatment as Ùk below.
 // Real reported bug, follow-up: unlike ‚ above, "Ùk" -> "Rr" (त्त, e.g.
 // "वित्तीय") was folded the WRONG direction -- the admin/teacher confirmed
 // "Ù" itself is what their real Kruti Dev keyboard produces and renders
@@ -148,7 +170,7 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // than assumed to need one like the genuine alt-code ligatures below.
 const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
-  [/ç/g, "iz"], [/æ/g, "nz"], [/‚/g, "kW"],
+  [/ç/g, "iz"], [/æ/g, "nz"],
   [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"],
   [/î/g, "~;"],
 ];
