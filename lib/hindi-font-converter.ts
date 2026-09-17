@@ -94,22 +94,17 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // by a correctly-typed answer. unicodeToKrutiDev folds every ligature to
 // its keyboard sequence as its last step; each pair is verified to decode
 // back to the same Unicode through krutiDevToUnicode.
-// Real reported bug, confirmed by rendering every candidate byte order
-// directly through the bundled Kruti Dev 010 webfont: क्र (Ø) is the one
-// ligature in this table whose keyboard-typeable fold ("dz") the font
-// mis-renders when the pre-base ि marker ("f") immediately precedes it --
-// "प्रक्रिया" (izfØ;k, correct) folds to "izfdz;k" and renders as "प्रकिया"
-// (the ्र is dropped visually), and "क्रिकेट" the same way renders
-// "किकेट". Every OTHER ligature in this table -- प्र/ग्र/त्र/श्र (iz/xz/=/J),
-// tested the same way -- renders correctly after "f" (e.g. "प्रिय",
-// "ग्रिड", "त्रिवेणी", "श्रिया" all display correctly), so this is a
-// narrow, font-specific limitation of "dz" specifically, not a general
-// "any ligature after f" problem. Scoring is unaffected either way --
-// krutiDevToUnicode("izfØ;k") and krutiDevToUnicode("izfdz;k") both decode
-// to the identical "प्रक्रिया", and a student can only ever type the
-// keyboard-typeable "dz" form anyway -- so keeping Ø unfolded here only
-// changes how the REFERENCE PASSAGE renders, fixing the visual corruption
-// with zero effect on typing/scoring compatibility.
+// Real reported bug, follow-up: unlike è/ä/®/È above (all confirmed
+// via this exact rendering technique to genuinely mis-render as their raw
+// ligature and NEED their fold), Ø (क्र) and ª (the रीक्ष root) were
+// folded the WRONG direction -- the admin/teacher's hand-typed reference
+// used the raw ligatures ("jk\"Vªh;", "dk;ZØe", "pØokr") where this file
+// produced their folds ("jk\"Vzh;", "dk;Zdze", "pdzokr"), and rendering both
+// side by side in the bundled Kruti Dev 010 webfont confirms it: Ø folded
+// to "dz" visibly drops the ्र (क्रम renders as just कम), in EVERY position --
+// not only after "f" as an earlier, incomplete investigation concluded.
+// Both are now left unfolded entirely, the same as Ùk above. Scoring is
+// unaffected either way: both forms decode to the identical Unicode.
 // — (em dash, the dictionary's other single-byte legacy form for कृ) is
 // deliberately NOT in this table any more -- preferredLegacy.set("कृ", "Ñ")
 // above means unicodeToKrutiDev never produces it in the first place, so
@@ -132,8 +127,8 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // than assumed to need one like the genuine alt-code ligatures below.
 const KEYBOARD_KEY_SEQUENCES: Array<[RegExp, string]> = [
   [/Ò/g, "Hk"], [/è/g, "/k"], [/Ä/g, "?k"], [/Ã/g, "bZ"],
-  [/ç/g, "iz"], [/æ/g, "nz"], [/(?<!f)Ø/g, "dz"], [/‚/g, "kW"],
-  [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"], [/ª/g, "z"],
+  [/ç/g, "iz"], [/æ/g, "nz"], [/‚/g, "kW"],
+  [/ä/g, "Dr"], [/®/g, "Sa"], [/È/g, "ha"],
   [/ê/g, "V~V"], [/î/g, "~;"],
 ];
 
