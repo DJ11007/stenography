@@ -32,12 +32,22 @@ for (const [file, label] of [
     const fontSizeRow = content.indexOf("A+</button>");
     const optionsBar = content.indexOf("gap-x-4 gap-y-2 rounded-xl bg-slate-50");
     const passageDisplay = content.indexOf("whitespace-pre-wrap break-words rounded-xl bg-");
-    const asideOpen = content.indexOf("<aside");
     assert.ok(fontSizeRow > 0 && optionsBar > fontSizeRow, "options bar must come after the font-size controls");
     assert.ok(passageDisplay > optionsBar, "options bar must come before the original passage display");
-    // the aside (right side on desktop) no longer contains a Settings card --
-    // it's just the live progress/stats strip now.
-    const asideContent = content.slice(asideOpen);
-    assert.doesNotMatch(asideContent, /<Toggle /);
+  });
+
+  // Real reported feedback, follow-up: the live progress/stats strip used
+  // to sit in a narrow right-side aside (below or beside the passage, since
+  // it only stacked under it on mobile) -- moved to the very top of the
+  // exercise view instead, above the exercise-selector/font-size row, and
+  // the now-empty aside/two-column grid removed entirely in favour of a
+  // single vertical stack.
+  test(`${file} moved the live progress strip to the top of the exercise view, and removed the now-empty right-side aside/grid split`, async () => {
+    const content = await read(file);
+    assert.doesNotMatch(content, /<aside/);
+    assert.doesNotMatch(content, /lg:grid-cols-\[minmax\(0,1fr\)_300px\]/);
+    const progressStrip = content.indexOf("py-2.5 shadow-sm");
+    const fontSizeRow = content.indexOf("A+</button>");
+    assert.ok(progressStrip >= 0 && progressStrip < fontSizeRow, "progress strip must come before the exercise-selector/font-size row");
   });
 }

@@ -215,7 +215,21 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
             onStart={() => setStep(1)}
           />
         ) : (
-          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="mt-5 space-y-4">
+            <div className="rounded-2xl bg-white px-3 py-2.5 shadow-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
+                <span>Progress</span>
+                <span className="text-slate-900">Speed <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
+                <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>Accuracy <b className="text-sm">{live.accuracy}%</b></span>
+                <span>Errors <b className="text-sm text-slate-900">{live.errors}</b></span>
+                <span>Backspace <b className="text-sm text-slate-900">{backspaceCount}</b></span>
+                <span>Complete <b className="text-sm text-slate-900">{live.progress}%</b></span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
+              </div>
+            </div>
+
             <div className="min-w-0 space-y-4">
               <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -327,22 +341,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                 </div>
               )}
             </div>
-
-            <aside className="min-w-0 space-y-4">
-              <div className="rounded-2xl bg-white px-3 py-2.5 shadow-sm">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
-                  <span>Progress</span>
-                  <span className="text-slate-900">Speed <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
-                  <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>Accuracy <b className="text-sm">{live.accuracy}%</b></span>
-                  <span>Errors <b className="text-sm text-slate-900">{live.errors}</b></span>
-                  <span>Backspace <b className="text-sm text-slate-900">{backspaceCount}</b></span>
-                  <span>Complete <b className="text-sm text-slate-900">{live.progress}%</b></span>
-                </div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
-                </div>
-              </div>
-            </aside>
           </div>
         )}
       </section>
