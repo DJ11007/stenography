@@ -257,3 +257,29 @@ test("द्म deliberately keeps the compositional n~e spelling, not the alt-c
   assert.equal(unicodeToKrutiDev("पद्मश्री"),"in~eJh");
   assert.equal(krutiDevToUnicode("in~eJh"),"पद्मश्री");
 });
+
+// Real reported bug report that turned out, after verifying against the
+// actual bundled Kruti Dev010 webfont (rendered "}", ")", "|", "\\" and ")"
+// full-word side by side with their claimed Unicode meanings), to have NO
+// bug at all -- every one of the admin/teacher's hand-typed or hand-copied
+// reference values for these four keys had its own transcription slip
+// ("|" claimed as घ, when the real key for घ is "?k"; "}" claimed via one
+// chart as द्ध, when it renders as द्व; "fo)ku" claimed for विद्वान, when
+// ")" renders as द्ध, so that spelling actually reads विद्धान -- the
+// correct spelling, "fo}ku", is exactly what this converter already
+// produces). Locked in here so a future report of the same shape doesn't
+// get "fixed" into breaking these -- they were never broken.
+test("}/)/| already encode and decode correctly -- द्व, द्ध, and द्य respectively, confirmed against real words and the actual bundled font, not the source of a reported conversion bug",()=>{
+  assert.equal(krutiDevToUnicode("}"),"द्व");
+  assert.equal(krutiDevToUnicode(")"),"द्ध");
+  assert.equal(krutiDevToUnicode("|"),"द्य");
+  assert.equal(unicodeToKrutiDev("द्वार"),"}kj");
+  assert.equal(krutiDevToUnicode("}kj"),"द्वार");
+  assert.equal(unicodeToKrutiDev("विद्वान"),"fo}ku");
+  assert.equal(krutiDevToUnicode("fo}ku"),"विद्वान");
+  // "fo)ku" is a real typo some reference material makes for विद्वान --
+  // it actually spells विद्धान (a different word), not an alternate
+  // spelling of विद्वान.
+  assert.equal(krutiDevToUnicode("fo)ku"),"विद्धान");
+  assert.equal(unicodeToKrutiDev("घ"),"?k");
+});
