@@ -316,6 +316,24 @@ test("literal en dash (–) round-trips as a hyphen instead of colliding with th
   }
 });
 
+// Found via a key-by-key audit of the official Kruti Dev 010 keyboard
+// chart against this font: Shift+4 (raw byte "$") draws a plain "+" glyph
+// in the bundled font, a remap the @anthro-ai dictionary has no entry for
+// at all -- confirmed by direct rendering. Legacy byte "+" itself is
+// already reserved for the nukta mark (ड़/ढ़/ज़), so a literal "+" left
+// unconverted would silently encode as invisible nukta instead. Legacy
+// byte "=" is likewise already the unshifted "=" key's own meaning
+// (त्र), so a literal "=" needs the same treatment via "¾".
+test("literal plus (+) and equals (=) round-trip via \"$\"/\"¾\" instead of colliding with nukta/त्र",()=>{
+  assert.equal(unicodeToKrutiDev("+"),"$");
+  assert.equal(unicodeToKrutiDev("="),"¾");
+  assert.equal(krutiDevToUnicode("$"),"+");
+  assert.equal(krutiDevToUnicode("¾"),"=");
+  for (const word of ["5+5=10"]) {
+    assert.equal(krutiDevToUnicode(unicodeToKrutiDev(word)), word);
+  }
+});
+
 // Found by the same audit: a "‚" (U+201A) -> "kW" fold was added earlier
 // this session on the unverified claim that "kW" is ॉ's (candra-O)
 // keyboard-typeable form with "scoring unaffected either way it's

@@ -58,6 +58,26 @@ preferredLegacy.set("/", "@");
 // a student typing this passage would type an ordinary hyphen for it
 // regardless of which dash the source document happened to use.
 preferredLegacy.set("–", "&");
+// Found via a systematic key-by-key audit of the number row against the
+// teacher's own official Kruti Dev 010 keyboard chart: pressing Shift+4
+// (raw byte "$") draws a plain "+" glyph in the bundled font -- a pure
+// font-rendering remap the @anthro-ai dictionary doesn't document at all
+// (it has no entry for "$", so krutiDevToUnicode left it decoding as
+// literal "$" -- wrong -- confirmed by rendering "$" directly in the
+// bundled webfont). Meanwhile legacy byte "+" itself is already the
+// dedicated nukta mark (used in ड़/ढ़/ज़ etc.), so a literal Unicode "+"
+// character passed straight through (as the general loop above would,
+// since "+" isn't Devanagari) would silently encode as invisible nukta
+// instead of a visible plus sign. "$" is the safe, correct target instead.
+preferredLegacy.set("+", "$");
+// Same collision, same audit: legacy byte "=" is already the unshifted
+// key's own meaning (त्र, confirmed against the keyboard chart above), so
+// a literal Unicode "=" character passed straight through would silently
+// collide with that conjunct instead of showing an equals sign. "¾" is
+// the dictionary's only (unambiguous) legacy byte that decodes to a
+// literal "=" and nothing else, confirmed rendering as a proper "=" glyph
+// in the bundled font.
+preferredLegacy.set("=", "¾");
 // Real reported bug: an admin's word-set drill wrapped every word in
 // typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
 // garbage glyphs around each word instead of quote marks. These curly
@@ -201,6 +221,12 @@ export function toTypeableKrutiDev(unicode: string) {
 // round-tripping alone cannot distinguish their correct Unicode ordering.
 const legacyDecodeOverrides = new Map<string, string>([
   ["f[kykM+f;kas", "खिलाड़ियों"],
+  // Shift+4 (raw byte "$") draws a plain "+" glyph in the bundled Kruti Dev
+  // 010 font (confirmed by direct rendering) -- a pure font remap the
+  // @anthro-ai dictionary has no entry for at all, so convertLegacy() left
+  // it decoding as literal "$", not "+". Completes the round trip for the
+  // matching unicodeToKrutiDev("+") -> "$" override just above.
+  ["$", "+"],
 ]);
 const legacyOverrideTokens = [...legacyDecodeOverrides].sort(([a], [b]) => b.length - a.length);
 
