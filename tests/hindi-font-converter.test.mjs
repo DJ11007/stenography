@@ -304,6 +304,18 @@ test("literal . ; and / round-trip correctly instead of colliding with this font
   }
 });
 
+// Real reported bug: a pasted passage's en dash ("1894–95", "चीन–जापान" --
+// the kind Word/Docs auto-corrects "--" into) collided with this font's
+// दृ half-form the exact same way "." ";" "/" did above. No legacy byte
+// decodes back to a literal en dash at all, so it folds to the same safe
+// "&" byte already used for a plain hyphen.
+test("literal en dash (–) round-trips as a hyphen instead of colliding with this font's दृ half-form",()=>{
+  assert.equal(unicodeToKrutiDev("–"),"&");
+  for (const word of ["1894–95","चीन–जापान"]) {
+    assert.equal(krutiDevToUnicode(unicodeToKrutiDev(word)), word.replace(/–/g,"-"));
+  }
+});
+
 // Found by the same audit: a "‚" (U+201A) -> "kW" fold was added earlier
 // this session on the unverified claim that "kW" is ॉ's (candra-O)
 // keyboard-typeable form with "scoring unaffected either way it's

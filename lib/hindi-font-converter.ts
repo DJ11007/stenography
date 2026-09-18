@@ -45,6 +45,19 @@ preferredLegacy.set("-", "&");
 preferredLegacy.set(".", "-");
 preferredLegacy.set(";", "(");
 preferredLegacy.set("/", "@");
+// Real reported bug: an admin's pasted passage (from Word/Docs, which
+// auto-corrects "--" into a real en dash) used "–" for date ranges and
+// word-joining ("1894–95", "चीन–जापान") -- but in this font the raw "–"
+// byte already draws दृ (द + the vocalic-R vowel sign), so it rendered as
+// "1894दृ95"/"चीनदृजापान" instead of a dash, confirmed by round-tripping
+// through krutiDevToUnicode exactly as for the "." ";" "/" collisions
+// above. No legacy byte in this dictionary decodes back to a literal en
+// dash at all (unlike those three), so there's no way to preserve it as
+// its own character -- the safe fix is the same one already used for a
+// plain "-": a Kruti Dev keyboard has no dedicated en-dash key anyway, so
+// a student typing this passage would type an ordinary hyphen for it
+// regardless of which dash the source document happened to use.
+preferredLegacy.set("–", "&");
 // Real reported bug: an admin's word-set drill wrapped every word in
 // typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
 // garbage glyphs around each word instead of quote marks. These curly
