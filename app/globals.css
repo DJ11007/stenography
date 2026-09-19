@@ -76,6 +76,62 @@
     linear-gradient(to bottom, #0f172a, #1e293b, #0f172a);
 }
 
+/* WordTris "bucket" redesign: a big cloud drifts gently above the rain
+   lane, and a rising water level (one step per life lost -- see `lives`/
+   `startingLives` in wordtris-game.tsx -- six steps to full/game over)
+   fills the bucket from the bottom, with an animated wavy surface. A miss
+   also triggers a brief expanding "splash" ring at the point of impact. */
+@keyframes wordtris-cloud-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-wordtris-cloud-float {
+  animation: wordtris-cloud-float 5s ease-in-out infinite;
+}
+
+@keyframes wordtris-wave-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-wordtris-wave-scroll {
+  animation: wordtris-wave-scroll 6s linear infinite;
+}
+
+.animate-wordtris-wave-scroll-slow {
+  animation: wordtris-wave-scroll 11s linear infinite reverse;
+}
+
+@keyframes wordtris-splash {
+  0% { transform: translateX(-50%) scale(0.3); opacity: 0.9; }
+  100% { transform: translateX(-50%) scale(2.4); opacity: 0; }
+}
+
+.animate-wordtris-splash {
+  animation: wordtris-splash 550ms ease-out forwards;
+}
+
+@keyframes wordtris-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.animate-wordtris-shake {
+  animation: wordtris-shake 320ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wordtris-cloud-float,
+  .animate-wordtris-wave-scroll,
+  .animate-wordtris-wave-scroll-slow,
+  .animate-wordtris-splash,
+  .animate-wordtris-shake { animation: none; }
+}
+
 /*
  * Deliberately NOT dark-mode-aware. This site has no real dark theme --
  * every card, panel, ribbon, and form field across the entire app

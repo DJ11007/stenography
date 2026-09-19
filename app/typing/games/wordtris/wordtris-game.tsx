@@ -63,7 +63,7 @@ type Step = "setup" | "playing" | "gameover";
 type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
 type ActiveDrop = { id: number; text: string; target: string; lane: number; fallMs: number; spawnedAt: number };
 
-function FallingDropView({ drop, fontFamily, onMiss }: { drop: ActiveDrop; fontFamily?: string; onMiss: (id: number) => void }) {
+function FallingDropView({ drop, fontFamily, locked, onMiss }: { drop: ActiveDrop; fontFamily?: string; locked: boolean; onMiss: (id: number) => void }) {
   const [falling, setFalling] = useState(false);
   useEffect(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => setFalling(true)));
@@ -82,14 +82,14 @@ function FallingDropView({ drop, fontFamily, onMiss }: { drop: ActiveDrop; fontF
       }}
       onTransitionEnd={() => { if (falling) onMiss(drop.id); }}
     >
-      <div className="relative min-w-24 px-7 pb-5 pt-11 text-center text-2xl font-black text-white drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)]" style={{ fontFamily }}>
+      <div className={`relative min-w-24 rounded-2xl px-7 pb-5 pt-11 text-center text-2xl font-black text-white drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)] transition ${locked ? "ring-4 ring-amber-300" : ""}`} style={{ fontFamily }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 -z-10 h-full w-full" aria-hidden="true">
           <defs>
             {/* Unique id per concurrent drop -- several of these render at
                 once now, so a shared id would be a duplicate DOM id. */}
             <linearGradient id={`wordtris-drop-fill-${drop.id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22d3ee" />
-              <stop offset="100%" stopColor="#0e7490" />
+              <stop offset="0%" stopColor={locked ? "#fbbf24" : "#22d3ee"} />
+              <stop offset="100%" stopColor={locked ? "#b45309" : "#0e7490"} />
             </linearGradient>
           </defs>
           <polygon points={DROP_POINTS} fill={`url(#wordtris-drop-fill-${drop.id})`} />
@@ -115,6 +115,11 @@ export function WordtrisGame({ words }: Props) {
   const [activeDrops, setActiveDrops] = useState<ActiveDrop[]>([]);
   const [typed, setTyped] = useState("");
   const [flash, setFlash] = useState<"catch" | "miss" | null>(null);
+  const [inputShake, setInputShake] = useState(false);
+  // Every missed drop lands in the bucket's water -- a brief expanding
+  // splash ring at the point of impact, purely decorative (aria-hidden),
+  // removed a moment after it plays.
+  const [splashes, setSplashes] = useState<{ id: number; lane: number }[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [leaderboardLimit, setLeaderboardLimit] = useState<10 | 20 | 50>(10);
@@ -216,13 +221,16 @@ export function WordtrisGame({ words }: Props) {
     // unmounting the element aborts its in-flight CSS transition instead
     // of firing the event -- but the guard costs nothing and documents why
     // double-counting a miss isn't possible.
-    if (!activeDropsRef.current.some((d) => d.id === dropId)) return;
+    const missed = activeDropsRef.current.find((d) => d.id === dropId);
+    if (!missed) return;
     activeDropsRef.current = activeDropsRef.current.filter((d) => d.id !== dropId);
     setActiveDrops(activeDropsRef.current);
     setStreak(0);
     setSpeedLevel((l) => Math.max(0, l - 2));
     setFlash("miss");
     window.setTimeout(() => setFlash(null), 300);
+    setSplashes((s) => [...s, { id: missed.id, lane: missed.lane }]);
+    window.setTimeout(() => setSplashes((s) => s.filter((sp) => sp.id !== missed.id)), 550);
     setLives((l) => {
       const left = l - 1;
       if (left <= 0) setStep("gameover");
@@ -275,28 +283,70 @@ export function WordtrisGame({ words }: Props) {
     void getWordtrisLeaderboard(language, category, leaderboardLimit).then(setLeaderboard);
   }, [leaderboardLimit, step, mode, language, category]);
 
+  // Hindi compares exact (its bytes are case-sensitive by design -- see
+  // hindi-font-converter.ts); English is lenient, matching word mode's
+  // long-standing behaviour. Shared by the prefix-lock check below and the
+  // space-to-confirm submit, so both always agree on what "matches" means.
+  const normalize = useCallback((value: string) => (language === "hindi" ? value : value.trim().toLowerCase()), [language]);
+  const dropText = useCallback((d: ActiveDrop) => (language === "hindi" ? d.target : d.target.toLowerCase()), [language]);
+
+  // Real reported request: once the student is partway into one falling
+  // drop's word, a stray keystroke that only belongs to a *different*
+  // falling word must not be accepted -- it should simply not type at all,
+  // the same way a real word-processor's autocomplete would refuse an
+  // impossible continuation. Backspacing is always allowed so the field
+  // can still be cleared/retried.
+  const isValidPrefix = useCallback((value: string) => {
+    const norm = normalize(value);
+    if (!norm) return true;
+    return activeDropsRef.current.some((d) => dropText(d).startsWith(norm));
+  }, [normalize, dropText]);
+
   const handleTyped = (value: string) => {
+    const isShrinking = value.length < typed.length && typed.startsWith(value);
+    if (!isShrinking && value && !isValidPrefix(value)) return;
     setTyped(value);
-    if (!value) return;
-    // Hindi compares exact (its bytes are case-sensitive by design -- see
-    // hindi-font-converter.ts); English is lenient, matching word mode's
-    // long-standing behaviour.
-    const normalizedTyped = language === "hindi" ? value : value.trim().toLowerCase();
-    const candidates = activeDrops.filter((d) => (language === "hindi" ? d.target : d.target.toLowerCase()) === normalizedTyped);
-    if (!candidates.length) return;
+  };
+
+  // The actual catch only fires once the student presses Space after
+  // finishing a word/character -- matching a real typed word being
+  // confirmed with a space, not the moment the letters happen to line up.
+  const trySubmit = useCallback(() => {
+    if (!typed) return;
+    const normalizedTyped = normalize(typed);
+    const candidates = activeDropsRef.current.filter((d) => dropText(d) === normalizedTyped);
+    if (!candidates.length) {
+      setInputShake(true);
+      window.setTimeout(() => setInputShake(false), 320);
+      return;
+    }
     // More than one identical falling drop can match at once (small pools,
     // especially in character mode) -- catch whichever is furthest along
     // its fall, the more urgent one.
     const mostUrgent = candidates.reduce((a, b) => ((Date.now() - b.spawnedAt) / b.fallMs > (Date.now() - a.spawnedAt) / a.fallMs ? b : a));
     onCatch(mostUrgent);
+  }, [typed, normalize, dropText, onCatch]);
+
+  const handleTypedKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== " " && event.code !== "Space") return;
+    event.preventDefault();
+    trySubmit();
   };
+
+  const normalizedTyped = normalize(typed);
+  const lockedDropIds = useMemo(() => {
+    if (!normalizedTyped) return new Set<number>();
+    return new Set(activeDrops.filter((d) => dropText(d).startsWith(normalizedTyped)).map((d) => d.id));
+  }, [activeDrops, normalizedTyped, dropText]);
+
+  const waterFillPercent = ((startingLives - lives) / startingLives) * 100;
 
   const displayCategories = useMemo(() => CATEGORIES, []);
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <TypingBrandHeader backHref="/typing/games" backLabel="Games" />
-      <section className="mx-auto max-w-3xl px-4 py-8">
+      <section className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex flex-wrap items-center justify-end gap-3">
           <span className="flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-cyan-400 shadow-sm">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-3 w-2.5 fill-cyan-400" aria-hidden="true"><polygon points={DROP_POINTS} /></svg>
@@ -311,7 +361,7 @@ export function WordtrisGame({ words }: Props) {
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-7 w-5 fill-cyan-400" aria-hidden="true"><polygon points={DROP_POINTS} /></svg>
                 <h1 className="text-2xl font-black text-white">WordTris</h1>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Multiple drops fall at once, starting slow -- catch them before they land. Miss one and it eases back off; string catches together and it speeds back up. Six misses and it&apos;s over.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">Multiple drops fall from the cloud at once, starting slow -- type one and press Space to catch it before it lands. Miss one and the bucket fills with a little more water; string catches together and it speeds back up. Six missed drops and the bucket overflows.</p>
             </div>
             <div className="p-6">
               <p className="text-xs font-black uppercase tracking-wider text-slate-500">Drill</p>
@@ -363,35 +413,93 @@ export function WordtrisGame({ words }: Props) {
               </div>
             </div>
 
-            <div className={`wordtris-rain-lane relative mt-4 h-96 overflow-hidden rounded-2xl ring-1 ring-slate-700 transition ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
-              {AMBIENT_DROPS.map((drop, i) => (
-                <svg
-                  key={i}
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                  className="animate-wordtris-ambient-fall absolute h-6 w-4 fill-slate-500/40"
-                  style={{ left: drop.left, animationDuration: drop.duration, animationDelay: drop.delay }}
-                >
-                  <polygon points={DROP_POINTS} />
-                </svg>
-              ))}
-              {activeDrops.map((drop) => (
-                <FallingDropView key={drop.id} drop={drop} fontFamily={fontFamily} onMiss={onMiss} />
-              ))}
+            {/* A big cloud drifts above the bucket -- purely atmospheric,
+                every drop visually originates from beneath it. */}
+            <div className="mt-5 flex justify-center">
+              <svg viewBox="0 0 200 110" aria-hidden="true" className="animate-wordtris-cloud-float h-20 w-52 drop-shadow-[0_10px_16px_rgba(15,23,42,0.25)] sm:h-24 sm:w-64">
+                <defs>
+                  <linearGradient id="wordtris-cloud-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="100%" stopColor="#cbd5e1" />
+                  </linearGradient>
+                </defs>
+                <ellipse cx="60" cy="70" rx="45" ry="32" fill="url(#wordtris-cloud-fill)" />
+                <ellipse cx="112" cy="52" rx="55" ry="40" fill="url(#wordtris-cloud-fill)" />
+                <ellipse cx="152" cy="72" rx="40" ry="30" fill="url(#wordtris-cloud-fill)" />
+                <ellipse cx="100" cy="80" rx="72" ry="26" fill="url(#wordtris-cloud-fill)" />
+              </svg>
             </div>
 
-            <div className="mt-3">
+            {/* The bucket's rim + wire handle, decorative only. */}
+            <div className="relative mx-auto -mb-2 flex h-8 items-end justify-center">
+              <svg viewBox="0 0 120 40" aria-hidden="true" className="absolute bottom-1 h-9 w-28 sm:w-32">
+                <path d="M15 38 C 15 8, 105 8, 105 38" fill="none" stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" />
+              </svg>
+              <div className="relative z-10 h-3.5 w-[92%] rounded-full bg-gradient-to-b from-slate-300 to-slate-500 shadow-inner sm:w-[88%]" />
+            </div>
+
+            {/* The bucket body: the falling-drop play field, now much
+                bigger, with metal side straps and a rising water level --
+                one step per life lost (6 steps to fully full/game over). */}
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-3 left-0 z-20 w-2.5 rounded-full bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 sm:w-3" />
+              <div className="pointer-events-none absolute inset-y-3 right-0 z-20 w-2.5 rounded-full bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 sm:w-3" />
+              <div className={`wordtris-rain-lane relative h-[28rem] overflow-hidden rounded-[2rem] ring-1 ring-slate-700 transition sm:h-[34rem] ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
+                {/* Rising water -- absolutely positioned first so every
+                    later sibling (ambient rain, real drops, splashes)
+                    naturally paints on top of it. */}
+                <div
+                  className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden transition-[height] duration-700 ease-out"
+                  style={{ height: `${waterFillPercent}%` }}
+                  aria-hidden="true"
+                >
+                  <div className="absolute inset-x-0 -top-3 h-6 overflow-hidden">
+                    <svg viewBox="0 0 400 20" preserveAspectRatio="none" className="animate-wordtris-wave-scroll h-full w-[200%] fill-cyan-400/70">
+                      <path d="M0 10 C 25 0,75 20,100 10 C125 0,175 20,200 10 L200 20 L0 20 Z M200 10 C225 0,275 20,300 10 C325 0,375 20,400 10 L400 20 L200 20 Z" />
+                    </svg>
+                    <svg viewBox="0 0 400 20" preserveAspectRatio="none" className="animate-wordtris-wave-scroll-slow absolute inset-0 h-full w-[200%] fill-cyan-300/40">
+                      <path d="M0 12 C25 4,75 20,100 12 C125 4,175 20,200 12 L200 20 L0 20 Z M200 12 C225 4,275 20,300 12 C325 4,375 20,400 12 L400 20 L200 20 Z" />
+                    </svg>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 top-3 bg-gradient-to-b from-cyan-500/70 via-cyan-600/80 to-cyan-800/90" />
+                </div>
+
+                {AMBIENT_DROPS.map((drop, i) => (
+                  <svg
+                    key={i}
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                    className="animate-wordtris-ambient-fall absolute h-6 w-4 fill-slate-500/40"
+                    style={{ left: drop.left, animationDuration: drop.duration, animationDelay: drop.delay }}
+                  >
+                    <polygon points={DROP_POINTS} />
+                  </svg>
+                ))}
+                {activeDrops.map((drop) => (
+                  <FallingDropView key={drop.id} drop={drop} fontFamily={fontFamily} locked={lockedDropIds.has(drop.id)} onMiss={onMiss} />
+                ))}
+                {splashes.map((s) => (
+                  <span key={s.id} aria-hidden="true" className="animate-wordtris-splash pointer-events-none absolute z-10 h-12 w-12 rounded-full border-2 border-cyan-100" style={{ left: `${LANE_POSITIONS[s.lane]}%`, bottom: `${Math.min(94, waterFillPercent)}%` }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Base plate. */}
+            <div className="mx-auto -mt-2 h-3 w-[86%] rounded-full bg-gradient-to-b from-slate-500 to-slate-700 shadow-md sm:w-[82%]" />
+
+            <div className="mt-4">
               <input
                 ref={inputRef}
                 value={typed}
                 onChange={(event) => handleTyped(event.target.value)}
+                onKeyDown={handleTypedKeyDown}
                 spellCheck={false}
                 autoFocus
-                aria-label={`Type any falling ${mode === "character" ? "character" : "word"}`}
-                className="w-full rounded-xl border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500"
+                aria-label={`Type any falling ${mode === "character" ? "character" : "word"}, then press Space`}
+                className={`w-full rounded-xl border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500 ${inputShake ? "animate-wordtris-shake border-rose-400" : ""}`}
                 style={{ fontFamily }}
-                placeholder={mode === "character" ? "Type any falling key…" : "Type any falling word…"}
+                placeholder={mode === "character" ? "Type the falling key, then press Space…" : "Type any falling word, then press Space…"}
               />
             </div>
           </div>
