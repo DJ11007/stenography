@@ -145,3 +145,49 @@ test("the tutor has a full-screen toggle", async () => {
   assert.match(tutor, /document\.exitFullscreen/);
   assert.match(tutor, /fullscreenchange/);
 });
+
+// Real reported request: whatever was done to the English tutor should be
+// mirrored onto the Kruti Dev tutor -- a permanent, admin-gated preview
+// route (mirrors /admin/preview/english-tutor), the on-screen keyboard
+// off by default, the passage/typing boxes sharing the exact same
+// explicit clamp()-based height, and full screen replacing that fixed
+// height with a flex-1 layout guaranteed to fit exactly one screen.
+test("a permanent, admin-gated preview route renders the real KrutiDevTutor component, wired into the admin dashboard", async () => {
+  const preview = await read("app/admin/preview/krutidev-tutor/page.tsx");
+  assert.match(preview, /await requireAdmin\(\);/);
+  assert.match(preview, /getKrutiDevExercises/);
+  assert.match(preview, /<KrutiDevTutor/);
+  assert.match(preview, /<TypingStudentProvider/);
+  const admin = await read("app/admin/page.tsx");
+  assert.match(admin, /"\/admin\/preview\/krutidev-tutor", "Preview: Kruti Dev Typing Tutor"/);
+});
+
+test("the on-screen keyboard defaults off, and the passage/typing boxes share the exact same explicit clamp()-based height", async () => {
+  const tutor = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
+  assert.match(tutor, /const \[showKeyboard, setShowKeyboard\] = useState\(false\);/);
+  const heightDeclarations = [...tutor.matchAll(/height: "clamp\(14rem, 45vh, 34rem\)"/g)];
+  assert.equal(heightDeclarations.length, 2, "both the passage box and the typing box must use the identical explicit height formula");
+});
+
+test("full screen replaces the fixed clamp() height with a flex-1 layout that's guaranteed to fit exactly one screen, no page scroll", async () => {
+  const tutor = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
+  assert.match(tutor, /isFullscreen \? "flex h-\[100dvh\] flex-col overflow-hidden" : "min-h-screen overflow-y-auto"/);
+  assert.match(tutor, /isFullscreen \? "flex min-h-0 flex-1 flex-col" : ""/);
+  const flexOneBoxes = [...tutor.matchAll(/\$\{isFullscreen \? "min-h-0 flex-1" : ""\}/g)];
+  assert.equal(flexOneBoxes.length, 2, "both the passage box and the typing box must switch to flex-1 in full screen");
+});
+
+// Kruti-Dev-specific: the Alt-codes reference button used to live in the
+// always-visible options row; it moved into the Settings popup along with
+// everything else that used to live there (tests/tutor-backspace-and-
+// options-bar.test.mjs covers the popup mechanics/Auto scroll/Progress-
+// strip-removal shared with the English tutor).
+test("the Alt-codes reference button moved into the Settings popup, and the AltCodesModal it opens is untouched", async () => {
+  const tutor = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
+  const settingsPopupStart = tutor.indexOf("<TypingSettingsPopup");
+  const settingsPopupEnd = tutor.indexOf("</TypingSettingsPopup>");
+  const altButtonIndex = tutor.indexOf("Alt कोड दिखाएँ");
+  assert.ok(settingsPopupStart > 0 && altButtonIndex > settingsPopupStart && altButtonIndex < settingsPopupEnd, "the Alt-codes button must be inside the Settings popup");
+  assert.match(tutor, /function AltCodesModal\(/);
+  assert.match(tutor, /\{altOpen && <AltCodesModal onClose=\{\(\) => setAltOpen\(false\)\} \/>\}/);
+});

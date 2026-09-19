@@ -5,48 +5,27 @@ import { readFile } from "node:fs/promises";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 // Real requested feature, both Hindi (Kruti Dev) and English learn-keys
-// tutors: a Backspace on/off toggle, a live count of how many times
-// Backspace was pressed, and moving every settings toggle from the narrow
-// right-side aside up into the passage card itself -- directly below the
-// font-size (A-/A+) controls and above the original passage display, which
-// are the same spot described two ways.
+// tutors: a Backspace on/off toggle, its own distinct pill-shaped button
+// (not a plain toggle switch), and -- following a later request to mirror
+// every change made to one tutor onto the other -- Settings opens in the
+// same floating, viewport-aware, focus-trapped popup the real
+// typing-test workspace uses (TypingSettingsPopup,
+// configurable-typing-exam.tsx), via a gear-icon trigger, not an inline
+// listing. Both tutors are kept structurally identical by these shared
+// assertions; only user-facing label text differs.
 
-for (const [file, label] of [
-  ["app/typing/learn/krutidev/krutidev-tutor.tsx", "बैकस्पेस"],
-  ["app/typing/learn/english-tutor/english-tutor.tsx", "Backspace"],
+for (const [file, autoScrollLabel] of [
+  ["app/typing/learn/krutidev/krutidev-tutor.tsx", "ऑटो स्क्रॉल"],
+  ["app/typing/learn/english-tutor/english-tutor.tsx", "Auto scroll"],
 ]) {
-  const isEnglish = file.includes("english-tutor");
-
-  if (isEnglish) {
-    // Real reported request: the whole live Progress strip (Speed/Accuracy/
-    // Errors/Backspace count/Complete %) was removed from the English
-    // tutor entirely -- "no need". The Backspace ON/OFF toggle itself
-    // stays (a real behavioural setting, not just a display), only the
-    // press counter (backspaceCount) and everything that fed the removed
-    // strip (the "live" stats useMemo, the live-clock tick) are gone.
-    // Kruti Dev is untouched -- its own copy of the original test (below)
-    // still checks for the counter.
-    test(`${file} has a Backspace on/off toggle but no live press counter or Progress strip (removed entirely, on request)`, async () => {
-      const content = await read(file);
-      assert.match(content, /const \[backspaceEnabled, setBackspaceEnabled\] = useState\(true\);/);
-      assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
-      assert.doesNotMatch(content, /backspaceCount/);
-      assert.doesNotMatch(content, /const live = useMemo/);
-      assert.doesNotMatch(content, />Progress<\/span>/);
-    });
-  } else {
-    test(`${file} has a Backspace on/off toggle and a live press counter`, async () => {
-      const content = await read(file);
-      assert.match(content, /const \[backspaceEnabled, setBackspaceEnabled\] = useState\(true\);/);
-      assert.match(content, /const \[backspaceCount, setBackspaceCount\] = useState\(0\);/);
-      // reset alongside the other per-exercise state
-      assert.match(content, /setBackspaceCount\(0\);/);
-      assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
-      // every Backspace press is counted, whether or not it's allowed through
-      assert.match(content, /if \(event\.key !== "Backspace"\) return;\s*setBackspaceCount\(\(value\) => value \+ 1\);\s*if \(!backspaceEnabled\) event\.preventDefault\(\);/);
-      assert.match(content, new RegExp(`<span>${label} <b className="text-sm text-slate-900">\\{backspaceCount\\}</b></span>`));
-    });
-  }
+  test(`${file} has a Backspace on/off toggle but no live press counter or Progress strip (removed entirely, on request)`, async () => {
+    const content = await read(file);
+    assert.match(content, /const \[backspaceEnabled, setBackspaceEnabled\] = useState\(true\);/);
+    assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
+    assert.doesNotMatch(content, /backspaceCount/);
+    assert.doesNotMatch(content, /const live = useMemo/);
+    assert.doesNotMatch(content, />(Progress|प्रगति)<\/span>/);
+  });
 
   // Real requested polish: Backspace used to be an ordinary label + switch,
   // no different from Bold/Sound -- now gets its own pill-shaped button
@@ -60,61 +39,29 @@ for (const [file, label] of [
     assert.match(content, /aria-pressed=\{enabled\}/);
   });
 
-  if (isEnglish) {
-    // Real reported follow-up request, English only: an inline expanding
-    // listing (this test used to check for) still pushed the drill down --
-    // wrong pattern. Now reuses the exact same floating, viewport-aware,
-    // focus-trapped popup the real typing-test workspace opens its own
-    // Settings from (TypingSettingsPopup, configurable-typing-exam.tsx),
-    // triggered by a gear-icon button instead of a text "Settings ▾" one.
-    // Kruti Dev is untouched -- its own copies of these two tests (below)
-    // still check the older inline-row layout.
-    test(`${file} opens Settings in the same floating popup the real typing-test workspace uses, via a gear-icon trigger, not an inline listing`, async () => {
-      const content = await read(file);
-      assert.match(content, /const \[settingsOpen, setSettingsOpen\] = useState\(false\);/);
-      assert.match(content, /import \{ TypingSettingsPopup \} from "\.\.\/\.\.\/_components\/configurable-typing-exam";/);
-      assert.match(content, /<TypingSettingsPopup triggerRef=\{settingsTriggerRef\} onClose=\{closeSettings\}>/);
-      assert.match(content, /aria-haspopup="dialog"/);
-      assert.match(content, /<circle cx="12" cy="12" r="3" \/>/); // the gear icon, not a "▾" text glyph
-      assert.match(content, /<Toggle checked=\{autoScroll\} onChange=\{setAutoScroll\} label="Auto scroll" \/>/);
-      const exerciseSelectorRow = content.indexOf("Choose an exercise");
-      const settingsTrigger = content.indexOf("aria-haspopup=\"dialog\"");
-      assert.ok(settingsTrigger > exerciseSelectorRow && exerciseSelectorRow > 0, "the settings trigger must sit in the exercise-selector row");
-    });
+  // Real reported follow-up request: an inline expanding listing (this
+  // test used to check for) still pushed the drill down -- wrong
+  // pattern. Now reuses the exact same floating popup the real
+  // typing-test workspace opens its own Settings from, triggered by a
+  // gear-icon button instead of a text "Settings ▾" one.
+  test(`${file} opens Settings in the same floating popup the real typing-test workspace uses, via a gear-icon trigger, not an inline listing`, async () => {
+    const content = await read(file);
+    assert.match(content, /const \[settingsOpen, setSettingsOpen\] = useState\(false\);/);
+    assert.match(content, /import \{ TypingSettingsPopup \} from "\.\.\/\.\.\/_components\/configurable-typing-exam";/);
+    assert.match(content, /<TypingSettingsPopup triggerRef=\{settingsTriggerRef\} onClose=\{closeSettings\}>/);
+    assert.match(content, /aria-haspopup="dialog"/);
+    assert.match(content, /<circle cx="12" cy="12" r="3" \/>/); // the gear icon, not a "▾" text glyph
+    assert.match(content, new RegExp(`<Toggle checked=\\{autoScroll\\} onChange=\\{setAutoScroll\\} label="${autoScrollLabel}" />`));
+  });
 
-    // Real reported request: the drill box can scroll the current position
-    // out of view on long paragraphs/word sets -- the current-character
-    // span now carries a ref that's scrolled into view whenever the caret
-    // advances, toggleable from the new Settings listing.
-    test(`${file} auto-scrolls the current position into view (toggleable), by ref on the "cur" span`, async () => {
-      const content = await read(file);
-      assert.match(content, /const \[autoScroll, setAutoScroll\] = useState\(true\);/);
-      assert.match(content, /caretElRef\.current\?\.scrollIntoView\(\{ behavior: "smooth", block: "nearest", inline: "nearest" \}\);/);
-      assert.match(content, /ref=\{state === "cur" \? caretElRef : undefined\}/);
-    });
-  } else {
-    test(`${file} moved its settings toggles out of the right-side aside, to directly below the font-size controls and above the passage display`, async () => {
-      const content = await read(file);
-      const fontSizeRow = content.indexOf("A+</button>");
-      const optionsBar = content.indexOf("gap-x-4 gap-y-2 rounded-xl bg-slate-50");
-      const passageDisplay = content.indexOf("whitespace-pre-wrap break-words rounded-xl bg-");
-      assert.ok(fontSizeRow > 0 && optionsBar > fontSizeRow, "options bar must come after the font-size controls");
-      assert.ok(passageDisplay > optionsBar, "options bar must come before the original passage display");
-    });
-
-    // Real reported feedback, follow-up: the live progress/stats strip used
-    // to sit in a narrow right-side aside (below or beside the passage, since
-    // it only stacked under it on mobile) -- moved to the very top of the
-    // exercise view instead, above the exercise-selector/font-size row, and
-    // the now-empty aside/two-column grid removed entirely in favour of a
-    // single vertical stack.
-    test(`${file} moved the live progress strip to the top of the exercise view, and removed the now-empty right-side aside/grid split`, async () => {
-      const content = await read(file);
-      assert.doesNotMatch(content, /<aside/);
-      assert.doesNotMatch(content, /lg:grid-cols-\[minmax\(0,1fr\)_300px\]/);
-      const progressStrip = content.indexOf("py-2.5 shadow-sm");
-      const fontSizeRow = content.indexOf("A+</button>");
-      assert.ok(progressStrip >= 0 && progressStrip < fontSizeRow, "progress strip must come before the exercise-selector/font-size row");
-    });
-  }
+  // Real reported request: the drill box can scroll the current position
+  // out of view on long paragraphs/word sets -- the current-character
+  // span now carries a ref that's scrolled into view whenever the caret
+  // advances, toggleable from the Settings popup.
+  test(`${file} auto-scrolls the current position into view (toggleable), by ref on the "cur" span`, async () => {
+    const content = await read(file);
+    assert.match(content, /const \[autoScroll, setAutoScroll\] = useState\(true\);/);
+    assert.match(content, /caretElRef\.current\?\.scrollIntoView\(\{ behavior: "smooth", block: "nearest", inline: "nearest" \}\);/);
+    assert.match(content, /ref=\{state === "cur" \? caretElRef : undefined\}/);
+  });
 }

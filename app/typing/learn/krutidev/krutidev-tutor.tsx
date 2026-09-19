@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finger, FingerInfo, KeyCap } from "@/lib/krutidev-tutor-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
+import { TypingSettingsPopup } from "../../_components/configurable-typing-exam";
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
@@ -56,21 +57,32 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [done, setDone] = useState(false);
   const [result, setResult] = useState<{ seconds: number; errors: number; grossWpm: number; netWpm: number; accuracy: number } | null>(null);
-  const [now, setNow] = useState(0);
 
-  const [showKeyboard, setShowKeyboard] = useState(true);
+  const [showKeyboard, setShowKeyboard] = useState(false);
   const [moveOnError, setMoveOnError] = useState(true);
   const [bold, setBold] = useState(false);
   const [sound, setSound] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
   const [fontPx, setFontPx] = useState(30);
   const [altOpen, setAltOpen] = useState(false);
   const [backspaceEnabled, setBackspaceEnabled] = useState(true);
-  const [backspaceCount, setBackspaceCount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const rootRef = useRef<HTMLElement>(null);
+  const caretElRef = useRef<HTMLSpanElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Same floating popup the real typing-test workspace opens its own
+  // Settings from (TypingSettingsPopup, configurable-typing-exam.tsx) --
+  // mirrors the English tutor's own Settings, which used to be an inline
+  // panel that pushed the drill down.
+  const closeSettings = (restoreFocus = false) => {
+    setSettingsOpen(false);
+    if (restoreFocus) window.setTimeout(() => settingsTriggerRef.current?.focus(), 0);
+  };
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -125,22 +137,23 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
     setStartedAt(null);
     setDone(false);
     setResult(null);
-    setNow(0);
-    setBackspaceCount(0);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
   // reset whenever the active exercise or step changes
   useEffect(() => { reset(); }, [step, idx, reset]);
 
-  // live clock while a drill is in progress
-  useEffect(() => {
-    if (!startedAt || done) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, [startedAt, done]);
-
   const caret = typed.length;
+
+  // Keeps the current position visible in the drill box as it advances --
+  // real reported need for long paragraphs/word sets, where the
+  // highlighted character can otherwise scroll out of the small box's
+  // view, forcing a manual scroll mid-drill. Toggleable (Settings ->
+  // Auto scroll) since some students prefer to scroll by hand.
+  useEffect(() => {
+    if (autoScroll) caretElRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [caret, autoScroll, idx, step]);
+
   const nextKey = useMemo(() => {
     const rest = target.slice(caret);
     if (!rest) return null;
@@ -181,32 +194,23 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
     if (value.length === target.length && target.length > 0) finish(value);
   };
 
-  const live = useMemo(() => {
-    let correct = 0;
-    for (let i = 0; i < typed.length; i += 1) if (typed[i] === target[i]) correct += 1;
-    const seconds = startedAt ? Math.max(1, ((done ? startedAt : now || startedAt) - startedAt) / 1000 || 1) : 0;
-    const activeSeconds = startedAt && !done ? Math.max(1, (Date.now() - startedAt) / 1000) : seconds;
-    const minutes = activeSeconds / 60;
-    return {
-      correct,
-      errors: typed.length - correct,
-      accuracy: typed.length ? Math.round((correct / typed.length) * 100) : 100,
-      wpm: activeSeconds ? Math.max(0, Math.round(correct / 5 / minutes)) : 0,
-      grossWpm: activeSeconds ? Math.max(0, Math.round(typed.length / 5 / minutes)) : 0,
-      progress: target.length ? Math.round((typed.length / target.length) * 100) : 0,
-    };
-  }, [typed, target, startedAt, done, now]);
-
   const total = exercises.length;
   const kbdVisible = step !== 3 && showKeyboard;
 
   return (
-    <main ref={rootRef} className="min-h-screen overflow-y-auto bg-slate-100" style={{ fontFamily: HI }}>
+    <main ref={rootRef} className={`bg-slate-100 ${isFullscreen ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-screen overflow-y-auto"}`} style={{ fontFamily: HI }}>
       {!isFullscreen && <TypingBrandHeader />}
-      <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/typing/learn/hindi" className="text-sm font-bold text-blue-700">← सभी हिन्दी पाठ</Link>
-          <div className="flex items-center gap-2">
+      <section className={`mx-auto w-full max-w-6xl px-3 py-5 sm:px-5 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+        {/* Back link, step rail, and the badge/fullscreen controls merged
+            into one row -- mirrors the English tutor's own layout, the step
+            rail taking the flexible middle space (it already scrolls
+            horizontally on its own if it doesn't fit). */}
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <Link href="/typing/learn/hindi" className="shrink-0 text-sm font-bold text-blue-700">← सभी हिन्दी पाठ</Link>
+          <div className="min-w-0 flex-1">
+            <StepRail step={step} onPick={setStep} />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-orange-600 shadow-sm">कृतिदेव 010 · हिन्दी टंकण प्रशिक्षक</span>
             <button
               type="button"
@@ -226,8 +230,6 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
           </div>
         </div>
 
-        <StepRail step={step} onPick={setStep} />
-
         {step === 0 ? (
           <InstructionsStep
             keyboardRows={keyboardRows}
@@ -236,24 +238,10 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
             onStart={() => setStep(1)}
           />
         ) : (
-          <div className="mt-5 space-y-4">
-            <div className="rounded-2xl bg-white px-3 py-2.5 shadow-sm">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
-                <span>प्रगति</span>
-                <span className="text-slate-900">गति <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
-                <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>शुद्धता <b className="text-sm">{live.accuracy}%</b></span>
-                <span>गलतियाँ <b className="text-sm text-slate-900">{live.errors}</b></span>
-                <span>बैकस्पेस <b className="text-sm text-slate-900">{backspaceCount}</b></span>
-                <span>पूर्ण <b className="text-sm text-slate-900">{live.progress}%</b></span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all" style={{ width: `${live.progress}%` }} />
-              </div>
-            </div>
-
-            <div className="min-w-0 space-y-4">
-              <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className={`mt-5 space-y-4 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+            <div className={`min-w-0 space-y-4 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+              <div className={`rounded-2xl bg-white p-4 shadow-sm sm:p-5 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">«</button>
                     <label className="text-sm font-bold text-slate-700">
@@ -270,26 +258,57 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                     </label>
                     <button type="button" onClick={() => setIdx(Math.min(total - 1, idx + 1))} disabled={idx >= total - 1} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">»</button>
                   </div>
-                  <div className="flex items-center gap-1 text-sm font-black text-slate-600">
-                    <button type="button" onClick={() => setFontPx((value) => Math.max(18, value - 2))} className="rounded-md bg-slate-100 px-2 py-1">A−</button>
-                    <span className="w-10 text-center">{fontPx}</span>
-                    <button type="button" onClick={() => setFontPx((value) => Math.min(56, value + 2))} className="rounded-md bg-slate-100 px-2 py-1">A+</button>
-                  </div>
+                  <button
+                    ref={settingsTriggerRef}
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={settingsOpen}
+                    aria-controls="typing-settings-dialog"
+                    aria-label={settingsOpen ? "सेटिंग्स बंद करें" : "सेटिंग्स"}
+                    title={settingsOpen ? "सेटिंग्स बंद करें" : "सेटिंग्स"}
+                    onClick={() => setSettingsOpen((value) => !value)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  >
+                    {settingsOpen ? (
+                      <span aria-hidden className="text-base font-black leading-none">✕</span>
+                    ) : (
+                      <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-1.7-1L15 3.6h-4l-.4 2.4a7.6 7.6 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 0 0 1.7 1l.4 2.4h4l.4-2.4a7.6 7.6 0 0 0 1.7-1l2.3.9 2-3.4z" />
+                      </svg>
+                    )}
+                  </button>
+                  {settingsOpen && (
+                    <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>
+                      <div className="space-y-3">
+                        <Toggle checked={bold} onChange={setBold} label="बोल्ड अक्षर" />
+                        {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="कीबोर्ड दिखाएँ" />}
+                        <Toggle checked={moveOnError} onChange={setMoveOnError} label="गलती पर आगे बढ़ें" />
+                        <Toggle checked={sound} onChange={setSound} label="ध्वनि" />
+                        <Toggle checked={autoScroll} onChange={setAutoScroll} label="ऑटो स्क्रॉल" />
+                        <div className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                          <span>बैकस्पेस</span>
+                          <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="बैकस्पेस चालू" offLabel="बैकस्पेस बंद" />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                          <span>फ़ॉन्ट आकार</span>
+                          <span className="flex items-center gap-1">
+                            <button type="button" onClick={() => setFontPx((value) => Math.max(18, value - 2))} className="rounded-md bg-slate-100 px-2 py-1 text-sm font-black text-slate-700">A−</button>
+                            <span className="w-10 text-center">{fontPx}</span>
+                            <button type="button" onClick={() => setFontPx((value) => Math.min(56, value + 2))} className="rounded-md bg-slate-100 px-2 py-1 text-sm font-black text-slate-700">A+</button>
+                          </span>
+                        </div>
+                        <button type="button" onClick={() => setAltOpen(true)} className="w-full rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-700 hover:bg-slate-200">Alt कोड दिखाएँ</button>
+                      </div>
+                    </TypingSettingsPopup>
+                  )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700">
-                  <Toggle checked={bold} onChange={setBold} label="बोल्ड अक्षर" />
-                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="कीबोर्ड दिखाएँ" />}
-                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="गलती पर आगे बढ़ें" />
-                  <Toggle checked={sound} onChange={setSound} label="ध्वनि" />
-                  <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="बैकस्पेस चालू" offLabel="बैकस्पेस बंद" />
-                  <button type="button" onClick={() => setAltOpen(true)} className="rounded-lg bg-white px-3 py-1.5 text-xs font-black text-slate-600 shadow-sm hover:bg-slate-200">Alt कोड दिखाएँ</button>
-                  {step === 3 && <p className="w-full rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">परीक्षा मोड — इस चरण में कीबोर्ड नहीं दिखता।</p>}
-                </div>
+                {step === 3 && <p className="mt-3 shrink-0 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">परीक्षा मोड — इस चरण में कीबोर्ड नहीं दिखता।</p>}
 
                 <div
-                  className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100 sm:min-h-64 md:min-h-72 lg:min-h-80"
-                  style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "min(45vh, 34rem)" }}
+                  className={`mt-4 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100 ${isFullscreen ? "min-h-0 flex-1" : ""}`}
+                  style={isFullscreen ? { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400 } : { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
                   aria-hidden
                 >
                   {[...target].map((char, position) => {
@@ -300,7 +319,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                       : state === "bad" ? "rounded bg-rose-200 text-rose-700"
                       : state === "cur" ? "rounded bg-amber-300 text-slate-900"
                       : "text-slate-400";
-                    return <span key={position} className={cls}>{char === " " ? " " : char}</span>;
+                    return <span key={position} ref={state === "cur" ? caretElRef : undefined} className={cls}>{char === " " ? " " : char}</span>;
                   })}
                 </div>
 
@@ -310,19 +329,18 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   onChange={(event) => handleChange(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key !== "Backspace") return;
-                    setBackspaceCount((value) => value + 1);
                     if (!backspaceEnabled) event.preventDefault();
                   }}
                   onPaste={(event) => event.preventDefault()}
                   spellCheck={false}
                   autoFocus
                   aria-label="टाइपिंग क्षेत्र"
-                  className="mt-3 h-52 w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 sm:h-60 md:h-64 lg:h-72"
-                  style={{ fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 }}
+                  className={`mt-3 w-full max-w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 ${isFullscreen ? "min-h-0 flex-1" : ""}`}
+                  style={isFullscreen ? { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 } : { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
                   placeholder="यहाँ टाइप करना शुरू करें…"
                 />
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <div className="mt-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                   <span className="font-bold text-slate-500">दबाएँ:</span>
                   {nextKey && "key" in nextKey ? (
                     <span className="font-black text-slate-900">
@@ -376,7 +394,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
 
 function StepRail({ step, onPick }: { step: number; onPick: (value: number) => void }) {
   return (
-    <div className="mt-4 flex items-stretch gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-sm sm:gap-2">
+    <div className="flex items-stretch gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-sm sm:gap-2">
       {STEPS.map((item, position) => {
         const active = position === step;
         const doneStep = position < step;
