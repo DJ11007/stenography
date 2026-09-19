@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { STENOGRAPHY_CATEGORIES } from "@/lib/stenography-categories";
 import { TypingBrandHeader } from "../../../_components/typing-brand";
-import { BackButton } from "../../../../_components/back-button";
 import { ExamCategoryIcon } from "../../../exams/_components/exam-category-icon";
 
 export const metadata: Metadata = { title: "Stenography Exam Simulators | Samradhi Classes", description: "Independent court and government stenographer exam-pattern simulations, in English and Hindi." };
@@ -10,9 +9,8 @@ export const metadata: Metadata = { title: "Stenography Exam Simulators | Samrad
 export default function StenographyExamCataloguePage() {
   return (
     <main className="min-h-screen bg-slate-100">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref="/typing/practice/stenography" backLabel="Stenography" />
       <section className="mx-auto max-w-7xl px-4 py-10">
-        <BackButton href="/typing/practice/stenography" label="Stenography" />
         <h1 className="mt-5 text-4xl font-black">Stenography Exam Simulators</h1>
         <p className="mt-2 text-slate-600">Independent practice simulations built for court and government stenographer recruitment patterns, in English and Hindi. Not affiliated with any examination authority.</p>
 

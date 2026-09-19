@@ -7,7 +7,6 @@ import { resolvePracticeSelection } from "@/lib/practice-navigator";
 import { sortExamCategoryNavigatorItems } from "@/lib/exam-category-navigator";
 import { ConfigurableTypingExam, type PracticeNavigation } from "../../_components/configurable-typing-exam";
 import { TypingBrandHeader } from "../../_components/typing-brand";
-import { BackButton } from "../../../_components/back-button";
 import { FreePracticeLimitPaywall } from "./free-limit-paywall";
 
 type Params = { input?: string; test?: string; sort?: string };
@@ -77,13 +76,12 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
     };
     return (
       <main className="min-h-screen bg-slate-100">
-        <TypingBrandHeader />
+        {/* Not /typing/practice -- that page offers both English and Hindi,
+            which would undo the language choice this picker already made
+            (the same class of bug as the in-workspace Back button fix
+            above). The Typing Hub names no language at all. */}
+        <TypingBrandHeader backHref="/typing" backLabel="Typing Hub" />
         <section className="mx-auto max-w-5xl px-4 py-10">
-          {/* Not /typing/practice -- that page offers both English and Hindi,
-              which would undo the language choice this picker already made
-              (the same class of bug as the in-workspace Back button fix
-              above). The Typing Hub names no language at all. */}
-          <BackButton href="/typing" label="Typing Hub" />
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-blue-700">{language} · {mode === "stenography" ? "Stenography" : "Take Tests"}</p>

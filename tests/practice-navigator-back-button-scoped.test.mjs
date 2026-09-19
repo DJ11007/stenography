@@ -27,8 +27,8 @@ test("PracticeNavigator's in-workspace Back button is scoped to the language (an
 // above, one level further out.
 test("the picker's own Back button does not link to the unscoped /typing/practice category chooser", async () => {
   const navigator = await read("app/typing/practice/_components/practice-navigator.tsx");
-  assert.doesNotMatch(navigator, /<BackButton href="\/typing\/practice" label="Practice Categories" \/>/);
-  assert.match(navigator, /<BackButton href="\/typing" label="Typing Hub" \/>/);
+  assert.doesNotMatch(navigator, /<TypingBrandHeader backHref="\/typing\/practice" backLabel="Practice Categories"/);
+  assert.match(navigator, /<TypingBrandHeader backHref="\/typing" backLabel="Typing Hub" \/>/);
 });
 
 // Same class of bug, one screen further back: the Hindi keyboard-picker

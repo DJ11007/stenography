@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { TypingBrandHeader } from "../_components/typing-brand";
-import { BackButton } from "../../_components/back-button";
 
 // A small hub, room for more games later -- WordTris today, matching the
 // existing "Word Efficiency is its own top-level area linked from the
@@ -19,9 +18,8 @@ const games = [
 export default function GamesHubPage() {
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref="/typing" backLabel="Typing Hub" />
       <section className="mx-auto max-w-5xl px-4 py-12">
-        <BackButton href="/typing" label="Typing Hub" />
         <p className="mt-5 text-sm font-bold uppercase tracking-widest text-cyan-600">Take a break, keep typing</p>
         <h2 className="mt-2 text-3xl font-black">Games</h2>
         <div className="mt-7 grid gap-5 md:grid-cols-2">

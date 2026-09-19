@@ -161,7 +161,7 @@ test("the category rules page shows English and Hindi rules with distinct start 
   assert.match(page, /Start in Hindi/);
   assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/english`\}/);
   assert.match(page, /href=\{`\/typing\/exams\/category\/\$\{category\.slug\}\/hindi`\}/);
-  assert.match(page, /<BackButton href="\/typing\/exams" label="Exam Categories" \/>/);
+  assert.match(page, /<TypingBrandHeader backHref="\/typing\/exams" backLabel="Exam Categories" \/>/);
 });
 
 // Real reported bug (screenshot): the English and Hindi rule lists are

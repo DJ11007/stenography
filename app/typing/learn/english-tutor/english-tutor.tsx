@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finger, FingerInfo, KeyCap } from "@/lib/english-tutor-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { TypingSettingsPopup } from "../../_components/configurable-typing-exam";
-import { BackButton } from "@/app/_components/back-button";
 
 const UI = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, "Courier New", monospace';
@@ -189,15 +188,12 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   // so the ordinary scrollable page is untouched.
   return (
     <main ref={rootRef} className={`bg-slate-100 ${isFullscreen ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-screen overflow-y-auto"}`} style={{ fontFamily: UI }}>
-      {!isFullscreen && <TypingBrandHeader />}
+      {!isFullscreen && <TypingBrandHeader backHref="/typing/learn/english" backLabel="All English Lessons" />}
       <section className={`mx-auto w-full max-w-6xl px-3 py-5 sm:px-5 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
-        {/* Real requested layout change: the back link, the step rail, and
-            the badge/fullscreen controls used to be two stacked rows --
-            merged into one, with the step rail taking the flexible middle
-            space (it already scrolls horizontally on its own if it doesn't
-            fit) instead of always getting its own full-width row below. */}
+        {/* Step rail + badge/fullscreen controls -- back navigation now
+            lives in the header itself (backHref/backLabel above), always
+            in the same spot under the logo on every page. */}
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <BackButton href="/typing/learn/english" label="All English Lessons" />
           <div className="min-w-0 flex-1">
             <StepRail step={step} onPick={setStep} />
           </div>

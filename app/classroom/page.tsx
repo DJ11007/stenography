@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { requireStudent } from "@/lib/auth";
 import { getPublishedClassroomUpdates, getLiveClassLink } from "@/lib/classroom-server";
 import { TypingBrandHeader } from "../typing/_components/typing-brand";
-import { BackButton } from "../_components/back-button";
 import { formatIST } from "@/lib/format-datetime";
 
 export const metadata: Metadata = { title: "Classroom | Samradhi Classes" };
@@ -12,9 +11,8 @@ export default async function ClassroomPage() {
   const [updates, liveClass] = await Promise.all([getPublishedClassroomUpdates(20), getLiveClassLink()]);
   return (
     <main className="min-h-screen bg-slate-100">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref="/typing" backLabel="Typing Hub" />
       <section className="mx-auto max-w-4xl px-4 py-10">
-        <BackButton href="/typing" label="Typing Hub" />
         <h1 className="mt-5 text-3xl font-black">Classroom</h1>
         <p className="mt-2 text-slate-600">Guidance, updates, and live class from Samradhi Classes.</p>
 

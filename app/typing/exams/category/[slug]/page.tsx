@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { getExamCategory, defaultExamCategoryRules } from "@/lib/exam-categories";
 import { getExamCategoryNavigator, type ExamCategoryNavigatorItem } from "@/lib/exam-category-navigator-server";
 import { TypingBrandHeader } from "../../../_components/typing-brand";
-import { BackButton } from "../../../../_components/back-button";
 import { ExamCategoryIcon } from "../../_components/exam-category-icon";
 
 // How many of this category's real (admin-published) exercises to preview
@@ -37,9 +36,8 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref="/typing/exams" backLabel="Exam Categories" />
       <section className="mx-auto max-w-4xl px-4 py-10">
-        <BackButton href="/typing/exams" label="Exam Categories" />
         <div className="mt-6 flex items-center gap-4">
           <ExamCategoryIcon category={category} size={96} />
           <div>

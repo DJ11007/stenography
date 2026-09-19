@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { getExamCategory, examCategoryPresetId } from "@/lib/exam-categories";
 import { getExamCategoryNavigator } from "@/lib/exam-category-navigator-server";
 import { TypingBrandHeader } from "../../../../_components/typing-brand";
-import { BackButton } from "../../../../../_components/back-button";
 import { ExamCategoryIcon } from "../../../_components/exam-category-icon";
 
 function languageFromSegment(segment: string) {
@@ -46,9 +45,8 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref={`/typing/exams/category/${slug}`} backLabel={category.name} />
       <section className="mx-auto max-w-5xl px-4 py-10">
-        <BackButton href={`/typing/exams/category/${slug}`} label={category.name} />
         <div className="mt-6 flex items-center gap-4">
           <ExamCategoryIcon category={category} size={72} />
           <div>

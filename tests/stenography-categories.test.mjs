@@ -68,7 +68,7 @@ test("the stenography exam simulator hub renders a category grid using the share
   assert.match(hub, /STENOGRAPHY_CATEGORIES\.map/);
   assert.match(hub, /\/typing\/practice\/stenography\/exams\/\$\{category\.slug\}/);
   assert.match(hub, /<ExamCategoryIcon category=\{category\}/);
-  assert.match(hub, /<BackButton href="\/typing\/practice\/stenography" label="Stenography" \/>/);
+  assert.match(hub, /<TypingBrandHeader backHref="\/typing\/practice\/stenography" backLabel="Stenography" \/>/);
 });
 
 test("the stenography category rules page shows English and Hindi rules with distinct start links into the shared exam workspace route", async () => {

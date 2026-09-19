@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { getStenographyCategory, stenographyCategoryPresetId, defaultStenographyCategoryRules } from "@/lib/stenography-categories";
 import { getStenographyCategoryNavigator, type StenographyCategoryNavigatorItem } from "@/lib/stenography-category-navigator-server";
 import { TypingBrandHeader } from "../../../../_components/typing-brand";
-import { BackButton } from "../../../../../_components/back-button";
 import { ExamCategoryIcon } from "../../../../exams/_components/exam-category-icon";
 
 export async function generateMetadata({ params }: PageProps<"/typing/practice/stenography/exams/[slug]">): Promise<Metadata> {
@@ -35,9 +34,8 @@ export default async function StenographyCategoryRulesPage({ params }: PageProps
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref="/typing/practice/stenography/exams" backLabel="Exam Categories" />
       <section className="mx-auto max-w-4xl px-4 py-10">
-        <BackButton href="/typing/practice/stenography/exams" label="Exam Categories" />
         <div className="mt-6 flex items-center gap-4">
           <ExamCategoryIcon category={category} size={96} />
           <div>

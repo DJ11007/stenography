@@ -2,14 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { TypingBrandHeader } from "../_components/typing-brand";
-import { BackButton } from "../../_components/back-button";
 import { ExamCategoryIcon } from "./_components/exam-category-icon";
 
 export const metadata:Metadata={title:"Typing Exam Simulator | Samradhi Classes",description:"Independent exam-pattern typing simulations with transparent configuration and no examination-authority affiliation claim."};
 
 export default function ExamCataloguePage() {
-  return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto max-w-7xl px-4 py-10">
-    <BackButton href="/typing" label="Typing Hub"/>
+  return <main className="min-h-screen bg-slate-100"><TypingBrandHeader backHref="/typing" backLabel="Typing Hub"/><section className="mx-auto max-w-7xl px-4 py-10">
     <h1 className="mt-5 text-4xl font-black">Typing Exam Simulator</h1>
     <p className="mt-2 text-slate-600">Independent practice simulations built for government and institutional recruitment exam patterns, in English and Hindi. Not affiliated with any examination authority.</p>
 

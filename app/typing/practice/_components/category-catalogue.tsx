@@ -3,7 +3,6 @@ import Link from "next/link";
 import type { ManagedTestMode } from "@/lib/admin-tests";
 import { hindiInputSystemsFor } from "@/lib/typing-curriculum";
 import { getPublishedManagedTests } from "@/lib/managed-test-catalogue-server";
-import { BackButton } from "../../../_components/back-button";
 import { ManagedTestCards } from "../../_components/managed-test-cards";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 
@@ -41,5 +40,5 @@ export async function HindiCatalogue({ title, description, mode, selectedInput }
 
 export function ComingSoon({ title, description, accent }: { title:string; description:string; accent:string }) { return <CatalogueShell title={title} description={description}><section className={`overflow-hidden rounded-3xl bg-gradient-to-br ${accent} p-8 text-white shadow-xl sm:p-12`}><span className="rounded-full bg-white/15 px-4 py-2 text-xs font-black uppercase tracking-widest">Coming Soon</span><h2 className="mt-6 text-3xl font-black">A focused training workspace is being prepared.</h2><p className="mt-4 max-w-2xl leading-7 text-white/85">The catalogue route is ready for future administrator-created exercises. Until the interactive module launches, this page will remain a clear, working destination.</p><Link href="/typing/practice" className="mt-8 inline-flex rounded-xl bg-white px-5 py-3 font-black text-slate-900">Back to Practice Categories</Link></section></CatalogueShell>; }
 
-function CatalogueShell({title,description,children,backHref="/typing/practice",backLabel="Practice Categories"}:{title:string;description:string;children:React.ReactNode;backHref?:string;backLabel?:string}) { return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto max-w-7xl px-4 py-10"><BackButton href={backHref} label={backLabel}/><h1 className="mt-6 text-4xl font-black">{title}</h1><p className="mt-3 max-w-3xl text-slate-600">{description}</p><div className="mt-8">{children}</div></section></main>; }
+function CatalogueShell({title,description,children,backHref="/typing/practice",backLabel="Practice Categories"}:{title:string;description:string;children:React.ReactNode;backHref?:string;backLabel?:string}) { return <main className="min-h-screen bg-slate-100"><TypingBrandHeader backHref={backHref} backLabel={backLabel}/><section className="mx-auto max-w-7xl px-4 py-10"><h1 className="mt-6 text-4xl font-black">{title}</h1><p className="mt-3 max-w-3xl text-slate-600">{description}</p><div className="mt-8">{children}</div></section></main>; }
 function humanize(id:string) { return id.split("-").filter(Boolean).map((part)=>part[0]?.toUpperCase()+part.slice(1)).join(" "); }

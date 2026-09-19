@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finger, FingerInfo, KeyCap } from "@/lib/krutidev-tutor-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { TypingSettingsPopup } from "../../_components/configurable-typing-exam";
-import { BackButton } from "@/app/_components/back-button";
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
@@ -199,14 +198,12 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
 
   return (
     <main ref={rootRef} className={`bg-slate-100 ${isFullscreen ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-screen overflow-y-auto"}`} style={{ fontFamily: HI }}>
-      {!isFullscreen && <TypingBrandHeader />}
+      {!isFullscreen && <TypingBrandHeader backHref="/typing/learn/hindi" backLabel="सभी हिन्दी पाठ" />}
       <section className={`mx-auto w-full max-w-6xl px-3 py-5 sm:px-5 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
-        {/* Back link, step rail, and the badge/fullscreen controls merged
-            into one row -- mirrors the English tutor's own layout, the step
-            rail taking the flexible middle space (it already scrolls
-            horizontally on its own if it doesn't fit). */}
+        {/* Step rail + badge/fullscreen controls -- back navigation now
+            lives in the header itself (backHref/backLabel above), always
+            in the same spot under the logo on every page. */}
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <BackButton href="/typing/learn/hindi" label="सभी हिन्दी पाठ" />
           <div className="min-w-0 flex-1">
             <StepRail step={step} onPick={setStep} />
           </div>

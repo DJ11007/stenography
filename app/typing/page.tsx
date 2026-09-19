@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { TypingBrandHeader } from "./_components/typing-brand";
-import { BackButton } from "../_components/back-button";
 
 const sections = [
   {
@@ -72,9 +71,8 @@ const sections = [
 export default function TypingHubPage() {
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
-      <TypingBrandHeader />
+      <TypingBrandHeader backHref="/" backLabel="Home" />
       <section className="mx-auto max-w-7xl px-4 py-12">
-        <BackButton href="/" label="Home" />
         <p className="mt-5 text-sm font-bold uppercase tracking-widest text-blue-600">Choose your path</p>
         <h2 className="mt-2 text-3xl font-black">Eight focused typing areas</h2>
         <div className="mt-7 grid gap-5 md:grid-cols-2">
