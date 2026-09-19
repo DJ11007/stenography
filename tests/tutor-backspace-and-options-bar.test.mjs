@@ -41,24 +41,29 @@ for (const [file, label] of [
   });
 
   if (isEnglish) {
-    // Real reported follow-up request, English only: the flat always-visible
-    // options row (this test used to check for) is now a collapsed
-    // "Settings ▾" button that expands into a vertical listing with its own
-    // close (✕) button -- and the live progress strip moved back down,
-    // directly below the exercise-selector row instead of sitting above it,
-    // "sent down" one level per the request. Kruti Dev is untouched -- its
-    // own copies of these two tests (below) still check the older layout.
-    test(`${file} collapses its settings into a listing (▾ to open, ✕ to close) that also holds font size and Auto scroll, directly below the exercise-selector row`, async () => {
+    // Real reported follow-up request, English only: an inline expanding
+    // listing (this test used to check for) still pushed the drill down --
+    // wrong pattern. Now reuses the exact same floating, viewport-aware,
+    // focus-trapped popup the real typing-test workspace opens its own
+    // Settings from (TypingSettingsPopup, configurable-typing-exam.tsx),
+    // triggered by a gear-icon button instead of a text "Settings ▾" one --
+    // and the live progress strip moved back down, directly below the
+    // exercise-selector row instead of sitting above it, "sent down" one
+    // level per the request. Kruti Dev is untouched -- its own copies of
+    // these two tests (below) still check the older inline-row layout.
+    test(`${file} opens Settings in the same floating popup the real typing-test workspace uses, via a gear-icon trigger, not an inline listing`, async () => {
       const content = await read(file);
       assert.match(content, /const \[settingsOpen, setSettingsOpen\] = useState\(false\);/);
-      assert.match(content, /Settings <span aria-hidden className=\{`transition-transform \$\{settingsOpen \? "rotate-180" : ""\}`\}>▾<\/span>/);
-      assert.match(content, /aria-label="Close settings"/);
+      assert.match(content, /import \{ TypingSettingsPopup \} from "\.\.\/\.\.\/_components\/configurable-typing-exam";/);
+      assert.match(content, /<TypingSettingsPopup triggerRef=\{settingsTriggerRef\} onClose=\{closeSettings\}>/);
+      assert.match(content, /aria-haspopup="dialog"/);
+      assert.match(content, /<circle cx="12" cy="12" r="3" \/>/); // the gear icon, not a "▾" text glyph
       assert.match(content, /<Toggle checked=\{autoScroll\} onChange=\{setAutoScroll\} label="Auto scroll" \/>/);
       const exerciseSelectorRow = content.indexOf("Choose an exercise");
       const progressStrip = content.indexOf("Progress</span>");
-      const settingsListing = content.indexOf("space-y-2.5 text-sm font-bold text-slate-700");
+      const settingsTrigger = content.indexOf("aria-haspopup=\"dialog\"");
       assert.ok(exerciseSelectorRow > 0 && progressStrip > exerciseSelectorRow, "progress strip must come after (below) the exercise-selector row");
-      assert.ok(settingsListing > progressStrip, "the settings listing must come after the progress strip");
+      assert.ok(settingsTrigger > exerciseSelectorRow, "the settings trigger must sit in the exercise-selector row");
     });
 
     // Real reported request: the drill box can scroll the current position

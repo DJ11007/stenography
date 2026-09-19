@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finger, FingerInfo, KeyCap } from "@/lib/english-tutor-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
+import { TypingSettingsPopup } from "../../_components/configurable-typing-exam";
 
 const UI = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, "Courier New", monospace';
@@ -52,7 +53,16 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const audioRef = useRef<AudioContext | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   const caretElRef = useRef<HTMLSpanElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Same floating popup the real typing-test workspace opens its own
+  // Settings from (TypingSettingsPopup, configurable-typing-exam.tsx) --
+  // an inline panel that pushed the drill down was the wrong pattern here.
+  const closeSettings = (restoreFocus = false) => {
+    setSettingsOpen(false);
+    if (restoreFocus) window.setTimeout(() => settingsTriggerRef.current?.focus(), 0);
+  };
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -249,13 +259,48 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                     <button type="button" onClick={() => setIdx(Math.min(total - 1, idx + 1))} disabled={idx >= total - 1} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">»</button>
                   </div>
                   <button
+                    ref={settingsTriggerRef}
                     type="button"
-                    onClick={() => setSettingsOpen((value) => !value)}
+                    aria-haspopup="dialog"
                     aria-expanded={settingsOpen}
-                    className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 hover:bg-slate-200"
+                    aria-controls="typing-settings-dialog"
+                    aria-label={settingsOpen ? "Close Settings" : "Settings"}
+                    title={settingsOpen ? "Close Settings" : "Settings"}
+                    onClick={() => setSettingsOpen((value) => !value)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                   >
-                    Settings <span aria-hidden className={`transition-transform ${settingsOpen ? "rotate-180" : ""}`}>▾</span>
+                    {settingsOpen ? (
+                      <span aria-hidden className="text-base font-black leading-none">✕</span>
+                    ) : (
+                      <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-1.7-1L15 3.6h-4l-.4 2.4a7.6 7.6 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 0 0 1.7 1l.4 2.4h4l.4-2.4a7.6 7.6 0 0 0 1.7-1l2.3.9 2-3.4z" />
+                      </svg>
+                    )}
                   </button>
+                  {settingsOpen && (
+                    <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>
+                      <div className="space-y-3">
+                        <Toggle checked={bold} onChange={setBold} label="Bold text" />
+                        {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" />}
+                        <Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" />
+                        <Toggle checked={sound} onChange={setSound} label="Sound" />
+                        <Toggle checked={autoScroll} onChange={setAutoScroll} label="Auto scroll" />
+                        <div className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                          <span>Backspace</span>
+                          <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="Backspace On" offLabel="Backspace Off" />
+                        </div>
+                        <div className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
+                          <span>Font size</span>
+                          <span className="flex items-center gap-1">
+                            <button type="button" onClick={() => setFontPx((value) => Math.max(16, value - 2))} className="rounded-md bg-slate-100 px-2 py-1 text-sm font-black text-slate-700">A−</button>
+                            <span className="w-10 text-center">{fontPx}</span>
+                            <button type="button" onClick={() => setFontPx((value) => Math.min(48, value + 2))} className="rounded-md bg-slate-100 px-2 py-1 text-sm font-black text-slate-700">A+</button>
+                          </span>
+                        </div>
+                      </div>
+                    </TypingSettingsPopup>
+                  )}
                 </div>
 
                 {/* Progress -- moved down here, right below the exercise picker,
@@ -273,39 +318,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                     <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
                   </div>
                 </div>
-
-                {/* Settings -- a collapsed "Settings ▾" button by default;
-                    expands into a vertical listing (not the old inline row)
-                    with its own close (✕) button, and now also holds font
-                    size (moved out of the exercise-picker row above) and the
-                    new Auto scroll toggle. */}
-                {settingsOpen && (
-                  <div className="mt-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-black text-slate-700">Settings</span>
-                      <button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close settings" className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200">✕</button>
-                    </div>
-                    <ul className="mt-2 space-y-2.5 text-sm font-bold text-slate-700">
-                      <li><Toggle checked={bold} onChange={setBold} label="Bold text" /></li>
-                      {step !== 3 && <li><Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" /></li>}
-                      <li><Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" /></li>
-                      <li><Toggle checked={sound} onChange={setSound} label="Sound" /></li>
-                      <li><Toggle checked={autoScroll} onChange={setAutoScroll} label="Auto scroll" /></li>
-                      <li className="flex items-center justify-between gap-3">
-                        <span>Backspace</span>
-                        <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="Backspace On" offLabel="Backspace Off" />
-                      </li>
-                      <li className="flex items-center justify-between gap-3">
-                        <span>Font size</span>
-                        <span className="flex items-center gap-1">
-                          <button type="button" onClick={() => setFontPx((value) => Math.max(16, value - 2))} className="rounded-md bg-slate-200 px-2 py-1 text-sm font-black text-slate-700">A−</button>
-                          <span className="w-10 text-center">{fontPx}</span>
-                          <button type="button" onClick={() => setFontPx((value) => Math.min(48, value + 2))} className="rounded-md bg-slate-200 px-2 py-1 text-sm font-black text-slate-700">A+</button>
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                )}
 
                 {step === 3 && <p className="mt-3 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
 

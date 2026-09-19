@@ -351,13 +351,17 @@ function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChan
 
 type WorkspaceProps = { preset: ExamPreset; passage: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; rulesLocked: boolean; highlightLocked: boolean; backspaceLocked: boolean; manualUnlock: boolean; onManualUnlockChange?: (value: boolean) => void; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void; durationMinutes: number; durationLocked: boolean; onDurationChange: (value: number) => void; showPassageWordCount: boolean; passageWordCount: number; passageWordCountLocked: boolean; onPassageWordCountChange: (value: number | null) => void; backHref?: string; adminPreview: boolean };
 
-type SettingsPopupProps = {
+export type SettingsPopupProps = {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onClose: (restoreFocus?: boolean) => void;
   children: React.ReactNode;
 };
 
-function TypingSettingsPopup({ triggerRef, onClose, children }: SettingsPopupProps) {
+// Exported so other typing surfaces (e.g. the English/Kruti Dev learn
+// tutors) can open their own settings in this exact same floating,
+// viewport-aware, focus-trapped popup instead of each reinventing it --
+// this component has no dependency on anything else in this file.
+export function TypingSettingsPopup({ triggerRef, onClose, children }: SettingsPopupProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState({ top: 8, left: 8, width: 352, maxHeight: 420 });

@@ -136,3 +136,20 @@ test("the tutor has a full-screen toggle and no font-conversion step (unlike Kru
   const page = await read("app/typing/learn/english-tutor/page.tsx");
   assert.doesNotMatch(page, /toTypeableKrutiDev|krutiDevToUnicode/);
 });
+
+// Real reported friction: the real student-facing page is gated by
+// requireStudent() (app/typing/layout.tsx), which redirects an admin
+// session straight to /admin -- there was previously no way for an admin
+// to just open it and see what a student sees, only a throwaway route
+// recreated (and deleted) by hand each time. This permanent, admin-gated
+// route renders the same page component/provider instead, and is wired
+// into the admin dashboard so it doesn't need rebuilding again.
+test("a permanent, admin-gated preview route renders the real EnglishTutor component, wired into the admin dashboard", async () => {
+  const preview = await read("app/admin/preview/english-tutor/page.tsx");
+  assert.match(preview, /await requireAdmin\(\);/);
+  assert.match(preview, /getEnglishTutorExercises/);
+  assert.match(preview, /<EnglishTutor/);
+  assert.match(preview, /<TypingStudentProvider/);
+  const admin = await read("app/admin/page.tsx");
+  assert.match(admin, /"\/admin\/preview\/english-tutor", "Preview: English Typing Tutor"/);
+});
