@@ -97,6 +97,19 @@ preferredLegacy.set("+", "$");
 // literal "=" and nothing else, confirmed rendering as a proper "=" glyph
 // in the bundled font.
 preferredLegacy.set("=", "¾");
+// Real reported bug: a passage priced something in Rupees ("₹750") and the
+// ₹ sign (U+20B9) rendered wrong. This font predates the 2010 Rupee-sign
+// Unicode standardisation, so it has no glyph for U+20B9 at all -- the
+// general loop above never touches it (₹ isn't Devanagari), so
+// unicodeToKrutiDev passed it straight through, and it only ever looked
+// right on screen because the browser silently substitutes a fallback
+// font for the one codepoint Kruti Dev 010 can't draw (confirmed by
+// rendering the bundled .ttf directly, bypassing that fallback). Legacy
+// byte "#" (Shift+3) is this font's actual, purpose-built stand-in --
+// confirmed rendering as a proper overlined रु ligature (the traditional
+// hand-written Rupee abbreviation) in the bundled font, the same key the
+// teacher's own reference chart names for this symbol.
+preferredLegacy.set("₹", "#");
 // Real reported bug: an admin's word-set drill wrapped every word in
 // typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
 // garbage glyphs around each word instead of quote marks. These curly

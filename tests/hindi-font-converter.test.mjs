@@ -359,6 +359,21 @@ test("literal plus (+) and equals (=) round-trip via \"$\"/\"¾\" instead of col
   }
 });
 
+// Real reported bug: a passage priced something in Rupees ("₹750") and the
+// ₹ sign (U+20B9) rendered wrong -- this font predates the 2010 Rupee-sign
+// Unicode standardisation, so it has no glyph for U+20B9 at all, and it
+// only ever looked right on screen because the browser silently
+// substitutes a fallback font for that one unsupported codepoint.
+// Confirmed by direct rendering that Shift+3 (raw byte "#") is this font's
+// purpose-built stand-in: a proper overlined रु ligature.
+// Decoding "#" back still yields "रु" (its pre-existing dictionary
+// meaning), not "₹" -- fine for scoring, which matches raw keystrokes, not
+// decoded meaning.
+test("literal Rupee sign (₹) converts to \"#\" (Shift+3), this font's own Rupee-abbreviation glyph",()=>{
+  assert.equal(unicodeToKrutiDev("₹750"),"#750");
+  assert.equal(krutiDevToUnicode("#"),"रु");
+});
+
 // Found by the same audit: a "‚" (U+201A) -> "kW" fold was added earlier
 // this session on the unverified claim that "kW" is ॉ's (candra-O)
 // keyboard-typeable form with "scoring unaffected either way it's
