@@ -31,24 +31,27 @@ test("the WordTris game requires a student session (inherited from app/typing/la
   assert.match(actions, /Math\.max\(0, Math\.round\(score\)\)/);
 });
 
-// Real reported request: a single item falling at a time never looked
-// like "multiple drops" no matter how fast -- now several fall at once,
-// starting slow and gradually speeding up (both spawn interval and each
-// drop's own fall duration driven by the same speedLevel, up on a catch,
-// down on a miss -- the same forgiving "ease off after a miss, ramp back
-// up" shape as before, just continuous instead of a per-streak jump), and
-// six missed drops (not five) end the round.
-test("the difficulty curve starts slow and ramps up continuously via speedLevel, floored so it never becomes unfair, with six lives", async () => {
+// Real reported request: the old ms-based curve (fixed base time shrinking
+// by a constant exponential factor per catch) had no relationship to a
+// real typing speed and felt too fast from the first drop. Replaced with
+// an explicit WPM milestone ladder: starts at the first milestone, every
+// WORDTRIS_CATCHES_PER_MILESTONE catches in a row advances to the next
+// rung, and a miss instead backs the WPM off by WORDTRIS_MISS_WPM_PENALTY
+// and restarts that catch count -- six missed drops (not five) end the
+// round either way.
+test("the difficulty curve is an explicit WPM milestone ladder -- starts slow, advances every 7 catches, eases off 3 WPM on a miss, six lives", async () => {
   const content = await read("lib/wordtris-content.ts");
-  assert.match(content, /startingLives: 6/);
-  assert.match(content, /baseSpawnMs: 2600/);
-  assert.match(content, /minSpawnMs: 900/);
-  assert.match(content, /speedFactor: 0\.93/);
+  assert.match(content, /WORDTRIS_WPM_MILESTONES = \[15, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30\]/);
+  assert.match(content, /WORDTRIS_CATCHES_PER_MILESTONE = 7/);
+  assert.match(content, /WORDTRIS_MISS_WPM_PENALTY = 3/);
+  assert.match(content, /WORDTRIS_STARTING_LIVES = 6/);
+  assert.match(content, /export function wordtrisFallMs\(text: string, wpm: number, mode: WordtrisMode\)/);
+  assert.match(content, /export function wordtrisNextMilestone\(currentWpm: number\)/);
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /setSpeedLevel\(\(l\) => l \+ 1\)/); // ramps up on catch
-  assert.match(game, /setSpeedLevel\(\(l\) => Math\.max\(0, l - 2\)\)/); // eases off on miss
-  assert.match(game, /Math\.max\(minFallMs, baseFallMs \* speedFactor \*\* speedLevelRef\.current\)/);
-  assert.match(game, /Math\.max\(minSpawnMs, baseSpawnMs \* speedFactor \*\* speedLevelRef\.current\)/);
+  assert.match(game, /catchesSinceBumpRef\.current \+= 1;/); // ramps up every N catches
+  assert.match(game, /const eased = Math\.max\(WORDTRIS_MIN_WPM, wpmRef\.current - WORDTRIS_MISS_WPM_PENALTY\);/); // eases off on miss
+  assert.match(game, /const fallMs = wordtrisFallMs\(target, wpmRef\.current, m\);/);
+  assert.match(game, /nextSpawnAt = Date\.now\(\) \+ wordtrisSpawnMs\(wpmRef\.current\);/);
 });
 
 // Real reported request: multiple drops fall at once now, each in its own
@@ -90,13 +93,15 @@ test("the leaderboard is scoped per (language, category), never compared across 
 // already-verified keyboard content -- not a new hand-typed character
 // list (the same class of byte-collision bug hindi-font-converter.ts
 // keeps finding).
-test("character mode reuses the Kruti Dev / English tutor keyboards' own GLYPH_KEYS, not a new hand-typed list, and has its own faster difficulty curve", async () => {
+test("character mode reuses the Kruti Dev / English tutor keyboards' own GLYPH_KEYS, not a new hand-typed list, and has its own (smaller) reading buffer", async () => {
   const content = await read("lib/wordtris-content.ts");
-  assert.match(content, /WORDTRIS_CHARACTER_DIFFICULTY/);
+  assert.match(content, /WORDTRIS_READING_BUFFER_MS: Record<WordtrisMode, number> = \{ word: 1200, character: 400 \};/);
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "@\/lib\/krutidev-tutor-content"/);
   assert.match(game, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "@\/lib\/english-tutor-content"/);
-  assert.match(game, /mode === "character" \? WORDTRIS_CHARACTER_DIFFICULTY : WORDTRIS_DIFFICULTY/);
+  // mode (m) is passed through to wordtrisFallMs, which is what actually
+  // selects the per-mode reading buffer (see the curve test above).
+  assert.match(game, /const fallMs = wordtrisFallMs\(target, wpmRef\.current, m\);/);
 });
 
 // Character mode's Hindi content is already raw, typeable Kruti Dev bytes

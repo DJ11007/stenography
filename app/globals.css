@@ -81,13 +81,41 @@
    `startingLives` in wordtris-game.tsx -- six steps to full/game over)
    fills the bucket from the bottom, with an animated wavy surface. A miss
    also triggers a brief expanding "splash" ring at the point of impact. */
-@keyframes wordtris-cloud-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+/* Three clouds drift independently and overlap -- each keyframe bakes in
+   both its own base left/right offset (spreading the three across the
+   cluster) AND its horizontal sway plus vertical bob, all in one
+   `transform`, since a plain Tailwind translate-x utility class would
+   just get overwritten by the animation's own `transform` rather than
+   combine with it. This is why the clouds only need `left-1/2` in JSX --
+   every other positioning lives here. */
+@keyframes wordtris-cloud-a {
+  0% { transform: translate(-76%, 0); }
+  50% { transform: translate(-64%, -10px); }
+  100% { transform: translate(-76%, 0); }
 }
 
-.animate-wordtris-cloud-float {
-  animation: wordtris-cloud-float 5s ease-in-out infinite;
+@keyframes wordtris-cloud-b {
+  0% { transform: translate(-47%, -6px); }
+  50% { transform: translate(-53%, 8px); }
+  100% { transform: translate(-47%, -6px); }
+}
+
+@keyframes wordtris-cloud-c {
+  0% { transform: translate(-36%, 6px); }
+  50% { transform: translate(-24%, -8px); }
+  100% { transform: translate(-36%, 6px); }
+}
+
+.animate-wordtris-cloud-a {
+  animation: wordtris-cloud-a 9s ease-in-out infinite;
+}
+
+.animate-wordtris-cloud-b {
+  animation: wordtris-cloud-b 13s ease-in-out infinite;
+}
+
+.animate-wordtris-cloud-c {
+  animation: wordtris-cloud-c 11s ease-in-out infinite;
 }
 
 @keyframes wordtris-wave-scroll {
@@ -125,11 +153,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-wordtris-cloud-float,
   .animate-wordtris-wave-scroll,
   .animate-wordtris-wave-scroll-slow,
   .animate-wordtris-splash,
   .animate-wordtris-shake { animation: none; }
+  /* The clouds' spread-apart layout is baked into their keyframes (see
+     above), so turning the animation off outright would collapse all
+     three back to dead-center, undoing the overlap -- freeze each on its
+     own base offset instead. */
+  .animate-wordtris-cloud-a { animation: none; transform: translate(-76%, 0); }
+  .animate-wordtris-cloud-b { animation: none; transform: translate(-47%, -6px); }
+  .animate-wordtris-cloud-c { animation: none; transform: translate(-36%, 6px); }
 }
 
 /*

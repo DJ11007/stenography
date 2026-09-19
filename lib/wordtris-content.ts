@@ -37,38 +37,60 @@ export function wordtrisPoints(word: string) {
   return 10 + [...word].length * 2;
 }
 
-// Real reported request: rain of a single item at a time, however fast,
-// never felt like "multiple drops" -- now up to MAX_CONCURRENT_DROPS fall
-// at once (see wordtris-game.tsx), spawned on their own schedule
-// (baseSpawnMs -> minSpawnMs) independent of how many are already on
-// screen. Both spawn interval and each drop's own fall duration are driven
-// by the same "speedLevel" (up one per catch, back down two per miss, the
-// same forgiving "ease off after a miss, ramp up on catches" the admin
-// originally asked for) so the round starts slow with drops arriving one
-// at a time, then gradually thickens into genuine rain as the streak
-// builds -- floored so it never becomes unfair. Six missed drops (not
-// five) end the round.
-export const WORDTRIS_DIFFICULTY = {
-  startingLives: 6,
-  baseFallMs: 7000,
-  minFallMs: 2200,
-  baseSpawnMs: 2600,
-  minSpawnMs: 900,
-  speedFactor: 0.93,
-} as const;
+// Real reported request: the previous curve (a fixed base fall time
+// shrinking by a constant exponential factor per catch) had no real
+// relationship to an actual typing speed, and felt too fast from the very
+// first drop. This is an explicit WPM ("words per minute") curve instead --
+// every drop's fall time is computed FROM a target WPM (the standard
+// formula: one "word" = 5 characters), so "speed" is always describable in
+// the same units a student already understands, and the ramp shape is a
+// plain, tunable milestone list rather than an opaque exponent. A round
+// starts at the first milestone; every WORDTRIS_CATCHES_PER_MILESTONE
+// catches in a row advances to the next (bigger jumps early, smaller ones
+// as it approaches the cap); a miss instead backs the WPM off by
+// WORDTRIS_MISS_WPM_PENALTY and restarts that catch count, so recovering
+// back up always retraces the same ladder. Six missed drops (not five)
+// end the round.
+export const WORDTRIS_WPM_MILESTONES = [15, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30] as const;
+export const WORDTRIS_CATCHES_PER_MILESTONE = 7;
+export const WORDTRIS_MISS_WPM_PENALTY = 3;
+export const WORDTRIS_STARTING_LIVES = 6;
+export const WORDTRIS_MIN_WPM = 10;
+export const WORDTRIS_MAX_WPM = 40;
 
-// Character mode drills one keystroke at a time, not a whole word -- a
-// single key needs a fraction of a word's reading-plus-typing time, so
-// this curve starts and floors much faster than WORDTRIS_DIFFICULTY. Same
-// shape, just rescaled.
-export const WORDTRIS_CHARACTER_DIFFICULTY = {
-  startingLives: 6,
-  baseFallMs: 3200,
-  minFallMs: 900,
-  baseSpawnMs: 1400,
-  minSpawnMs: 450,
-  speedFactor: 0.9,
-} as const;
+// Reading/reaction time added on top of the raw keystroke time a drop's own
+// text would take at the current WPM -- a real student needs to *see* and
+// recognise it before typing, not just physically type it in the bare
+// minimum time. Word mode shows a whole word to read; character mode shows
+// one already-visible key, so it needs far less of a buffer.
+export const WORDTRIS_READING_BUFFER_MS: Record<WordtrisMode, number> = { word: 1200, character: 400 };
+export const WORDTRIS_MIN_FALL_MS = 900;
+
+// The standard WPM definition (1 "word" = 5 characters) turned into a fall
+// duration for one specific drop's text, at the given WPM.
+export function wordtrisFallMs(text: string, wpm: number, mode: WordtrisMode) {
+  const chars = [...text].length;
+  const typingMs = (chars / 5 / wpm) * 60000;
+  return Math.max(WORDTRIS_MIN_FALL_MS, WORDTRIS_READING_BUFFER_MS[mode] + typingMs);
+}
+
+// How long to wait before the next drop spawns, at the given WPM -- not
+// milestone-indexed like the fall-time ramp above, since WPM is a
+// continuous value once miss-penalties and manual adjustment are in play;
+// a plain formula (roughly half the time one 5-character word takes to
+// type) stays consistent at any WPM without needing a second lookup table.
+export function wordtrisSpawnMs(wpm: number) {
+  const perWordMs = (60000) / wpm;
+  return Math.max(900, Math.min(2600, perWordMs / 2));
+}
+
+// The next rung up the ladder from the current WPM -- used both for the
+// normal every-7-catches advance and for climbing back up after a miss
+// knocked the WPM down mid-ladder. Caps at the top milestone.
+export function wordtrisNextMilestone(currentWpm: number): number {
+  const next = WORDTRIS_WPM_MILESTONES.find((m) => m > currentWpm);
+  return next ?? WORDTRIS_WPM_MILESTONES[WORDTRIS_WPM_MILESTONES.length - 1];
+}
 
 export const BUNDLED_WORDS: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> = {
   english: {
