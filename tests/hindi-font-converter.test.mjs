@@ -374,6 +374,18 @@ test("literal Rupee sign (₹) converts to \"#\" (Shift+3), this font's own Rupe
   assert.equal(krutiDevToUnicode("#"),"रु");
 });
 
+// Real reported bug: a time value ("08:30") used a literal colon, and it
+// rendered wrong -- Kruti Dev 010 has no dedicated colon key at all.
+// Legacy byte "%" (Shift+5) is already claimed for ः (visarga), and
+// decodeLegacyWord hard-codes "%" -> ः on the decode side regardless, so
+// this is a one-way, many-to-one fold exactly like ₹ -> "#" above:
+// confirmed by rendering "%" directly in the bundled font that visarga's
+// two stacked dots read as an ordinary colon.
+test("literal colon (:) converts to \"%\" (Shift+5), this font's visarga glyph doubling as a colon",()=>{
+  assert.equal(unicodeToKrutiDev("08:30"),"08%30");
+  assert.equal(krutiDevToUnicode("%"),"ः");
+});
+
 // Found by the same audit: a "‚" (U+201A) -> "kW" fold was added earlier
 // this session on the unverified claim that "kW" is ॉ's (candra-O)
 // keyboard-typeable form with "scoring unaffected either way it's

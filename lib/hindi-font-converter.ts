@@ -39,9 +39,10 @@ preferredLegacy.set("-", "&");
 // decode to exactly "." / ";" / "/" and nothing else, so claiming them
 // here doesn't touch any existing mapping, and all three are already
 // typeable on the plain keyboard with no Alt-code needed. Other collided
-// punctuation (":", '"', "&", "%", "@", parentheses, ...) has no such safe
-// keyboard byte in this dictionary at all -- a real limitation of Kruti
-// Dev 010 itself, not something a byte substitution here can fix.
+// punctuation ('"', "&", "@", parentheses, ...) has no such safe keyboard
+// byte in this dictionary at all -- a real limitation of Kruti Dev 010
+// itself, not something a byte substitution here can fix. (":" no longer
+// belongs on this list -- see its own many-to-one fold onto "%" below.)
 preferredLegacy.set(".", "-");
 preferredLegacy.set(";", "(");
 preferredLegacy.set("/", "@");
@@ -110,6 +111,16 @@ preferredLegacy.set("=", "¾");
 // hand-written Rupee abbreviation) in the bundled font, the same key the
 // teacher's own reference chart names for this symbol.
 preferredLegacy.set("₹", "#");
+// Real reported bug: a time value ("08:30") used a literal colon, and it
+// rendered wrong. Kruti Dev 010 has no dedicated colon key -- legacy byte
+// "%" (Shift+5) is already claimed for ः (visarga, see the very first
+// override above), and decodeLegacyWord hard-codes "%" -> ः on the decode
+// side, so this is a one-way, many-to-one fold exactly like ₹ -> "#" just
+// above: scoring matches raw keystrokes, not decoded meaning, and
+// confirmed by rendering "%" directly in the bundled font that visarga's
+// two stacked dots read as an ordinary colon, matching the teacher's own
+// reference for this exact symbol.
+preferredLegacy.set(":", "%");
 // Real reported bug: an admin's word-set drill wrapped every word in
 // typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
 // garbage glyphs around each word instead of quote marks. These curly
