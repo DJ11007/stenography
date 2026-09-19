@@ -58,6 +58,25 @@ preferredLegacy.set("/", "@");
 // a student typing this passage would type an ordinary hyphen for it
 // regardless of which dash the source document happened to use.
 preferredLegacy.set("–", "&");
+// Same reasoning, found via a full-paragraph conversion test with a real
+// admin-supplied passage: the em dash "—" (used as a quotation-attribution
+// dash, e.g. "कहा—" before a quote) has the exact same collision -- it's
+// already the dictionary's OTHER legacy byte for कृ (see the कृ/Ñ override
+// far below), so left unconverted it decodes to कृ instead of a dash. Folds
+// onto the same safe "&" byte as a plain hyphen and an en dash, for the
+// same reason: no Kruti Dev keyboard key produces any of the three dashes
+// distinctly, so a student typing this passage presses the ordinary
+// hyphen key regardless of which ASCII dash character the source document
+// happened to use.
+preferredLegacy.set("—", "&");
+// Same full-paragraph test: typographic double quotes ("..."), not just
+// the single-quote pair already fixed above, collided the same way --
+// krutiDevToUnicode confirms legacy "Þ" (Alt+0222) and "ß" (Alt+0223) are
+// this font's dedicated opening/closing double-quote bytes (matching the
+// teacher's own reference), both already ordinary keyboard-typeable
+// Alt-codes needing no further folding.
+preferredLegacy.set("“", "Þ");
+preferredLegacy.set("”", "ß");
 // Found via a systematic key-by-key audit of the number row against the
 // teacher's own official Kruti Dev 010 keyboard chart: pressing Shift+4
 // (raw byte "$") draws a plain "+" glyph in the bundled font -- a pure

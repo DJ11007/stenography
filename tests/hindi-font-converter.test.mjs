@@ -316,6 +316,31 @@ test("literal en dash (–) round-trips as a hyphen instead of colliding with th
   }
 });
 
+// Found via a full-paragraph conversion test with a real admin-supplied
+// Hindi passage (a quotation-attribution dash before a quoted sentence,
+// e.g. "कहा—"): the em dash has the exact same collision as the en dash
+// above -- it's already the dictionary's OTHER legacy byte for कृ (see the
+// कृ/Ñ override), so left unconverted it decoded to कृ instead of a dash.
+// Folds onto the same safe "&" byte as the hyphen/en-dash, for the same
+// reason: no Kruti Dev keyboard key produces any of the three distinctly.
+test("literal em dash (—) round-trips as a hyphen instead of colliding with this font's कृ meaning",()=>{
+  assert.equal(unicodeToKrutiDev("—"),"&");
+  assert.equal(krutiDevToUnicode(unicodeToKrutiDev("कहा—बोला")), "कहा-बोला");
+});
+
+// Same test passage: typographic double quotes ("...") collided the same
+// way the single-quote pair already above did -- left unconverted, they
+// round-tripped to श् instead of a quote. krutiDevToUnicode confirms
+// legacy "Þ" (Alt+0222) and "ß" (Alt+0223) are this font's dedicated
+// opening/closing double-quote bytes (matching the teacher's own
+// reference chart), both already ordinary keyboard-typeable Alt-codes.
+test("typographic double quotes (“”) convert to their real Kruti Dev Alt-code keys and decode back losslessly",()=>{
+  assert.equal(unicodeToKrutiDev("“"),"Þ");
+  assert.equal(unicodeToKrutiDev("”"),"ß");
+  const sentence = "उसने कहा—“प्रतिनिधित्व नहीं, तो कर भी नहीं।”";
+  assert.equal(krutiDevToUnicode(unicodeToKrutiDev(sentence)), sentence.replace(/—/g,"-"));
+});
+
 // Found via a key-by-key audit of the official Kruti Dev 010 keyboard
 // chart against this font: Shift+4 (raw byte "$") draws a plain "+" glyph
 // in the bundled font, a remap the @anthro-ai dictionary has no entry for
