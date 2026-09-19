@@ -37,7 +37,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [done, setDone] = useState(false);
   const [result, setResult] = useState<{ seconds: number; errors: number; grossWpm: number; netWpm: number; accuracy: number } | null>(null);
-  const [now, setNow] = useState(0);
 
   const [showKeyboard, setShowKeyboard] = useState(true);
   const [moveOnError, setMoveOnError] = useState(true);
@@ -46,7 +45,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const [autoScroll, setAutoScroll] = useState(true);
   const [fontPx, setFontPx] = useState(28);
   const [backspaceEnabled, setBackspaceEnabled] = useState(true);
-  const [backspaceCount, setBackspaceCount] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -120,20 +118,11 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
     setStartedAt(null);
     setDone(false);
     setResult(null);
-    setNow(0);
-    setBackspaceCount(0);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
   // reset whenever the active exercise or step changes
   useEffect(() => { reset(); }, [step, idx, reset]);
-
-  // live clock while a drill is in progress
-  useEffect(() => {
-    if (!startedAt || done) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, [startedAt, done]);
 
   const caret = typed.length;
 
@@ -182,22 +171,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
     setTyped(value);
     if (value.length === target.length && target.length > 0) finish(value);
   };
-
-  const live = useMemo(() => {
-    let correct = 0;
-    for (let i = 0; i < typed.length; i += 1) if (typed[i] === target[i]) correct += 1;
-    const seconds = startedAt ? Math.max(1, ((done ? startedAt : now || startedAt) - startedAt) / 1000 || 1) : 0;
-    const activeSeconds = startedAt && !done ? Math.max(1, (Date.now() - startedAt) / 1000) : seconds;
-    const minutes = activeSeconds / 60;
-    return {
-      correct,
-      errors: typed.length - correct,
-      accuracy: typed.length ? Math.round((correct / typed.length) * 100) : 100,
-      wpm: activeSeconds ? Math.max(0, Math.round(correct / 5 / minutes)) : 0,
-      grossWpm: activeSeconds ? Math.max(0, Math.round(typed.length / 5 / minutes)) : 0,
-      progress: target.length ? Math.round((typed.length / target.length) * 100) : 0,
-    };
-  }, [typed, target, startedAt, done, now]);
 
   const total = exercises.length;
   const kbdVisible = step !== 3 && showKeyboard;
@@ -303,22 +276,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   )}
                 </div>
 
-                {/* Progress -- moved down here, right below the exercise picker,
-                    instead of its own separate card above everything. */}
-                <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
-                    <span>Progress</span>
-                    <span className="text-slate-900">Speed <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
-                    <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>Accuracy <b className="text-sm">{live.accuracy}%</b></span>
-                    <span>Errors <b className="text-sm text-slate-900">{live.errors}</b></span>
-                    <span>Backspace <b className="text-sm text-slate-900">{backspaceCount}</b></span>
-                    <span>Complete <b className="text-sm text-slate-900">{live.progress}%</b></span>
-                  </div>
-                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
-                  </div>
-                </div>
-
                 {step === 3 && <p className="mt-3 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
 
                 <div
@@ -344,7 +301,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   onChange={(event) => handleChange(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key !== "Backspace") return;
-                    setBackspaceCount((value) => value + 1);
                     if (!backspaceEnabled) event.preventDefault();
                   }}
                   onPaste={(event) => event.preventDefault()}

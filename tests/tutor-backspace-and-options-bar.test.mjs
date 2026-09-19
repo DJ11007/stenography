@@ -16,17 +16,37 @@ for (const [file, label] of [
   ["app/typing/learn/english-tutor/english-tutor.tsx", "Backspace"],
 ]) {
   const isEnglish = file.includes("english-tutor");
-  test(`${file} has a Backspace on/off toggle and a live press counter`, async () => {
-    const content = await read(file);
-    assert.match(content, /const \[backspaceEnabled, setBackspaceEnabled\] = useState\(true\);/);
-    assert.match(content, /const \[backspaceCount, setBackspaceCount\] = useState\(0\);/);
-    // reset alongside the other per-exercise state
-    assert.match(content, /setBackspaceCount\(0\);/);
-    assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
-    // every Backspace press is counted, whether or not it's allowed through
-    assert.match(content, /if \(event\.key !== "Backspace"\) return;\s*setBackspaceCount\(\(value\) => value \+ 1\);\s*if \(!backspaceEnabled\) event\.preventDefault\(\);/);
-    assert.match(content, new RegExp(`<span>${label} <b className="text-sm text-slate-900">\\{backspaceCount\\}</b></span>`));
-  });
+
+  if (isEnglish) {
+    // Real reported request: the whole live Progress strip (Speed/Accuracy/
+    // Errors/Backspace count/Complete %) was removed from the English
+    // tutor entirely -- "no need". The Backspace ON/OFF toggle itself
+    // stays (a real behavioural setting, not just a display), only the
+    // press counter (backspaceCount) and everything that fed the removed
+    // strip (the "live" stats useMemo, the live-clock tick) are gone.
+    // Kruti Dev is untouched -- its own copy of the original test (below)
+    // still checks for the counter.
+    test(`${file} has a Backspace on/off toggle but no live press counter or Progress strip (removed entirely, on request)`, async () => {
+      const content = await read(file);
+      assert.match(content, /const \[backspaceEnabled, setBackspaceEnabled\] = useState\(true\);/);
+      assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
+      assert.doesNotMatch(content, /backspaceCount/);
+      assert.doesNotMatch(content, /const live = useMemo/);
+      assert.doesNotMatch(content, />Progress<\/span>/);
+    });
+  } else {
+    test(`${file} has a Backspace on/off toggle and a live press counter`, async () => {
+      const content = await read(file);
+      assert.match(content, /const \[backspaceEnabled, setBackspaceEnabled\] = useState\(true\);/);
+      assert.match(content, /const \[backspaceCount, setBackspaceCount\] = useState\(0\);/);
+      // reset alongside the other per-exercise state
+      assert.match(content, /setBackspaceCount\(0\);/);
+      assert.match(content, /<BackspaceOption enabled=\{backspaceEnabled\} onChange=\{setBackspaceEnabled\} onLabel="[^"]+" offLabel="[^"]+" ?\/>/);
+      // every Backspace press is counted, whether or not it's allowed through
+      assert.match(content, /if \(event\.key !== "Backspace"\) return;\s*setBackspaceCount\(\(value\) => value \+ 1\);\s*if \(!backspaceEnabled\) event\.preventDefault\(\);/);
+      assert.match(content, new RegExp(`<span>${label} <b className="text-sm text-slate-900">\\{backspaceCount\\}</b></span>`));
+    });
+  }
 
   // Real requested polish: Backspace used to be an ordinary label + switch,
   // no different from Bold/Sound -- now gets its own pill-shaped button
@@ -46,11 +66,9 @@ for (const [file, label] of [
     // wrong pattern. Now reuses the exact same floating, viewport-aware,
     // focus-trapped popup the real typing-test workspace opens its own
     // Settings from (TypingSettingsPopup, configurable-typing-exam.tsx),
-    // triggered by a gear-icon button instead of a text "Settings ▾" one --
-    // and the live progress strip moved back down, directly below the
-    // exercise-selector row instead of sitting above it, "sent down" one
-    // level per the request. Kruti Dev is untouched -- its own copies of
-    // these two tests (below) still check the older inline-row layout.
+    // triggered by a gear-icon button instead of a text "Settings ▾" one.
+    // Kruti Dev is untouched -- its own copies of these two tests (below)
+    // still check the older inline-row layout.
     test(`${file} opens Settings in the same floating popup the real typing-test workspace uses, via a gear-icon trigger, not an inline listing`, async () => {
       const content = await read(file);
       assert.match(content, /const \[settingsOpen, setSettingsOpen\] = useState\(false\);/);
@@ -60,10 +78,8 @@ for (const [file, label] of [
       assert.match(content, /<circle cx="12" cy="12" r="3" \/>/); // the gear icon, not a "▾" text glyph
       assert.match(content, /<Toggle checked=\{autoScroll\} onChange=\{setAutoScroll\} label="Auto scroll" \/>/);
       const exerciseSelectorRow = content.indexOf("Choose an exercise");
-      const progressStrip = content.indexOf("Progress</span>");
       const settingsTrigger = content.indexOf("aria-haspopup=\"dialog\"");
-      assert.ok(exerciseSelectorRow > 0 && progressStrip > exerciseSelectorRow, "progress strip must come after (below) the exercise-selector row");
-      assert.ok(settingsTrigger > exerciseSelectorRow, "the settings trigger must sit in the exercise-selector row");
+      assert.ok(settingsTrigger > exerciseSelectorRow && exerciseSelectorRow > 0, "the settings trigger must sit in the exercise-selector row");
     });
 
     // Real reported request: the drill box can scroll the current position
