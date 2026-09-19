@@ -73,7 +73,7 @@ begin
     new_code := upper(substr(md5(random()::text || clock_timestamp()::text), 1, 5));
     attempt := attempt + 1;
     exit when attempt > 20 or not exists (
-      select 1 from public.game_rooms where code = new_code and status <> 'finished'
+      select 1 from public.game_rooms gr where gr.code = new_code and gr.status <> 'finished'
     );
   end loop;
   insert into public.game_rooms(code, game, host_id, config)
@@ -87,9 +87,9 @@ end $fn$;
 create or replace function public.get_my_hosted_room()
 returns table(id uuid, code text, game text, status text, config jsonb)
 language sql stable security definer set search_path=public as $fn$
-  select id, code, game, status, config from public.game_rooms
-  where host_id = auth.uid() and status <> 'finished'
-  order by created_at desc limit 1;
+  select gr.id, gr.code, gr.game, gr.status, gr.config from public.game_rooms gr
+  where gr.host_id = auth.uid() and gr.status <> 'finished'
+  order by gr.created_at desc limit 1;
 $fn$;
 
 -- Any student's own currently-active (non-finished) joined room, same
@@ -116,13 +116,13 @@ declare
   target public.game_rooms;
   student_name text;
 begin
-  select coalesce(nullif(trim(full_name),''),'Student') into student_name
-  from public.profiles where id = auth.uid();
+  select coalesce(nullif(trim(pr.full_name),''),'Student') into student_name
+  from public.profiles pr where pr.id = auth.uid();
   if student_name is null then raise exception 'not authorized'; end if;
 
-  select * into target from public.game_rooms
-  where code = upper(trim(p_code)) and status = 'waiting'
-  order by created_at desc limit 1;
+  select * into target from public.game_rooms gr
+  where gr.code = upper(trim(p_code)) and gr.status = 'waiting'
+  order by gr.created_at desc limit 1;
   if target.id is null then raise exception 'Room not found, or the race has already started.'; end if;
 
   insert into public.game_room_participants(room_id, student_id, student_name)
@@ -224,9 +224,9 @@ returns table(
 language plpgsql stable security definer set search_path=public as $fn$
 begin
   if not exists (
-    select 1 from public.game_rooms where id = p_room_id and host_id = auth.uid()
+    select 1 from public.game_rooms gr where gr.id = p_room_id and gr.host_id = auth.uid()
   ) and not exists (
-    select 1 from public.game_room_participants where room_id = p_room_id and student_id = auth.uid()
+    select 1 from public.game_room_participants gp where gp.room_id = p_room_id and gp.student_id = auth.uid()
   ) then
     raise exception 'not authorized';
   end if;

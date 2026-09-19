@@ -35,8 +35,22 @@ test("room creation and lifecycle transitions are host-only, gated by the same a
 // into an already-running room.
 test("a room can only be joined while status is 'waiting', and student_name is resolved server-side, never trusted from the client", async () => {
   const sql = await migration();
-  assert.match(sql, /where code = upper\(trim\(p_code\)\) and status = 'waiting'/);
-  assert.match(sql, /select coalesce\(nullif\(trim\(full_name\),''\),'Student'\) into student_name\s*\n\s*from public\.profiles where id = auth\.uid\(\);/);
+  assert.match(sql, /where gr\.code = upper\(trim\(p_code\)\) and gr\.status = 'waiting'/);
+  assert.match(sql, /select coalesce\(nullif\(trim\(pr\.full_name\),''\),'Student'\) into student_name\s*\n\s*from public\.profiles pr where pr\.id = auth\.uid\(\);/);
+});
+
+// Real reported bug: several functions' `returns table(...)` output
+// columns share names with the actual game_rooms/game_room_participants
+// columns (code, status, id, student_id) -- Postgres raised "column
+// reference is ambiguous" for every unqualified reference to one of those
+// names inside the function body, since it can't tell the OUT parameter
+// from the table column apart. Fixed by aliasing every affected table and
+// qualifying every such reference; this guards against it recurring.
+test("every unqualified reference to an OUT-parameter-shadowed column name has been fixed with a table alias", async () => {
+  const sql = await migration();
+  assert.match(sql, /select 1 from public\.game_rooms gr where gr\.code = new_code and gr\.status <> 'finished'/); // create_game_room's code-uniqueness loop
+  assert.match(sql, /select gr\.id, gr\.code, gr\.game, gr\.status, gr\.config from public\.game_rooms gr/); // get_my_hosted_room
+  assert.doesNotMatch(sql, /select id, code, game, status, config from public\.game_rooms/); // the old, ambiguous form
 });
 
 test("submit_game_room_result recomputes rank for every participant in the room by score, then wpm, then earliest finish", async () => {
@@ -53,8 +67,8 @@ test("submit_game_room_result recomputes rank for every participant in the room 
 test("the participant roster and room-status RPCs are only readable by the room's host or one of its own participants", async () => {
   const sql = await migration();
   const listFn = sql.slice(sql.indexOf("function public.list_game_room_participants"), sql.indexOf("function public.list_game_room_participants") + 700);
-  assert.match(listFn, /select 1 from public\.game_rooms where id = p_room_id and host_id = auth\.uid\(\)/);
-  assert.match(listFn, /select 1 from public\.game_room_participants where room_id = p_room_id and student_id = auth\.uid\(\)/);
+  assert.match(listFn, /select 1 from public\.game_rooms gr where gr\.id = p_room_id and gr\.host_id = auth\.uid\(\)/);
+  assert.match(listFn, /select 1 from public\.game_room_participants gp where gp\.room_id = p_room_id and gp\.student_id = auth\.uid\(\)/);
   const statusFn = sql.slice(sql.indexOf("function public.get_game_room_status"), sql.indexOf("function public.get_game_room_status") + 700);
   assert.match(statusFn, /select 1 from public\.game_rooms where id = p_room_id and host_id = auth\.uid\(\)/);
 });
