@@ -27,6 +27,13 @@ const games = [
     icon: "🛡",
     tone: "bg-rose-600",
   },
+  {
+    title: "Key Hunter",
+    description: "Remembers your per-key speed and accuracy on this device and drills your genuinely weak or slow keys more often than the ones you've mastered, instead of a plain shuffle. A key must be typed correctly to advance. Hindi and English keyboards.",
+    href: "/typing/games/key-hunter",
+    icon: "🎯",
+    tone: "bg-violet-600",
+  },
 ];
 
 export default function GamesHubPage() {
