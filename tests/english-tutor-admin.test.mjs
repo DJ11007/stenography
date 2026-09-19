@@ -137,6 +137,22 @@ test("the tutor has a full-screen toggle and no font-conversion step (unlike Kru
   assert.doesNotMatch(page, /toTypeableKrutiDev|krutiDevToUnicode/);
 });
 
+// Real reported requests: (1) the on-screen keyboard used to be shown by
+// default -- now off by default (still toggleable from Settings); (2) the
+// passage box and the typing box must render at the SAME size on screen
+// at every resolution. A plain min-height on both was tried and found NOT
+// to actually match in practice: a div naturally grows to fit its content
+// (the full passage) while an empty textarea's height doesn't grow past
+// its own min-height at all -- confirmed by measuring both boxes' real
+// rendered heights in the browser. An explicit height (not min-height),
+// the same clamp() formula on both, is what actually guarantees parity.
+test("the on-screen keyboard defaults off, and the passage/typing boxes share the exact same explicit clamp()-based height", async () => {
+  const tutor = await read("app/typing/learn/english-tutor/english-tutor.tsx");
+  assert.match(tutor, /const \[showKeyboard, setShowKeyboard\] = useState\(false\);/);
+  const heightDeclarations = [...tutor.matchAll(/height: "clamp\(14rem, 45vh, 34rem\)"/g)];
+  assert.equal(heightDeclarations.length, 2, "both the passage box and the typing box must use the identical explicit height formula");
+});
+
 // Real reported friction: the real student-facing page is gated by
 // requireStudent() (app/typing/layout.tsx), which redirects an admin
 // session straight to /admin -- there was previously no way for an admin

@@ -38,7 +38,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const [done, setDone] = useState(false);
   const [result, setResult] = useState<{ seconds: number; errors: number; grossWpm: number; netWpm: number; accuracy: number } | null>(null);
 
-  const [showKeyboard, setShowKeyboard] = useState(true);
+  const [showKeyboard, setShowKeyboard] = useState(false);
   const [moveOnError, setMoveOnError] = useState(true);
   const [bold, setBold] = useState(false);
   const [sound, setSound] = useState(false);
@@ -285,8 +285,20 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                 {step === 3 && <p className="mt-3 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
 
                 <div
-                  className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100 sm:min-h-64 md:min-h-72 lg:min-h-80"
-                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, maxHeight: "min(45vh, 34rem)" }}
+                  className="mt-4 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100"
+                  // A fixed height (not just min-height) is what actually
+                  // guarantees this box and the typing box below render at
+                  // the same size on screen: a div's height would otherwise
+                  // grow to fit its content (the full passage), while an
+                  // empty textarea's wouldn't grow past its own min-height at
+                  // all -- confirmed by measuring both boxes' real rendered
+                  // heights, which is how the previous min-height-only
+                  // attempt at this was found to still not actually match.
+                  // clamp() keeps a sensible floor/ceiling while scaling
+                  // continuously with the viewport in between, real
+                  // "fits every resolution" instead of only a few fixed
+                  // Tailwind breakpoints.
+                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
                   aria-hidden
                 >
                   {[...target].map((char, position) => {
@@ -313,8 +325,12 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   spellCheck={false}
                   autoFocus
                   aria-label="Typing area"
-                  className="mt-3 h-52 w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 sm:h-60 md:h-64 lg:h-72"
-                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 }}
+                  // Same explicit clamp()-based height as the passage box
+                  // above, so the two actually render at the same size on
+                  // screen at every resolution -- resize-y still lets a
+                  // student drag it taller/shorter manually from there.
+                  className="mt-3 w-full max-w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500"
+                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
                   placeholder="Start typing here…"
                 />
 
