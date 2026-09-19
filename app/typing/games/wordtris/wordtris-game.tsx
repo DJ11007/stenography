@@ -55,7 +55,7 @@ function shuffledPool(list: string[]) {
 }
 
 type Step = "setup" | "playing" | "gameover";
-type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
+type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>>; previewMode?: boolean };
 type ActiveDrop = { id: number; text: string; target: string; fallMs: number; spawnedAt: number };
 
 function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: ActiveDrop; fontFamily?: string; typedLength: number; onMiss: (id: number) => void }) {
@@ -130,7 +130,7 @@ function WordtrisCloud({ className }: { className: string }) {
   );
 }
 
-export function WordtrisGame({ words }: Props) {
+export function WordtrisGame({ words, previewMode = false }: Props) {
   const [mode, setMode] = useState<WordtrisMode>("word");
   const [step, setStep] = useState<Step>("setup");
   const [language, setLanguage] = useState<WordtrisLanguage>("english");
@@ -299,6 +299,13 @@ export function WordtrisGame({ words }: Props) {
   useEffect(() => {
     if (step !== "gameover" || submitted) return;
     setSubmitted(true);
+    // Both submitWordtrisScore and getWordtrisLeaderboard require a real
+    // student session -- an admin preview session (see
+    // app/admin/preview/wordtris/page.tsx) isn't one, and calling either
+    // would redirect the admin straight out of the game to /admin instead
+    // of showing the round-over screen. Skip both and show a plain
+    // "preview -- not saved" notice instead (see the gameover render).
+    if (previewMode) return;
     if (mode === "word") {
       void submitWordtrisScore(language, category, score, wordsCaught);
       void getWordtrisLeaderboard(language, category, leaderboardLimit).then(setLeaderboard);
@@ -316,9 +323,9 @@ export function WordtrisGame({ words }: Props) {
   }, [step, submitted, mode, language, category, score, wordsCaught, leaderboardLimit]);
 
   useEffect(() => {
-    if (step !== "gameover" || mode !== "word") return;
+    if (step !== "gameover" || mode !== "word" || previewMode) return;
     void getWordtrisLeaderboard(language, category, leaderboardLimit).then(setLeaderboard);
-  }, [leaderboardLimit, step, mode, language, category]);
+  }, [leaderboardLimit, step, mode, language, category, previewMode]);
 
   // Hindi compares exact (its bytes are case-sensitive by design -- see
   // hindi-font-converter.ts); English is lenient, matching word mode's
@@ -566,7 +573,11 @@ export function WordtrisGame({ words }: Props) {
               </div>
             </div>
 
-            {mode === "word" ? (
+            {mode === "word" && previewMode ? (
+              <div className="rounded-3xl bg-white p-6 text-center shadow-sm">
+                <p className="text-sm font-bold text-slate-500">Admin preview session — this score wasn&apos;t saved and the real leaderboard needs a student session to load.</p>
+              </div>
+            ) : mode === "word" ? (
               <div className="rounded-3xl bg-white p-6 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-black text-slate-950">

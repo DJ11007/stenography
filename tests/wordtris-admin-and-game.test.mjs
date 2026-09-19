@@ -31,6 +31,23 @@ test("the WordTris game requires a student session (inherited from app/typing/la
   assert.match(actions, /Math\.max\(0, Math\.round\(score\)\)/);
 });
 
+// Real reported bug: submitWordtrisScore and getWordtrisLeaderboard both
+// require a real student session -- playing a full word-mode round on the
+// admin-only preview route (app/admin/preview/wordtris) hit game-over,
+// called one of those, and got redirected straight to /admin instead of
+// showing the round-over screen, since the preview session belongs to an
+// admin, not a student row. previewMode skips both calls entirely and
+// shows a plain notice instead.
+test("previewMode skips the student-gated score/leaderboard calls entirely so the admin preview never gets redirected out of the game", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /type Props = \{ words: Record<WordtrisLanguage, Record<WordtrisCategory, string\[\]>>; previewMode\?: boolean \};/);
+  assert.match(game, /export function WordtrisGame\(\{ words, previewMode = false \}: Props\)/);
+  assert.match(game, /if \(previewMode\) return;/);
+  assert.match(game, /if \(step !== "gameover" \|\| mode !== "word" \|\| previewMode\) return;/);
+  const preview = await read("app/admin/preview/wordtris/page.tsx");
+  assert.match(preview, /<WordtrisGame words=\{words\} previewMode \/>/);
+});
+
 // Real reported request: the old ms-based curve (fixed base time shrinking
 // by a constant exponential factor per catch) had no relationship to a
 // real typing speed and felt too fast from the first drop. Replaced with

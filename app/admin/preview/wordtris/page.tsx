@@ -17,7 +17,7 @@ export default async function PreviewWordtrisPage() {
   const words = await getWordtrisWords();
   return (
     <TypingStudentProvider student={{ name: profile.full_name?.trim() || "Admin", email: user.email || "", phone: user.phone || null }}>
-      <WordtrisGame words={words} />
+      <WordtrisGame words={words} previewMode />
     </TypingStudentProvider>
   );
 }
