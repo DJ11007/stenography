@@ -179,9 +179,17 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
     <main ref={rootRef} className="min-h-screen overflow-y-auto bg-slate-100" style={{ fontFamily: UI }}>
       {!isFullscreen && <TypingBrandHeader />}
       <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/typing/learn/english" className="text-sm font-bold text-blue-700">← All English Lessons</Link>
-          <div className="flex items-center gap-2">
+        {/* Real requested layout change: the back link, the step rail, and
+            the badge/fullscreen controls used to be two stacked rows --
+            merged into one, with the step rail taking the flexible middle
+            space (it already scrolls horizontally on its own if it doesn't
+            fit) instead of always getting its own full-width row below. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/typing/learn/english" className="shrink-0 text-sm font-bold text-blue-700">← All English Lessons</Link>
+          <div className="min-w-0 flex-1">
+            <StepRail step={step} onPick={setStep} />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-600 shadow-sm">QWERTY · English Typing Tutor</span>
             <button
               type="button"
@@ -200,8 +208,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
             </button>
           </div>
         </div>
-
-        <StepRail step={step} onPick={setStep} />
 
         {step === 0 ? (
           <InstructionsStep
@@ -362,7 +368,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
 
 function StepRail({ step, onPick }: { step: number; onPick: (value: number) => void }) {
   return (
-    <div className="mt-4 flex items-stretch gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-sm sm:gap-2">
+    <div className="flex items-stretch gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-sm sm:gap-2">
       {STEPS.map((item, position) => {
         const active = position === step;
         const doneStep = position < step;
