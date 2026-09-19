@@ -49,6 +49,33 @@
   .live-results-track { animation: none; }
 }
 
+/* WordTris's falling-drop lane background: a handful of small decorative
+   drops drifting down behind the real, interactive one, purely for the
+   "actual rain" atmosphere the redesign asked for. Non-interactive
+   (pointer-events-none), so they never compete with the real drop. */
+@keyframes wordtris-ambient-fall {
+  0% { transform: translateY(-15%); opacity: 0; }
+  12% { opacity: 0.5; }
+  88% { opacity: 0.5; }
+  100% { transform: translateY(115%); opacity: 0; }
+}
+
+.animate-wordtris-ambient-fall {
+  animation: wordtris-ambient-fall linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wordtris-ambient-fall { animation: none; opacity: 0; }
+}
+
+/* The falling-drop lane itself: a dark, glassy panel (not the previous
+   bright cartoon sky) with a faint diagonal rain-streak texture. */
+.wordtris-rain-lane {
+  background-image:
+    repeating-linear-gradient(115deg, rgba(148, 163, 184, 0.07) 0px, rgba(148, 163, 184, 0.07) 1px, transparent 1px, transparent 16px),
+    linear-gradient(to bottom, #0f172a, #1e293b, #0f172a);
+}
+
 /*
  * Deliberately NOT dark-mode-aware. This site has no real dark theme --
  * every card, panel, ribbon, and form field across the entire app

@@ -9,7 +9,7 @@ import { BackButton } from "../../_components/back-button";
 const games = [
   {
     title: "WordTris",
-    description: "Catch falling words before they land -- speed eases off after a miss, then ramps back up. Hindi and English, seven word categories, a Top-50 leaderboard.",
+    description: "Catch falling words or single keystrokes before they land -- speed eases off after a miss, then ramps back up. Hindi and English, Character and Word drills, seven word categories, a Top-50 leaderboard.",
     href: "/typing/games/wordtris",
     icon: "☁",
     tone: "bg-cyan-600",

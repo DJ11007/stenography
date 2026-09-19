@@ -8,6 +8,15 @@
 
 export type WordtrisLanguage = "hindi" | "english";
 export type WordtrisCategory = "animals" | "cars" | "common" | "countries" | "easy_words" | "names" | "numbers";
+// Real reported request: WordTris only ever drilled whole words, but raw
+// per-keystroke reaction speed (the actual bottleneck for a working
+// typist's finger drilling, as opposed to word recognition) needs single
+// characters falling much faster than any whole word reasonably could.
+// "Word" keeps the existing category-scoped word banks; "character" drops
+// one keyboard key at a time, sourced from the same GLYPH_KEYS list the
+// Kruti Dev / English tutors already use (see wordtris-game.tsx), so it's
+// real, already-verified keyboard content, not a new hand-typed list.
+export type WordtrisMode = "word" | "character";
 
 export type CategoryInfo = { id: WordtrisCategory; hi: string; en: string };
 
@@ -39,6 +48,19 @@ export const WORDTRIS_DIFFICULTY = {
   speedUpEveryStreak: 3,
   speedUpFactor: 0.92,
   missBreatherFactor: 1.2,
+} as const;
+
+// Character mode drills one keystroke at a time, not a whole word -- a
+// single key needs a fraction of a word's reading-plus-typing time, so
+// this curve starts and floors much faster than WORDTRIS_DIFFICULTY. Same
+// shape (ease off after a miss, ramp back up on a streak), just rescaled.
+export const WORDTRIS_CHARACTER_DIFFICULTY = {
+  startingLives: 5,
+  baseFallMs: 2400,
+  minFallMs: 650,
+  speedUpEveryStreak: 4,
+  speedUpFactor: 0.9,
+  missBreatherFactor: 1.25,
 } as const;
 
 export const BUNDLED_WORDS: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> = {

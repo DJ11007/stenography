@@ -66,3 +66,36 @@ test("the leaderboard is scoped per (language, category), never compared across 
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /getWordtrisLeaderboard\(language, category, leaderboardLimit\)/);
 });
+
+// Real reported request: WordTris only drilled whole words; single
+// keystrokes need a faster, separate difficulty curve and real,
+// already-verified keyboard content -- not a new hand-typed character
+// list (the same class of byte-collision bug hindi-font-converter.ts
+// keeps finding).
+test("character mode reuses the Kruti Dev / English tutor keyboards' own GLYPH_KEYS, not a new hand-typed list, and has its own faster difficulty curve", async () => {
+  const content = await read("lib/wordtris-content.ts");
+  assert.match(content, /WORDTRIS_CHARACTER_DIFFICULTY/);
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "@\/lib\/krutidev-tutor-content"/);
+  assert.match(game, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "@\/lib\/english-tutor-content"/);
+  assert.match(game, /mode === "character" \? WORDTRIS_CHARACTER_DIFFICULTY : WORDTRIS_DIFFICULTY/);
+});
+
+// Character mode's Hindi content is already raw, typeable Kruti Dev bytes
+// (unlike word mode's Unicode word banks) -- converting it again through
+// toTypeableKrutiDev would mangle it, so the conversion must stay scoped
+// to word mode only.
+test("character mode's Hindi pool bypasses toTypeableKrutiDev -- only word mode's Unicode word banks need that conversion", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /mode === "word" && language === "hindi" \? \(\(\) => \{ try \{ return toTypeableKrutiDev\(currentItem\)/);
+});
+
+// Character mode has no server-side leaderboard (its scores aren't
+// comparable to the word-category point scheme the real leaderboard is
+// scoped by) -- confirms it never calls the scoring RPCs, and instead
+// keeps a personal best client-side.
+test("character mode never calls the word-mode leaderboard/score RPCs, and keeps a personal best in localStorage instead", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /if \(mode === "word"\) \{\s*\n\s*void submitWordtrisScore/);
+  assert.match(game, /wordtris-best-character-\$\{language\}/);
+});
