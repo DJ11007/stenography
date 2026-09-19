@@ -114,43 +114,54 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   });
 }
 
-const MAX_AUDIO_BYTES = 150 * 1024 * 1024;
-const MAX_PDF_BYTES = 20 * 1024 * 1024;
+// Real reported bug: a 5.4MB Hindi dictation audio file consistently
+// failed to save with a bare browser-level "This page couldn't load" on
+// production (hosted on Netlify) -- confirmed via response headers.
+// Netlify's serverless functions hard-cap the request body well under
+// what this app allows (audio up to 150MB, PDFs up to 20MB, matching each
+// storage bucket's own file_size_limit) -- independent of and much
+// smaller than next.config.ts's own bodySizeLimit, which only raises
+// Next.js's OWN cap, not the hosting platform's. The connection gets cut
+// before any of our code runs, which is why it failed the same way every
+// time and reloading never helped. Fixed by never routing the file bytes
+// through a Server Action at all: the browser uploads directly to
+// Supabase Storage using a short-lived signed upload URL/token this
+// action mints (see createTestAssetUploadUrl below and the client-side
+// upload in test-manager.tsx) -- only the resulting short storage path
+// travels through the Server Action afterward.
+const ASSET_UPLOAD_BUCKETS = { audio: "stenography-audio", pdf: "managed-test-pdfs" } as const;
 
-async function resolveAudioPath(formData: FormData, testId: string | null, supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ audioPath: string | null; error?: string }> {
+export async function createTestAssetUploadUrl(kind: "audio" | "pdf", testId: string | null, fileName: string): Promise<{ path: string; token: string; bucket: string } | { error: string }> {
+  await requireAdmin();
+  const bucket = ASSET_UPLOAD_BUCKETS[kind];
+  const safeName = fileName.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
+  const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`;
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(path);
+  if (error || !data) return { error: error?.message ?? "Could not prepare the upload." };
+  return { path: data.path, token: data.token, bucket };
+}
+
+async function resolveAudioPath(formData: FormData): Promise<{ audioPath: string | null; error?: string }> {
   const removeAudio = formData.get("removeAudio") === "on";
   const existing = text(formData, "existingAudioPath") || null;
-  const upload = formData.get("audioFile");
-  if (!(upload instanceof File) || !upload.size) return { audioPath: removeAudio ? null : existing };
-  if (!upload.type.startsWith("audio/")) return { audioPath: existing, error: "The dictation audio file must be an audio format." };
-  if (upload.size > MAX_AUDIO_BYTES) return { audioPath: existing, error: "Dictation audio must be under 150 MB." };
-  const bytes = new Uint8Array(await upload.arrayBuffer());
-  const safeName = upload.name.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
-  const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`;
-  const { error } = await supabase.storage.from("stenography-audio").upload(path, bytes, { contentType: upload.type, upsert: false });
-  if (error) return { audioPath: existing, error: `Audio upload failed: ${error.message}` };
-  return { audioPath: path };
+  const uploaded = text(formData, "uploadedAudioPath");
+  if (uploaded) return { audioPath: uploaded };
+  return { audioPath: removeAudio ? null : existing };
 }
 
 // Available for every managed test mode (not just stenography) -- a
 // ready-made question-paper PDF is useful regardless of mode, distinct
 // from the Print/PDF toolbar button which prints the typed passage text
 // itself rather than an admin-uploaded file.
-async function resolvePdfPath(formData: FormData, testId: string | null, supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ pdfPath: string | null; pdfFileName: string | null; error?: string }> {
+async function resolvePdfPath(formData: FormData): Promise<{ pdfPath: string | null; pdfFileName: string | null; error?: string }> {
   const removePdf = formData.get("removePdf") === "on";
   const existingPath = text(formData, "existingPdfPath") || null;
   const existingName = text(formData, "existingPdfFileName") || null;
-  const upload = formData.get("pdfFile");
-  if (!(upload instanceof File) || !upload.size) return removePdf ? { pdfPath: null, pdfFileName: null } : { pdfPath: existingPath, pdfFileName: existingName };
-  if (upload.type !== "application/pdf") return { pdfPath: existingPath, pdfFileName: existingName, error: "The question paper must be a PDF file." };
-  if (upload.size > MAX_PDF_BYTES) return { pdfPath: existingPath, pdfFileName: existingName, error: "The question paper PDF must be under 20 MB." };
-  const bytes = new Uint8Array(await upload.arrayBuffer());
-  if (new TextDecoder("latin1").decode(bytes.slice(0, 5)) !== "%PDF-") return { pdfPath: existingPath, pdfFileName: existingName, error: "Invalid PDF file signature." };
-  const safeName = upload.name.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g, "_").replace(/\s+/g, "-").slice(0, 120);
-  const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${safeName}`;
-  const { error } = await supabase.storage.from("managed-test-pdfs").upload(path, bytes, { contentType: "application/pdf", upsert: false });
-  if (error) return { pdfPath: existingPath, pdfFileName: existingName, error: `PDF upload failed: ${error.message}` };
-  return { pdfPath: path, pdfFileName: safeName };
+  const uploadedPath = text(formData, "uploadedPdfPath");
+  const uploadedName = text(formData, "uploadedPdfFileName");
+  if (uploadedPath) return { pdfPath: uploadedPath, pdfFileName: uploadedName || existingName };
+  return removePdf ? { pdfPath: null, pdfFileName: null } : { pdfPath: existingPath, pdfFileName: existingName };
 }
 
 async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMode, lockedLive?: boolean): Promise<TestFormState> {
@@ -161,11 +172,11 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
   const id = text(formData, "testId") || null; const publish = formData.get("intent") === "publish"; const supabase = await createClient();
   let audioPath: string | null = null;
   if (draft.mode === "stenography") {
-    const resolved = await resolveAudioPath(formData, id, supabase);
+    const resolved = await resolveAudioPath(formData);
     if (resolved.error) return { error: resolved.error };
     audioPath = resolved.audioPath;
   }
-  const resolvedPdf = await resolvePdfPath(formData, id, supabase);
+  const resolvedPdf = await resolvePdfPath(formData);
   if (resolvedPdf.error) return { error: resolvedPdf.error };
   const taskCategory = draft.mode === "stenography" ? (text(formData, "taskCategory") || "Task") : null;
   // "Offer to student" categories not in ALL_HALF_ERROR_CATEGORIES (a

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useState, type FormEvent } from "react";
 import { MANAGED_INPUT_SYSTEMS, countPassageWords, type ManagedTestMode, type ManagedTestStatus } from "@/lib/admin-tests";
 import { hindiInputSystemsFor } from "@/lib/typing-curriculum";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
@@ -11,7 +11,8 @@ import { sortExamCategoryNavigatorItems } from "@/lib/exam-category-navigator";
 import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, type HalfErrorCategory } from "@/lib/typing-test";
 import { encodingValidationMessage, type HindiTextFormat } from "@/lib/hindi-font-converter";
 import { FontConverter } from "@/app/admin/font-converter/font-converter";
-import { deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearningManagedTest, saveLiveExamManagedTest, saveLiveStenographyManagedTest, saveManagedTest, savePracticeManagedTest, saveStenographyManagedTest, setManagedTestStatus, type TestFormState } from "./actions";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createTestAssetUploadUrl, deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearningManagedTest, saveLiveExamManagedTest, saveLiveStenographyManagedTest, saveManagedTest, savePracticeManagedTest, saveStenographyManagedTest, setManagedTestStatus, type TestFormState } from "./actions";
 import { PermanentDeleteDangerZone } from "./permanent-delete-danger-zone";
 
 type Version = { id:string; description:string|null; language:"English"|"Hindi"; mode:ManagedTestMode; input_system_id:string; duration_seconds:number; passage:string; required_wpm:number; required_accuracy:number; backspace_mode:string; word_method:string; highlight_mode:string; visibility:"public"|"private"; passage_characters:number; passage_words:number; configuration?:Record<string,unknown>|null };
@@ -146,6 +147,63 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   const [liveMode,setLiveMode] = useState<"scheduled"|"anytime">("scheduled");
   const [resultsDelayMinutes,setResultsDelayMinutes] = useState(10);
   const [state,action,pending] = useActionState(saveAction,initialState);
+  // Real reported bug: a 5.4MB Hindi dictation audio file consistently
+  // failed to save with a bare browser-level "This page couldn't load" on
+  // production (Netlify) -- its serverless functions hard-cap the request
+  // body well under what this form allows (audio up to 150MB, PDFs up to
+  // 20MB), independent of next.config.ts's own bodySizeLimit (which only
+  // raises Next.js's OWN cap, not the hosting platform's). Fixed by never
+  // sending the file bytes through the Server Action at all: on submit,
+  // any selected audioFile/pdfFile is uploaded directly from the browser
+  // to Supabase Storage via a short-lived signed URL (createTestAssetUploadUrl),
+  // and only the resulting short storage path is added to the form data
+  // the Server Action actually receives.
+  const [uploadError,setUploadError] = useState<string|null>(null);
+  const [uploading,setUploading] = useState(false);
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUploadError(null);
+    // The two-argument FormData constructor is required here, not just the
+    // one-argument form -- it's what captures WHICH submit button (Save
+    // draft vs Publish, each name="intent") was actually clicked; without
+    // it every submission loses that value entirely and the server action
+    // can never tell draft from publish.
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const formData = new FormData(event.currentTarget, submitter ?? undefined);
+    const audioFile = formData.get("audioFile");
+    const pdfFile = formData.get("pdfFile");
+    formData.delete("audioFile");
+    formData.delete("pdfFile");
+    setUploading(true);
+    try {
+      if (audioFile instanceof File && audioFile.size > 0) {
+        const result = await createTestAssetUploadUrl("audio", editing?.id ?? null, audioFile.name);
+        if ("error" in result) { setUploadError(result.error); return; }
+        const { error } = await createBrowserClient().storage.from(result.bucket).uploadToSignedUrl(result.path, result.token, audioFile);
+        if (error) { setUploadError(`Audio upload failed: ${error.message}`); return; }
+        formData.set("uploadedAudioPath", result.path);
+      }
+      if (pdfFile instanceof File && pdfFile.size > 0) {
+        const result = await createTestAssetUploadUrl("pdf", editing?.id ?? null, pdfFile.name);
+        if ("error" in result) { setUploadError(result.error); return; }
+        const { error } = await createBrowserClient().storage.from(result.bucket).uploadToSignedUrl(result.path, result.token, pdfFile);
+        if (error) { setUploadError(`PDF upload failed: ${error.message}`); return; }
+        formData.set("uploadedPdfPath", result.path);
+        formData.set("uploadedPdfFileName", pdfFile.name.normalize("NFKC").replace(/[^a-zA-Z0-9._ -]/g,"_").replace(/\s+/g,"-").slice(0,120));
+      }
+    } finally {
+      setUploading(false);
+    }
+    // useActionState's dispatch must be invoked inside startTransition when
+    // called imperatively like this (not passed straight to a form/button's
+    // action prop) -- otherwise React logs "isPending will not update
+    // correctly" and the pending flag genuinely never resolves, leaving
+    // the submit buttons stuck showing their busy state forever. Confirmed
+    // live: without this, both buttons hung on "Uploading…" after a
+    // successful upload even though the save itself had already gone
+    // through.
+    startTransition(() => { action(formData); });
+  }
   // Puts a red box on the exact field a validation error is about (see
   // validateManagedTest's fieldErrors) and scrolls/focuses it, instead of
   // leaving the admin to hunt for which of a dozen fields the one message
@@ -284,7 +342,7 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
     <aside className="rounded-2xl bg-white p-5 shadow xl:sticky xl:top-5 xl:self-start">
       <div className="flex justify-between"><h2 className="text-xl font-black">{editing ? "Edit and create version" : "Create test"}</h2>{editing&&<button type="button" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800" onClick={()=>choose(null)}>+ Create a new test instead</button>}</div>
       {editing && <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">You are editing <span className="underline">{editing.title}</span> (v{editing.current_version_number}, last saved {new Date(editing.updated_at).toLocaleDateString("en-IN")}). Saving replaces its content with a new version -- it does not create a separate test. Click &quot;+ Create a new test instead&quot; above if you meant to make something new.</p>}
-      <form action={action} className="mt-4 space-y-3">
+      <form onSubmit={handleSubmit} className="mt-4 space-y-3">
         <input type="hidden" name="testId" value={editing?.id??""}/>
         {effectiveMode&&<input type="hidden" name="mode" value={effectiveMode}/>} {learningOnly&&<input type="hidden" name="visibility" value="public"/>}
         <Field label="Title"><input className={`input${errorRing("title")}`} name="title" value={title} onChange={(event)=>setTitle(event.target.value)} style={{fontFamily:language==="Hindi"?'"Nirmala UI", Mangal, "Noto Sans Devanagari", sans-serif':undefined}} required/>{fieldError("title") && <p className="mt-1 text-xs font-bold text-red-600">{fieldError("title")}</p>}<span className="mt-1 block text-xs font-normal text-slate-500">Titles always use Unicode; only Passage / matter may use legacy Kruti Dev encoding. {editing ? "This test's web address was set from its title when first created and won't change if you rename it now -- if a new test's title collides with it, rename this one." : "This title also sets the test's web address -- renaming later won't change the address, so if a future test's title collides with this one, come back and rename this test."}</span></Field>
@@ -354,8 +412,9 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
         </fieldset>}
         <button type="button" onClick={()=>setPreview((value)=>!value)} className="w-full rounded-lg border py-2 font-bold">{preview?"Hide preview":"Preview"}</button>
         {preview&&<div className="max-h-56 overflow-auto rounded-xl bg-slate-50 p-4"><h3 className="font-bold">Passage preview</h3>{passageFormat==="krutidev"&&<span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">Kruti Dev 010 · Legacy encoded text</span>}<p className="mt-2 whitespace-pre-wrap text-lg leading-8" style={{fontFamily:inputSystem.includes("krutidev")?'"Kruti Dev 010", sans-serif':language==="Hindi"?'"Nirmala UI", Mangal, sans-serif':"Arial, sans-serif"}}>{passage||"No passage entered."}</p></div>}
+        {uploadError&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{uploadError}</p>}
         {state.error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}{state.success&&<p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{state.success}</p>}
-        {learningOnly?<button disabled={pending} className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white">{editing?"Save and Publish Changes":"Create and Publish Test"}</button>:<div className="grid grid-cols-2 gap-2"><button disabled={pending} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">Save draft</button><button disabled={pending} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">Publish</button></div>}
+        {learningOnly?<button disabled={pending||uploading} className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":editing?"Save and Publish Changes":"Create and Publish Test"}</button>:<div className="grid grid-cols-2 gap-2"><button disabled={pending||uploading} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">{uploading?"Uploading…":"Save draft"}</button><button disabled={pending||uploading} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":"Publish"}</button></div>}
       </form>{converterOpen&&<div role="dialog" aria-modal="true" aria-label="Font and text converter" className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/70 p-3 sm:p-6"><div className="mx-auto max-w-[1500px] rounded-3xl bg-slate-100 p-5 shadow-2xl"><div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Font & Text Converter</h2><button type="button" aria-label="Close converter" onClick={()=>setConverterOpen(false)} className="rounded-lg bg-white px-4 py-2 text-xl font-black">×</button></div><FontConverter initialText={passage} initialSource={passageFormat} expectedOutput={passageFormat} onUse={(result)=>{if(result.encoding!==passageFormat){alert(`Select ${passageFormat==="krutidev"?"Kruti Dev 010":"Unicode Hindi — Mangal"} output before inserting.`);return;}if(confirm("Replace the Passage / matter field with this converted text? The current passage will remain unchanged until you confirm.")){setPassage(result.text);setConverterOpen(false);}}}/></div></div>}
     </aside>
   </div>;
