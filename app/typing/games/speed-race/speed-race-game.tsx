@@ -11,7 +11,7 @@ const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
 type Step = "setup" | "lobby" | "racing" | "finished";
-type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
+type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>>; previewMode?: boolean };
 type FinishStats = { wpm: number; accuracy: number; timeMs: number; isNewBest: boolean };
 type RoomConfig = { language: WordtrisLanguage; category: WordtrisCategory; paceWpm: number; passage: string };
 type JoinedRoom = { id: string; code: string; config: RoomConfig; studentId: string };
@@ -39,7 +39,7 @@ function Racetrack({ label, progress, marker, tone }: { label: string; progress:
   );
 }
 
-export function SpeedRaceGame({ words }: Props) {
+export function SpeedRaceGame({ words, previewMode = false }: Props) {
   const [step, setStep] = useState<Step>("setup");
   const [language, setLanguage] = useState<WordtrisLanguage>("english");
   const [category, setCategory] = useState<WordtrisCategory>("easy_words");
@@ -78,8 +78,14 @@ export function SpeedRaceGame({ words }: Props) {
   }, [bestKey]);
 
   // Recovers an in-progress joined room after a page refresh, the same
-  // resilience get_my_hosted_room gives the host dashboard.
+  // resilience get_my_hosted_room gives the host dashboard. Skipped
+  // entirely in previewMode: getMyJoinedRoom is gated by requireStudent(),
+  // and calling it from an admin preview session (see
+  // app/admin/preview/speed-race/page.tsx) would redirect the admin
+  // straight out of the page -- the exact bug already fixed once for
+  // WordTris's own admin preview.
   useEffect(() => {
+    if (previewMode) return;
     (async () => {
       const joined = await getMyJoinedRoom();
       if (!joined) return;
@@ -96,7 +102,7 @@ export function SpeedRaceGame({ words }: Props) {
         setStep("lobby");
       }
     })();
-  }, []);
+  }, [previewMode]);
 
   const finishRace = useCallback((finalTyped: string, currentPassage: string) => {
     const timeMs = startedAtRef.current ? Date.now() - startedAtRef.current : 0;
@@ -138,6 +144,7 @@ export function SpeedRaceGame({ words }: Props) {
   }, [words, language, category]);
 
   const handleJoin = async () => {
+    if (previewMode) return;
     const trimmed = joinCode.trim().toUpperCase();
     if (!trimmed) return;
     setJoinError(null);
@@ -336,21 +343,23 @@ export function SpeedRaceGame({ words }: Props) {
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-5">
-              <p className="text-xs font-black uppercase tracking-wider text-amber-800">🔴 Live Classroom Race</p>
-              <p className="mt-1 text-xs text-amber-700">If your teacher is hosting a live race for the whole class, enter the room code here to join instead of practicing solo.</p>
-              <div className="mt-3 flex gap-2">
-                <input
-                  value={joinCode}
-                  onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-                  placeholder="ROOM CODE"
-                  maxLength={8}
-                  className="flex-1 rounded-lg border-2 border-amber-200 px-3 py-2 text-sm font-black uppercase tracking-widest outline-none focus:border-amber-500"
-                />
-                <button type="button" onClick={handleJoin} className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-black text-white hover:bg-amber-700">Join</button>
+            {!previewMode && (
+              <div className="mt-5 rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-5">
+                <p className="text-xs font-black uppercase tracking-wider text-amber-800">🔴 Live Classroom Race</p>
+                <p className="mt-1 text-xs text-amber-700">If your teacher is hosting a live race for the whole class, enter the room code here to join instead of practicing solo.</p>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={joinCode}
+                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+                    placeholder="ROOM CODE"
+                    maxLength={8}
+                    className="flex-1 rounded-lg border-2 border-amber-200 px-3 py-2 text-sm font-black uppercase tracking-widest outline-none focus:border-amber-500"
+                  />
+                  <button type="button" onClick={handleJoin} className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-black text-white hover:bg-amber-700">Join</button>
+                </div>
+                {joinError && <p role="alert" className="mt-2 text-xs font-bold text-rose-700">{joinError}</p>}
               </div>
-              {joinError && <p role="alert" className="mt-2 text-xs font-bold text-rose-700">{joinError}</p>}
-            </div>
+            )}
           </>
         )}
 

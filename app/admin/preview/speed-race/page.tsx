@@ -11,16 +11,18 @@ export const metadata: Metadata = { title: "Preview: Speed Race | Admin" };
 // /admin -- an admin can never just open the student-facing page directly
 // to see what a student sees. This is a permanent, admin-only read route
 // that renders the exact same game component under the same provider the
-// real layout uses, wrapped with the admin's own identity. Unlike
-// WordTris, Speed Race never calls a student-gated server action (its
-// personal-best score is kept in localStorage only), so no previewMode
-// flag is needed here.
+// real layout uses, wrapped with the admin's own identity. Solo play's own
+// personal-best score is localStorage-only, but the Live Classroom Race
+// join flow (see speed-race-game.tsx) calls getMyJoinedRoom(), which is
+// gated by requireStudent() -- previewMode skips that entirely so the
+// admin preview isn't redirected out of the page, the same bug already
+// fixed once for WordTris's own admin preview.
 export default async function PreviewSpeedRacePage() {
   const { user, profile } = await requireAdmin();
   const words = await getWordtrisWords();
   return (
     <TypingStudentProvider student={{ name: profile.full_name?.trim() || "Admin", email: user.email || "", phone: user.phone || null }}>
-      <SpeedRaceGame words={words} />
+      <SpeedRaceGame words={words} previewMode />
     </TypingStudentProvider>
   );
 }
