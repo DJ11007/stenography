@@ -42,13 +42,16 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const [moveOnError, setMoveOnError] = useState(true);
   const [bold, setBold] = useState(false);
   const [sound, setSound] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
   const [fontPx, setFontPx] = useState(28);
   const [backspaceEnabled, setBackspaceEnabled] = useState(true);
   const [backspaceCount, setBackspaceCount] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const rootRef = useRef<HTMLElement>(null);
+  const caretElRef = useRef<HTMLSpanElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -123,6 +126,16 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   }, [startedAt, done]);
 
   const caret = typed.length;
+
+  // Keeps the current position visible in the drill box as it advances --
+  // real reported need for long paragraphs/word sets, where the
+  // highlighted character can otherwise scroll out of the small box's
+  // view, forcing a manual scroll mid-drill. Toggleable (Settings ->
+  // Auto scroll) since some students prefer to scroll by hand.
+  useEffect(() => {
+    if (autoScroll) caretElRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [caret, autoScroll, idx, step]);
+
   const nextKey = useMemo(() => {
     const char = target[caret];
     if (char === undefined) return null;
@@ -216,20 +229,6 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
           />
         ) : (
           <div className="mt-5 space-y-4">
-            <div className="rounded-2xl bg-white px-3 py-2.5 shadow-sm">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
-                <span>Progress</span>
-                <span className="text-slate-900">Speed <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
-                <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>Accuracy <b className="text-sm">{live.accuracy}%</b></span>
-                <span>Errors <b className="text-sm text-slate-900">{live.errors}</b></span>
-                <span>Backspace <b className="text-sm text-slate-900">{backspaceCount}</b></span>
-                <span>Complete <b className="text-sm text-slate-900">{live.progress}%</b></span>
-              </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
-              </div>
-            </div>
-
             <div className="min-w-0 space-y-4">
               <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -249,21 +248,66 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                     </label>
                     <button type="button" onClick={() => setIdx(Math.min(total - 1, idx + 1))} disabled={idx >= total - 1} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">»</button>
                   </div>
-                  <div className="flex items-center gap-1 text-sm font-black text-slate-600">
-                    <button type="button" onClick={() => setFontPx((value) => Math.max(16, value - 2))} className="rounded-md bg-slate-100 px-2 py-1">A−</button>
-                    <span className="w-10 text-center">{fontPx}</span>
-                    <button type="button" onClick={() => setFontPx((value) => Math.min(48, value + 2))} className="rounded-md bg-slate-100 px-2 py-1">A+</button>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen((value) => !value)}
+                    aria-expanded={settingsOpen}
+                    className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 hover:bg-slate-200"
+                  >
+                    Settings <span aria-hidden className={`transition-transform ${settingsOpen ? "rotate-180" : ""}`}>▾</span>
+                  </button>
+                </div>
+
+                {/* Progress -- moved down here, right below the exercise picker,
+                    instead of its own separate card above everything. */}
+                <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
+                    <span>Progress</span>
+                    <span className="text-slate-900">Speed <b className="text-sm">{live.wpm}</b><span className="text-slate-400"> / {live.grossWpm}</span></span>
+                    <span className={live.errors ? "text-rose-600" : "text-emerald-600"}>Accuracy <b className="text-sm">{live.accuracy}%</b></span>
+                    <span>Errors <b className="text-sm text-slate-900">{live.errors}</b></span>
+                    <span>Backspace <b className="text-sm text-slate-900">{backspaceCount}</b></span>
+                    <span>Complete <b className="text-sm text-slate-900">{live.progress}%</b></span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-400 transition-all" style={{ width: `${live.progress}%` }} />
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700">
-                  <Toggle checked={bold} onChange={setBold} label="Bold text" />
-                  {step !== 3 && <Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" />}
-                  <Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" />
-                  <Toggle checked={sound} onChange={setSound} label="Sound" />
-                  <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="Backspace On" offLabel="Backspace Off" />
-                  {step === 3 && <p className="w-full rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
-                </div>
+                {/* Settings -- a collapsed "Settings ▾" button by default;
+                    expands into a vertical listing (not the old inline row)
+                    with its own close (✕) button, and now also holds font
+                    size (moved out of the exercise-picker row above) and the
+                    new Auto scroll toggle. */}
+                {settingsOpen && (
+                  <div className="mt-3 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-black text-slate-700">Settings</span>
+                      <button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close settings" className="grid h-7 w-7 place-items-center rounded-md text-slate-500 hover:bg-slate-200">✕</button>
+                    </div>
+                    <ul className="mt-2 space-y-2.5 text-sm font-bold text-slate-700">
+                      <li><Toggle checked={bold} onChange={setBold} label="Bold text" /></li>
+                      {step !== 3 && <li><Toggle checked={showKeyboard} onChange={setShowKeyboard} label="Show keyboard" /></li>}
+                      <li><Toggle checked={moveOnError} onChange={setMoveOnError} label="Move on past mistakes" /></li>
+                      <li><Toggle checked={sound} onChange={setSound} label="Sound" /></li>
+                      <li><Toggle checked={autoScroll} onChange={setAutoScroll} label="Auto scroll" /></li>
+                      <li className="flex items-center justify-between gap-3">
+                        <span>Backspace</span>
+                        <BackspaceOption enabled={backspaceEnabled} onChange={setBackspaceEnabled} onLabel="Backspace On" offLabel="Backspace Off" />
+                      </li>
+                      <li className="flex items-center justify-between gap-3">
+                        <span>Font size</span>
+                        <span className="flex items-center gap-1">
+                          <button type="button" onClick={() => setFontPx((value) => Math.max(16, value - 2))} className="rounded-md bg-slate-200 px-2 py-1 text-sm font-black text-slate-700">A−</button>
+                          <span className="w-10 text-center">{fontPx}</span>
+                          <button type="button" onClick={() => setFontPx((value) => Math.min(48, value + 2))} className="rounded-md bg-slate-200 px-2 py-1 text-sm font-black text-slate-700">A+</button>
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
+                {step === 3 && <p className="mt-3 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
 
                 <div
                   className="mt-4 min-h-56 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100 sm:min-h-64 md:min-h-72 lg:min-h-80"
@@ -278,7 +322,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                       : state === "bad" ? "rounded bg-rose-200 text-rose-700"
                       : state === "cur" ? "rounded bg-amber-300 text-slate-900"
                       : "text-slate-400";
-                    return <span key={position} className={cls}>{char === " " ? " " : char}</span>;
+                    return <span key={position} ref={state === "cur" ? caretElRef : undefined} className={cls}>{char === " " ? " " : char}</span>;
                   })}
                 </div>
 
