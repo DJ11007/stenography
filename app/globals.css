@@ -118,19 +118,6 @@
   animation: wordtris-cloud-c 11s ease-in-out infinite;
 }
 
-@keyframes wordtris-wave-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-.animate-wordtris-wave-scroll {
-  animation: wordtris-wave-scroll 6s linear infinite;
-}
-
-.animate-wordtris-wave-scroll-slow {
-  animation: wordtris-wave-scroll 11s linear infinite reverse;
-}
-
 @keyframes wordtris-splash {
   0% { transform: translateX(-50%) scale(0.3); opacity: 0.9; }
   100% { transform: translateX(-50%) scale(2.4); opacity: 0; }
@@ -153,8 +140,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-wordtris-wave-scroll,
-  .animate-wordtris-wave-scroll-slow,
   .animate-wordtris-splash,
   .animate-wordtris-shake { animation: none; }
   /* The clouds' spread-apart layout is baked into their keyframes (see

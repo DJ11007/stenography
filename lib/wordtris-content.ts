@@ -74,16 +74,6 @@ export function wordtrisFallMs(text: string, wpm: number, mode: WordtrisMode) {
   return Math.max(WORDTRIS_MIN_FALL_MS, WORDTRIS_READING_BUFFER_MS[mode] + typingMs);
 }
 
-// How long to wait before the next drop spawns, at the given WPM -- not
-// milestone-indexed like the fall-time ramp above, since WPM is a
-// continuous value once miss-penalties and manual adjustment are in play;
-// a plain formula (roughly half the time one 5-character word takes to
-// type) stays consistent at any WPM without needing a second lookup table.
-export function wordtrisSpawnMs(wpm: number) {
-  const perWordMs = (60000) / wpm;
-  return Math.max(900, Math.min(2600, perWordMs / 2));
-}
-
 // The next rung up the ladder from the current WPM -- used both for the
 // normal every-7-catches advance and for climbing back up after a miss
 // knocked the WPM down mid-ladder. Caps at the top milestone.

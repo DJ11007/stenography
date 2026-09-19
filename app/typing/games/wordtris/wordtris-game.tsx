@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { GLYPH_KEYS as HINDI_GLYPH_KEYS } from "@/lib/krutidev-tutor-content";
 import { GLYPH_KEYS as ENGLISH_GLYPH_KEYS } from "@/lib/english-tutor-content";
-import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisSpawnMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
+import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from "./actions";
 
@@ -30,7 +30,7 @@ const CHARACTER_POOL: Record<WordtrisLanguage, string[]> = {
   hindi: [...new Set(HINDI_GLYPH_KEYS.map((k) => k.normal).filter(Boolean))],
 };
 
-// Small decorative drops drifting down behind the real, interactive ones --
+// Small decorative drops drifting down behind the real, interactive one --
 // purely atmosphere, fixed (not random) so they don't reshuffle every
 // render. Non-interactive: aria-hidden and never read from.
 const AMBIENT_DROPS = Array.from({ length: 5 }, (_, i) => ({
@@ -39,16 +39,11 @@ const AMBIENT_DROPS = Array.from({ length: 5 }, (_, i) => ({
   delay: `${i * 0.6}s`,
 }));
 
-// Real reported request: one item falling at a time never looked like
-// "multiple drops" no matter how fast -- up to this many now fall at
-// once, each in its own lane, spaced with enough margin that even the
-// widest bundled word doesn't visually collide with its neighbours.
-const LANE_POSITIONS = [16, 50, 84];
-const MAX_CONCURRENT_DROPS = LANE_POSITIONS.length;
-// How often the spawn scheduler re-checks whether it's time for a new
-// drop -- independent of, and much shorter than, the actual spawn
-// interval (baseSpawnMs..minSpawnMs), which changes as speedLevel moves.
-const SPAWN_TICK_MS = 150;
+// Real reported reference (a screen recording of an existing typing-rain
+// game): one word falls at a time, dead center, not several concurrent
+// lanes -- the next one spawns shortly after the current one resolves
+// (caught or missed). See the spawn effect in WordtrisGame.
+const NEXT_DROP_DELAY_MS = 250;
 
 function shuffledPool(list: string[]) {
   const pool = [...list];
@@ -61,7 +56,7 @@ function shuffledPool(list: string[]) {
 
 type Step = "setup" | "playing" | "gameover";
 type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
-type ActiveDrop = { id: number; text: string; target: string; lane: number; fallMs: number; spawnedAt: number };
+type ActiveDrop = { id: number; text: string; target: string; fallMs: number; spawnedAt: number };
 
 function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: ActiveDrop; fontFamily?: string; typedLength: number; onMiss: (id: number) => void }) {
   const [falling, setFalling] = useState(false);
@@ -71,9 +66,8 @@ function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: Acti
   const locked = typedLength > 0;
   return (
     <div
-      className="absolute"
+      className="absolute left-1/2"
       style={{
-        left: `${LANE_POSITIONS[drop.lane]}%`,
         top: falling ? "calc(100% - 4.75rem)" : "1rem",
         transform: "translateX(-50%)",
         // No transition while snapping to the top on mount -- only while
@@ -83,11 +77,12 @@ function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: Acti
       }}
       onTransitionEnd={() => { if (falling) onMiss(drop.id); }}
     >
-      <div className={`relative min-w-24 rounded-2xl px-7 pb-5 pt-11 text-center text-2xl font-black text-white drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)] transition ${locked ? "ring-4 ring-amber-300" : ""}`} style={{ fontFamily }}>
+      <div className={`relative min-w-24 rounded-2xl px-7 pb-5 pt-11 text-center text-2xl drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)] transition ${locked ? "ring-4 ring-amber-300" : ""}`} style={{ fontFamily }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 -z-10 h-full w-full" aria-hidden="true">
           <defs>
-            {/* Unique id per concurrent drop -- several of these render at
-                once now, so a shared id would be a duplicate DOM id. */}
+            {/* Unique id per drop -- a new one mounts before the previous
+                one's exit transition always finishes, so a shared id would
+                risk a duplicate DOM id. */}
             <linearGradient id={`wordtris-drop-fill-${drop.id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={locked ? "#fbbf24" : "#22d3ee"} />
               <stop offset="100%" stopColor={locked ? "#b45309" : "#0e7490"} />
@@ -96,13 +91,12 @@ function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: Acti
           <polygon points={DROP_POINTS} fill={`url(#wordtris-drop-fill-${drop.id})`} />
           <ellipse cx="30" cy="58" rx="9" ry="15" fill="rgba(255,255,255,0.25)" />
         </svg>
-        {/* Real reported request: each correctly typed key should visibly
-            change that letter's color, the same "lit up as you go"
-            feedback the site's own typing tutors already give -- so each
-            character is its own span instead of one plain text node. */}
+        {/* Real reported reference: the typed-so-far portion of the word
+            turns bold and dark against the remaining, still-plain letters
+            -- not a color swap -- so each character is its own span. */}
         <span className="relative">
           {[...drop.target].map((ch, i) => (
-            <span key={i} className={i < typedLength ? "text-lime-300" : undefined}>{ch}</span>
+            <span key={i} className={i < typedLength ? "font-black text-slate-900" : "font-bold text-white/90"}>{ch}</span>
           ))}
         </span>
       </div>
@@ -146,19 +140,22 @@ export function WordtrisGame({ words }: Props) {
   const [score, setScore] = useState(0);
   const [wordsCaught, setWordsCaught] = useState(0);
   const [streak, setStreak] = useState(0);
-  // Current typing speed the falling drops are paced to, in real WPM (see
+  // Current typing speed the falling drop is paced to, in real WPM (see
   // lib/wordtris-content.ts) -- shown live in the HUD, adjustable from the
   // setup screen before a round starts.
   const [wpm, setWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
   const [startingWpm, setStartingWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
-  const [activeDrops, setActiveDrops] = useState<ActiveDrop[]>([]);
+  // Real reported reference: only one word falls at a time, dead center --
+  // not several concurrent lanes -- so there is at most one active drop.
+  const [activeDrop, setActiveDrop] = useState<ActiveDrop | null>(null);
   const [typed, setTyped] = useState("");
   const [flash, setFlash] = useState<"catch" | "miss" | null>(null);
   const [inputShake, setInputShake] = useState(false);
-  // Every missed drop lands in the bucket's water -- a brief expanding
-  // splash ring at the point of impact, purely decorative (aria-hidden),
-  // removed a moment after it plays.
-  const [splashes, setSplashes] = useState<{ id: number; lane: number }[]>([]);
+  // Every missed drop stacks up as its own labeled block at the bottom of
+  // the bucket (the same "missed words pile up" visual the reference game
+  // uses) -- one more block per life lost, six blocks fill it completely.
+  const [missedStack, setMissedStack] = useState<{ id: number; text: string }[]>([]);
+  const [splash, setSplash] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [leaderboardLimit, setLeaderboardLimit] = useState<10 | 20 | 50>(10);
@@ -170,7 +167,7 @@ export function WordtrisGame({ words }: Props) {
   const nextIdRef = useRef(0);
   const wpmRef = useRef<number>(WORDTRIS_WPM_MILESTONES[0]);
   const catchesSinceBumpRef = useRef(0);
-  const activeDropsRef = useRef<ActiveDrop[]>([]);
+  const activeDropRef = useRef<ActiveDrop | null>(null);
   useEffect(() => { wpmRef.current = wpm; }, [wpm]);
 
   const startingLives = WORDTRIS_STARTING_LIVES;
@@ -198,22 +195,16 @@ export function WordtrisGame({ words }: Props) {
   }, []);
 
   const spawnDrop = useCallback((m: WordtrisMode, lang: WordtrisLanguage) => {
-    const used = new Set(activeDropsRef.current.map((d) => d.lane));
-    const freeLanes = LANE_POSITIONS.map((_, i) => i).filter((i) => !used.has(i));
-    if (!freeLanes.length) return;
-    const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
-
-    const activeTexts = new Set(activeDropsRef.current.map((d) => d.text));
-    let raw = nextPoolItem();
-    for (let attempt = 0; attempt < 5 && activeTexts.has(raw); attempt += 1) raw = nextPoolItem();
+    if (activeDropRef.current) return;
+    const raw = nextPoolItem();
     if (!raw) return;
 
     const target = buildTarget(raw, m, lang);
     const fallMs = wordtrisFallMs(target, wpmRef.current, m);
 
-    const drop: ActiveDrop = { id: nextIdRef.current++, text: raw, target, lane, fallMs, spawnedAt: Date.now() };
-    activeDropsRef.current = [...activeDropsRef.current, drop];
-    setActiveDrops(activeDropsRef.current);
+    const drop: ActiveDrop = { id: nextIdRef.current++, text: raw, target, fallMs, spawnedAt: Date.now() };
+    activeDropRef.current = drop;
+    setActiveDrop(drop);
   }, [nextPoolItem, buildTarget]);
 
   const startRound = useCallback((m: WordtrisMode, lang: WordtrisLanguage, cat: WordtrisCategory) => {
@@ -223,12 +214,13 @@ export function WordtrisGame({ words }: Props) {
     poolRef.current = shuffledPool(m === "character" ? CHARACTER_POOL[lang] : words[lang][cat]);
     poolCursorRef.current = 0;
     nextIdRef.current = 0;
-    activeDropsRef.current = [];
-    setActiveDrops([]);
+    activeDropRef.current = null;
+    setActiveDrop(null);
     setLives(WORDTRIS_STARTING_LIVES);
     setScore(0);
     setWordsCaught(0);
     setStreak(0);
+    setMissedStack([]);
     wpmRef.current = startingWpm;
     setWpm(startingWpm);
     catchesSinceBumpRef.current = 0;
@@ -245,8 +237,8 @@ export function WordtrisGame({ words }: Props) {
     setScore((s) => s + points);
     setWordsCaught((w) => w + 1);
     setStreak((s) => s + 1);
-    activeDropsRef.current = activeDropsRef.current.filter((d) => d.id !== drop.id);
-    setActiveDrops(activeDropsRef.current);
+    activeDropRef.current = null;
+    setActiveDrop(null);
     setTyped("");
     setFlash("catch");
     window.setTimeout(() => setFlash(null), 300);
@@ -263,19 +255,21 @@ export function WordtrisGame({ words }: Props) {
 
   const onMiss = useCallback((dropId: number) => {
     // A stray transitionend from a drop that was already caught (and thus
-    // already removed/unmounted) can't actually reach here -- React
-    // unmounting the element aborts its in-flight CSS transition instead
-    // of firing the event -- but the guard costs nothing and documents why
-    // double-counting a miss isn't possible.
-    const missed = activeDropsRef.current.find((d) => d.id === dropId);
-    if (!missed) return;
-    activeDropsRef.current = activeDropsRef.current.filter((d) => d.id !== dropId);
-    setActiveDrops(activeDropsRef.current);
+    // already cleared) can't actually reach here -- React unmounting the
+    // element aborts its in-flight CSS transition instead of firing the
+    // event -- but the guard costs nothing and documents why double-
+    // counting a miss isn't possible.
+    const missed = activeDropRef.current;
+    if (!missed || missed.id !== dropId) return;
+    activeDropRef.current = null;
+    setActiveDrop(null);
+    setTyped("");
     setStreak(0);
     setFlash("miss");
     window.setTimeout(() => setFlash(null), 300);
-    setSplashes((s) => [...s, { id: missed.id, lane: missed.lane }]);
-    window.setTimeout(() => setSplashes((s) => s.filter((sp) => sp.id !== missed.id)), 550);
+    setMissedStack((s) => [...s, { id: missed.id, text: missed.target }]);
+    setSplash(missed.id);
+    window.setTimeout(() => setSplash((id) => (id === missed.id ? null : id)), 550);
     // A miss backs the WPM off and restarts the catch count toward the
     // next milestone, so climbing back up always retraces the ladder.
     catchesSinceBumpRef.current = 0;
@@ -289,21 +283,14 @@ export function WordtrisGame({ words }: Props) {
     });
   }, []);
 
-  // Spawns new drops on a schedule computed from the current WPM (see
-  // wordtrisSpawnMs) -- rechecked on a short, fixed tick so it always
-  // reacts to the CURRENT speed rather than whatever it was when the round
-  // started.
+  // The next drop spawns a short beat after the field is clear (caught or
+  // missed) -- not on a separate spawn-interval schedule, since only one
+  // is ever on screen at a time.
   useEffect(() => {
-    if (step !== "playing") return;
-    let nextSpawnAt = Date.now();
-    const timer = window.setInterval(() => {
-      if (Date.now() < nextSpawnAt) return;
-      if (activeDropsRef.current.length >= MAX_CONCURRENT_DROPS) return;
-      spawnDrop(mode, language);
-      nextSpawnAt = Date.now() + wordtrisSpawnMs(wpmRef.current);
-    }, SPAWN_TICK_MS);
-    return () => window.clearInterval(timer);
-  }, [step, mode, language, spawnDrop]);
+    if (step !== "playing" || activeDrop) return;
+    const timer = window.setTimeout(() => spawnDrop(mode, language), NEXT_DROP_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [step, activeDrop, mode, language, spawnDrop]);
 
   useEffect(() => {
     if (step === "playing") requestAnimationFrame(() => inputRef.current?.focus());
@@ -340,16 +327,14 @@ export function WordtrisGame({ words }: Props) {
   const normalize = useCallback((value: string) => (language === "hindi" ? value : value.trim().toLowerCase()), [language]);
   const dropText = useCallback((d: ActiveDrop) => (language === "hindi" ? d.target : d.target.toLowerCase()), [language]);
 
-  // Real reported request: once the student is partway into one falling
-  // drop's word, a stray keystroke that only belongs to a *different*
-  // falling word must not be accepted -- it should simply not type at all,
-  // the same way a real word-processor's autocomplete would refuse an
-  // impossible continuation. Backspacing is always allowed so the field
-  // can still be cleared/retried.
+  // A stray keystroke that doesn't continue the one falling word must not
+  // be accepted -- it should simply not type at all, the same way a real
+  // word-processor's autocomplete would refuse an impossible continuation.
+  // Backspacing is always allowed so the field can still be cleared/retried.
   const isValidPrefix = useCallback((value: string) => {
     const norm = normalize(value);
     if (!norm) return true;
-    return activeDropsRef.current.some((d) => dropText(d).startsWith(norm));
+    return activeDropRef.current ? dropText(activeDropRef.current).startsWith(norm) : false;
   }, [normalize, dropText]);
 
   const handleTyped = (value: string) => {
@@ -362,19 +347,14 @@ export function WordtrisGame({ words }: Props) {
   // finishing a word/character -- matching a real typed word being
   // confirmed with a space, not the moment the letters happen to line up.
   const trySubmit = useCallback(() => {
-    if (!typed) return;
+    if (!typed || !activeDropRef.current) return;
     const normalizedTyped = normalize(typed);
-    const candidates = activeDropsRef.current.filter((d) => dropText(d) === normalizedTyped);
-    if (!candidates.length) {
+    if (dropText(activeDropRef.current) !== normalizedTyped) {
       setInputShake(true);
       window.setTimeout(() => setInputShake(false), 320);
       return;
     }
-    // More than one identical falling drop can match at once (small pools,
-    // especially in character mode) -- catch whichever is furthest along
-    // its fall, the more urgent one.
-    const mostUrgent = candidates.reduce((a, b) => ((Date.now() - b.spawnedAt) / b.fallMs > (Date.now() - a.spawnedAt) / a.fallMs ? b : a));
-    onCatch(mostUrgent);
+    onCatch(activeDropRef.current);
   }, [typed, normalize, dropText, onCatch]);
 
   const handleTypedKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -383,21 +363,15 @@ export function WordtrisGame({ words }: Props) {
     trySubmit();
   };
 
-  const normalizedTyped = normalize(typed);
-  // How many of each locked drop's own characters are "typed so far" --
-  // drives the letter-by-letter color feedback in FallingDropView. Keyed
-  // by drop id rather than a plain boolean so each drop can light up
-  // exactly as many of its own letters as have actually been matched.
-  const lockedProgress = useMemo(() => {
-    const map = new Map<number, number>();
-    if (!normalizedTyped) return map;
-    for (const d of activeDrops) if (dropText(d).startsWith(normalizedTyped)) map.set(d.id, typed.length);
-    return map;
-  }, [activeDrops, normalizedTyped, dropText, typed]);
+  // How many of the falling word's own characters are "typed so far" --
+  // drives both the letter-by-letter bold feedback in FallingDropView and
+  // the "remaining letters" readout below the bucket. handleTyped already
+  // guarantees `typed` is always a valid prefix of the active drop, so
+  // this is just its length.
+  const typedLength = activeDrop ? typed.length : 0;
+  const remainingText = activeDrop ? activeDrop.target.slice(typed.length) : "";
 
-  const waterFillPercent = ((startingLives - lives) / startingLives) * 100;
-
-  const displayCategories = useMemo(() => CATEGORIES, []);
+  const displayCategories = CATEGORIES;
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
@@ -417,7 +391,7 @@ export function WordtrisGame({ words }: Props) {
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-7 w-5 fill-cyan-400" aria-hidden="true"><polygon points={DROP_POINTS} /></svg>
                 <h1 className="text-2xl font-black text-white">WordTris</h1>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Multiple drops fall from the cloud at once, starting slow -- type one and press Space to catch it before it lands. Miss one and the bucket fills with a little more water; string catches together and it speeds back up. Six missed drops and the bucket overflows.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">One word falls from the cloud at a time, starting slow -- type it and press Space to catch it before it lands. Miss one and it stacks up inside the bucket; string catches together and it speeds back up. Six stacked misses and the bucket is full.</p>
             </div>
             <div className="p-6">
               <p className="text-xs font-black uppercase tracking-wider text-slate-500">Drill</p>
@@ -480,7 +454,7 @@ export function WordtrisGame({ words }: Props) {
 
             {/* A small overlapping cluster of clouds drifts above the
                 bucket, each moving independently so they slide across and
-                past one another -- purely atmospheric, every drop visually
+                past one another -- purely atmospheric, the drop visually
                 originates from underneath them. A soft blurred haze sits
                 behind the cluster and the clouds themselves use a visibly
                 darker, outlined fill (not near-white) so they stay clearly
@@ -500,32 +474,15 @@ export function WordtrisGame({ words }: Props) {
               <div className="relative z-10 h-3.5 w-[92%] rounded-full bg-gradient-to-b from-slate-300 to-slate-500 shadow-inner sm:w-[88%]" />
             </div>
 
-            {/* The bucket body: the falling-drop play field, now much
-                bigger, with metal side straps and a rising water level --
-                one step per life lost (6 steps to fully full/game over). */}
+            {/* The bucket body: the falling-drop play field, with metal
+                side straps and missed words stacking up as labeled blocks
+                from the bottom -- one block per life lost (6 blocks fill
+                it completely), the same "misses pile up" visual the
+                reference game uses instead of a continuous fill level. */}
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-3 left-0 z-20 w-2.5 rounded-full bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 sm:w-3" />
               <div className="pointer-events-none absolute inset-y-3 right-0 z-20 w-2.5 rounded-full bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 sm:w-3" />
               <div className={`wordtris-rain-lane relative h-[28rem] overflow-hidden rounded-[2rem] ring-1 ring-slate-700 transition sm:h-[34rem] ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
-                {/* Rising water -- absolutely positioned first so every
-                    later sibling (ambient rain, real drops, splashes)
-                    naturally paints on top of it. */}
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden transition-[height] duration-700 ease-out"
-                  style={{ height: `${waterFillPercent}%` }}
-                  aria-hidden="true"
-                >
-                  <div className="absolute inset-x-0 -top-3 h-6 overflow-hidden">
-                    <svg viewBox="0 0 400 20" preserveAspectRatio="none" className="animate-wordtris-wave-scroll h-full w-[200%] fill-cyan-400/70">
-                      <path d="M0 10 C 25 0,75 20,100 10 C125 0,175 20,200 10 L200 20 L0 20 Z M200 10 C225 0,275 20,300 10 C325 0,375 20,400 10 L400 20 L200 20 Z" />
-                    </svg>
-                    <svg viewBox="0 0 400 20" preserveAspectRatio="none" className="animate-wordtris-wave-scroll-slow absolute inset-0 h-full w-[200%] fill-cyan-300/40">
-                      <path d="M0 12 C25 4,75 20,100 12 C125 4,175 20,200 12 L200 20 L0 20 Z M200 12 C225 4,275 20,300 12 C325 4,375 20,400 12 L400 20 L200 20 Z" />
-                    </svg>
-                  </div>
-                  <div className="absolute inset-x-0 bottom-0 top-3 bg-gradient-to-b from-cyan-500/70 via-cyan-600/80 to-cyan-800/90" />
-                </div>
-
                 {AMBIENT_DROPS.map((drop, i) => (
                   <svg
                     key={i}
@@ -538,19 +495,47 @@ export function WordtrisGame({ words }: Props) {
                     <polygon points={DROP_POINTS} />
                   </svg>
                 ))}
-                {activeDrops.map((drop) => (
-                  <FallingDropView key={drop.id} drop={drop} fontFamily={fontFamily} typedLength={lockedProgress.get(drop.id) ?? 0} onMiss={onMiss} />
-                ))}
-                {splashes.map((s) => (
-                  <span key={s.id} aria-hidden="true" className="animate-wordtris-splash pointer-events-none absolute z-10 h-12 w-12 rounded-full border-2 border-cyan-100" style={{ left: `${LANE_POSITIONS[s.lane]}%`, bottom: `${Math.min(94, waterFillPercent)}%` }} />
-                ))}
+                {activeDrop && (
+                  <FallingDropView key={activeDrop.id} drop={activeDrop} fontFamily={fontFamily} typedLength={typedLength} onMiss={onMiss} />
+                )}
+                {splash !== null && (
+                  <span aria-hidden="true" className="animate-wordtris-splash pointer-events-none absolute bottom-2 left-1/2 z-10 h-12 w-12 rounded-full border-2 border-cyan-100" />
+                )}
+                {/* Missed words, stacked bottom-up -- oldest at the floor,
+                    newest on top of the pile (flex-col-reverse renders the
+                    last DOM child at the container's start edge, which for
+                    a bottom-anchored column is the bottom). */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col-reverse" aria-hidden="true">
+                  {missedStack.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-center overflow-hidden border-t border-slate-400/50 bg-slate-300/95 px-3 text-sm font-bold text-slate-600"
+                      style={{ height: `${100 / startingLives}%`, fontFamily }}
+                    >
+                      {m.text}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
             {/* Base plate. */}
             <div className="mx-auto -mt-2 h-3 w-[86%] rounded-full bg-gradient-to-b from-slate-500 to-slate-700 shadow-md sm:w-[82%]" />
 
-            <div className="mt-4">
+            {/* Real reported reference: a readout below the bucket shows
+                only the letters still left to type, with a caret marking
+                where you are in the word -- separate from the color
+                feedback inside the falling drop itself. */}
+            <div className="mt-4 flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-50 px-4 py-2.5 text-lg font-bold text-blue-700" style={{ fontFamily }}>
+              {activeDrop ? (
+                <>
+                  <span aria-hidden="true" className="text-emerald-600">▸</span>
+                  <span className="underline decoration-2 underline-offset-2">{remainingText}</span>
+                </>
+              ) : <span className="text-sm font-bold text-slate-400">Get ready…</span>}
+            </div>
+
+            <div className="mt-3">
               <input
                 ref={inputRef}
                 value={typed}
@@ -558,10 +543,10 @@ export function WordtrisGame({ words }: Props) {
                 onKeyDown={handleTypedKeyDown}
                 spellCheck={false}
                 autoFocus
-                aria-label={`Type any falling ${mode === "character" ? "character" : "word"}, then press Space`}
+                aria-label={`Type the falling ${mode === "character" ? "character" : "word"}, then press Space`}
                 className={`w-full rounded-xl border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500 ${inputShake ? "animate-wordtris-shake border-rose-400" : ""}`}
                 style={{ fontFamily }}
-                placeholder={mode === "character" ? "Type the falling key, then press Space…" : "Type any falling word, then press Space…"}
+                placeholder={mode === "character" ? "Type the falling key, then press Space…" : "Type the falling word, then press Space…"}
               />
             </div>
           </div>

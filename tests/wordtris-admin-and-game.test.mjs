@@ -51,19 +51,30 @@ test("the difficulty curve is an explicit WPM milestone ladder -- starts slow, a
   assert.match(game, /catchesSinceBumpRef\.current \+= 1;/); // ramps up every N catches
   assert.match(game, /const eased = Math\.max\(WORDTRIS_MIN_WPM, wpmRef\.current - WORDTRIS_MISS_WPM_PENALTY\);/); // eases off on miss
   assert.match(game, /const fallMs = wordtrisFallMs\(target, wpmRef\.current, m\);/);
-  assert.match(game, /nextSpawnAt = Date\.now\(\) \+ wordtrisSpawnMs\(wpmRef\.current\);/);
 });
 
-// Real reported request: multiple drops fall at once now, each in its own
-// lane, up to a fixed cap -- the spawn scheduler must never place a new
-// drop in an already-occupied lane, and must wait for room rather than
-// exceeding the cap.
-test("up to MAX_CONCURRENT_DROPS fall at once, each in its own free lane, never exceeding the cap", async () => {
+// Real reported reference (a screen recording of an existing typing-rain
+// game): only one word falls at a time, dead center -- not several
+// concurrent lanes as an earlier iteration had -- and the next one spawns
+// a short beat after the current one resolves (caught or missed), never
+// while one is still active.
+test("only one drop is ever active at a time, and the next one spawns shortly after the field is clear", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /const LANE_POSITIONS = \[16, 50, 84\];/);
-  assert.match(game, /const MAX_CONCURRENT_DROPS = LANE_POSITIONS\.length;/);
-  assert.match(game, /if \(activeDropsRef\.current\.length >= MAX_CONCURRENT_DROPS\) return;/);
-  assert.match(game, /const freeLanes = LANE_POSITIONS\.map\(\(_, i\) => i\)\.filter\(\(i\) => !used\.has\(i\)\);/);
+  assert.match(game, /const \[activeDrop, setActiveDrop\] = useState<ActiveDrop \| null>\(null\);/);
+  assert.match(game, /if \(activeDropRef\.current\) return;/);
+  assert.match(game, /if \(step !== "playing" \|\| activeDrop\) return;/);
+  assert.match(game, /window\.setTimeout\(\(\) => spawnDrop\(mode, language\), NEXT_DROP_DELAY_MS\);/);
+});
+
+// Real reported reference: missed words stack up as their own labeled
+// block at the bottom of the bucket (like the reference game), one block
+// per life lost -- not a continuous fill level -- so six stacked misses
+// exactly fill it (matches WORDTRIS_STARTING_LIVES).
+test("a missed word stacks up as a labeled block in the bucket, sized so six of them exactly fill it", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /setMissedStack\(\(s\) => \[\.\.\.s, \{ id: missed\.id, text: missed\.target \}\]\);/);
+  assert.match(game, /style=\{\{ height: `\$\{100 \/ startingLives\}%`, fontFamily \}\}/);
+  assert.match(game, /flex-col-reverse/); // oldest miss stays at the floor, newest piles on top
 });
 
 // Real bug found and fixed during review: resetting a drop's position on
