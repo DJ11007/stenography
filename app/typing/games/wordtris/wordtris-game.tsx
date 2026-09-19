@@ -11,7 +11,6 @@ import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
-const { startingLives } = WORDTRIS_DIFFICULTY;
 
 // A real teardrop silhouette (sampled bottom-half ellipse tangent to a
 // single point at the top), not the rounded pill/bubble shape this
@@ -32,7 +31,7 @@ const CHARACTER_POOL: Record<WordtrisLanguage, string[]> = {
   hindi: [...new Set(HINDI_GLYPH_KEYS.map((k) => k.normal).filter(Boolean))],
 };
 
-// Small decorative drops drifting down behind the real, interactive one --
+// Small decorative drops drifting down behind the real, interactive ones --
 // purely atmosphere, fixed (not random) so they don't reshuffle every
 // render. Non-interactive: aria-hidden and never read from.
 const AMBIENT_DROPS = Array.from({ length: 5 }, (_, i) => ({
@@ -40,6 +39,17 @@ const AMBIENT_DROPS = Array.from({ length: 5 }, (_, i) => ({
   duration: `${3 + (i % 3) * 0.7}s`,
   delay: `${i * 0.6}s`,
 }));
+
+// Real reported request: one item falling at a time never looked like
+// "multiple drops" no matter how fast -- up to this many now fall at
+// once, each in its own lane, spaced with enough margin that even the
+// widest bundled word doesn't visually collide with its neighbours.
+const LANE_POSITIONS = [16, 50, 84];
+const MAX_CONCURRENT_DROPS = LANE_POSITIONS.length;
+// How often the spawn scheduler re-checks whether it's time for a new
+// drop -- independent of, and much shorter than, the actual spawn
+// interval (baseSpawnMs..minSpawnMs), which changes as speedLevel moves.
+const SPAWN_TICK_MS = 150;
 
 function shuffledPool(list: string[]) {
   const pool = [...list];
@@ -52,6 +62,45 @@ function shuffledPool(list: string[]) {
 
 type Step = "setup" | "playing" | "gameover";
 type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
+type ActiveDrop = { id: number; text: string; target: string; lane: number; fallMs: number; spawnedAt: number };
+
+function FallingDropView({ drop, fontFamily, onMiss }: { drop: ActiveDrop; fontFamily?: string; onMiss: (id: number) => void }) {
+  const [falling, setFalling] = useState(false);
+  useEffect(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setFalling(true)));
+  }, []);
+  return (
+    <div
+      className="absolute"
+      style={{
+        left: `${LANE_POSITIONS[drop.lane]}%`,
+        top: falling ? "calc(100% - 4.75rem)" : "1rem",
+        transform: "translateX(-50%)",
+        // No transition while snapping to the top on mount -- only while
+        // actually falling. Without this, appearing itself animates too
+        // (CSS transitions apply to any style change, not just the fall).
+        transition: falling ? `top ${drop.fallMs}ms linear` : "none",
+      }}
+      onTransitionEnd={() => { if (falling) onMiss(drop.id); }}
+    >
+      <div className="relative min-w-24 px-7 pb-5 pt-11 text-center text-2xl font-black text-white drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)]" style={{ fontFamily }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 -z-10 h-full w-full" aria-hidden="true">
+          <defs>
+            {/* Unique id per concurrent drop -- several of these render at
+                once now, so a shared id would be a duplicate DOM id. */}
+            <linearGradient id={`wordtris-drop-fill-${drop.id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22d3ee" />
+              <stop offset="100%" stopColor="#0e7490" />
+            </linearGradient>
+          </defs>
+          <polygon points={DROP_POINTS} fill={`url(#wordtris-drop-fill-${drop.id})`} />
+          <ellipse cx="30" cy="58" rx="9" ry="15" fill="rgba(255,255,255,0.25)" />
+        </svg>
+        <span className="relative">{drop.target}</span>
+      </div>
+    </div>
+  );
+}
 
 export function WordtrisGame({ words }: Props) {
   const [mode, setMode] = useState<WordtrisMode>("word");
@@ -59,14 +108,12 @@ export function WordtrisGame({ words }: Props) {
   const [language, setLanguage] = useState<WordtrisLanguage>("english");
   const [category, setCategory] = useState<WordtrisCategory>("easy_words");
 
-  const [pool, setPool] = useState<string[]>([]);
-  const [poolIndex, setPoolIndex] = useState(0);
-  const [lives, setLives] = useState<number>(startingLives);
+  const [lives, setLives] = useState<number>(WORDTRIS_DIFFICULTY.startingLives);
   const [score, setScore] = useState(0);
   const [wordsCaught, setWordsCaught] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [fallMs, setFallMs] = useState<number>(WORDTRIS_DIFFICULTY.baseFallMs);
-  const [falling, setFalling] = useState(false);
+  const [speedLevel, setSpeedLevel] = useState(0);
+  const [activeDrops, setActiveDrops] = useState<ActiveDrop[]>([]);
   const [typed, setTyped] = useState("");
   const [flash, setFlash] = useState<"catch" | "miss" | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -74,83 +121,136 @@ export function WordtrisGame({ words }: Props) {
   const [leaderboardLimit, setLeaderboardLimit] = useState<10 | 20 | 50>(10);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const laneRef = useRef<HTMLDivElement>(null);
+
+  const poolRef = useRef<string[]>([]);
+  const poolCursorRef = useRef(0);
+  const nextIdRef = useRef(0);
+  const speedLevelRef = useRef(0);
+  const activeDropsRef = useRef<ActiveDrop[]>([]);
+  useEffect(() => { speedLevelRef.current = speedLevel; }, [speedLevel]);
 
   // Character mode drills single keystrokes, which need a fraction of a
-  // whole word's fall time -- a different, faster difficulty curve, same
-  // shape (ease off after a miss, ramp back up on a streak).
-  const { baseFallMs, minFallMs, speedUpEveryStreak, speedUpFactor, missBreatherFactor } = mode === "character" ? WORDTRIS_CHARACTER_DIFFICULTY : WORDTRIS_DIFFICULTY;
+  // whole word's fall/spawn time -- a different, faster curve, same shape.
+  const { baseFallMs, minFallMs, baseSpawnMs, minSpawnMs, speedFactor } = mode === "character" ? WORDTRIS_CHARACTER_DIFFICULTY : WORDTRIS_DIFFICULTY;
+  const startingLives = (mode === "character" ? WORDTRIS_CHARACTER_DIFFICULTY : WORDTRIS_DIFFICULTY).startingLives;
+  const fontFamily = language === "hindi" ? KD : undefined;
 
-  const currentItem = pool[poolIndex] ?? "";
+  const nextPoolItem = useCallback(() => {
+    if (poolRef.current.length === 0) return "";
+    if (poolCursorRef.current >= poolRef.current.length) {
+      poolRef.current = shuffledPool(poolRef.current);
+      poolCursorRef.current = 0;
+    }
+    const item = poolRef.current[poolCursorRef.current];
+    poolCursorRef.current += 1;
+    return item;
+  }, []);
+
   // Only word mode's Hindi content is stored as Unicode needing conversion
   // -- character mode's Hindi pool is already raw, typeable Kruti Dev
   // bytes (see CHARACTER_POOL above), so converting it again would mangle it.
-  const target = mode === "word" && language === "hindi" ? (() => { try { return toTypeableKrutiDev(currentItem); } catch { return currentItem; } })() : currentItem;
-  const fontFamily = language === "hindi" ? KD : undefined;
+  const buildTarget = useCallback((raw: string, m: WordtrisMode, lang: WordtrisLanguage) => {
+    if (m === "word" && lang === "hindi") {
+      try { return toTypeableKrutiDev(raw); } catch { return raw; }
+    }
+    return raw;
+  }, []);
+
+  const spawnDrop = useCallback((m: WordtrisMode, lang: WordtrisLanguage) => {
+    const used = new Set(activeDropsRef.current.map((d) => d.lane));
+    const freeLanes = LANE_POSITIONS.map((_, i) => i).filter((i) => !used.has(i));
+    if (!freeLanes.length) return;
+    const lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
+
+    const activeTexts = new Set(activeDropsRef.current.map((d) => d.text));
+    let raw = nextPoolItem();
+    for (let attempt = 0; attempt < 5 && activeTexts.has(raw); attempt += 1) raw = nextPoolItem();
+    if (!raw) return;
+
+    const fallMs = Math.max(minFallMs, baseFallMs * speedFactor ** speedLevelRef.current);
+
+    const drop: ActiveDrop = { id: nextIdRef.current++, text: raw, target: buildTarget(raw, m, lang), lane, fallMs, spawnedAt: Date.now() };
+    activeDropsRef.current = [...activeDropsRef.current, drop];
+    setActiveDrops(activeDropsRef.current);
+  }, [nextPoolItem, buildTarget, baseFallMs, minFallMs, speedFactor]);
 
   const startRound = useCallback((m: WordtrisMode, lang: WordtrisLanguage, cat: WordtrisCategory) => {
     const curve = m === "character" ? WORDTRIS_CHARACTER_DIFFICULTY : WORDTRIS_DIFFICULTY;
     setMode(m);
     setLanguage(lang);
     setCategory(cat);
-    setPool(shuffledPool(m === "character" ? CHARACTER_POOL[lang] : words[lang][cat]));
-    setPoolIndex(0);
+    poolRef.current = shuffledPool(m === "character" ? CHARACTER_POOL[lang] : words[lang][cat]);
+    poolCursorRef.current = 0;
+    nextIdRef.current = 0;
+    activeDropsRef.current = [];
+    setActiveDrops([]);
     setLives(curve.startingLives);
     setScore(0);
     setWordsCaught(0);
     setStreak(0);
-    setFallMs(curve.baseFallMs);
+    setSpeedLevel(0);
+    speedLevelRef.current = 0;
     setTyped("");
     setSubmitted(false);
     setStep("playing");
-    setFalling(false);
     if (m === "character") {
       try { setPersonalBest(Number(localStorage.getItem(`wordtris-best-character-${lang}`)) || null); } catch { setPersonalBest(null); }
     }
-    requestAnimationFrame(() => requestAnimationFrame(() => setFalling(true)));
   }, [words]);
 
-  const nextWord = useCallback((nextFallMs: number) => {
-    setPoolIndex((i) => (i + 1 >= pool.length ? 0 : i + 1));
-    if (poolIndex + 1 >= pool.length) setPool((p) => shuffledPool(p));
-    setFallMs(nextFallMs);
-    setTyped("");
-    setFalling(false);
-    requestAnimationFrame(() => requestAnimationFrame(() => setFalling(true)));
-  }, [pool.length, poolIndex]);
-
-  const onCatch = useCallback(() => {
-    const points = wordtrisPoints(currentItem);
+  const onCatch = useCallback((drop: ActiveDrop) => {
+    const points = wordtrisPoints(drop.text);
     setScore((s) => s + points);
     setWordsCaught((w) => w + 1);
+    setStreak((s) => s + 1);
+    setSpeedLevel((l) => l + 1);
+    activeDropsRef.current = activeDropsRef.current.filter((d) => d.id !== drop.id);
+    setActiveDrops(activeDropsRef.current);
+    setTyped("");
     setFlash("catch");
-    window.setTimeout(() => setFlash(null), 350);
-    const nextStreak = streak + 1;
-    setStreak(nextStreak);
-    const speedUp = nextStreak > 0 && nextStreak % speedUpEveryStreak === 0;
-    const nextFallMs = speedUp ? Math.max(minFallMs, fallMs * speedUpFactor) : fallMs;
-    nextWord(nextFallMs);
-  }, [currentItem, fallMs, streak, nextWord, minFallMs, speedUpEveryStreak, speedUpFactor]);
+    window.setTimeout(() => setFlash(null), 300);
+  }, []);
 
-  const onMiss = useCallback(() => {
-    setFlash("miss");
-    window.setTimeout(() => setFlash(null), 350);
+  const onMiss = useCallback((dropId: number) => {
+    // A stray transitionend from a drop that was already caught (and thus
+    // already removed/unmounted) can't actually reach here -- React
+    // unmounting the element aborts its in-flight CSS transition instead
+    // of firing the event -- but the guard costs nothing and documents why
+    // double-counting a miss isn't possible.
+    if (!activeDropsRef.current.some((d) => d.id === dropId)) return;
+    activeDropsRef.current = activeDropsRef.current.filter((d) => d.id !== dropId);
+    setActiveDrops(activeDropsRef.current);
     setStreak(0);
-    const eased = Math.min(baseFallMs, fallMs * missBreatherFactor);
+    setSpeedLevel((l) => Math.max(0, l - 2));
+    setFlash("miss");
+    window.setTimeout(() => setFlash(null), 300);
     setLives((l) => {
       const left = l - 1;
-      if (left <= 0) {
-        setStep("gameover");
-        return 0;
-      }
-      nextWord(eased);
-      return left;
+      if (left <= 0) setStep("gameover");
+      return Math.max(0, left);
     });
-  }, [fallMs, nextWord, baseFallMs, missBreatherFactor]);
+  }, []);
+
+  // Spawns new drops on a schedule that starts slow (baseSpawnMs) and, as
+  // speedLevel rises from catches, gradually shortens toward minSpawnMs --
+  // rechecked on a short, fixed tick so it always reacts to the CURRENT
+  // speed rather than whatever it was when the round started.
+  useEffect(() => {
+    if (step !== "playing") return;
+    let nextSpawnAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (Date.now() < nextSpawnAt) return;
+      if (activeDropsRef.current.length >= MAX_CONCURRENT_DROPS) return;
+      spawnDrop(mode, language);
+      const spawnMs = Math.max(minSpawnMs, baseSpawnMs * speedFactor ** speedLevelRef.current);
+      nextSpawnAt = Date.now() + spawnMs;
+    }, SPAWN_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [step, mode, language, spawnDrop, minSpawnMs, baseSpawnMs, speedFactor]);
 
   useEffect(() => {
     if (step === "playing") requestAnimationFrame(() => inputRef.current?.focus());
-  }, [step, poolIndex]);
+  }, [step]);
 
   useEffect(() => {
     if (step !== "gameover" || submitted) return;
@@ -178,8 +278,18 @@ export function WordtrisGame({ words }: Props) {
 
   const handleTyped = (value: string) => {
     setTyped(value);
-    const matches = language === "hindi" ? value === target : value.trim().toLowerCase() === currentItem.toLowerCase();
-    if (matches && value.length > 0) onCatch();
+    if (!value) return;
+    // Hindi compares exact (its bytes are case-sensitive by design -- see
+    // hindi-font-converter.ts); English is lenient, matching word mode's
+    // long-standing behaviour.
+    const normalizedTyped = language === "hindi" ? value : value.trim().toLowerCase();
+    const candidates = activeDrops.filter((d) => (language === "hindi" ? d.target : d.target.toLowerCase()) === normalizedTyped);
+    if (!candidates.length) return;
+    // More than one identical falling drop can match at once (small pools,
+    // especially in character mode) -- catch whichever is furthest along
+    // its fall, the more urgent one.
+    const mostUrgent = candidates.reduce((a, b) => ((Date.now() - b.spawnedAt) / b.fallMs > (Date.now() - a.spawnedAt) / a.fallMs ? b : a));
+    onCatch(mostUrgent);
   };
 
   const displayCategories = useMemo(() => CATEGORIES, []);
@@ -203,7 +313,7 @@ export function WordtrisGame({ words }: Props) {
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-7 w-5 fill-cyan-400" aria-hidden="true"><polygon points={DROP_POINTS} /></svg>
                 <h1 className="text-2xl font-black text-white">WordTris</h1>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Catch each item before it lands. Miss one and you get a short breather; string catches together and it speeds back up.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">Multiple drops fall at once, starting slow -- catch them before they land. Miss one and it eases back off; string catches together and it speeds back up. Six misses and it&apos;s over.</p>
             </div>
             <div className="p-6">
               <p className="text-xs font-black uppercase tracking-wider text-slate-500">Drill</p>
@@ -255,7 +365,7 @@ export function WordtrisGame({ words }: Props) {
               </div>
             </div>
 
-            <div ref={laneRef} className={`wordtris-rain-lane relative mt-4 h-80 overflow-hidden rounded-2xl ring-1 ring-slate-700 transition ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
+            <div className={`wordtris-rain-lane relative mt-4 h-96 overflow-hidden rounded-2xl ring-1 ring-slate-700 transition ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
               {AMBIENT_DROPS.map((drop, i) => (
                 <svg
                   key={i}
@@ -268,37 +378,9 @@ export function WordtrisGame({ words }: Props) {
                   <polygon points={DROP_POINTS} />
                 </svg>
               ))}
-              {currentItem && (
-                <div
-                  className="absolute left-1/2"
-                  style={{
-                    top: falling ? "calc(100% - 3.5rem)" : "1.25rem",
-                    transform: "translateX(-50%)",
-                    // No transition while snapping back to the top between
-                    // words -- only while actually falling. Without this,
-                    // the reset itself animates over fallMs too (since CSS
-                    // transitions apply to any change, not just the fall),
-                    // making every catch look like the word floats back up
-                    // before falling again instead of an instant respawn.
-                    transition: falling ? `top ${fallMs}ms linear` : "none",
-                  }}
-                  onTransitionEnd={() => { if (falling) onMiss(); }}
-                >
-                  <div className="relative min-w-16 px-5 pb-3.5 pt-8 text-center text-lg font-black text-white drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)]" style={{ fontFamily }}>
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 -z-10 h-full w-full" aria-hidden="true">
-                      <defs>
-                        <linearGradient id="wordtris-drop-fill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#22d3ee" />
-                          <stop offset="100%" stopColor="#0e7490" />
-                        </linearGradient>
-                      </defs>
-                      <polygon points={DROP_POINTS} fill="url(#wordtris-drop-fill)" />
-                      <ellipse cx="30" cy="58" rx="9" ry="15" fill="rgba(255,255,255,0.25)" />
-                    </svg>
-                    <span className="relative">{target}</span>
-                  </div>
-                </div>
-              )}
+              {activeDrops.map((drop) => (
+                <FallingDropView key={drop.id} drop={drop} fontFamily={fontFamily} onMiss={onMiss} />
+              ))}
             </div>
 
             <div className="mt-3">
@@ -308,10 +390,10 @@ export function WordtrisGame({ words }: Props) {
                 onChange={(event) => handleTyped(event.target.value)}
                 spellCheck={false}
                 autoFocus
-                aria-label={`Type the falling ${mode === "character" ? "character" : "word"}`}
+                aria-label={`Type any falling ${mode === "character" ? "character" : "word"}`}
                 className="w-full rounded-xl border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500"
                 style={{ fontFamily }}
-                placeholder={mode === "character" ? "Type the key above…" : "Type the word above…"}
+                placeholder={mode === "character" ? "Type any falling key…" : "Type any falling word…"}
               />
             </div>
           </div>

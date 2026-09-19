@@ -31,27 +31,45 @@ test("the WordTris game requires a student session (inherited from app/typing/la
   assert.match(actions, /Math\.max\(0, Math\.round\(score\)\)/);
 });
 
-// Locks in the difficulty curve the admin explicitly asked for: ease off
-// after a miss, then ramp back up on a catch streak, floored so it never
-// becomes unfair.
-test("the difficulty curve eases off after a miss and ramps up on a catch streak, with a speed floor", async () => {
+// Real reported request: a single item falling at a time never looked
+// like "multiple drops" no matter how fast -- now several fall at once,
+// starting slow and gradually speeding up (both spawn interval and each
+// drop's own fall duration driven by the same speedLevel, up on a catch,
+// down on a miss -- the same forgiving "ease off after a miss, ramp back
+// up" shape as before, just continuous instead of a per-streak jump), and
+// six missed drops (not five) end the round.
+test("the difficulty curve starts slow and ramps up continuously via speedLevel, floored so it never becomes unfair, with six lives", async () => {
   const content = await read("lib/wordtris-content.ts");
-  assert.match(content, /startingLives: 5/);
-  assert.match(content, /speedUpFactor: 0\.92/);
-  assert.match(content, /missBreatherFactor: 1\.2/);
-  assert.match(content, /minFallMs: 1800/);
+  assert.match(content, /startingLives: 6/);
+  assert.match(content, /baseSpawnMs: 2600/);
+  assert.match(content, /minSpawnMs: 900/);
+  assert.match(content, /speedFactor: 0\.93/);
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /Math\.max\(minFallMs, fallMs \* speedUpFactor\)/);
-  assert.match(game, /Math\.min\(baseFallMs, fallMs \* missBreatherFactor\)/);
+  assert.match(game, /setSpeedLevel\(\(l\) => l \+ 1\)/); // ramps up on catch
+  assert.match(game, /setSpeedLevel\(\(l\) => Math\.max\(0, l - 2\)\)/); // eases off on miss
+  assert.match(game, /Math\.max\(minFallMs, baseFallMs \* speedFactor \*\* speedLevelRef\.current\)/);
+  assert.match(game, /Math\.max\(minSpawnMs, baseSpawnMs \* speedFactor \*\* speedLevelRef\.current\)/);
 });
 
-// Real bug found and fixed during review: resetting the falling word's
-// position between catches must not itself animate (CSS transitions fire
-// on any style change, not just the fall), or every catch would look like
-// the word floats back up before falling again.
-test("the falling word's position reset is instant (no transition) between words, only the actual fall animates", async () => {
+// Real reported request: multiple drops fall at once now, each in its own
+// lane, up to a fixed cap -- the spawn scheduler must never place a new
+// drop in an already-occupied lane, and must wait for room rather than
+// exceeding the cap.
+test("up to MAX_CONCURRENT_DROPS fall at once, each in its own free lane, never exceeding the cap", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /transition: falling \? `top \$\{fallMs\}ms linear` : "none"/);
+  assert.match(game, /const LANE_POSITIONS = \[16, 50, 84\];/);
+  assert.match(game, /const MAX_CONCURRENT_DROPS = LANE_POSITIONS\.length;/);
+  assert.match(game, /if \(activeDropsRef\.current\.length >= MAX_CONCURRENT_DROPS\) return;/);
+  assert.match(game, /const freeLanes = LANE_POSITIONS\.map\(\(_, i\) => i\)\.filter\(\(i\) => !used\.has\(i\)\);/);
+});
+
+// Real bug found and fixed during review: resetting a drop's position on
+// mount must not itself animate (CSS transitions fire on any style
+// change, not just the fall) -- only the actual fall from top to bottom
+// should be animated.
+test("each drop's position is set instantly on mount (no transition); only the actual fall animates", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /transition: falling \? `top \$\{drop\.fallMs\}ms linear` : "none"/);
 });
 
 test("WordTris is wired into the Typing Hub and the admin dashboard nav", async () => {
@@ -87,7 +105,7 @@ test("character mode reuses the Kruti Dev / English tutor keyboards' own GLYPH_K
 // to word mode only.
 test("character mode's Hindi pool bypasses toTypeableKrutiDev -- only word mode's Unicode word banks need that conversion", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /mode === "word" && language === "hindi" \? \(\(\) => \{ try \{ return toTypeableKrutiDev\(currentItem\)/);
+  assert.match(game, /if \(m === "word" && lang === "hindi"\) \{\s*\n\s*try \{ return toTypeableKrutiDev\(raw\); \}/);
 });
 
 // Character mode has no server-side leaderboard (its scores aren't

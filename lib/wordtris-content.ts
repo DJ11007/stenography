@@ -37,30 +37,37 @@ export function wordtrisPoints(word: string) {
   return 10 + [...word].length * 2;
 }
 
-// Difficulty curve (the admin's explicit request): fall duration shortens
-// gradually on a catch streak, is floored so it never becomes unfair, and
-// lengthens briefly right after a miss (a breather) before resuming the
-// gradual speed-up from there.
+// Real reported request: rain of a single item at a time, however fast,
+// never felt like "multiple drops" -- now up to MAX_CONCURRENT_DROPS fall
+// at once (see wordtris-game.tsx), spawned on their own schedule
+// (baseSpawnMs -> minSpawnMs) independent of how many are already on
+// screen. Both spawn interval and each drop's own fall duration are driven
+// by the same "speedLevel" (up one per catch, back down two per miss, the
+// same forgiving "ease off after a miss, ramp up on catches" the admin
+// originally asked for) so the round starts slow with drops arriving one
+// at a time, then gradually thickens into genuine rain as the streak
+// builds -- floored so it never becomes unfair. Six missed drops (not
+// five) end the round.
 export const WORDTRIS_DIFFICULTY = {
-  startingLives: 5,
-  baseFallMs: 6000,
-  minFallMs: 1800,
-  speedUpEveryStreak: 3,
-  speedUpFactor: 0.92,
-  missBreatherFactor: 1.2,
+  startingLives: 6,
+  baseFallMs: 7000,
+  minFallMs: 2200,
+  baseSpawnMs: 2600,
+  minSpawnMs: 900,
+  speedFactor: 0.93,
 } as const;
 
 // Character mode drills one keystroke at a time, not a whole word -- a
 // single key needs a fraction of a word's reading-plus-typing time, so
 // this curve starts and floors much faster than WORDTRIS_DIFFICULTY. Same
-// shape (ease off after a miss, ramp back up on a streak), just rescaled.
+// shape, just rescaled.
 export const WORDTRIS_CHARACTER_DIFFICULTY = {
-  startingLives: 5,
-  baseFallMs: 2400,
-  minFallMs: 650,
-  speedUpEveryStreak: 4,
-  speedUpFactor: 0.9,
-  missBreatherFactor: 1.25,
+  startingLives: 6,
+  baseFallMs: 3200,
+  minFallMs: 900,
+  baseSpawnMs: 1400,
+  minSpawnMs: 450,
+  speedFactor: 0.9,
 } as const;
 
 export const BUNDLED_WORDS: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> = {
