@@ -139,9 +139,22 @@
   animation: wordtris-shake 320ms ease-in-out;
 }
 
+/* Speed Race's one-per-race Boost button flashes briefly the moment it's
+   used, so spending the resource actually feels like something happened. */
+@keyframes speedrace-boost-flash {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.animate-speedrace-boost-flash {
+  animation: speedrace-boost-flash 400ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-wordtris-splash,
-  .animate-wordtris-shake { animation: none; }
+  .animate-wordtris-shake,
+  .animate-speedrace-boost-flash { animation: none; }
   /* The clouds' spread-apart layout is baked into their keyframes (see
      above), so turning the animation off outright would collapse all
      three back to dead-center, undoing the overlap -- freeze each on its

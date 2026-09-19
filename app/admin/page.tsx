@@ -77,6 +77,7 @@ const groups = [
       ["/admin/preview/english-tutor", "Preview: English Typing Tutor", "See exactly what a student sees -- an admin session normally gets redirected away from every /typing page.", "Preview →"],
       ["/admin/preview/krutidev-tutor", "Preview: Kruti Dev Typing Tutor", "See exactly what a student sees -- an admin session normally gets redirected away from every /typing page.", "Preview →"],
       ["/admin/preview/wordtris", "Preview: WordTris", "See exactly what a student sees -- an admin session normally gets redirected away from every /typing page.", "Preview →"],
+      ["/admin/preview/speed-race", "Preview: Speed Race", "See exactly what a student sees -- an admin session normally gets redirected away from every /typing page.", "Preview →"],
     ],
   },
 ] as const;

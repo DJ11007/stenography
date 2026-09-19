@@ -13,6 +13,13 @@ const games = [
     icon: "☁",
     tone: "bg-cyan-600",
   },
+  {
+    title: "Speed Race",
+    description: "Type a full passage as fast and accurately as you can while your car races a pace car and a ghost of your own personal best. One boost per race instantly finishes a hard word. Hindi and English, seven word categories.",
+    href: "/typing/games/speed-race",
+    icon: "🏁",
+    tone: "bg-amber-600",
+  },
 ];
 
 export default function GamesHubPage() {
