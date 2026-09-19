@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatIST } from "@/lib/format-datetime";
+import { BackButton } from "@/app/_components/back-button";
 
 export const metadata: Metadata = { title: "Test Results | Admin" };
 
@@ -53,7 +54,7 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-6xl">
-        <Link href="/admin/tests" className="text-sm font-black text-blue-700">← Assessment Studio</Link>
+        <BackButton href="/admin/tests" label="Assessment Studio" />
         <header className="mt-4 rounded-2xl bg-slate-900 p-6 text-white shadow">
           <p className="text-xs font-black uppercase tracking-widest text-blue-300">Test results</p>
           <h1 className="mt-1 text-2xl font-black">{test.title}</h1>

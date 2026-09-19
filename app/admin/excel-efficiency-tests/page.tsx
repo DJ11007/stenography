@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SafeInstructions } from "@/app/typing/word-efficiency/_components/safe-instructions";
+import { BackButton } from "@/app/_components/back-button";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_EXCEL_INSTRUCTIONS, type ExcelQuestion, type ExcelVersion } from "@/lib/excel-efficiency";
@@ -31,7 +32,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-[1500px]">
-        <Link href="/admin" className="font-black text-emerald-700">← Admin dashboard</Link>
+        <BackButton href="/admin" label="Admin dashboard" />
         <header className="mt-4 rounded-3xl bg-gradient-to-r from-slate-950 to-emerald-900 p-7 text-white">
           <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-300">Administrator · MFA protected</p>
           <h1 className="mt-2 text-3xl font-black">Excel Efficiency Tests</h1>

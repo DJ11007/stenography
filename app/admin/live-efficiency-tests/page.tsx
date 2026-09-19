@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { BackButton } from "@/app/_components/back-button";
 
 export const metadata: Metadata = { title: "Live Efficiency Test | Admin" };
 
@@ -14,7 +15,7 @@ export default async function AdminLiveEfficiencyTestsPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
       <div className="mx-auto max-w-3xl">
-        <Link href="/admin" className="text-sm font-semibold text-blue-700">← Admin dashboard</Link>
+        <BackButton href="/admin" label="Admin dashboard" />
         <h1 className="mt-2 text-3xl font-black">Live Efficiency Test</h1>
         <p className="mt-1 text-slate-600">Scheduled, free live Word or Excel Efficiency tests -- check "Free scheduled live test" on either editor below to give it a start/end/results window and put it on the public Live Test hub.</p>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">

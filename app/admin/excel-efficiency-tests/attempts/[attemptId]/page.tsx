@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BackButton } from "@/app/_components/back-button";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { StructuredSheetViewer, sheetSummary } from "@/components/excel-efficiency/structured-sheet-viewer";
@@ -27,7 +27,7 @@ export default async function AttemptGradingPage({ params, searchParams }: { par
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/admin/excel-efficiency-tests" className="font-black text-emerald-700">← Excel Efficiency tests</Link>
+        <BackButton href="/admin/excel-efficiency-tests" label="Excel Efficiency tests" />
         <header className="mt-4 rounded-3xl bg-gradient-to-r from-slate-950 to-emerald-900 p-7 text-white">
           <p className="text-xs font-black uppercase tracking-wider text-emerald-300">Teacher evaluation</p>
           <h1 className="mt-2 text-3xl font-black">{version?.title ?? "Excel Efficiency attempt"}</h1>

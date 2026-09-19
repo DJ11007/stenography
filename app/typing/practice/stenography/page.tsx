@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TypingBrandHeader } from "../../_components/typing-brand";
+import { BackButton } from "@/app/_components/back-button";
 import { STENOGRAPHY_TASK_CATEGORIES } from "@/lib/stenography-task-library";
 
 export const metadata: Metadata = {
@@ -16,13 +17,7 @@ export default function StenographyLanguagePage() {
         <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-violet-600/25 blur-3xl" />
         <div className="absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
         <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-          <Link
-            href="/typing"
-            aria-label="Back to Typing Hub"
-            className="inline-flex min-h-12 items-center gap-3 rounded-xl border border-fuchsia-300/30 bg-white/10 px-5 py-3 text-sm font-black text-fuchsia-200 shadow-lg backdrop-blur transition hover:bg-fuchsia-300 hover:text-slate-950"
-          >
-            ← Back to Typing Hub
-          </Link>
+          <BackButton href="/typing" label="Typing Hub" dark />
           <p className="mt-10 text-xs font-black uppercase tracking-[.22em] text-fuchsia-300">Stenography</p>
           <h1 className="mt-3 max-w-4xl text-4xl font-black tracking-tight sm:text-5xl">
             Stenography practice

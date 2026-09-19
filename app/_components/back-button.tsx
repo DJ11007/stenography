@@ -17,13 +17,17 @@ function ArrowIcon({ className }: { className?: string }) {
 // still carries the real destination (e.g. "Admin panel", "Typing Hub") via
 // title/aria-label, so hovering or a screen reader still gets that context;
 // it's just never shown as visible text any more.
-export function BackButton({ href, label = "Back", dark = false, className = "" }: { href?: string; label?: string; dark?: boolean; className?: string }) {
+export function BackButton({ href, label = "Back", dark = false, className = "", onNavigate }: { href?: string; label?: string; dark?: boolean; className?: string; onNavigate?: (event: React.MouseEvent) => void }) {
   const router = useRouter();
   const base = "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-transform hover:scale-105 active:scale-95";
   const theme = dark
     ? "bg-white text-slate-900 hover:bg-blue-50"
     : "bg-slate-900 text-white hover:bg-blue-700";
   const content = <ArrowIcon className="h-5 w-5" />;
-  if (href) return <Link href={href} aria-label={label} title={label} className={`${base} ${theme} ${className}`}>{content}</Link>;
+  // onNavigate: a workspace mid-test ("Exit") needs a confirm() gate before
+  // actually leaving -- called first, same shape/style as every other back
+  // button on the site instead of that one spot alone keeping a bespoke
+  // pill link.
+  if (href) return <Link href={href} onClick={onNavigate} aria-label={label} title={label} className={`${base} ${theme} ${className}`}>{content}</Link>;
   return <button type="button" onClick={() => router.back()} aria-label={label} title={label} className={`${base} ${theme} ${className}`}>{content}</button>;
 }

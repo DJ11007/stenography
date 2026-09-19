@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { submitWordEfficiencyRealFile } from "../../../actions";
+import { BackButton } from "@/app/_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
 
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
@@ -42,7 +42,7 @@ export function RealFileWorkspace({ attemptId, language, testId, snapshot, start
     <main className="min-h-screen bg-slate-100">
       <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
         <div className="flex items-center gap-3">
-          <Link href={catalogueHref} onClick={(event) => { if (!confirm("Leave the test? Your progress is not saved until you upload your finished document.")) event.preventDefault(); }} className="rounded-lg bg-white/10 px-3 py-2 text-sm font-black hover:bg-white/20">← Exit</Link>
+          <BackButton href={catalogueHref} label="Exit" dark onNavigate={(event) => { if (!confirm("Leave the test? Your progress is not saved until you upload your finished document.")) event.preventDefault(); }} />
           <div><p className="text-xs font-black uppercase tracking-wider text-cyan-300">Word Efficiency · Real File</p><h1 className="font-black">{snapshot.title}</h1></div>
         </div>
         <div className="flex items-center gap-3">

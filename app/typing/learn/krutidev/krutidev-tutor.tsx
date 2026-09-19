@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finger, FingerInfo, KeyCap } from "@/lib/krutidev-tutor-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { TypingSettingsPopup } from "../../_components/configurable-typing-exam";
+import { BackButton } from "@/app/_components/back-button";
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
@@ -206,7 +206,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
             rail taking the flexible middle space (it already scrolls
             horizontally on its own if it doesn't fit). */}
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <Link href="/typing/learn/hindi" className="shrink-0 text-sm font-bold text-blue-700">← सभी हिन्दी पाठ</Link>
+          <BackButton href="/typing/learn/hindi" label="सभी हिन्दी पाठ" />
           <div className="min-w-0 flex-1">
             <StepRail step={step} onPick={setStep} />
           </div>
@@ -595,8 +595,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
 // disabling Backspace is a much bigger behavioural change (it locks the
 // student into forward-only typing, the same as a real exam's backspace
 // rule), so it gets its own pill-shaped button with a backspace glyph
-// (⌫) instead, styled like the header's own "← सभी हिन्दी पाठ" arrow
-// link, so its current state reads clearly at a glance.
+// (⌫) instead, so its current state reads clearly at a glance.
 function BackspaceOption({ enabled, onChange, onLabel, offLabel }: { enabled: boolean; onChange: (value: boolean) => void; onLabel: string; offLabel: string }) {
   return (
     <button

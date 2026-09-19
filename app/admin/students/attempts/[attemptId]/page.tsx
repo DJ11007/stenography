@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BackButton } from "@/app/_components/back-button";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
@@ -68,7 +68,7 @@ export default async function AdminAttemptReviewPage({ params }: { params: Promi
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-5xl">
-        <Link href={`/admin/students/${attempt.student_id}`} className="text-sm font-black text-blue-700">← {student?.full_name || "Student"}</Link>
+        <BackButton href={`/admin/students/${attempt.student_id}`} label={student?.full_name || "Student"} />
         <section className="mt-4 rounded-2xl bg-white p-6 shadow">
           <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attempt review</p>
           <h1 className="mt-1 text-2xl font-black">{test?.title ?? "Typing test"}</h1>
@@ -86,7 +86,7 @@ export default async function AdminAttemptReviewPage({ params }: { params: Promi
           // attempt. Passes the REVIEWED student's own info (not the
           // admin's), so the header shows whose result this is.
           <TypingStudentProvider student={{ name: student?.full_name?.trim() || "Student", email: student?.email || "", phone: student?.phone || null }}>
-            <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref={`/admin/students/${attempt.student_id}`} returnLabel={`← Back to ${student?.full_name || "student"}`} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"}/></div>
+            <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref={`/admin/students/${attempt.student_id}`} returnLabel={`Back to ${student?.full_name || "student"}`} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"}/></div>
           </TypingStudentProvider>
         ) : (
           <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">No detailed record available</h2><p className="mt-2 text-sm">This attempt was submitted before detailed review was added, so only the summary score below was ever saved.</p><dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3"><Field label="Net WPM" value={String(result.marksNetWpm ?? result.netWpm ?? "—")}/><Field label="Accuracy" value={result.accuracy != null ? `${result.accuracy}%` : "—"}/><Field label="Errors" value={String(Number(result.fullErrors ?? 0) + Number(result.halfErrors ?? 0))}/></dl></section>

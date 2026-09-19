@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BackButton } from "@/app/_components/back-button";
 import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
@@ -67,14 +67,14 @@ export default async function StudentAttemptReviewPage({ params }: { params: Pro
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-5xl">
-        <Link href="/student/results" className="text-sm font-black text-blue-700">← My Results</Link>
+        <BackButton href="/student/results" label="My Results" />
         <section className="mt-4 rounded-2xl bg-white p-6 shadow">
           <p className="text-xs font-black uppercase tracking-wide text-slate-500">Attempt review</p>
           <h1 className="mt-1 text-2xl font-black">{test?.title ?? "Typing test"}</h1>
           <p className="mt-1 text-sm text-slate-600">Submitted {attempt.submitted_at ? formatIST(attempt.submitted_at) : "In progress"}</p>
         </section>
         {reviewData ? (
-          <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref="/student/results" returnLabel="← Back to My Results" mode={version.mode === "learn" || version.mode === "practice" ? "practice" : "exam"} /></div>
+          <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref="/student/results" returnLabel="Back to My Results" mode={version.mode === "learn" || version.mode === "practice" ? "practice" : "exam"} /></div>
         ) : (
           <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">No detailed record available</h2><p className="mt-2 text-sm">This attempt was submitted before detailed review was added, so only the summary score below was ever saved.</p><dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3"><Field label="Net WPM" value={String(result.marksNetWpm ?? result.netWpm ?? "—")} /><Field label="Accuracy" value={result.accuracy != null ? `${result.accuracy}%` : "—"} /><Field label="Errors" value={String(Number(result.fullErrors ?? 0) + Number(result.halfErrors ?? 0))} /></dl></section>
         )}

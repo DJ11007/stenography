@@ -1,6 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { BackButton } from "./back-button";
 
 export function AuthShell({
   title,
@@ -38,12 +38,9 @@ export function AuthShell({
       />
 
       <div className="relative w-full max-w-md">
-        <Link
-          href="/"
-          className="mb-6 flex items-center justify-center gap-2 text-sm font-bold text-white/90 transition-colors hover:text-white"
-        >
-          <span aria-hidden>←</span> Back to home
-        </Link>
+        <div className="mb-6 flex justify-center">
+          <BackButton href="/" label="Back to home" dark />
+        </div>
 
         <div className="animate-fade-in-up rounded-2xl bg-white p-8 shadow-2xl">
           <div className="flex flex-col items-center text-center">

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { BackButton } from "@/app/_components/back-button";
 import { GLYPH_KEYS as HINDI_GLYPH_KEYS } from "@/lib/krutidev-tutor-content";
 import { GLYPH_KEYS as ENGLISH_GLYPH_KEYS } from "@/lib/english-tutor-content";
 import { CATEGORIES, WORDTRIS_DIFFICULTY, WORDTRIS_CHARACTER_DIFFICULTY, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
@@ -299,7 +299,7 @@ export function WordtrisGame({ words }: Props) {
       <TypingBrandHeader />
       <section className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/typing/games" className="text-sm font-bold text-blue-700">← Games</Link>
+          <BackButton href="/typing/games" label="Games" />
           <span className="flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 text-xs font-black text-cyan-400 shadow-sm">
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-3 w-2.5 fill-cyan-400" aria-hidden="true"><polygon points={DROP_POINTS} /></svg>
             WordTris · {mode === "character" ? "Character" : "Word"} Rain

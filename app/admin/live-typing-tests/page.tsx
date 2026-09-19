@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { BackButton } from "@/app/_components/back-button";
 import { SectionTestPage } from "../tests/section-test-page";
 
 export default async function AdminLiveTypingTestsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -11,7 +12,7 @@ export default async function AdminLiveTypingTestsPage({ searchParams }: { searc
     return (
       <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
         <div className="mx-auto max-w-3xl">
-          <Link href="/admin" className="text-sm font-semibold text-blue-700">← Admin dashboard</Link>
+          <BackButton href="/admin" label="Admin dashboard" />
           <h1 className="mt-2 text-3xl font-black">Live Typing Test</h1>
           <p className="mt-1 text-slate-600">Scheduled, free live typing tests -- every test created here always has a start/end/results window and shows up on the public Live Test hub. Pick a language to manage tests for it.</p>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">

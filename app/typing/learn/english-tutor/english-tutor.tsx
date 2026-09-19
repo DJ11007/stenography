@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Finger, FingerInfo, KeyCap } from "@/lib/english-tutor-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { TypingSettingsPopup } from "../../_components/configurable-typing-exam";
+import { BackButton } from "@/app/_components/back-button";
 
 const UI = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const MONO = '"JetBrains Mono", ui-monospace, "Courier New", monospace';
@@ -197,7 +197,7 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
             space (it already scrolls horizontally on its own if it doesn't
             fit) instead of always getting its own full-width row below. */}
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <Link href="/typing/learn/english" className="shrink-0 text-sm font-bold text-blue-700">← All English Lessons</Link>
+          <BackButton href="/typing/learn/english" label="All English Lessons" />
           <div className="min-w-0 flex-1">
             <StepRail step={step} onPick={setStep} />
           </div>
@@ -595,8 +595,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
 // -- but disabling Backspace is a much bigger behavioural change (it locks
 // the student into forward-only typing, the same as a real exam's
 // backspace rule), so it gets its own pill-shaped button with a backspace
-// glyph (⌫) instead, styled like the header's own "← All English Lessons"
-// arrow link, so its current state reads clearly at a glance.
+// glyph (⌫) instead, so its current state reads clearly at a glance.
 function BackspaceOption({ enabled, onChange, onLabel, offLabel }: { enabled: boolean; onChange: (value: boolean) => void; onLabel: string; offLabel: string }) {
   return (
     <button

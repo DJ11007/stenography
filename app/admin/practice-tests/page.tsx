@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { BackButton } from "@/app/_components/back-button";
 import { HINDI_KRUTI_DEV } from "@/lib/typing-curriculum";
 import { SectionTestPage } from "../tests/section-test-page";
 
@@ -12,7 +13,7 @@ export default async function AdminPracticeTestsPage({ searchParams }: { searchP
     return (
       <main className="min-h-screen bg-slate-100 p-4 sm:p-6">
         <div className="mx-auto max-w-3xl">
-          <Link href="/admin" className="text-sm font-semibold text-blue-700">← Admin dashboard</Link>
+          <BackButton href="/admin" label="Admin dashboard" />
           <h1 className="mt-2 text-3xl font-black">Practice Tests</h1>
           <p className="mt-1 text-slate-600">Pure practice, not an exam simulator -- students choose their own duration, backspace, highlight and word-calculation settings. Pick a language to manage tests for it.</p>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">

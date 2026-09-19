@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SafeInstructions } from "@/app/typing/word-efficiency/_components/safe-instructions";
+import { BackButton } from "@/app/_components/back-button";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -77,9 +78,7 @@ export default async function Page({
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-[1500px]">
-        <Link href="/admin" className="font-black text-blue-700">
-          ← Admin dashboard
-        </Link>
+        <BackButton href="/admin" label="Admin dashboard" />
         <header className="mt-4 rounded-3xl bg-gradient-to-r from-slate-950 to-blue-900 p-7 text-white">
           <p className="text-xs font-black uppercase tracking-[.18em] text-cyan-300">
             Administrator · MFA protected

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TypingBrandHeader } from "../../../../_components/typing-brand";
+import { BackButton } from "@/app/_components/back-button";
 import { SafeInstructions } from "../../../../word-efficiency/_components/safe-instructions";
 import { formatExcelDuration, type ExcelLanguage } from "@/lib/excel-efficiency";
 import { getPublishedExcelTest } from "@/lib/excel-efficiency-server";
@@ -22,7 +22,7 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
     <main className="min-h-screen bg-slate-100">
       <TypingBrandHeader />
       <section className="mx-auto max-w-5xl px-4 py-10">
-        <Link href={`/typing/excel-efficiency/${route.language}`} className="font-black text-emerald-700">← Back to {language} Tests</Link>
+        <BackButton href={`/typing/excel-efficiency/${route.language}`} label={`${language} Tests`} />
         <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-xl">
           <header className="bg-slate-950 p-6 text-white sm:p-8">
             <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-300">Instructions · Timer not started</p>

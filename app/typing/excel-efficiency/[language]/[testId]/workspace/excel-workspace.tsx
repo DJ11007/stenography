@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { RichSheetEditor, type ExcelDocument } from "./rich-sheet-editor";
+import { BackButton } from "@/app/_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
 
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
@@ -19,7 +19,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, startedAt, origina
     <main className="h-dvh overflow-hidden bg-slate-100">
       <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
         <div className="flex items-center gap-3">
-          <Link href={catalogueHref} onClick={(event) => { if (!submitted && !confirm("Leave the test? Your progress autosaves, but the timer keeps running in the background.")) event.preventDefault(); }} className="rounded-lg bg-white/10 px-3 py-2 text-sm font-black hover:bg-white/20">← Exit</Link>
+          <BackButton href={catalogueHref} label="Exit" dark onNavigate={(event) => { if (!submitted && !confirm("Leave the test? Your progress autosaves, but the timer keeps running in the background.")) event.preventDefault(); }} />
           <div><p className="text-xs font-black uppercase tracking-wider text-emerald-300">Excel Efficiency</p><h1 className="font-black">{snapshot.title}</h1></div>
         </div>
         <div className="flex items-center gap-3">
