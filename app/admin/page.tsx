@@ -49,9 +49,10 @@ const groups = [
   },
   {
     heading: "Games",
-    description: "Word banks for the WordTris falling-word typing game.",
+    description: "Word banks for the WordTris falling-word typing game, and live classroom competitions.",
     items: [
       ["/admin/wordtris-words", "WordTris Word Banks", "Add or edit the words students catch, per category and language.", "Manage →"],
+      ["/admin/live-race", "Live Classroom Race", "Host a live Speed Race for the whole class -- share a room code, students join from Speed Race's own setup screen, then race together with a live leaderboard and a gold/silver/bronze podium.", "Host →"],
     ],
   },
   {

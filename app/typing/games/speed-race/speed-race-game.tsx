@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CATEGORIES, type WordtrisCategory, type WordtrisLanguage } from "@/lib/wordtris-content";
 import { SPEEDRACE_WORDS_PER_RACE, SPEEDRACE_DEFAULT_PACE_WPM, SPEEDRACE_MIN_PACE_WPM, SPEEDRACE_MAX_PACE_WPM, SPEEDRACE_BOOSTS_PER_RACE, buildSpeedRacePassage, speedRaceProgressAtElapsed, speedRaceNetWpm, speedRaceAccuracy } from "@/lib/speedrace-content";
+import { GAME_ROOM_POLL_MS, GAME_ROOM_PROGRESS_PUSH_MS, gameRoomPodiumMessage, gameRoomPodiumTone, type GameRoomParticipant } from "@/lib/game-rooms";
+import { joinGameRoom, getMyJoinedRoom, getGameRoomStatus, updateGameRoomProgress, submitGameRoomResult, listGameRoomParticipants } from "../_multiplayer/actions";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
-type Step = "setup" | "racing" | "finished";
+type Step = "setup" | "lobby" | "racing" | "finished";
 type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
 type FinishStats = { wpm: number; accuracy: number; timeMs: number; isNewBest: boolean };
+type RoomConfig = { language: WordtrisLanguage; category: WordtrisCategory; paceWpm: number; passage: string };
+type JoinedRoom = { id: string; code: string; config: RoomConfig; studentId: string };
 
 // The live race clock ticks on this schedule while racing -- independent
 // of typing itself -- so the pace car and personal-best ghost keep moving
@@ -49,6 +53,18 @@ export function SpeedRaceGame({ words }: Props) {
   const [finishStats, setFinishStats] = useState<FinishStats | null>(null);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
 
+  // Live Classroom Race: a teacher hosts a room (see
+  // app/admin/live-race) and shares a short code; joining here forces the
+  // same passage/pace for everyone and layers a live, polling leaderboard
+  // and a gold/silver/bronze podium on top of the exact same race screen
+  // solo play already uses.
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [room, setRoom] = useState<JoinedRoom | null>(null);
+  const [lobbyParticipants, setLobbyParticipants] = useState<GameRoomParticipant[]>([]);
+  const [raceParticipants, setRaceParticipants] = useState<GameRoomParticipant[]>([]);
+  const [finalParticipants, setFinalParticipants] = useState<GameRoomParticipant[] | null>(null);
+
   const startedAtRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fontFamily = language === "hindi" ? KD : undefined;
@@ -61,12 +77,41 @@ export function SpeedRaceGame({ words }: Props) {
     } catch { setPersonalBest(null); }
   }, [bestKey]);
 
+  // Recovers an in-progress joined room after a page refresh, the same
+  // resilience get_my_hosted_room gives the host dashboard.
+  useEffect(() => {
+    (async () => {
+      const joined = await getMyJoinedRoom();
+      if (!joined) return;
+      const cfg = joined.config as unknown as RoomConfig;
+      setRoom({ id: joined.id, code: joined.code, config: cfg, studentId: joined.student_id });
+      if (joined.status === "racing") {
+        setLanguage(cfg.language);
+        setCategory(cfg.category);
+        setPaceWpm(cfg.paceWpm);
+        setPassage(cfg.passage);
+        startedAtRef.current = Date.now();
+        setStep("racing");
+      } else {
+        setStep("lobby");
+      }
+    })();
+  }, []);
+
   const finishRace = useCallback((finalTyped: string, currentPassage: string) => {
     const timeMs = startedAtRef.current ? Date.now() - startedAtRef.current : 0;
     let correct = 0;
     for (let i = 0; i < finalTyped.length; i += 1) if (finalTyped[i] === currentPassage[i]) correct += 1;
     const wpm = Math.round(speedRaceNetWpm(correct, timeMs));
     const accuracy = speedRaceAccuracy(correct, finalTyped.length);
+
+    if (room) {
+      void submitGameRoomResult(room.id, wpm, wpm, accuracy);
+      setFinishStats({ wpm, accuracy, timeMs, isNewBest: false });
+      setStep("finished");
+      return;
+    }
+
     let isNewBest = false;
     try {
       const prev = Number(localStorage.getItem(bestKey)) || 0;
@@ -78,7 +123,7 @@ export function SpeedRaceGame({ words }: Props) {
     } catch { /* private browsing / storage disabled -- personal best just won't persist */ }
     setFinishStats({ wpm, accuracy, timeMs, isNewBest });
     setStep("finished");
-  }, [bestKey]);
+  }, [bestKey, room]);
 
   const startRace = useCallback(() => {
     const pool = words[language]?.[category] ?? [];
@@ -91,6 +136,60 @@ export function SpeedRaceGame({ words }: Props) {
     startedAtRef.current = null;
     setStep("racing");
   }, [words, language, category]);
+
+  const handleJoin = async () => {
+    const trimmed = joinCode.trim().toUpperCase();
+    if (!trimmed) return;
+    setJoinError(null);
+    const result = await joinGameRoom(trimmed);
+    if ("error" in result) { setJoinError(result.error); return; }
+    const cfg = result.config as unknown as RoomConfig;
+    setRoom({ id: result.id, code: trimmed, config: cfg, studentId: result.student_id });
+    setLobbyParticipants([]);
+    setStep("lobby");
+  };
+
+  const leaveLobby = () => {
+    setRoom(null);
+    setJoinCode("");
+    setJoinError(null);
+    setStep("setup");
+  };
+
+  const backToSolo = () => {
+    setRoom(null);
+    setFinalParticipants(null);
+    setStep("setup");
+  };
+
+  // Waiting room: polls the roster and watches for the host starting the
+  // race, at which point everyone jumps into the identical passage/pace
+  // the host configured (see room.config), never their own picker.
+  useEffect(() => {
+    if (step !== "lobby" || !room) return;
+    let cancelled = false;
+    const tick = async () => {
+      const [rows, status] = await Promise.all([listGameRoomParticipants(room.id), getGameRoomStatus(room.id)]);
+      if (cancelled) return;
+      setLobbyParticipants(rows);
+      if (status === "racing") {
+        const cfg = room.config;
+        setLanguage(cfg.language);
+        setCategory(cfg.category);
+        setPaceWpm(cfg.paceWpm);
+        setPassage(cfg.passage);
+        setTyped("");
+        setBoostsLeft(SPEEDRACE_BOOSTS_PER_RACE);
+        setElapsedMs(0);
+        setFinishStats(null);
+        startedAtRef.current = null;
+        setStep("racing");
+      }
+    };
+    tick();
+    const timer = window.setInterval(tick, GAME_ROOM_POLL_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [step, room]);
 
   useEffect(() => {
     if (step !== "racing") return;
@@ -145,6 +244,50 @@ export function SpeedRaceGame({ words }: Props) {
   const paceProgress = speedRaceProgressAtElapsed(paceWpm, elapsedMs, passage.length);
   const ghostProgress = personalBest ? speedRaceProgressAtElapsed(personalBest, elapsedMs, passage.length) : 0;
 
+  // Kept current every render (not inside an effect) so the stable
+  // progress-push interval below always reads fresh values without
+  // having to tear itself down and restart on every keystroke -- which
+  // would otherwise mean it (almost) never actually fires while typing.
+  const liveStateRef = useRef({ typed: "", passage: "", liveWpm: 0 });
+  liveStateRef.current = { typed, passage, liveWpm };
+
+  useEffect(() => {
+    if (step !== "racing" || !room) return;
+    const timer = window.setInterval(() => {
+      const { typed: t, passage: p, liveWpm: w } = liveStateRef.current;
+      const progress = p.length ? (t.length / p.length) * 100 : 0;
+      void updateGameRoomProgress(room.id, progress, w);
+    }, GAME_ROOM_PROGRESS_PUSH_MS);
+    return () => window.clearInterval(timer);
+  }, [step, room]);
+
+  useEffect(() => {
+    if (step !== "racing" || !room) return;
+    const tick = () => { listGameRoomParticipants(room.id).then(setRaceParticipants); };
+    tick();
+    const timer = window.setInterval(tick, GAME_ROOM_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [step, room]);
+
+  // Polls until the teacher ends the race (finish_game_room), then loads
+  // the final, ranked results for the podium screen.
+  useEffect(() => {
+    if (step !== "finished" || !room || finalParticipants) return;
+    let cancelled = false;
+    const tick = async () => {
+      const status = await getGameRoomStatus(room.id);
+      if (cancelled || status !== "finished") return;
+      const rows = await listGameRoomParticipants(room.id);
+      if (!cancelled) setFinalParticipants(rows);
+    };
+    tick();
+    const timer = window.setInterval(tick, GAME_ROOM_POLL_MS);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [step, room, finalParticipants]);
+
+  const displayCategories = CATEGORIES;
+  const myFinalRow = room && finalParticipants ? finalParticipants.find((p) => p.student_id === room.studentId) ?? null : null;
+
   return (
     <main className="min-h-screen bg-slate-100 text-slate-900">
       <TypingBrandHeader backHref="/typing/games" backLabel="Games" />
@@ -156,39 +299,77 @@ export function SpeedRaceGame({ words }: Props) {
         </div>
 
         {step === "setup" && (
-          <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
-            <div className="bg-slate-900 px-6 py-5">
-              <div className="flex items-center gap-2.5">
-                <span aria-hidden="true" className="text-2xl">🏎️</span>
-                <h1 className="text-2xl font-black text-white">Speed Race</h1>
+          <>
+            <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
+              <div className="bg-slate-900 px-6 py-5">
+                <div className="flex items-center gap-2.5">
+                  <span aria-hidden="true" className="text-2xl">🏎️</span>
+                  <h1 className="text-2xl font-black text-white">Speed Race</h1>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-300">Type a full passage as fast and accurately as you can -- your car advances as you go. Race against a pace car set to a real WPM, and against a ghost of your own personal best. One boost per race instantly finishes whatever word you're stuck on (press Tab).</p>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Type a full passage as fast and accurately as you can -- your car advances as you go. Race against a pace car set to a real WPM, and against a ghost of your own personal best. One boost per race instantly finishes whatever word you're stuck on (press Tab).</p>
+              <div className="p-6">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Language</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => setLanguage("english")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "english" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>English</button>
+                  <button type="button" onClick={() => setLanguage("hindi")} style={{ fontFamily: HI }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "hindi" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>हिन्दी</button>
+                </div>
+
+                <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Category</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {displayCategories.map((cat) => (
+                    <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={`rounded-lg px-3 py-2 text-sm font-bold transition ${category === cat.id ? "bg-amber-50 text-amber-800 ring-2 ring-amber-600" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`} style={{ fontFamily: language === "hindi" ? HI : undefined }}>
+                      {language === "hindi" ? cat.hi : cat.en}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Pace car speed</p>
+                <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">
+                  <button type="button" onClick={() => setPaceWpm((w) => Math.max(SPEEDRACE_MIN_PACE_WPM, w - 5))} aria-label="Decrease pace car speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">−</button>
+                  <span className="flex-1 text-center text-sm font-black text-slate-800">{paceWpm} WPM</span>
+                  <button type="button" onClick={() => setPaceWpm((w) => Math.min(SPEEDRACE_MAX_PACE_WPM, w + 5))} aria-label="Increase pace car speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">+</button>
+                </div>
+                {personalBest && <p className="mt-1.5 text-xs text-slate-500">Your best on this category: <b className="text-slate-700">{personalBest} WPM</b> -- that ghost races too.</p>}
+
+                <button type="button" onClick={startRace} className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-3 text-base font-black text-white shadow-lg transition hover:bg-slate-800">Start Race →</button>
+              </div>
             </div>
-            <div className="p-6">
-              <p className="text-xs font-black uppercase tracking-wider text-slate-500">Language</p>
-              <div className="mt-2 flex gap-2">
-                <button type="button" onClick={() => setLanguage("english")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "english" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>English</button>
-                <button type="button" onClick={() => setLanguage("hindi")} style={{ fontFamily: HI }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "hindi" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>हिन्दी</button>
-              </div>
 
-              <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Category</p>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {CATEGORIES.map((cat) => (
-                  <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={`rounded-lg px-3 py-2 text-sm font-bold transition ${category === cat.id ? "bg-amber-50 text-amber-800 ring-2 ring-amber-600" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`} style={{ fontFamily: language === "hindi" ? HI : undefined }}>
-                    {language === "hindi" ? cat.hi : cat.en}
-                  </button>
+            <div className="mt-5 rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-5">
+              <p className="text-xs font-black uppercase tracking-wider text-amber-800">🔴 Live Classroom Race</p>
+              <p className="mt-1 text-xs text-amber-700">If your teacher is hosting a live race for the whole class, enter the room code here to join instead of practicing solo.</p>
+              <div className="mt-3 flex gap-2">
+                <input
+                  value={joinCode}
+                  onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+                  placeholder="ROOM CODE"
+                  maxLength={8}
+                  className="flex-1 rounded-lg border-2 border-amber-200 px-3 py-2 text-sm font-black uppercase tracking-widest outline-none focus:border-amber-500"
+                />
+                <button type="button" onClick={handleJoin} className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-black text-white hover:bg-amber-700">Join</button>
+              </div>
+              {joinError && <p role="alert" className="mt-2 text-xs font-bold text-rose-700">{joinError}</p>}
+            </div>
+          </>
+        )}
+
+        {step === "lobby" && room && (
+          <div className="mt-6 space-y-5">
+            <div className="rounded-3xl bg-slate-900 p-8 text-center shadow-sm">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Joined room</p>
+              <p className="mt-2 text-5xl font-black tracking-[0.2em] text-amber-400">{room.code}</p>
+              <p className="mt-3 text-sm text-slate-400">Waiting for your teacher to start the race…</p>
+            </div>
+            <div className="rounded-3xl bg-white p-6 shadow-sm">
+              <h2 className="font-black text-slate-950">Who's here ({lobbyParticipants.length})</h2>
+              <ul className="mt-4 space-y-1.5">
+                {lobbyParticipants.map((p) => (
+                  <li key={p.student_id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">{p.student_name}</li>
                 ))}
-              </div>
-
-              <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Pace car speed</p>
-              <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">
-                <button type="button" onClick={() => setPaceWpm((w) => Math.max(SPEEDRACE_MIN_PACE_WPM, w - 5))} aria-label="Decrease pace car speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">−</button>
-                <span className="flex-1 text-center text-sm font-black text-slate-800">{paceWpm} WPM</span>
-                <button type="button" onClick={() => setPaceWpm((w) => Math.min(SPEEDRACE_MAX_PACE_WPM, w + 5))} aria-label="Increase pace car speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">+</button>
-              </div>
-              {personalBest && <p className="mt-1.5 text-xs text-slate-500">Your best on this category: <b className="text-slate-700">{personalBest} WPM</b> -- that ghost races too.</p>}
-
-              <button type="button" onClick={startRace} className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-3 text-base font-black text-white shadow-lg transition hover:bg-slate-800">Start Race →</button>
+                {!lobbyParticipants.length && <p className="text-sm text-slate-500">Waiting for classmates to join…</p>}
+              </ul>
+              <button type="button" onClick={leaveLobby} className="mt-5 text-sm font-bold text-slate-500 underline">Leave and practice solo instead</button>
             </div>
           </div>
         )}
@@ -212,8 +393,22 @@ export function SpeedRaceGame({ words }: Props) {
             <div className="mt-5 space-y-4 rounded-2xl bg-slate-50 p-5">
               <Racetrack label="You" progress={youProgress} marker="🚗" tone="bg-amber-500" />
               <Racetrack label="Pace" progress={paceProgress} marker="🚙" tone="bg-slate-500" />
-              {personalBest && <Racetrack label="Best" progress={ghostProgress} marker="👻" tone="bg-violet-500" />}
+              {personalBest && !room && <Racetrack label="Best" progress={ghostProgress} marker="👻" tone="bg-violet-500" />}
             </div>
+
+            {room && (
+              <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Live classroom leaderboard</p>
+                <ul className="mt-2 space-y-1">
+                  {raceParticipants.slice(0, 8).map((p, i) => (
+                    <li key={p.student_id} className="flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span>{i + 1}. {p.student_name}</span>
+                      <span>{Math.round(p.finished_at ? (p.wpm ?? 0) : p.live_wpm)} WPM</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <p className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 text-xl leading-9 tracking-wide" style={{ fontFamily }}>
               {[...passage].map((ch, i) => {
@@ -222,7 +417,7 @@ export function SpeedRaceGame({ words }: Props) {
                   : i === typed.length
                     ? "rounded bg-amber-300 text-slate-900"
                     : "text-slate-400";
-                return <span key={i} className={cls}>{ch === " " ? " " : ch}</span>;
+                return <span key={i} className={cls}>{ch === " " ? " " : ch}</span>;
               })}
             </p>
 
@@ -243,7 +438,46 @@ export function SpeedRaceGame({ words }: Props) {
           </div>
         )}
 
-        {step === "finished" && finishStats && (
+        {step === "finished" && finishStats && room && (
+          <div className="mt-6 space-y-5">
+            <div className="overflow-hidden rounded-3xl bg-white shadow-sm">
+              <div className="bg-slate-900 px-6 py-6 text-center">
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-400">Your race is done</h2>
+                <p className="mt-1 text-4xl font-black text-amber-400">{finishStats.wpm} WPM</p>
+                <p className="mt-1 text-sm font-bold text-slate-400">{finishStats.accuracy}% accuracy · {(finishStats.timeMs / 1000).toFixed(1)}s</p>
+              </div>
+              {!finalParticipants ? (
+                <p className="p-6 text-center text-sm font-bold text-slate-500">Waiting for your teacher to finish the race and reveal results…</p>
+              ) : (
+                <div className="p-5">
+                  {myFinalRow && gameRoomPodiumMessage(myFinalRow.rank) && (
+                    <p className="mb-4 rounded-xl bg-amber-50 p-4 text-center font-black text-amber-800">{gameRoomPodiumMessage(myFinalRow.rank)}</p>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {finalParticipants.slice(0, 3).map((p) => (
+                      <div key={p.student_id} className={`rounded-2xl bg-gradient-to-b p-4 text-center shadow ${gameRoomPodiumTone(p.rank)} ${p.student_id === room.studentId ? "ring-4 ring-amber-400" : ""}`}>
+                        <p className="text-2xl">{p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : "🥉"}</p>
+                        <p className="mt-1 font-black">{p.student_name}</p>
+                        <p className="text-xs font-bold opacity-80">{Math.round(p.wpm ?? 0)} WPM</p>
+                      </div>
+                    ))}
+                  </div>
+                  <ol className="mt-4 space-y-1.5">
+                    {finalParticipants.map((p) => (
+                      <li key={p.student_id} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${p.student_id === room.studentId ? "bg-amber-50" : "bg-slate-50"}`}>
+                        <span className="font-bold text-slate-700">{p.rank ?? "—"}. {p.student_name}</span>
+                        <span className="font-black text-slate-950">{Math.round(p.wpm ?? 0)} WPM</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <button type="button" onClick={backToSolo} className="mt-5 w-full rounded-xl bg-slate-900 px-5 py-3 text-base font-black text-white hover:bg-slate-800">Back to Speed Race</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === "finished" && finishStats && !room && (
           <div className="mt-6 space-y-5">
             <div className="overflow-hidden rounded-3xl bg-white shadow-sm">
               <div className="bg-slate-900 px-6 py-6 text-center">
