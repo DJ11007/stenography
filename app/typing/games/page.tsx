@@ -20,6 +20,13 @@ const games = [
     icon: "🏁",
     tone: "bg-amber-600",
   },
+  {
+    title: "Word Defender",
+    description: "Waves of word-asteroids fall at once -- type any one to destroy it instantly, no confirm key needed. The game auto-locks onto whichever asteroid matches what you're typing. Every few kills the wave speeds up. Hindi and English, seven word categories.",
+    href: "/typing/games/word-defender",
+    icon: "🛡",
+    tone: "bg-rose-600",
+  },
 ];
 
 export default function GamesHubPage() {
