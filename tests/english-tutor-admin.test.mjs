@@ -153,6 +153,27 @@ test("the on-screen keyboard defaults off, and the passage/typing boxes share th
   assert.equal(heightDeclarations.length, 2, "both the passage box and the typing box must use the identical explicit height formula");
 });
 
+// Real reported bug: full screen still needed the whole page scrolled to
+// see everything -- the clamp()-based height above is a good fit for the
+// ordinary scrollable page, but doesn't account for how much room the
+// rest of the page actually takes up, so the total routinely exceeded
+// one screen's height in full screen specifically. In full screen, the
+// whole tree down to the two content boxes becomes a flex column filling
+// exactly the screen (h-[100dvh], no page-level scroll) with every
+// fixed-size row shrink-0, and the two content boxes flex-1 instead of a
+// fixed height, so they're guaranteed to fit rather than just usually
+// close -- confirmed live by measuring main.scrollHeight === main.
+// clientHeight === window.innerHeight with these exact classes applied.
+test("full screen replaces the fixed clamp() height with a flex-1 layout that's guaranteed to fit exactly one screen, no page scroll", async () => {
+  const tutor = await read("app/typing/learn/english-tutor/english-tutor.tsx");
+  assert.match(tutor, /isFullscreen \? "flex h-\[100dvh\] flex-col overflow-hidden" : "min-h-screen overflow-y-auto"/);
+  assert.match(tutor, /isFullscreen \? "flex min-h-0 flex-1 flex-col" : ""/);
+  // both the passage box and the typing box drop the fixed height and
+  // become flex-1 in full screen, not just one of them
+  const flexOneBoxes = [...tutor.matchAll(/\$\{isFullscreen \? "min-h-0 flex-1" : ""\}/g)];
+  assert.equal(flexOneBoxes.length, 2, "both the passage box and the typing box must switch to flex-1 in full screen");
+});
+
 // Real reported friction: the real student-facing page is gated by
 // requireStudent() (app/typing/layout.tsx), which redirects an admin
 // session straight to /admin -- there was previously no way for an admin

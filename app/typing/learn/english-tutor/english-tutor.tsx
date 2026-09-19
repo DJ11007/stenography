@@ -175,16 +175,28 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
   const total = exercises.length;
   const kbdVisible = step !== 3 && showKeyboard;
 
+  // Real reported bug: full screen still needed the whole page scrolled
+  // to see everything -- the passage/typing boxes used a fixed
+  // vh-based height that didn't account for how much room the rest of
+  // the page (nav row, exercise picker, "Press" hint, ...) actually
+  // took up, so the total routinely exceeded one screen's height. In
+  // full screen, this whole tree becomes a flex column filling exactly
+  // the screen (h-[100dvh], no page-level scroll); every fixed-size row
+  // gets shrink-0, and the two content boxes become flex-1 so they
+  // equally share whatever height is actually left over -- guaranteed
+  // to fit, not just usually close. Outside full screen, none of this
+  // changes anything (flex-1/min-h-0 on a non-flex parent are inert),
+  // so the ordinary scrollable page is untouched.
   return (
-    <main ref={rootRef} className="min-h-screen overflow-y-auto bg-slate-100" style={{ fontFamily: UI }}>
+    <main ref={rootRef} className={`bg-slate-100 ${isFullscreen ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-screen overflow-y-auto"}`} style={{ fontFamily: UI }}>
       {!isFullscreen && <TypingBrandHeader />}
-      <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5">
+      <section className={`mx-auto w-full max-w-6xl px-3 py-5 sm:px-5 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
         {/* Real requested layout change: the back link, the step rail, and
             the badge/fullscreen controls used to be two stacked rows --
             merged into one, with the step rail taking the flexible middle
             space (it already scrolls horizontally on its own if it doesn't
             fit) instead of always getting its own full-width row below. */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
           <Link href="/typing/learn/english" className="shrink-0 text-sm font-bold text-blue-700">← All English Lessons</Link>
           <div className="min-w-0 flex-1">
             <StepRail step={step} onPick={setStep} />
@@ -217,10 +229,10 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
             onStart={() => setStep(1)}
           />
         ) : (
-          <div className="mt-5 space-y-4">
-            <div className="min-w-0 space-y-4">
-              <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className={`mt-5 space-y-4 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+            <div className={`min-w-0 space-y-4 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+              <div className={`rounded-2xl bg-white p-4 shadow-sm sm:p-5 ${isFullscreen ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <button type="button" onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0} className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-black text-slate-600 disabled:opacity-40">«</button>
                     <label className="text-sm font-bold text-slate-700">
@@ -282,23 +294,24 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   )}
                 </div>
 
-                {step === 3 && <p className="mt-3 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
+                {step === 3 && <p className="mt-3 shrink-0 rounded-lg bg-blue-50 p-2 text-xs font-bold text-blue-800">Test mode — no on-screen keyboard in this step.</p>}
 
                 <div
-                  className="mt-4 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100"
-                  // A fixed height (not just min-height) is what actually
-                  // guarantees this box and the typing box below render at
-                  // the same size on screen: a div's height would otherwise
-                  // grow to fit its content (the full passage), while an
-                  // empty textarea's wouldn't grow past its own min-height at
-                  // all -- confirmed by measuring both boxes' real rendered
-                  // heights, which is how the previous min-height-only
-                  // attempt at this was found to still not actually match.
-                  // clamp() keeps a sensible floor/ceiling while scaling
-                  // continuously with the viewport in between, real
-                  // "fits every resolution" instead of only a few fixed
-                  // Tailwind breakpoints.
-                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
+                  className={`mt-4 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-blue-50/70 p-4 ring-1 ring-blue-100 ${isFullscreen ? "min-h-0 flex-1" : ""}`}
+                  // Outside full screen: a fixed height (not just
+                  // min-height) is what actually guarantees this box and the
+                  // typing box below render at the same size on screen -- a
+                  // div's height would otherwise grow to fit its content
+                  // (the full passage), while an empty textarea's wouldn't
+                  // grow past its own min-height at all, confirmed by
+                  // measuring both boxes' real rendered heights. clamp()
+                  // keeps a sensible floor/ceiling while scaling
+                  // continuously with the viewport in between. In full
+                  // screen, flex-1 (both boxes, equal factor) replaces this
+                  // fixed height so they instead equally share whatever
+                  // height is actually left after everything else on
+                  // screen, guaranteed to fit exactly one screen.
+                  style={isFullscreen ? { fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400 } : { fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
                   aria-hidden
                 >
                   {[...target].map((char, position) => {
@@ -325,16 +338,16 @@ export function EnglishTutor({ keyboardRows, glyphKeys, fingers, lessons, wordSe
                   spellCheck={false}
                   autoFocus
                   aria-label="Typing area"
-                  // Same explicit clamp()-based height as the passage box
-                  // above, so the two actually render at the same size on
-                  // screen at every resolution -- resize-y still lets a
-                  // student drag it taller/shorter manually from there.
-                  className="mt-3 w-full max-w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500"
-                  style={{ fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
+                  // Same sizing rule as the passage box above (fixed
+                  // clamp() height normally, flex-1 in full screen) so the
+                  // two always render at the same size -- resize-y still
+                  // lets a student drag it taller/shorter manually.
+                  className={`mt-3 w-full max-w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 ${isFullscreen ? "min-h-0 flex-1" : ""}`}
+                  style={isFullscreen ? { fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 } : { fontFamily: MONO, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
                   placeholder="Start typing here…"
                 />
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <div className="mt-3 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                   <span className="font-bold text-slate-500">Press:</span>
                   {nextKey && "key" in nextKey ? (
                     <span className="font-black text-slate-900">
