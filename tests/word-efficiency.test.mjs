@@ -28,6 +28,34 @@ const read=path=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
 // Supabase SQL editor against a real test's stored data.
 test("word_efficiency_initial_editor_document converts a table working-matter paragraph into a genuine type='table' block with one real (never-empty) run",async()=>{const migration=await read("supabase/migrations/202609201200_fix_word_efficiency_initial_document_table_paragraphs.sql");assert.match(migration,/when paragraph_entries\.paragraph_value->>'type'='table' then jsonb_build_object\(/);assert.match(migration,/'type','table',/);assert.match(migration,/'runs',jsonb_build_array\(jsonb_build_object\(/);assert.match(migration,/'attrs',jsonb_build_object\('rows',coalesce\(paragraph_entries\.paragraph_value->'rows','\[\]'::jsonb\)\)/);});
 
+// Real requested change: a student who just submitted used to see a bare
+// "Submitted -- evaluation pending" card with no question list at all --
+// the admin wanted every student to see the full Result Summary +
+// Detailed Result table immediately (matching a reference product), with
+// each question's own row present and "Not graded" in its marks column
+// until the teacher publishes grading, rather than withholding the whole
+// table until then. Both get_word/excel_efficiency_attempt_result RPCs
+// now always return the question list; only awardedMarks/feedback/
+// gradingStatus stay gated behind is_published. Both results pages now
+// always render the same table (the separate Pending component is gone),
+// with a small pending notice shown above it instead of replacing it.
+test("Word and Excel Efficiency results always show the question list (not gated behind publish), with a pending notice instead of a separate withheld screen",async()=>{
+ const[wordMigration,excelMigration,wordPage,excelPage]=await Promise.all([
+  read("supabase/migrations/202609201300_efficiency_results_show_questions_before_publish.sql"),
+  read("supabase/migrations/202609201300_efficiency_results_show_questions_before_publish.sql"),
+  read("app/typing/word-efficiency/results/[attemptId]/page.tsx"),
+  read("app/typing/excel-efficiency/results/[attemptId]/page.tsx"),
+ ]);
+ assert.match(wordMigration,/'awardedMarks',case when is_published then score_rows\.awarded_marks else null end/);
+ assert.match(excelMigration,/'awardedMarks',case when is_published then score_rows\.awarded_marks else null end/);
+ for(const page of[wordPage,excelPage]){
+  assert.doesNotMatch(page,/function Pending\(/);
+  assert.match(page,/<Published result=\{result\} catalogue=\{catalogue\}\s*\/>/);
+  assert.match(page,/result\.status\s*!==\s*"published"\s*&&\s*<p role="status"/);
+  assert.match(page,/Submitted — evaluation pending\. /);
+ }
+});
+
 test("English and Hindi catalogues are isolated and exclude non-published states",async()=>{const[data,en,hi]=await Promise.all([read("lib/word-efficiency-server.ts"),read("app/typing/word-efficiency/english/page.tsx"),read("app/typing/word-efficiency/hindi/page.tsx")]);assert.match(data,/\.eq\("language",language\)\.eq\("status","published"\)/);assert.match(en,/language="English"/);assert.match(hi,/language="Hindi"/);assert.doesNotMatch(data,/draft|archived|unpublished/);});
 // Real reported bug: the catalogue's "1"/"2" sequence badge (word-test-
 // catalogue.tsx's `number`) is just the row's position in the query

@@ -27,19 +27,9 @@ export default async function ExcelEfficiencyResultPage({ params }: { params: Pr
           <h1 className="mt-2 text-3xl font-black">{result.status === "published" ? "Test result" : "Test submitted successfully"}</h1>
           <p className="mt-2 text-slate-300 print:text-slate-700">{result.title}</p>
         </header>
-        <div className="p-6 sm:p-8 print:p-0 print:pt-5">{result.status === "pending" ? <Pending result={result} catalogue={catalogue} /> : <Published result={result} catalogue={catalogue} />}</div>
+        <div className="p-6 sm:p-8 print:p-0 print:pt-5"><Published result={result} catalogue={catalogue} /></div>
       </section>
     </main>
-  );
-}
-
-function Pending({ result, catalogue }: { result: AttemptResult; catalogue: string }) {
-  return (
-    <div>
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6"><h2 className="text-2xl font-black text-amber-950">Submitted — evaluation pending</h2><p className="mt-2 text-amber-800">Your spreadsheet is safely submitted and cannot be edited again. Question-wise marks remain private until the teacher publishes the evaluation.</p></div>
-      <dl className="mt-6 grid gap-3 sm:grid-cols-3"><Metric label="Maximum marks" value={String(result.maximumMarks)} /><Metric label="Submitted" value={date(result.submittedAt)} /><Metric label="Evaluation status" value="Pending" /></dl>
-      <Link href={catalogue} className="mt-7 inline-flex rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">Return to test catalogue</Link>
-    </div>
   );
 }
 
@@ -51,6 +41,7 @@ function Published({ result, catalogue }: { result: AttemptResult; catalogue: st
   const grandAwardedTotal = allGraded ? result.questions.reduce((sum, q) => sum + (q.awardedMarks ?? 0), 0) : null;
   return (
     <div>
+      {result.status !== "published" && <p role="status" className="mb-5 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">Submitted — evaluation pending. Your spreadsheet is safely submitted and cannot be edited again. Marks below show "Not graded" until your teacher publishes the evaluation.</p>}
       <h2 className="text-center text-xl font-black uppercase tracking-wide text-slate-500">Result Summary</h2>
       <table className="mx-auto mt-4 w-full max-w-md border-collapse overflow-hidden rounded-xl border text-sm shadow-sm"><tbody>
         <tr className="border-b"><td className="bg-slate-50 p-3 font-bold">Maximum Marks</td><td className="p-3 font-black">{result.maximumMarks}</td></tr>
@@ -58,7 +49,7 @@ function Published({ result, catalogue }: { result: AttemptResult; catalogue: st
         <tr><td className="bg-slate-50 p-3 font-bold">Your Score</td><td className="p-3 font-black">{result.percentage == null ? "Not graded" : `${result.percentage}%`}</td></tr>
       </tbody></table>
       {result.percentage != null && <div className="mx-auto mt-5 max-w-md"><div className="h-3 w-full overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-700" style={{ width: `${Math.max(0, Math.min(100, result.percentage))}%` }} /></div></div>}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Result" value={result.passingMarks == null ? "No pass mark configured" : result.passed ? "Pass" : "Fail"} /><Metric label="Evaluation status" value="Published" /><Metric label="Submitted" value={date(result.submittedAt)} /><Metric label="Evaluated" value={date(result.evaluatedAt)} /></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Result" value={result.status !== "published" ? "Pending" : result.passingMarks == null ? "No pass mark configured" : result.passed ? "Pass" : "Fail"} /><Metric label="Evaluation status" value={result.status === "published" ? "Published" : "Pending"} /><Metric label="Submitted" value={date(result.submittedAt)} /><Metric label="Evaluated" value={date(result.evaluatedAt)} /></div>
       {result.overallFeedback && <section className="mt-6 rounded-2xl bg-emerald-50 p-5"><h2 className="font-black">Teacher feedback</h2><p className="mt-2 whitespace-pre-wrap text-slate-700">{result.overallFeedback}</p></section>}
       <h2 className="mt-8 text-center text-xl font-black uppercase tracking-wide text-slate-500">Detailed Result</h2>
       <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">S.No.</th><th className="p-3">Question instruction</th><th className="p-3">Maximum marks</th><th className="p-3">Marks obtained</th><th className="p-3">Teacher feedback</th></tr></thead><tbody>{groups.map((group, index) => <SectionRows key={index} group={group} sectioned={sectioned} />)}<tr className="border-t-2 border-slate-400 bg-slate-100 font-black"><td className="p-3" colSpan={2}>Grand Total</td><td className="p-3">{grandMaxTotal}</td><td className="p-3">{grandAwardedTotal == null ? "Not graded" : grandAwardedTotal}</td><td className="p-3" /></tr></tbody></table></div>
