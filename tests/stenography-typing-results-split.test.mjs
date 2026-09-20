@@ -100,16 +100,38 @@ test("stenography-only grammar categories are excluded from CategoryStrip for no
 // and the category tile strip all at once, alongside a Summary tab that
 // duplicated the same numbers YET AGAIN via two separate calculation
 // methods -- "mix match everything... this is waste". Non-stenography
-// (practice/exam simulator) results now show only the pass/fail banner and
-// the WPM/KDPH-toggle Speed Details panel before the tabs; the redundant
-// sections and the Summary tab are gone entirely, for every typing mode.
-test("typing (practice/exam simulator) results drop the redundant character cards, Detailed Result block, category tile strip, and Summary tab -- keeping only the pass/fail banner and Speed Details", async () => {
+// exam-simulator results show only the pass/fail banner and the WPM/KDPH-
+// toggle Speed Details panel before the tabs; the redundant sections and
+// the Summary tab are gone entirely, for every typing mode. Practice
+// results were later changed again (see practice-results-drop-pass-fail
+// test below): practice isn't following any specific exam's official
+// pass/fail rule, so it gets its own Keystroke/Word method tabs instead
+// of the banner, while exam-simulator keeps the original banner+Speed
+// Details pairing unchanged.
+test("typing (exam simulator) results drop the redundant character cards, Detailed Result block, category tile strip, and Summary tab -- keeping only the pass/fail banner and Speed Details", async () => {
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
-  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : <>\{insufficientAttempt \? <InsufficientAttemptBanner title=\{preset\.title\} minimumStrokes=\{minimumStrokesRequired\} achievedStrokes=\{score\.totalCharacters\}\/> : <ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\} requiredWpm=\{preset\.speedRequirement\} achievedWpm=\{summary\.netWpm\} requiredAccuracy=\{preset\.accuracyRequirement\} achievedAccuracy=\{summary\.accuracy\}\/>\}<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/><\/>\}/);
+  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : mode === "practice" \? <MethodBasedSpeedDetails summary=\{summary\}\/> : <>\{insufficientAttempt \? <InsufficientAttemptBanner title=\{preset\.title\} minimumStrokes=\{minimumStrokesRequired\} achievedStrokes=\{score\.totalCharacters\}\/> : <ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\} requiredWpm=\{preset\.speedRequirement\} achievedWpm=\{summary\.netWpm\} requiredAccuracy=\{preset\.accuracyRequirement\} achievedAccuracy=\{summary\.accuracy\}\/>\}<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/><\/>\}/);
   assert.doesNotMatch(source, /function ScreenshotResultSummary/);
   assert.doesNotMatch(source, /function Summary\(/);
   assert.doesNotMatch(source, /function CalculationTable\(/);
   assert.doesNotMatch(source, /"summary"/);
+});
+
+// Real reported bug: a practice attempt showed a Pass/Fail banner judged
+// against a benchmark the student was never trying to meet -- practice
+// isn't an official exam. Replaced with two switchable, informal method
+// tabs (Keystroke Based / Word Based) showing the same attempt's speed
+// both ways, reusing the already-computed, wordMethod-independent
+// buildResultSummary fields (grossCharactersPerMinute/netCharactersPerMinute
+// for keystroke, grossWordsPerMinute/netWordsPerMinute for word) -- no
+// rescoring needed.
+test("practice typing results drop the pass/fail banner entirely and show Keystroke Based / Word Based method tabs instead", async () => {
+  const source = await read("app/typing/_components/advanced-typing-results.tsx");
+  assert.match(source, /function MethodBasedSpeedDetails\(\{ summary \}: \{ summary: ReturnType<typeof buildResultSummary> \}\) \{/);
+  assert.match(source, /const grossWpm = method === "keystroke" \? summary\.grossCharactersPerMinute \/ 5 : summary\.grossWordsPerMinute;/);
+  assert.match(source, /const netWpm = method === "keystroke" \? summary\.netCharactersPerMinute \/ 5 : summary\.netWordsPerMinute;/);
+  assert.match(source, />Keystroke Based Result</);
+  assert.match(source, />Word Based Result</);
 });
 
 // Real reported feedback, follow-up on the RSSB marks-method path

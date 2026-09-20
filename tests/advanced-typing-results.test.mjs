@@ -275,16 +275,20 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
 // formula.
 // Real reported feedback, follow-up: the character-based summary cards
 // (which used to cover Practice's speed display) were removed as
-// redundant with this panel -- so this is now the ONLY speed source for
-// every mode, including Practice, not hidden there any more.
-test("non-RSSB results offer a WPM/KDPH Speed Details panel derived from summary.grossWpm/netWpm, shown for every mode including Practice", () => {
+// redundant with this panel -- for a while this was the only speed
+// source for every mode, including Practice. Later changed again (see
+// the practice-drops-pass-fail test in stenography-typing-results-
+// split.test.mjs): Practice now gets its own Keystroke/Word method tabs
+// instead, since it was reported wrong to hold Practice to any specific
+// exam's Pass/Fail or KDPH benchmark it was never trying to meet. This
+// panel is still the exam-simulator's own speed source.
+test("non-RSSB exam-simulator results offer a WPM/KDPH Speed Details panel derived from summary.grossWpm/netWpm", () => {
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /function KeyDepressionSpeedDetails\(/);
   assert.match(component, /const \[unit, setUnit\] = useState<"wpm" \| "kdph">\("wpm"\);/);
   assert.match(component, /\["Gross Speed \(WPM\)", `\$\{number\(summary\.grossWpm\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{number\(summary\.netWpm\)\} WPM`\]/);
   assert.match(component, /\["Gross Speed \(KDPH\)", number\(summary\.grossWpm \* 300\)\], \["Net Speed \(KDPH\)", number\(summary\.netWpm \* 300\)\]/);
   assert.match(component, /<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/>/);
-  assert.doesNotMatch(component, /mode !== "practice" && <KeyDepressionSpeedDetails/);
 });
 
 // Real reported request: RSSB's configured marks method (Rajasthan LDC,

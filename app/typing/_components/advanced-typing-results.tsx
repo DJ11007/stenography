@@ -106,7 +106,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
             its own already-non-redundant RssbSpeedDetails display (its
             separate RssbTypingDetails word-count breakdown was later
             merged into RssbSpeedDetails itself -- see that component). */}
-        {marksResult ? <><RssbSpeedDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : <>{insufficientAttempt ? <InsufficientAttemptBanner title={preset.title} minimumStrokes={minimumStrokesRequired} achievedStrokes={score.totalCharacters}/> : <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title} requiredWpm={preset.speedRequirement} achievedWpm={summary.netWpm} requiredAccuracy={preset.accuracyRequirement} achievedAccuracy={summary.accuracy}/>}<KeyDepressionSpeedDetails summary={summary} profile={preset.scoringProfile}/></>}
+        {marksResult ? <><RssbSpeedDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : mode === "practice" ? <MethodBasedSpeedDetails summary={summary}/> : <>{insufficientAttempt ? <InsufficientAttemptBanner title={preset.title} minimumStrokes={minimumStrokesRequired} achievedStrokes={score.totalCharacters}/> : <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title} requiredWpm={preset.speedRequirement} achievedWpm={summary.netWpm} requiredAccuracy={preset.accuracyRequirement} achievedAccuracy={summary.accuracy}/>}<KeyDepressionSpeedDetails summary={summary} profile={preset.scoringProfile}/></>}
         {/* RSSB's marks method has no negative marking, so this penalty-based guide would misstate its rules. Practice attempts aren't following any specific exam's official rules at all, so the guide is dropped there entirely rather than shown with blanked-out values. */}
         {!marksResult && mode !== "practice" && <ErrorScoringGuide profile={preset.scoringProfile} textLanguage={textLanguage} entries={score.analysis.entries} savedPenalty={score.analysis.totalPenalty}/>}
         <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7">
@@ -274,6 +274,42 @@ function KeyDepressionSpeedDetails({ summary, profile }: { summary: ReturnType<t
     </div>
     <p className="mt-3 rounded-xl bg-slate-50 p-2.5 text-xs font-bold text-slate-600">Full mistakes are wrong, missing, extra, or repeated words{spellingIsFull ? ", including spelling errors for this exam" : ""}. Half mistakes are smaller slips -- capitalization, punctuation, spacing{spellingIsFull ? "" : ", or minor spelling"}.</p>
     <p className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700"><strong>KDPH</strong> (key depressions per hour) assumes 5 key depressions per word -- WPM × 5 × 60 -- the convention several boards (NCERT, SSC, DDA, and others) publish their speed requirement in, e.g. 35 WPM = 10,500 KDPH.</p>
+  </section>;
+}
+// Real requested change: practice attempts aren't following any specific
+// exam's official rules, so judging them Pass/Fail against a benchmark
+// they were never trying to meet was reported as wrong -- "why you are
+// showing in this practice test module fail or pass, this is only for
+// practice". Replaces the Pass/Fail banner with two switchable, informal
+// speed readings on the exact same attempt: Keystroke Based (1 word = 5
+// keystrokes, the WPM convention most competitive-exam boards actually
+// publish) and Word Based (1 word = a space-separated group of letters).
+// Both numbers were already sitting unused in buildResultSummary
+// (grossCharactersPerMinute/netCharactersPerMinute and
+// grossWordsPerMinute/netWordsPerMinute are computed unconditionally,
+// independent of whichever wordMethod the original score used) -- no
+// rescoring needed, just surfacing the other convention's own numbers.
+function MethodBasedSpeedDetails({ summary }: { summary: ReturnType<typeof buildResultSummary> }) {
+  const [method, setMethod] = useState<"keystroke" | "word">("keystroke");
+  const grossWpm = method === "keystroke" ? summary.grossCharactersPerMinute / 5 : summary.grossWordsPerMinute;
+  const netWpm = method === "keystroke" ? summary.netCharactersPerMinute / 5 : summary.netWordsPerMinute;
+  const metrics: [string, string][] = [["Gross Speed", `${number(grossWpm)} WPM`], ["Net Speed", `${number(netWpm)} WPM`], ["Keystrokes per minute", number(grossWpm * 5)], ["KDPH", number(grossWpm * 300)]];
+  const overviewRows = [["Passage words", summary.passageWords], ["Total words typed", summary.totalWordsTyped], ["Fully correct words", summary.correctWordsTyped], ["Remaining / unattempted words", summary.remainingWords], ["Backspaces", summary.backspaces]] as const;
+  return <section aria-labelledby="method-result-title" className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-5">
+    <div className="flex flex-wrap gap-1 border-b" role="tablist" aria-label="Result method">
+      <button type="button" role="tab" aria-selected={method === "keystroke"} onClick={() => setMethod("keystroke")} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold ${method === "keystroke" ? "border-blue-700 text-blue-800" : "border-transparent text-slate-500"}`}>Keystroke Based Result</button>
+      <button type="button" role="tab" aria-selected={method === "word"} onClick={() => setMethod("word")} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold ${method === "word" ? "border-blue-700 text-blue-800" : "border-transparent text-slate-500"}`}>Word Based Result</button>
+    </div>
+    <h2 id="method-result-title" className="mt-4 text-lg font-black">Speed Details</h2>
+    <p className="mt-1 text-xs font-bold text-slate-500">{method === "keystroke" ? "1 word = 5 keystrokes" : "1 word = a group of letters separated by space"}</p>
+    <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{metrics.map(([label, value]) => <ResultMetric key={label} label={label} value={value} />)}</dl>
+    <h3 className="mt-5 text-xs font-black uppercase tracking-wide text-slate-500">Overview</h3>
+    <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">{overviewRows.map(([label, value]) => <ResultMetric key={label} label={label} value={String(value)} />)}</dl>
+    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+      <MistakeBreakdown title="Full mistakes" total={summary.fullMistakes} items={[["Substitutions", summary.fullCategories.substitutions], ["Additions", summary.fullCategories.additions], ["Repetitions", summary.fullCategories.repetitions], ["Omissions", summary.fullCategories.omissions]]} tone="red" />
+      <MistakeBreakdown title="Half mistakes" total={summary.halfMistakes} items={[["Capitalization", summary.halfCategories.capitalization], ["Punctuation", summary.halfCategories.punctuation], ["Spacing", summary.halfCategories.spacing], ["Spelling", summary.halfCategories.spelling]]} tone="purple" />
+    </div>
+    <p className="mt-3 rounded-xl bg-slate-50 p-2.5 text-xs font-bold text-slate-600">Full mistakes are wrong, missing, extra, or repeated words. Half mistakes are smaller slips -- capitalization, punctuation, spacing, or minor spelling. Neither method here is any specific exam's official rule -- switch between them to see how this same attempt reads either way.</p>
   </section>;
 }
 function ComparisonTextPanel({ entries, fontFamily, textLanguage, onSelect }: { entries: WordAnalysisEntry[]; fontFamily: string; textLanguage: "hi" | "en"; onSelect: (entry: WordAnalysisEntry) => void }) { return <section aria-labelledby="comparison-text-title" className="mt-6 rounded-3xl bg-white p-5 shadow sm:p-7"><h2 id="comparison-text-title" className="text-xl font-black">Detailed Passage Comparison</h2><div className="mt-4 rounded-2xl border border-blue-200 p-4 sm:p-5"><PassageFlow entries={entries} onSelect={onSelect} fontFamily={fontFamily} textLanguage={textLanguage} compact/></div></section>; }
