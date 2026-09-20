@@ -177,6 +177,15 @@ preferredLegacy.set("ाँ", "k¡");
 // forces the explicit, always-correct "kz" spelling for the subjoined-र
 // instead.
 preferredLegacy.set("घ्र", "?kz");
+// Real reported bug, same class as घ्र above, spotted in "ब्रिटिश": ब्र
+// (ba + halant + subjoined-र) also has no dedicated ligature byte in the
+// @anthro-ai dictionary, so it fell back to the precomposed half-form "ब्"
+// ("C") followed by plain "ज" ("j"), which -- confirmed by rendering
+// "ब्रिटिश" in the bundled font -- does NOT kern into the subjoined-र tail
+// the way घ्/क्/etc. do; it renders as separate ब+ि+र instead of the
+// compact ब्र ligature. Same fix: force the explicit "kz" spelling for
+// the subjoined-र instead of "j".
+preferredLegacy.set("ब्र", "Ckz");
 // Real reported bug, from an official Kruti Dev 010 Alt-code reference
 // chart (Samradhi Classes' own teaching material) cross-checked word by
 // word against this converter: ट्ट has two same-length dictionary entries

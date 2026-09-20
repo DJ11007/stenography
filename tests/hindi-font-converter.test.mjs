@@ -32,12 +32,12 @@ test("order-sensitive production Kruti Dev fixtures convert exactly",()=>{
   // ...but ENCODING now yields the keyboard-typeable spelling: the Latin-1
   // ligature "Ò" (भ) is folded to the "Hk" key sequence a typist presses.
   const encodesTo=[
-    ["ब्रिक्स","fCjDl"],
+    ["ब्रिक्स","fCkzDl"],
     ["आर्थिक","vkfFkZd"],
     ["अध्यक्षता","v/;{krk"],
     ["निभा","fuHkk"],
     ["वर्ष",'o"kZ'],
-    ["भारत इस वर्ष ब्रिक्स अध्यक्षता निभा रहा है।",'Hkkjr bl o"kZ fCjDl v/;{krk fuHkk jgk gSA'],
+    ["भारत इस वर्ष ब्रिक्स अध्यक्षता निभा रहा है।",'Hkkjr bl o"kZ fCkzDl v/;{krk fuHkk jgk gSA'],
   ];
   for(const [unicode,legacy] of encodesTo){assert.equal(unicodeToKrutiDev(unicode),legacy);assert.equal(krutiDevToUnicode(legacy),unicode);}
   const economic=unicodeToKrutiDev("आर्थिक");
@@ -215,6 +215,21 @@ test("systematic vowel-sign+anusवार ordering and घ्र's missing ligat
   // "kW" regression test below for why.
   assert.equal(unicodeToKrutiDev("ऑनलाइन"),"v‚uykbu");
   assert.equal(unicodeToKrutiDev("कॉल"),"d‚y");
+});
+
+// Real reported bug, spotted in "ब्रिटिश": ब्र has the exact same missing-
+// ligature problem as घ्र above -- confirmed by rendering "ब्रिटिश" in the
+// bundled font that the old "j" (plain र) spelling renders as separate
+// ब+ि+र instead of the compact ब्र ligature, while "kz" (the explicit
+// subjoined-र spelling) matches the Mangal reference exactly.
+test("ब्र's missing ligature is fixed the same way as घ्र's -- the explicit kz spelling instead of the mis-rendering j",()=>{
+  assert.equal(unicodeToKrutiDev("ब्रिटिश"),"fCkzfV'k");
+  assert.equal(krutiDevToUnicode("fCkzfV'k"),"ब्रिटिश");
+  assert.equal(unicodeToKrutiDev("ब्रिक्स"),"fCkzDl");
+  // The old "fCj..." spelling must still decode correctly for any content
+  // saved before this fix -- only the forward encoding changes.
+  assert.equal(krutiDevToUnicode("fCjfV'k"),"ब्रिटिश");
+  assert.equal(krutiDevToUnicode("fCjDl"),"ब्रिक्स");
 });
 
 // Real reported bug, follow-up after the admin/teacher re-confirmed their
