@@ -110,7 +110,7 @@ test("stenography-only grammar categories are excluded from CategoryStrip for no
 // Details pairing unchanged.
 test("typing (exam simulator) results drop the redundant character cards, Detailed Result block, category tile strip, and Summary tab -- keeping only the pass/fail banner and Speed Details", async () => {
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
-  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : mode === "practice" \? <MethodBasedSpeedDetails summary=\{summary\}\/> : <>\{insufficientAttempt \? <InsufficientAttemptBanner title=\{preset\.title\} minimumStrokes=\{minimumStrokesRequired\} achievedStrokes=\{score\.totalCharacters\}\/> : <ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\} requiredWpm=\{preset\.speedRequirement\} achievedWpm=\{summary\.netWpm\} requiredAccuracy=\{preset\.accuracyRequirement\} achievedAccuracy=\{summary\.accuracy\}\/>\}<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/><\/>\}/);
+  assert.match(source, /\{marksResult \? <><RssbSpeedDetails summary=\{summary\}\/><ComparisonTextPanel entries=\{displayEntries\} fontFamily=\{fontFamily\} textLanguage=\{textLanguage\} onSelect=\{setSelectedError\}\/><\/> : mode === "practice" \? <MethodBasedSpeedDetails summary=\{summary\} passage=\{passage\} typedText=\{typedText\} backspaces=\{backspaces\} language=\{inputSystem\.language\}\/> : <>\{insufficientAttempt \? <InsufficientAttemptBanner title=\{preset\.title\} minimumStrokes=\{minimumStrokesRequired\} achievedStrokes=\{score\.totalCharacters\}\/> : <ResultBanner label=\{resultLabel\} passed=\{resultPassed\} title=\{preset\.title\} requiredWpm=\{preset\.speedRequirement\} achievedWpm=\{summary\.netWpm\} requiredAccuracy=\{preset\.accuracyRequirement\} achievedAccuracy=\{summary\.accuracy\}\/>\}<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/><\/>\}/);
   assert.doesNotMatch(source, /function ScreenshotResultSummary/);
   assert.doesNotMatch(source, /function Summary\(/);
   assert.doesNotMatch(source, /function CalculationTable\(/);
@@ -127,11 +127,34 @@ test("typing (exam simulator) results drop the redundant character cards, Detail
 // rescoring needed.
 test("practice typing results drop the pass/fail banner entirely and show Keystroke Based / Word Based method tabs instead", async () => {
   const source = await read("app/typing/_components/advanced-typing-results.tsx");
-  assert.match(source, /function MethodBasedSpeedDetails\(\{ summary \}: \{ summary: ReturnType<typeof buildResultSummary> \}\) \{/);
-  assert.match(source, /const grossWpm = method === "keystroke" \? summary\.grossCharactersPerMinute \/ 5 : summary\.grossWordsPerMinute;/);
-  assert.match(source, /const netWpm = method === "keystroke" \? summary\.netCharactersPerMinute \/ 5 : summary\.netWordsPerMinute;/);
+  assert.match(source, /function MethodBasedSpeedDetails\(\{ summary, passage, typedText, backspaces, language \}: \{ summary: ReturnType<typeof buildResultSummary>; passage: string; typedText: string; backspaces: number; language: "English" \| "Hindi" \}\) \{/);
+  assert.match(source, /const grossWpm = method === "word" \? summary\.grossWordsPerMinute : summary\.grossCharactersPerMinute \/ 5;/);
+  assert.match(source, /const netWpm = method === "word" \? summary\.netWordsPerMinute : summary\.netCharactersPerMinute \/ 5;/);
   assert.match(source, />Keystroke Based Result</);
   assert.match(source, />Word Based Result</);
+});
+
+// Real requested follow-up: after the Pass/Fail banner was replaced with
+// Keystroke/Word method tabs, the next ask was previewing this exact same
+// practice attempt against a REAL exam category's own rules -- "all the
+// exams... central level exams and state level... only rajasthan
+// government all typing exam". A third "Preview by Exam" tab lets the
+// student pick any of the 25 researched categories (grouped Central vs
+// Rajasthan State) and reuses that category's already-built
+// scoringProfile/marksMethod (via getExamPreset) against the practice
+// attempt's own typed text -- no new scoring logic, and no exam category
+// is hardcoded to central or state (isRajasthanCategory classifies by slug).
+test("practice results offer a third 'Preview by Exam' tab that scores the same attempt under any of the 25 exam categories' real rules, grouped Central vs Rajasthan State",async()=>{
+  const source = await read("app/typing/_components/advanced-typing-results.tsx");
+  assert.match(source,/import \{ getExamPreset, type ExamPreset \} from "@\/lib\/typing-curriculum";/);
+  assert.match(source,/import \{ EXAM_CATEGORIES, examCategoryPresetId, type ExamCategoryDefinition \} from "@\/lib\/exam-categories";/);
+  assert.match(source,/const isRajasthanCategory = \(category: ExamCategoryDefinition\) => category\.slug\.startsWith\("rajasthan-"\) \|\| category\.slug\.startsWith\("rssb-"\);/);
+  assert.match(source,/>Preview by Exam</);
+  assert.match(source,/<optgroup label="Central Level Exams">/);
+  assert.match(source,/<optgroup label="Rajasthan State Level Exams">/);
+  assert.match(source,/const categoryPreset = getExamPreset\(examCategoryPresetId\(category\.slug, language\)\);/);
+  assert.match(source,/const categoryScore = calculateTypingScore\(\{ typedText, passage, elapsedSeconds: summary\.elapsedSeconds, wordMethod: categoryPreset\.wordMethod, scoringProfile: categoryPreset\.scoringProfile, includeUntypedWords: true \}\);/);
+  assert.match(source,/categoryResult\.categoryMarks && categoryPreset\.marksMethod/);
 });
 
 // Real reported feedback, follow-up on the RSSB marks-method path
