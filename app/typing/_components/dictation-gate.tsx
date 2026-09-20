@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ExamPreset } from "@/lib/typing-curriculum";
 import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, PRACTICE_DURATION_MINUTES, type HalfErrorCategory } from "@/lib/typing-test";
 import { TypingBrandHeader } from "./typing-brand";
+import type { PracticeNavigation } from "./configurable-typing-exam";
 
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
@@ -33,7 +34,7 @@ export const DICTATION_SPEEDS = [
 // not copy-typing. Rendered as a full page (same weight as ExamStart)
 // rather than an overlay, specifically so the typing textarea underneath
 // genuinely doesn't exist in the DOM until Start Typing is clicked.
-export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref, adminPreview = false }: {
+export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref, adminPreview = false, practiceNavigation, onNavigateTest }: {
   preset: ExamPreset;
   url: string;
   selectedCategories: HalfErrorCategory[];
@@ -44,6 +45,8 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   onDurationChange: (minutes: number) => void;
   backHref?: string;
   adminPreview?: boolean;
+  practiceNavigation?: PracticeNavigation;
+  onNavigateTest?: (href: string) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -97,7 +100,18 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
     <TypingBrandHeader/>
     <section className="mx-auto max-w-3xl px-4 py-10">
       <div className="rounded-3xl bg-white p-6 shadow-xl sm:p-10">
-        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">Dictation phase</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">Dictation phase</span>
+          {practiceNavigation && onNavigateTest && (
+            <nav aria-label="Change test" className="flex items-center gap-1.5">
+              <button type="button" aria-label="Previous test" disabled={!practiceNavigation.previousHref} onClick={() => practiceNavigation.previousHref && onNavigateTest(practiceNavigation.previousHref)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xl font-black text-blue-800 disabled:opacity-40">‹</button>
+              <select title={practiceNavigation.items[practiceNavigation.currentIndex]?.title} aria-label={`Select test. Current: ${practiceNavigation.items[practiceNavigation.currentIndex]?.title}`} value={practiceNavigation.items[practiceNavigation.currentIndex]?.href} onChange={(event) => onNavigateTest(event.target.value)} className="h-9 w-24 rounded-lg border border-slate-200 bg-slate-50 px-1 text-center text-xs font-black text-slate-900 sm:w-40 sm:px-2">
+                {practiceNavigation.items.map((item) => <option key={item.href} value={item.href} title={item.title}>{item.label}</option>)}
+              </select>
+              <button type="button" aria-label="Next test" disabled={!practiceNavigation.nextHref} onClick={() => practiceNavigation.nextHref && onNavigateTest(practiceNavigation.nextHref)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xl font-black text-blue-800 disabled:opacity-40">›</button>
+            </nav>
+          )}
+        </div>
         <h1 className="mt-5 text-3xl font-black text-slate-900">Listen to the dictation</h1>
         <p className="mt-2 text-slate-600">Play the audio at whichever speed suits you. The passage will not be shown on screen — this is a real dictation, not copy-typing. Listen all the way to the end before typing can begin.</p>
 

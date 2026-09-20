@@ -28,5 +28,23 @@ test("the dictation gate offers an adjustable timer (when not locked) using the 
 
 test("the workspace threads its own duration/backHref state into the dictation gate instead of the gate managing its own copy", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
-  assert.match(workspace, /<DictationGate preset=\{preset\} url=\{preset\.audioUrl\} selectedCategories=\{selectedCategories\} onCategoriesChange=\{setSelectedCategories\} onStartTyping=\{\(\) => \{ beginTiming\(\); setDictationReady\(true\); \}\} durationSeconds=\{activeDurationSeconds\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\} backHref=\{backHref\} adminPreview=\{adminPreview\}\/>/);
+  assert.match(workspace, /<DictationGate preset=\{preset\} url=\{preset\.audioUrl\} selectedCategories=\{selectedCategories\} onCategoriesChange=\{setSelectedCategories\} onStartTyping=\{\(\) => \{ beginTiming\(\); setDictationReady\(true\); \}\} durationSeconds=\{activeDurationSeconds\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\} backHref=\{backHref\} adminPreview=\{adminPreview\} practiceNavigation=\{practiceNavigation\} onNavigateTest=\{navigatePracticeTest\}\/>/);
+});
+
+// Real reported request: a student on the dictation-listening screen (a
+// real dictation test entered via the "Take Tests" practice flow, e.g.
+// from the Stenography category page's own real-test navigator) should be
+// able to switch to a different test from here too, not just from the
+// in-workspace header that only appears once typing has actually started
+// -- the exact same "‹ Test X of Y ▾ ›" control as ExamWorkspace's own
+// practice navigation nav, reusing the same practiceNavigation data and
+// navigatePracticeTest function ConfigurableTypingExam already builds.
+test("the dictation gate renders the same practice-test navigator (arrows + dropdown) as the in-workspace header, when one is available", async () => {
+  const gate = await read("app/typing/_components/dictation-gate.tsx");
+  assert.match(gate, /import type \{ PracticeNavigation \} from "\.\/configurable-typing-exam";/);
+  assert.match(gate, /practiceNavigation\?: PracticeNavigation;\s*\n\s*onNavigateTest\?: \(href: string\) => void;/);
+  assert.match(gate, /\{practiceNavigation && onNavigateTest && \(/);
+  assert.match(gate, /aria-label="Previous test"/);
+  assert.match(gate, /aria-label="Next test"/);
+  assert.match(gate, /value=\{practiceNavigation\.items\[practiceNavigation\.currentIndex\]\?\.href\} onChange=\{\(event\) => onNavigateTest\(event\.target\.value\)\}/);
 });
