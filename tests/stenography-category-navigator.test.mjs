@@ -29,11 +29,30 @@ test("getStenographyCategoryNavigator scopes a court category's query to every c
   assert.match(source, /\.eq\("mode", "stenography"\)\.eq\("status", "published"\)\.eq\("visibility", "public"\)\.eq\("is_live", false\)\.eq\("language", language\)/);
 });
 
-test("the stenography category rules page fetches and renders both languages' navigator lists via RealTestList, above the generic sample link", async () => {
+test("the stenography category rules page fetches and renders both languages' navigator lists via RealTestNavigator, above the generic sample link", async () => {
   const page = await read("app/typing/practice/stenography/exams/[slug]/page.tsx");
-  assert.match(page, /import \{ getStenographyCategoryNavigator, type StenographyCategoryNavigatorItem \} from "@\/lib\/stenography-category-navigator-server";/);
+  assert.match(page, /import \{ getStenographyCategoryNavigator \} from "@\/lib\/stenography-category-navigator-server";/);
+  assert.match(page, /import \{ RealTestNavigator \} from "\.\/real-test-navigator";/);
   assert.match(page, /const \[englishTests, hindiTests\] = await Promise\.all\(\[/);
-  assert.match(page, /<RealTestList tests=\{englishTests\} language="English"\/>/);
-  assert.match(page, /<RealTestList tests=\{hindiTests\} language="Hindi"\/>/);
-  assert.match(page, /function RealTestList\(/);
+  assert.match(page, /<RealTestNavigator tests=\{englishTests\} language="English"\/>/);
+  assert.match(page, /<RealTestNavigator tests=\{hindiTests\} language="Hindi"\/>/);
+});
+
+test("getStenographyCategoryNavigator orders oldest-first, matching the Take Tests practice navigator's own convention", async () => {
+  const source = await read("lib/stenography-category-navigator-server.ts");
+  assert.match(source, /query\.order\("published_at", \{ ascending: true \}\)\.order\("id", \{ ascending: true \}\);/);
+});
+
+// Real reported request: replace the previous stacked-button list (one
+// row per real test) with a compact ‹ Test X of Y ▾ › navigator -- the
+// exact same arrows+dropdown pattern the in-workspace "Take Tests"
+// practice navigator already uses (ExamWorkspace in
+// configurable-typing-exam.tsx), for visual/interaction consistency.
+test("RealTestNavigator mirrors the in-workspace practice navigator's own ‹ Test X of Y ▾ › pattern -- arrows plus a dropdown, not a stacked list", async () => {
+  const navigator = await read("app/typing/practice/stenography/exams/[slug]/real-test-navigator.tsx");
+  assert.match(navigator, /aria-label="Previous test"/);
+  assert.match(navigator, /aria-label="Next test"/);
+  assert.match(navigator, /\{tests\.map\(\(t, i\) => <option key=\{t\.slug\} value=\{t\.slug\} title=\{t\.title\}>\{`Test \$\{i \+ 1\} of \$\{tests\.length\}`\}<\/option>\)\}/);
+  assert.doesNotMatch(navigator, /<ul className="mt-2 space-y-1\.5">/); // the old stacked-button list must be gone
+  assert.match(navigator, /router\.push\(`\/tests\/\$\{tests\[nextIndex\]\.slug\}`\);/); // selecting/arrowing navigates immediately, same as the in-workspace one
 });

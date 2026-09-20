@@ -28,7 +28,11 @@ export async function getStenographyCategoryNavigator(categorySlug: string, lang
   query = COURT_CATEGORY_SET.has(categorySlug)
     ? query.or(COURT_CATEGORY_SLUGS.map((slug) => `settings->>steno_category.eq.${slug}`).join(","))
     : query.eq("settings->>steno_category", categorySlug);
-  const { data, error } = await query.order("published_at", { ascending: false }).order("id", { ascending: true });
+  // Oldest-first, matching the "Take Tests" practice navigator's own
+  // convention -- students expect a numbered set of real tests (Legal-1,
+  // Legal-2, ...) to run in the order they were actually published, not
+  // newest-first.
+  const { data, error } = await query.order("published_at", { ascending: true }).order("id", { ascending: true });
   if (error) { console.error("Stenography category navigator query failed", { code: error.code, message: error.message }); throw new Error(`Stenography exercises could not be loaded (${error.code || "database error"}).`); }
   return (data ?? []).map((test) => ({ id: test.id, slug: test.slug, title: test.title, publishedAt: test.published_at }));
 }
