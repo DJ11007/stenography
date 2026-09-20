@@ -56,6 +56,31 @@ test("Word and Excel Efficiency results always show the question list (not gated
  }
 });
 
+// Real reported feedback: the admin Word Efficiency page grew "very long
+// in scrolling" once real usage piled up (many managed tests, and a
+// single test's Attempts and results list growing to 37+ rows) -- both
+// lists now render inside a SearchableList (search box + capped-height
+// scrollable panel) instead of an unbounded inline list, and a
+// TestNavigator (the same arrows+dropdown pattern already used for the
+// student-facing stenography/practice navigators) lets the admin jump
+// straight to another test from the edit form instead of scrolling back
+// down to the list every time.
+test("the admin Word Efficiency page wraps both the Managed tests list and the Attempts list in a searchable, capped-height panel, and offers a test navigator while editing",async()=>{
+ const[page,searchableList,navigator]=await Promise.all([
+  read("app/admin/word-efficiency-tests/page.tsx"),
+  read("app/admin/word-efficiency-tests/searchable-list.tsx"),
+  read("app/admin/word-efficiency-tests/test-navigator.tsx"),
+ ]);
+ assert.match(page,/import \{ SearchableList \} from "\.\/searchable-list";/);
+ assert.match(page,/import \{ TestNavigator \} from "\.\/test-navigator";/);
+ assert.match(page,/\{editing && <TestNavigator tests=\{\[\.\.\.\(tests \?\? \[\]\)\]\.sort\(\(a, b\) => a\.title\.localeCompare\(b\.title\)\)\.map\(\(test\) => \(\{ id: test\.id, title: test\.title \}\)\)\} currentId=\{editing\.id\} \/>\}/);
+ assert.match(page,/<SearchableList placeholder="Search tests by title or language" emptyLabel="No Word Efficiency tests yet\."/);
+ assert.match(page,/<SearchableList placeholder="Search attempts by number or status" emptyLabel="No attempts for this test\." maxHeightClassName="max-h-\[420px\]"/);
+ assert.match(searchableList,/const filtered = q \? items\.filter\(\(item\) => item\.searchText\.toLowerCase\(\)\.includes\(q\)\) : items;/);
+ assert.match(searchableList,/overflow-y-auto/);
+ assert.match(navigator,/router\.push\(`\?edit=\$\{tests\[nextIndex\]\.id\}`\)/);
+});
+
 test("English and Hindi catalogues are isolated and exclude non-published states",async()=>{const[data,en,hi]=await Promise.all([read("lib/word-efficiency-server.ts"),read("app/typing/word-efficiency/english/page.tsx"),read("app/typing/word-efficiency/hindi/page.tsx")]);assert.match(data,/\.eq\("language",language\)\.eq\("status","published"\)/);assert.match(en,/language="English"/);assert.match(hi,/language="Hindi"/);assert.doesNotMatch(data,/draft|archived|unpublished/);});
 // Real reported bug: the catalogue's "1"/"2" sequence badge (word-test-
 // catalogue.tsx's `number`) is just the row's position in the query

@@ -21,6 +21,8 @@ import { WorkingMatterDocxFields } from "./working-matter-docx-fields";
 import { SaveLocalDraftButton } from "./draft-preserver";
 import{PermanentDeleteDangerZone}from"./permanent-delete-danger-zone";
 import { formatIST } from "@/lib/format-datetime";
+import { SearchableList } from "./searchable-list";
+import { TestNavigator } from "./test-navigator";
 export const metadata: Metadata = { title: "Word Efficiency Tests | Admin" };
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
 
@@ -110,11 +112,14 @@ export default async function Page({
         {cleanupAudits.length>0&&<section className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4"><h2 className="font-black text-amber-950">Pending deleted-test storage cleanup</h2><p className="mt-1 text-sm text-amber-800">Database content remains permanently deleted. Retry only the isolated storage jobs recorded during deletion.</p><div className="mt-3 flex flex-wrap gap-2">{cleanupAudits.map(auditId=><form action={retryWordEfficiencyStorageCleanup} key={auditId}><input type="hidden" name="auditId" value={auditId}/><button className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-black text-white">Retry orphan file cleanup</button></form>)}</div></section>}
         <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,.85fr)]">
           <section className="rounded-3xl bg-white p-5 shadow sm:p-7">
-            <h2 className="text-2xl font-black">
-              {editing
-                ? `Edit ${editing.title}`
-                : "Create Word Efficiency test"}
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-2xl font-black">
+                {editing
+                  ? `Edit ${editing.title}`
+                  : "Create Word Efficiency test"}
+              </h2>
+              {editing && <TestNavigator tests={[...(tests ?? [])].sort((a, b) => a.title.localeCompare(b.title)).map((test) => ({ id: test.id, title: test.title }))} currentId={editing.id} />}
+            </div>
             <form action={saveWordEfficiencyTest} className="mt-6 grid gap-5">
               {editing && (
                 <input type="hidden" name="testId" value={editing.id} />
@@ -248,8 +253,8 @@ export default async function Page({
                 Database error: {error.message}
               </p>
             ) : (
-              <div className="mt-4 space-y-4">
-                {(tests ?? []).map((test) => {
+              <div className="mt-4">
+                <SearchableList placeholder="Search tests by title or language" emptyLabel="No Word Efficiency tests yet." items={(tests ?? []).map((test) => {
                   const version = map.get(test.current_version_id);
                   const count = (attempts ?? []).filter(
                     (attempt) => attempt.test_id === test.id,
@@ -259,11 +264,11 @@ export default async function Page({
                   const activeAttemptCount=testAttempts.filter(item=>["prepared","active","paused"].includes(item.status)).length;
                   const resultCount=testAttempts.filter(item=>["submitted","completed"].includes(item.status)).length;
                   const fileCount=new Set(testVersions.flatMap(item=>[item.pdf_path,item.working_matter_snapshot?.source?.storagePath].filter(Boolean))).size;
-                  return (
+                  return { key: test.id, searchText: `${test.title} ${test.language} ${test.status}`, node: (
                     <article
-                      key={test.id}
                       className="rounded-2xl bg-white p-5 shadow"
                     >
+
                       <div className="flex justify-between gap-3">
                         <div>
                           <h3 className="font-black">{test.title}</h3>
@@ -334,13 +339,8 @@ export default async function Page({
                         <PermanentDeleteDangerZone impact={{testId:test.id,title:test.title,status:test.status,versionCount:testVersions.length,attemptCount:testAttempts.length,activeAttemptCount,resultCount,fileCount,requestId:crypto.randomUUID()}}/>
                       </div>
                     </article>
-                  );
-                })}
-                {!tests?.length && (
-                  <p className="rounded-2xl border border-dashed bg-white p-8 text-center text-slate-500">
-                    No Word Efficiency tests yet.
-                  </p>
-                )}
+                  ) };
+                })} />
               </div>
             )}
             <section
@@ -350,10 +350,9 @@ export default async function Page({
               <h2 className="font-black">Attempts and results</h2>
               {editing ? (
                 selectedAttempts.length ? (
-                  <div className="mt-3 space-y-2">
-                    {selectedAttempts.map((attempt, index) => (
+                  <div className="mt-3">
+                    <SearchableList placeholder="Search attempts by number or status" emptyLabel="No attempts for this test." maxHeightClassName="max-h-[420px]" items={selectedAttempts.map((attempt, index) => ({ key: `${attempt.student_id}-${attempt.prepared_at}-${index}`, searchText: `attempt ${index + 1} ${attempt.status}`, node: (
                       <article
-                        key={`${attempt.student_id}-${attempt.prepared_at}-${index}`}
                         className="rounded-lg bg-slate-50 p-3 text-sm"
                       >
                         <strong>Attempt {index + 1}</strong> · {attempt.status}{" "}
@@ -363,7 +362,7 @@ export default async function Page({
                           : "Not submitted"}
                         {(["submitted","completed"].includes(attempt.status))&&<Link href={`/admin/word-efficiency-tests/attempts/${attempt.id}`} className="ml-3 font-black text-blue-700">{attempt.status==="completed"?"View result":"Grade attempt"}</Link>}
                       </article>
-                    ))}
+                    ) }))} />
                   </div>
                 ) : (
                   <p className="mt-2 text-sm">No attempts for this test.</p>
