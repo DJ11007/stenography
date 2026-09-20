@@ -102,5 +102,5 @@ test("font scrolling scoring and reset options remain in the floating settings p
   assert.match(workspace, /showScrollbar=\{showScrollbar\}/);
   assert.match(workspace, /onScrollbarChange=\{setShowScrollbar\}/);
   assert.match(workspace, /onReset=\{resetSettings\}/);
-  assert.match(workspace, /rulesLocked \? \{\} :/);
+  assert.match(workspace, /wordMethodLocked \? \{\} :/);
 });
