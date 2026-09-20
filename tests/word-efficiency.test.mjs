@@ -8,6 +8,26 @@ import{validateWordEditorDocument}from"../lib/word-editor-document.ts";
 import{zipSync,strToU8}from"fflate";
 const read=path=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
 
+// Real reported bug: starting a Word Efficiency test whose Working Matter
+// contains a table paragraph failed with "cannot extract elements from a
+// scalar" -- word_efficiency_initial_editor_document (202608240008) built
+// every paragraph as if it were a plain paragraph/list-item, so a table's
+// working-matter shape (only ever {id,type,rows}, never 'runs') silently
+// became a JSON null 'runs' on the converted block, which then crashed the
+// very next unguarded jsonb_array_elements(block->'runs') call downstream
+// in assert_word_efficiency_document_schema. The fix (this migration)
+// special-cases type='table' paragraphs into a genuine type='table' block
+// with attrs.rows carrying the real cell grid. runs carries one real run
+// (the flattened cell text, jsonb_build_array -- never an aggregate) --
+// an empty array was tried first and reproduced a SECOND crash ("cannot
+// set path in scalar"): assert_word_efficiency_document_schema's own
+// outline/emboss cleanup rebuilds 'runs' via jsonb_agg(...) over the old
+// runs array, and jsonb_agg over zero rows returns SQL NULL, not '[]',
+// which the next jsonb_set silently turned into a genuine JSON null
+// "block" -- confirmed live by calling both functions directly in the
+// Supabase SQL editor against a real test's stored data.
+test("word_efficiency_initial_editor_document converts a table working-matter paragraph into a genuine type='table' block with one real (never-empty) run",async()=>{const migration=await read("supabase/migrations/202609201200_fix_word_efficiency_initial_document_table_paragraphs.sql");assert.match(migration,/when paragraph_entries\.paragraph_value->>'type'='table' then jsonb_build_object\(/);assert.match(migration,/'type','table',/);assert.match(migration,/'runs',jsonb_build_array\(jsonb_build_object\(/);assert.match(migration,/'attrs',jsonb_build_object\('rows',coalesce\(paragraph_entries\.paragraph_value->'rows','\[\]'::jsonb\)\)/);});
+
 test("English and Hindi catalogues are isolated and exclude non-published states",async()=>{const[data,en,hi]=await Promise.all([read("lib/word-efficiency-server.ts"),read("app/typing/word-efficiency/english/page.tsx"),read("app/typing/word-efficiency/hindi/page.tsx")]);assert.match(data,/\.eq\("language",language\)\.eq\("status","published"\)/);assert.match(en,/language="English"/);assert.match(hi,/language="Hindi"/);assert.doesNotMatch(data,/draft|archived|unpublished/);});
 // Real reported bug: the catalogue's "1"/"2" sequence badge (word-test-
 // catalogue.tsx's `number`) is just the row's position in the query
