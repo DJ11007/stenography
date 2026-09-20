@@ -4,7 +4,7 @@ import type { ExcelLanguage, ExcelTest, ExcelVersion } from "./excel-efficiency"
 
 export async function getExcelCatalogue(language: ExcelLanguage, { search = "", page = 1, pageSize = 10 } = {}) {
   const supabase = await createClient();
-  let query = supabase.from("excel_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,published_at,updated_at", { count: "exact" }).eq("language", language).eq("status", "published").order("published_at", { ascending: false }).order("id").range((page - 1) * pageSize, page * pageSize - 1);
+  let query = supabase.from("excel_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,published_at,updated_at", { count: "exact" }).eq("language", language).eq("status", "published").order("published_at", { ascending: true }).order("id").range((page - 1) * pageSize, page * pageSize - 1);
   if (search.trim()) query = query.ilike("title", `%${search.trim().replace(/[%_]/g, "\\$&")}%`);
   const { data: tests, error, count } = await query;
   if (error) throw new Error(`Excel Efficiency catalogue unavailable: ${error.message}`);
