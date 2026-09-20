@@ -54,3 +54,22 @@ test("new students default to unlimited and unlocked access -- the access-contro
   const withoutFunctionBodies = migration.replace(/\$\$[\s\S]*?\$\$/g, "");
   assert.doesNotMatch(withoutFunctionBodies, /update\s+public\.profiles/i);
 });
+
+// Real reported bug: a published, actually-graded Word/Excel Efficiency
+// attempt always showed "Not graded" on the per-student Track page. Both
+// grading RPCs write the raw result column as jsonb_build_object('marks',
+// ...) (confirmed in supabase/migrations/202608240010_... and
+// .../202608260024_...), but this page read `result?.marksObtained`, a key
+// that only exists in the *translated* output of
+// get_word/excel_efficiency_attempt_result (the student-facing results
+// RPC) -- this page reads the raw table column directly and never calls
+// that RPC, so `marksObtained` was always undefined and the real mark
+// could never display, regardless of grading state.
+test("the per-student Track page reads the real 'marks' key from the raw result column, not the RPC-translated 'marksObtained'", async () => {
+  const track = await read("app/admin/track/[id]/page.tsx");
+  assert.doesNotMatch(track, /result\?\.marksObtained/);
+  const wordSection = track.slice(track.indexOf("Word Efficiency results"), track.indexOf("Excel Efficiency results"));
+  assert.match(wordSection, /published && result\?\.marks != null \? `\$\{result\.marks\} \/ \$\{version\?\.maximum_marks \?\? "\?"\}` : published \? "Not graded" : "Pending"/);
+  const excelSection = track.slice(track.indexOf("Excel Efficiency results"));
+  assert.match(excelSection, /published && result\?\.marks != null \? `\$\{result\.marks\} \/ \$\{version\?\.maximum_marks \?\? "\?"\}` : published \? "Not graded" : "Pending"/);
+});
