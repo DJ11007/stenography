@@ -20,7 +20,12 @@ test("the Kruti Dev tutor's Alt-code helper lists every non-keyboard-typeable by
   const content = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
   const expected = [
     ["Alt + 0161", "¡", "ँ"], // ँ chandrabindu
-    ["Alt + 0130", "‚", "ॉ"], // ॉ candra-O (‚ is a CP1252 special byte, not a direct Latin-1 codepoint)
+    // ॉ (Alt + 0130, "‚") used to be listed here, but a real reported bug
+    // (a student's correct "kW" keystrokes for डॉ. were marked wrong)
+    // found this converter now encodes ॉ as the ordinary keyboard keys
+    // "kW" instead -- see lib/hindi-font-converter.ts's preferredLegacy
+    // override -- so it's no longer a "not on any key" byte and was
+    // removed from ALT_CODES.
     ["Alt + 0209", "Ñ", "कृ"], // कृ
     ["Alt + 0205", "Í", "ट्ट"], // ट्ट
     ["Alt + 0236", "ì", "ड्ड"], // ड्ड
@@ -35,4 +40,5 @@ test("the Kruti Dev tutor's Alt-code helper lists every non-keyboard-typeable by
     assert.match(content, new RegExp(`code: "${code.replace("+", "\\+")}"`), `${code} missing from ALT_CODES`);
     assert.equal(krutiDevToUnicode(byte), glyph, `${code} does not actually decode to the expected glyph`);
   }
+  assert.doesNotMatch(content, /code: "Alt \+ 0130"/, "ॉ is keyboard-typeable (\"kW\") now and should not be listed as Alt-code-only");
 });

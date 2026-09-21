@@ -32,9 +32,14 @@ const STEPS = [
 // of the 11 real Alt-code-only bytes were listed here, leaving a student
 // with no in-app reference for 9 of them if their passage happened to
 // contain कृ/ट्ट/ड्ड/ट्ठ/त्त्/the ट-cluster rakar/क्र/न्न/ह्म.
+// ॉ (Alt + 0130, "ऑ की मात्रा") used to be listed here, but lib/hindi-
+// font-converter.ts's unicodeToKrutiDev now emits the ordinary "kW" key
+// sequence for it instead of the Alt-code-only "‚" byte (real reported
+// bug: a student's correct "kW" keystrokes for डॉ. were marked wrong
+// because the target still expected the single Alt-code character) --
+// this glyph no longer belongs on a "not on any key" reference list.
 const ALT_CODES: Array<{ glyph: string; code: string; note: string }> = [
   { glyph: "ँ", code: "Alt + 0161", note: "चन्द्रबिंदु (ँ), जैसे पाँच" },
-  { glyph: "ॉ", code: "Alt + 0130", note: "ऑ की मात्रा (ॉ), जैसे डॉक्टर" },
   { glyph: "कृ", code: "Alt + 0209", note: "कृ, जैसे कृषि" },
   { glyph: "ट्ट", code: "Alt + 0205", note: "ट्ट, जैसे खट्टा" },
   { glyph: "ड्ड", code: "Alt + 0236", note: "ड्ड, जैसे हड्डी" },

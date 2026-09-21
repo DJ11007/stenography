@@ -198,8 +198,12 @@ test("कृ converts to the single-byte Ñ, not the keyboard-typeable d` spelli
 // "जाँचना" as "t¡kpuk" instead of "tk¡puk". घ्र has no dedicated ligature
 // (unlike प्र/ग्र/त्र/श्र/क्र), so it fell back to a "?"+"j" kerning
 // trick that doesn't render, producing "'kh?j" for "शीघ्र" instead of
-// "'kh?kz". And ‚ (ॉ, used in every English loanword like ऑनलाइन/कॉल) was
-// simply missing from the ligature-to-keyboard-sequence fold.
+// "'kh?kz". ‚ (the vowel SIGN ॉ, used after a consonant as in कॉल/डॉक्टर)
+// was, at the time of this test, simply missing from the ligature-to-
+// keyboard-sequence fold -- see the dedicated "kW" regression test below
+// for the later fix that gave it one. The independent letter ऑ (word-
+// initial, as in ऑनलाइन) is a different Unicode codepoint and is
+// unaffected either way.
 test("systematic vowel-sign+anusवार ordering and घ्र's missing ligature are fixed, confirmed against a real hand-typed reference passage",()=>{
   assert.equal(unicodeToKrutiDev("भारत में डिजिटल"),"Hkkjr esa fMftVy");
   assert.equal(krutiDevToUnicode("Hkkjr esa fMftVy"),"भारत में डिजिटल");
@@ -211,10 +215,9 @@ test("systematic vowel-sign+anusवार ordering and घ्र's missing ligat
   assert.equal(krutiDevToUnicode("tk¡puk"),"जाँचना");
   assert.equal(unicodeToKrutiDev("शीघ्र"),"'kh?kz");
   assert.equal(krutiDevToUnicode("'kh?kz"),"शीघ्र");
-  // ‚ (ऑ/ॉ's alt-code-only byte) is left unfolded -- see the dedicated
-  // "kW" regression test below for why.
+  // ऑ (the independent letter, word-initial) is untouched by the ॉ/"kW"
+  // fix below -- a different Unicode codepoint from the vowel sign.
   assert.equal(unicodeToKrutiDev("ऑनलाइन"),"v‚uykbu");
-  assert.equal(unicodeToKrutiDev("कॉल"),"d‚y");
 });
 
 // Real reported bug, spotted in "ब्रिटिश": ब्र has the exact same missing-
@@ -401,23 +404,40 @@ test("literal colon (:) converts to \"%\" (Shift+5), this font's visarga glyph d
   assert.equal(krutiDevToUnicode("%"),"ः");
 });
 
-// Found by the same audit: a "‚" (U+201A) -> "kW" fold was added earlier
-// this session on the unverified claim that "kW" is ॉ's (candra-O)
-// keyboard-typeable form with "scoring unaffected either way it's
-// stored". Direct testing disproves it: krutiDevToUnicode("kW") decodes to
-// ॅ (candra-E, U+0945) -- a different character -- so a student correctly
-// typing ॉ via its real, already-documented Alt+0130 would decode to ॉ
-// while the "kW"-folded passage decoded to ॅ, silently marking a correct
-// answer wrong. ‚ has no keyboard-typeable form at all (same as ँ) and is
-// left unfolded.
-test("ॉ (candra-O) is never folded to \"kW\", which actually decodes to the different character ॅ (candra-E)",async()=>{
-  for (const word of ["डॉक्टर","कॉल","स्कूल","कॉलेज","डॉलर","ऑनलाइन"]) {
+// Real reported bug, live-reproduced in the Kruti Dev learn tutor (lesson
+// 23, "डॉ. आर.के. शर्मा"): unicodeToKrutiDev used to encode the vowel SIGN
+// ॉ (after a consonant, as in डॉ./कॉल/डॉक्टर) as "‚" (U+201A), a Latin-1
+// byte with no ordinary key -- only Alt+0130. The tutor compares typed
+// keystrokes to this target one character at a time, so a student who
+// instead pressed the two ordinary keys "k"+"W" (what Kruti Dev teachers
+// actually teach for this glyph) produced two characters where the
+// target had one, misaligning every position after it and marking the
+// rest of the word/passage wrong too -- not just this one glyph. An
+// earlier investigation (this same file's history) looked at exactly
+// this "kW" fold and rejected it, since krutiDevToUnicode("kW") decodes
+// to the different character ॅ (candra-E, U+0945) on its own. Re-verified
+// by rendering "M‚-" and "MkW-" side by side in the bundled Kruti Dev 010
+// webfont: pixel-identical, both drawing "डॉ.", and ॅ is not used
+// anywhere in this app's content, so the collision that blocked the
+// earlier attempt was never a real one. Fixed with a paired encode
+// override (preferredLegacy.set("ॉ","kW")) and decode override
+// (legacyDecodeOverrides.set("kW","ॉ")), so round-tripping and
+// student-answer scoring stay consistent both ways -- and a student who
+// still prefers the Alt+0130 method is unaffected, since "‚" itself still
+// decodes to ॉ unchanged.
+test("ॉ (candra-O vowel sign) now encodes to the keyboard-typeable \"kW\", which round-trips back to ॉ, not the different character ॅ",()=>{
+  for (const word of ["डॉक्टर","कॉल","कॉलेज","डॉलर","डॉ."]) {
     const encoded = unicodeToKrutiDev(word);
-    assert.doesNotMatch(encoded, /kW/);
+    assert.match(encoded, /kW/);
+    assert.doesNotMatch(encoded, /‚/);
     assert.equal(krutiDevToUnicode(encoded), word);
   }
+  // स्कूल has no ॉ at all -- sanity check that it's untouched.
+  assert.doesNotMatch(unicodeToKrutiDev("स्कूल"), /kW/);
+  // ऑनलाइन's ऑ is the independent letter (a different Unicode codepoint
+  // from the vowel sign ॉ), word-initial, and is unaffected either way.
+  assert.equal(unicodeToKrutiDev("ऑनलाइन"),"v‚uykbu");
+  // The Alt+0130 method still works and still means ॉ.
   assert.equal(krutiDevToUnicode("‚"),"ॉ");
-  assert.equal(krutiDevToUnicode("kW"),"ॅ");
-  const source = await readFile(new URL("../lib/hindi-font-converter.ts", import.meta.url),"utf8");
-  assert.doesNotMatch(source, /\[\/‚\/g/);
+  assert.equal(krutiDevToUnicode("kW"),"ॉ");
 });

@@ -207,6 +207,32 @@ preferredLegacy.set("ट्ट", "Í");
 // द्म would decode to gibberish and be marked wrong -- so this one stays
 // on the compositional "n~e" form despite the chart, until a decode path
 // for "ù" exists.
+// Real reported bug, live-reproduced in the Kruti Dev learn tutor (lesson
+// 23, "डॉ. आर.के. शर्मा"): unicodeToKrutiDev encoded ॉ (candra-O) as the
+// dictionary's shortest legacy byte, "‚" (U+201A) -- a Latin-1 ligature
+// with no ordinary key, only Alt+0130 (see ALT_CODES in the Kruti Dev
+// tutor). The tutor compares typed keystrokes to this target one
+// character at a time (value[i] === target[i]), so a student who instead
+// pressed the two ordinary keys "k"+"W" (what Kruti Dev teachers actually
+// teach for this glyph) produced two characters where the target had one
+// -- every position from there to the end of the word/passage was then
+// compared one slot out of alignment, marking the rest wrong too. This is
+// the same glyph an EARLIER investigation looked at and rejected (see the
+// long-dead comment above KEYBOARD_KEY_SEQUENCES): krutiDevToUnicode
+// ("kW") decodes to ॅ (candra-E, U+0945), a different character from ॉ,
+// so folding blindly would have silently broken round-trip decoding.
+// Re-verified now by rendering both "M‚-" and "MkW-" side by side in the
+// bundled Kruti Dev 010 webfont (/admin/font-converter): they are
+// pixel-identical, both drawing "डॉ.", confirming "kW" genuinely is this
+// font's keyboard-typeable form for ॉ -- and ॅ does not appear anywhere
+// in this app's lesson/passage content (checked), so there is nothing
+// left for the old dictionary meaning of "kW" to collide with. Overriding
+// the encode side here, paired with a decode override just below (so
+// krutiDevToUnicode("kW") also reads back as ॉ) keeps round-tripping and
+// student-answer scoring consistent in both directions -- "‚" (the
+// Alt+0130 form) still decodes to ॉ unchanged, so a student who prefers
+// the Alt-code method is unaffected.
+preferredLegacy.set("ॉ", "kW");
 const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.length);
 
 // The @anthro-ai dictionary optimises for the shortest byte sequence,
@@ -238,15 +264,16 @@ const unicodeTokens = [...preferredLegacy].sort(([a], [b]) => b.length - a.lengt
 // was chosen over both — and the keyboard-sequence "d`" this table used
 // to fold — instead.
 // A ‚ (U+201A) -> "kW" fold briefly lived here, added on an unverified
-// claim that "kW" was the keyboard-typeable form of ॉ (candra-O, e.g.
-// "ऑनलाइन"/"कॉल") with "scoring unaffected either way it's stored". Found
-// wrong by a later systematic audit of the whole keyboard: krutiDevToUnicode
-// ("kW") decodes to ॅ (candra-E, U+0945) -- a DIFFERENT character from ॉ --
-// so any student correctly typing ॉ via its real, already-documented
-// Alt+0130 (see ALT_CODES in the Kruti Dev tutor, same as चन्द्रबिंदु/ँ,
-// also Alt-code-only with no keyboard form) would decode to ॉ while the
-// "kW"-folded passage decoded to ॅ, silently marking a correct answer
-// wrong. Left unfolded entirely, same treatment as Ùk below.
+// claim that "kW" was the keyboard-typeable form of ॉ, then removed after
+// an audit found krutiDevToUnicode("kW") decodes to the different
+// character ॅ. That removal is itself superseded now -- see the
+// preferredLegacy.set("ॉ", "kW") override above (with a paired decode
+// override below): a live student report plus direct font rendering
+// proved "kW" and ‚ really are the same glyph in this font, and ॅ is
+// unused anywhere in this app, so the collision that blocked this fix is
+// not a real one. This paragraph stays only as a record of why the first
+// attempt at this exact fix was reverted, in case a future change to
+// either override needs that context.
 // Real reported bug, follow-up: unlike ‚ above, "Ùk" -> "Rr" (त्त, e.g.
 // "वित्तीय") was folded the WRONG direction -- the admin/teacher confirmed
 // "Ù" itself is what their real Kruti Dev keyboard produces and renders
@@ -279,6 +306,13 @@ const legacyDecodeOverrides = new Map<string, string>([
   // it decoding as literal "$", not "+". Completes the round trip for the
   // matching unicodeToKrutiDev("+") -> "$" override just above.
   ["$", "+"],
+  // Completes the round trip for preferredLegacy.set("ॉ", "kW") above.
+  // Without this, "kW" falls through to convertLegacy()'s own compositional
+  // decode (k -> ा, W -> ॅ), which repairDecodedWord's stacked-vowel-sign
+  // cleanup then collapses to bare ॅ -- a different character from the ॉ
+  // a student actually typed. ॅ has no other use anywhere in this app's
+  // content, so this fold cannot misdecode any real word.
+  ["kW", "ॉ"],
 ]);
 const legacyOverrideTokens = [...legacyDecodeOverrides].sort(([a], [b]) => b.length - a.length);
 
