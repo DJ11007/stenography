@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
+import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
 import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from "./actions";
@@ -42,7 +43,7 @@ function shuffledPool(list: string[]) {
 }
 
 type Step = "setup" | "playing" | "gameover";
-type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>>; characterPool: Record<CharacterPoolLanguage, string[]> };
+type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>>; characterPool: Record<CharacterPoolLanguage, CharacterPoolForLanguage> };
 type ActiveDrop = { id: number; text: string; target: string; fallMs: number; spawnedAt: number };
 
 function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: ActiveDrop; fontFamily?: string; typedLength: number; onMiss: (id: number) => void }) {
@@ -161,6 +162,13 @@ export function WordtrisGame({ words, characterPool }: Props) {
 
   const poolRef = useRef<string[]>([]);
   const poolCursorRef = useRef(0);
+  // True only for character mode when the admin has set an explicit,
+  // ordered key list (see characterPool prop / /admin/character-pool) --
+  // the pool then plays back in that exact sequence, looping from the
+  // start once exhausted, instead of reshuffling. Word mode (and
+  // character mode's own untouched default full keyboard) is unaffected,
+  // still a fresh random shuffle every time the pool runs out.
+  const poolSequentialRef = useRef(false);
   const nextIdRef = useRef(0);
   const wpmRef = useRef<number>(WORDTRIS_WPM_MILESTONES[0]);
   const catchesSinceBumpRef = useRef(0);
@@ -173,7 +181,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
   const nextPoolItem = useCallback(() => {
     if (poolRef.current.length === 0) return "";
     if (poolCursorRef.current >= poolRef.current.length) {
-      poolRef.current = shuffledPool(poolRef.current);
+      if (!poolSequentialRef.current) poolRef.current = shuffledPool(poolRef.current);
       poolCursorRef.current = 0;
     }
     const item = poolRef.current[poolCursorRef.current];
@@ -209,7 +217,10 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setMode(m);
     setLanguage(lang);
     setCategory(cat);
-    poolRef.current = shuffledPool(m === "character" ? characterPool[lang] : words[lang][cat]);
+    const sequential = m === "character" && characterPool[lang].sequential;
+    poolSequentialRef.current = sequential;
+    const basePool = m === "character" ? characterPool[lang].keys : words[lang][cat];
+    poolRef.current = sequential ? [...basePool] : shuffledPool(basePool);
     poolCursorRef.current = 0;
     nextIdRef.current = 0;
     activeDropRef.current = null;

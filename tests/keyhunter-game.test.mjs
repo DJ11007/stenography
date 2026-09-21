@@ -54,7 +54,7 @@ test("Key Hunter requires a correct press to advance -- a wrong one flashes but 
 test("Key Hunter receives the same admin-configurable characterPool prop WordTris's character mode uses, not a new hand-typed list", async () => {
   const game = await read("app/typing/games/key-hunter/key-hunter-game.tsx");
   assert.match(game, /import type \{ CharacterPoolLanguage \} from "@\/lib\/character-pool-content";/);
-  assert.match(game, /Props = \{ characterPool: Record<CharacterPoolLanguage, string\[\]> \}/);
+  assert.match(game, /Props = \{ characterPool: Record<CharacterPoolLanguage, CharacterPoolForLanguage> \}/);
 });
 
 test("a session is KEYHUNTER_SESSION_LENGTH keys long", async () => {

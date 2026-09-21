@@ -13,13 +13,12 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("WordtrisGame and KeyHunterGame both receive characterPool as a prop instead of building it from GLYPH_KEYS themselves", async () => {
   const wordtrisGame = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.doesNotMatch(wordtrisGame, /GLYPH_KEYS/);
-  assert.match(wordtrisGame, /characterPool: Record<CharacterPoolLanguage, string\[\]>/);
-  assert.match(wordtrisGame, /characterPool\[lang\] : words\[lang\]\[cat\]/);
+  assert.match(wordtrisGame, /characterPool: Record<CharacterPoolLanguage, CharacterPoolForLanguage>/);
 
   const keyHunterGame = await read("app/typing/games/key-hunter/key-hunter-game.tsx");
   assert.doesNotMatch(keyHunterGame, /GLYPH_KEYS/);
-  assert.match(keyHunterGame, /Props = \{ characterPool: Record<CharacterPoolLanguage, string\[\]> \}/);
-  assert.match(keyHunterGame, /const pool = characterPool\[language\];/);
+  assert.match(keyHunterGame, /Props = \{ characterPool: Record<CharacterPoolLanguage, CharacterPoolForLanguage> \}/);
+  assert.match(keyHunterGame, /const pool = characterPool\[language\]\.keys;/);
 });
 
 test("both games' page.tsx server components fetch the character pool via getCharacterPool() and pass it down", async () => {
@@ -32,10 +31,28 @@ test("both games' page.tsx server components fetch the character pool via getCha
   assert.match(keyHunterPage, /<KeyHunterGame characterPool=\{characterPool\} \/>/);
 });
 
-test("getCharacterPool falls back to DEFAULT_CHARACTER_POOL per language when the RPC errors or returns nothing", async () => {
+test("getCharacterPool falls back to DEFAULT_CHARACTER_POOL (sequential: false) per language when the RPC errors or returns nothing, and marks a configured language sequential: true", async () => {
   const server = await read("lib/character-pool-server.ts");
-  assert.match(server, /const result = \{ \.\.\.DEFAULT_CHARACTER_POOL \};/);
-  assert.match(server, /if \(!error && Array\.isArray\(data\) && data\.length\) result\[language\] = data as string\[\];/);
+  assert.match(server, /hindi: \{ keys: DEFAULT_CHARACTER_POOL\.hindi, sequential: false \},/);
+  assert.match(server, /english: \{ keys: DEFAULT_CHARACTER_POOL\.english, sequential: false \},/);
+  assert.match(server, /result\[language\] = \{ keys: data as string\[\], sequential: true \};/);
+});
+
+// Real requested feature: an admin who builds an explicit, ordered key
+// list wants WordTris's Character mode to introduce those keys in
+// exactly that sequence -- not shuffled, the way every other pool
+// (word mode, and character mode's own untouched default) already is.
+// Key Hunter is deliberately unaffected: it always adapts to the
+// student's own weakest key next (keyHunterPickNext), regardless of any
+// list order, so ordering only ever changes WordTris's behavior.
+test("WordTris's Character mode plays a sequential (admin-ordered) pool back in exact order, looping without reshuffling, but still shuffles the untouched default pool", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const poolSequentialRef = useRef\(false\);/);
+  assert.match(game, /if \(!poolSequentialRef\.current\) poolRef\.current = shuffledPool\(poolRef\.current\);/);
+  assert.match(game, /const sequential = m === "character" && characterPool\[lang\]\.sequential;/);
+  assert.match(game, /poolSequentialRef\.current = sequential;/);
+  assert.match(game, /const basePool = m === "character" \? characterPool\[lang\]\.keys : words\[lang\]\[cat\];/);
+  assert.match(game, /poolRef\.current = sequential \? \[\.\.\.basePool\] : shuffledPool\(basePool\);/);
 });
 
 test("the admin character-pool page is gated by requireAdmin, and is wired into the admin dashboard's Games section", async () => {
@@ -47,4 +64,12 @@ test("the admin character-pool page is gated by requireAdmin, and is wired into 
   assert.match(actions, /admin_save_character_pool_config/);
   const dashboard = await read("app/admin/page.tsx");
   assert.match(dashboard, /\/admin\/character-pool/);
+});
+
+test("the admin character-pool manager builds an ORDERED list (up/down/remove), not an unordered checkbox grid, and submits it as ordered hidden inputs", async () => {
+  const manager = await read("app/admin/character-pool/character-pool-manager.tsx");
+  assert.match(manager, /const \[ordered, setOrdered\] = useState<string\[\]>\(initialKeys\);/);
+  assert.match(manager, /\{ordered\.map\(\(key\) => <input key=\{key\} type="hidden" name="key" value=\{key\} \/>\)\}/);
+  assert.match(manager, /const move = \(index: number, delta: number\) =>/);
+  assert.doesNotMatch(manager, /type="checkbox"/);
 });

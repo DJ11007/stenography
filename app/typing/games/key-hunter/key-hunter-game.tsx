@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
+import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
 import { KEYHUNTER_SESSION_LENGTH, keyHunterWeakness, keyHunterPickNext, keyHunterRecord, type KeyHunterStatsMap } from "@/lib/keyhunter-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 
@@ -10,7 +11,11 @@ const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
 type Language = CharacterPoolLanguage;
 type Step = "setup" | "drilling" | "finished";
-type Props = { characterPool: Record<CharacterPoolLanguage, string[]> };
+// Key Hunter always adapts to the student's own weakest keys next
+// (keyHunterPickNext), regardless of any admin-set order -- unlike
+// WordTris's Character mode, an ordered custom list has no effect here
+// beyond narrowing which keys are IN the pool at all.
+type Props = { characterPool: Record<CharacterPoolLanguage, CharacterPoolForLanguage> };
 
 function KeyCell({ label, weakness, fontFamily }: { label: string; weakness: number; fontFamily?: string }) {
   const clamped = Math.min(1, weakness / 4);
@@ -44,7 +49,7 @@ export function KeyHunterGame({ characterPool }: Props) {
   const promptShownAtRef = useRef(0);
   const fontFamily = language === "hindi" ? KD : undefined;
   const statsKey = `keyhunter-stats-${language}`;
-  const pool = characterPool[language];
+  const pool = characterPool[language].keys;
 
   useEffect(() => {
     try {
@@ -63,7 +68,7 @@ export function KeyHunterGame({ characterPool }: Props) {
     setStreak(0);
     setBestStreak(0);
     setTyped("");
-    const firstKey = keyHunterPickNext(characterPool[lang], statsMapRef.current);
+    const firstKey = keyHunterPickNext(characterPool[lang].keys, statsMapRef.current);
     setCurrentKey(firstKey);
     promptShownAtRef.current = Date.now();
     setStep("drilling");
