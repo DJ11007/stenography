@@ -235,6 +235,24 @@ test("ब्र's missing ligature is fixed the same way as घ्र's -- the e
   assert.equal(krutiDevToUnicode("fCjDl"),"ब्रिक्स");
 });
 
+// Real reported bug (a teacher hand-typing "मिस्र", Egypt): स्र has the
+// exact same missing-ligature problem as घ्र/ब्र above -- confirmed by
+// rendering "feLj" in the bundled font that the old "Lj" (half-स् + plain
+// र) spelling renders as three fully disconnected letters, "मिसर" (no
+// halant at all), while "lz" (the explicit subjoined-र spelling, matching
+// what the teacher reported as correct) renders the compact स्र ligature.
+test("स्र's missing ligature is fixed the same way as घ्र's/ब्र's -- the explicit lz spelling instead of the mis-rendering Lj",()=>{
+  assert.equal(unicodeToKrutiDev("मिस्र"),"felz");
+  assert.equal(krutiDevToUnicode("felz"),"मिस्र");
+  // The old "feLj" spelling must still decode correctly for any content
+  // saved before this fix -- only the forward encoding changes.
+  assert.equal(krutiDevToUnicode("feLj"),"मिस्र");
+  // स्त्र (sa + halant + त्र, e.g. "शस्त्र") is a different cluster --
+  // the स here is followed by त, not र, so this override must not touch it.
+  assert.equal(unicodeToKrutiDev("शस्त्र"),"'kL=");
+  assert.equal(krutiDevToUnicode("'kL="),"शस्त्र");
+});
+
 // Real reported bug, follow-up after the admin/teacher re-confirmed their
 // hand-typed reference word by word: "वित्तीय" converted to "foRrh;"
 // (folding the Ù ligature down to "Rr"), but the admin/teacher's real

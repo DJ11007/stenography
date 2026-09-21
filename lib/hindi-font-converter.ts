@@ -208,6 +208,16 @@ preferredLegacy.set("घ्र", "?kz");
 // compact ब्र ligature. Same fix: force the explicit "kz" spelling for
 // the subjoined-र instead of "j".
 preferredLegacy.set("ब्र", "Ckz");
+// Real reported bug, same class again: "मिस्र" (Egypt) converted to
+// "feLj" -- स्र (sa + halant + subjoined-र) has no dedicated ligature
+// byte either, so it fell back to the precomposed half-form "स्" ("L")
+// followed by plain "ज" ("j"). Confirmed by rendering "feLj" in the
+// bundled font: it draws as three fully disconnected letters, "मिसर"
+// (not even a visible halant, let alone the joined स्र ligature). Same
+// fix: force the explicit "lz" spelling ("l" is स's own plain key, "z"
+// the subjoined-र), which renders as the compact स्र conjunct -- confirmed
+// side by side in the same font.
+preferredLegacy.set("स्र", "lz");
 // Real reported bug, from an official Kruti Dev 010 Alt-code reference
 // chart (Samradhi Classes' own teaching material) cross-checked word by
 // word against this converter: ट्ट has two same-length dictionary entries
