@@ -138,8 +138,8 @@ test("character mode's key pool is the admin-configurable characterPool prop (wh
   const content = await read("lib/wordtris-content.ts");
   assert.match(content, /WORDTRIS_READING_BUFFER_MS: Record<WordtrisMode, number> = \{ word: 1200, character: 400 \};/);
   const poolContent = await read("lib/character-pool-content.ts");
-  assert.match(poolContent, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "\.\/krutidev-tutor-content"/);
-  assert.match(poolContent, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "\.\/english-tutor-content"/);
+  assert.match(poolContent, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "\.\/krutidev-tutor-content\.ts"/);
+  assert.match(poolContent, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "\.\/english-tutor-content\.ts"/);
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   // mode (m) is passed through to wordtrisFallMs, which is what actually
   // selects the per-mode reading buffer (see the curve test above).

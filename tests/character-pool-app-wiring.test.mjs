@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { DEFAULT_CHARACTER_POOL } from "../lib/character-pool-content.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -64,6 +65,23 @@ test("the admin character-pool page is gated by requireAdmin, and is wired into 
   assert.match(actions, /admin_save_character_pool_config/);
   const dashboard = await read("app/admin/page.tsx");
   assert.match(dashboard, /\/admin\/character-pool/);
+});
+
+// Real reported gap: DEFAULT_CHARACTER_POOL used to keep only each key's
+// unshifted byte, so Hindi's half-letters (Shift+D/R/T/U/L -- क्/त्/ज्/न्/स्,
+// KEY_LESSONS l14) and conjuncts (Shift+Z/[/J/K -- र्/क्ष्/श्र/ज्ञ, l15)
+// could never appear in WordTris's Character mode or Key Hunter -- an
+// admin building a drill list on /admin/character-pool had no way to add
+// them because they were never even offered as options.
+test("DEFAULT_CHARACTER_POOL includes shifted bytes too (half-letters and conjuncts), not just each key's unshifted byte", () => {
+  for (const halfLetterOrConjunct of ["D", "R", "T", "U", "L", "Z", "{", "J", "K"]) {
+    assert.ok(DEFAULT_CHARACTER_POOL.hindi.includes(halfLetterOrConjunct), `expected Hindi pool to include "${halfLetterOrConjunct}"`);
+  }
+  // still includes the plain, unshifted bytes -- this is additive, not a replacement
+  for (const plain of ["d", "j", "k", "g", "l"]) {
+    assert.ok(DEFAULT_CHARACTER_POOL.hindi.includes(plain), `expected Hindi pool to still include "${plain}"`);
+  }
+  assert.ok(DEFAULT_CHARACTER_POOL.english.includes("D")); // English shift bytes (capitals/punctuation) are equally affected
 });
 
 test("the admin character-pool manager builds an ORDERED list (up/down/remove), not an unordered checkbox grid, and submits it as ordered hidden inputs", async () => {
