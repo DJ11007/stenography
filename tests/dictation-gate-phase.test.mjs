@@ -18,6 +18,29 @@ test("DictationAudioPanel and its old always-visible speed list are gone from th
   assert.doesNotMatch(editor, /const DICTATION_SPEEDS/);
 });
 
+// Real reported bug: a student saw the dictation player permanently
+// frozen at 00:00/00:00 with no error message. Traced directly to
+// Supabase Storage itself -- a raw request to the audio file's own
+// signed URL, bypassing this app's code entirely, sometimes completed in
+// under a second and sometimes hung indefinitely with no error event at
+// all, which is exactly why the pre-existing onError handler never
+// fired: a stall isn't an error, it's simply nothing happening. Can't be
+// fixed here (it's Supabase's delivery, not this component), but a
+// student stuck on a silently frozen player with no way out was its own
+// separate, fixable problem -- a stall timer now offers a Retry instead.
+test("the dictation gate detects a stalled (never loading) audio element and offers a Retry, distinct from a genuine error event", async () => {
+  const gate = await read(GATE_PATH);
+  assert.match(gate, /setTimeout\(\(\) => setStalled\(true\), 12000\)/);
+  assert.match(gate, /onLoadStart=\{armStallTimer\}/);
+  assert.match(gate, /onProgress=\{armStallTimer\}/);
+  assert.match(gate, /onLoadedMetadata=\{\(event\) => \{ clearStallTimer\(\); setDuration\(event\.currentTarget\.duration\); \}\}/);
+  assert.match(gate, /onCanPlay=\{clearStallTimer\}/);
+  assert.match(gate, /onError=\{\(\) => \{ clearStallTimer\(\); setAudioError\(true\); \}\}/);
+  assert.match(gate, /key=\{reloadKey\}/);
+  assert.match(gate, /\{stalled && !audioError && /);
+  assert.match(gate, /onClick=\{retry\}/);
+});
+
 test("the workspace never shows the reference passage or an audio panel for a dictation test -- the typing panel is the only row", async () => {
   const editor = await read(EXAM_PATH);
   assert.match(editor, /\{!preset\.audioUrl && !printoutMode && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title">/);

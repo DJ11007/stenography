@@ -55,6 +55,36 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   const [speed, setSpeed] = useState(1);
   const [playedThrough, setPlayedThrough] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  // Real reported bug: a student saw the player frozen at 00:00/00:00
+  // forever, with no error message. Traced to Supabase Storage itself --
+  // reproduced by requesting the audio file's own signed URL directly,
+  // bypassing this app's code entirely: the exact same request sometimes
+  // completes in under a second and sometimes hangs indefinitely with NO
+  // error, which is why onError (below) never fires -- a stall isn't an
+  // error event, it's simply nothing happening. This can't be fixed from
+  // here (it's Supabase's delivery, not this component), but leaving a
+  // student staring at a silently frozen player with no way out was its
+  // own separate, fixable problem: a stall timer gives them a Retry
+  // instead. Reset on every loadstart/progress so a connection that's
+  // merely slow (not stalled) never falsely trips this.
+  const [stalled, setStalled] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const armStallTimer = () => {
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = setTimeout(() => setStalled(true), 12000);
+  };
+  const clearStallTimer = () => {
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = null;
+  };
+  useEffect(() => () => clearStallTimer(), []);
+  const retry = () => {
+    clearStallTimer();
+    setStalled(false);
+    setAudioError(false);
+    setReloadKey((key) => key + 1);
+  };
   // A real student attempt keeps requiring the full dictation (this is a
   // real dictation, not copy-typing) -- but an admin previewing their own
   // just-created test is here to check the scoring/error-detection logic
@@ -122,15 +152,19 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
         </label>}
 
         <audio
+          key={reloadKey}
           ref={audioRef}
           src={url}
           preload="metadata"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
-          onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+          onLoadStart={armStallTimer}
+          onProgress={armStallTimer}
+          onLoadedMetadata={(event) => { clearStallTimer(); setDuration(event.currentTarget.duration); }}
+          onCanPlay={clearStallTimer}
           onEnded={() => { setPlaying(false); setPlayedThrough(true); }}
-          onError={() => setAudioError(true)}
+          onError={() => { clearStallTimer(); setAudioError(true); }}
         />
         <div className="mt-6 flex flex-col items-center gap-4 rounded-2xl bg-slate-50 p-6">
           <button type="button" onClick={togglePlay} aria-label={playing ? "Pause dictation" : "Play dictation"} className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-700 text-2xl text-white shadow-lg hover:bg-blue-800">{playing ? "⏸" : "▶"}</button>
@@ -148,6 +182,10 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           {readyToType && <p role="status" className="text-xs font-bold text-green-700">{adminPreview && !playedThrough ? "✓ Admin preview: typing is unlocked after a moment of playback -- you can start now, or keep listening." : "✓ Dictation complete — you can listen again, or start typing when ready."}</p>}
         </div>
         {audioError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 font-bold text-red-800">The dictation audio could not be loaded. Please refresh the page; if this keeps happening, contact your administrator.</p>}
+        {stalled && !audioError && <p role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-4 font-bold text-amber-900">
+          <span>The dictation audio is taking much longer than usual to load -- this is usually a slow connection, not a problem with the test itself.</span>
+          <button type="button" onClick={retry} className="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700">Retry</button>
+        </p>}
 
         <fieldset className="mt-8">
           <legend className="mb-2 text-sm font-black text-slate-900">Which mistakes should be graded in this attempt?</legend>
