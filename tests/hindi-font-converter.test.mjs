@@ -444,6 +444,22 @@ test("literal colon (:) converts to \"%\" (Shift+5), this font's visarga glyph d
   assert.equal(krutiDevToUnicode("%"),"ः");
 });
 
+// Real reported bug, same class again, repro "(1520–1566)": literal
+// parentheses collide with this font's Devanagari half-forms the same
+// way "." ";" "/" ":" do above -- confirmed by rendering "(" alone draws
+// ";" and ")" alone draws "द्ध", not a parenthesis. "¼" (Alt+0188) and
+// "½" (Alt+0189) are the dictionary's own dedicated, unambiguous bytes
+// for open/close parenthesis -- confirmed no other content uses either.
+test('a parenthesized number range converts to the dedicated ¼/½ Alt-code parentheses, not colliding ASCII "("/")" -- repro: "(1520–1566)"',()=>{
+  const legacy=unicodeToKrutiDev("(1520–1566)");
+  assert.equal(legacy,"¼1520&1566½");
+  assert.equal(legacy.codePointAt(0),0xbc,"opening paren must be Alt+0188 (¼, U+00BC)");
+  assert.equal(legacy.codePointAt(legacy.length-1),0xbd,"closing paren must be Alt+0189 (½, U+00BD)");
+  assert.equal(krutiDevToUnicode("¼"),"(");
+  assert.equal(krutiDevToUnicode("½"),")");
+  assert.equal(krutiDevToUnicode(legacy),"(1520-1566)","digits and dash preserved; en dash folds to the same plain hyphen every other dash fix above already uses");
+});
+
 // Real reported bug, live-reproduced in the Kruti Dev learn tutor (lesson
 // 23, "डॉ. आर.के. शर्मा"): unicodeToKrutiDev used to encode the vowel SIGN
 // ॉ (after a consonant, as in डॉ./कॉल/डॉक्टर) as "‚" (U+201A), a Latin-1

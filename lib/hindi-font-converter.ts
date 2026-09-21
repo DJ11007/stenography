@@ -148,6 +148,19 @@ preferredLegacy.set("₹", "#");
 // two stacked dots read as an ordinary colon, matching the teacher's own
 // reference for this exact symbol.
 preferredLegacy.set(":", "%");
+// Real reported bug, same class again, repro "(1520–1566)": literal
+// parentheses collide with this font's Devanagari half-forms exactly
+// like "." ";" "/" ":" above -- confirmed by rendering "(" alone draws
+// ";" (semicolon) and ")" alone draws "द्ध" (a conjunct), not a
+// parenthesis at all. The dictionary's own Alt-code bytes "¼" (Alt+0188)
+// and "½" (Alt+0189) are dedicated, unambiguous targets -- confirmed
+// they decode to nothing but "(" and ")" respectively (no other
+// Devanagari content anywhere in this dictionary uses either byte) --
+// and, confirmed by rendering, draw a genuine open/close parenthesis.
+// Left as literal Alt-codes rather than folded to a keyboard-typeable
+// sequence, the same treatment already given to “/Þ and ”/ß above.
+preferredLegacy.set("(", "¼");
+preferredLegacy.set(")", "½");
 // Real reported bug: an admin's word-set drill wrapped every word in
 // typographic quotes ('कमल' 'कलम' ...), and the Kruti Dev preview showed
 // garbage glyphs around each word instead of quote marks. These curly
