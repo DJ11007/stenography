@@ -1,24 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GLYPH_KEYS as HINDI_GLYPH_KEYS } from "@/lib/krutidev-tutor-content";
-import { GLYPH_KEYS as ENGLISH_GLYPH_KEYS } from "@/lib/english-tutor-content";
+import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import { KEYHUNTER_SESSION_LENGTH, keyHunterWeakness, keyHunterPickNext, keyHunterRecord, type KeyHunterStatsMap } from "@/lib/keyhunter-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
-type Language = "english" | "hindi";
+type Language = CharacterPoolLanguage;
 type Step = "setup" | "drilling" | "finished";
-
-// Same source WordTris's character mode already uses (real, curated
-// keyboard content, not a new hand-typed list) -- Key Hunter's own twist
-// is *which* key from this pool gets shown next, not the content itself.
-const CHARACTER_POOL: Record<Language, string[]> = {
-  english: [...new Set(ENGLISH_GLYPH_KEYS.map((k) => k.normal).filter(Boolean))],
-  hindi: [...new Set(HINDI_GLYPH_KEYS.map((k) => k.normal).filter(Boolean))],
-};
+type Props = { characterPool: Record<CharacterPoolLanguage, string[]> };
 
 function KeyCell({ label, weakness, fontFamily }: { label: string; weakness: number; fontFamily?: string }) {
   const clamped = Math.min(1, weakness / 4);
@@ -34,7 +26,7 @@ function KeyCell({ label, weakness, fontFamily }: { label: string; weakness: num
   );
 }
 
-export function KeyHunterGame() {
+export function KeyHunterGame({ characterPool }: Props) {
   const [step, setStep] = useState<Step>("setup");
   const [language, setLanguage] = useState<Language>("english");
   const [statsMap, setStatsMap] = useState<KeyHunterStatsMap>({});
@@ -52,7 +44,7 @@ export function KeyHunterGame() {
   const promptShownAtRef = useRef(0);
   const fontFamily = language === "hindi" ? KD : undefined;
   const statsKey = `keyhunter-stats-${language}`;
-  const pool = CHARACTER_POOL[language];
+  const pool = characterPool[language];
 
   useEffect(() => {
     try {
@@ -71,7 +63,7 @@ export function KeyHunterGame() {
     setStreak(0);
     setBestStreak(0);
     setTyped("");
-    const firstKey = keyHunterPickNext(CHARACTER_POOL[lang], statsMapRef.current);
+    const firstKey = keyHunterPickNext(characterPool[lang], statsMapRef.current);
     setCurrentKey(firstKey);
     promptShownAtRef.current = Date.now();
     setStep("drilling");

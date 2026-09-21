@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
-import { GLYPH_KEYS as HINDI_GLYPH_KEYS } from "@/lib/krutidev-tutor-content";
-import { GLYPH_KEYS as ENGLISH_GLYPH_KEYS } from "@/lib/english-tutor-content";
+import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from "./actions";
@@ -17,18 +16,6 @@ const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 // width/height the box around it ends up being (sized by its own text).
 const DROP_POINTS = "50,0 8,68 9.43,76.28 13.63,84 20.3,90.63 29,95.71 39.13,98.91 50,100 60.87,98.91 71,95.71 79.7,90.63 86.37,84 90.57,76.28 92,68";
 
-// Character mode's content: every plain, unshifted key that already
-// carries real content on the Kruti Dev / English tutor keyboards (the
-// same GLYPH_KEYS those tutors already use and verify) -- real, curated
-// keyboard content, not a new hand-typed list at risk of the same
-// byte-collision bugs this file's sibling, hindi-font-converter.ts, keeps
-// finding. Kruti Dev's own bytes render as Devanagari purely through the
-// KD font family below; the underlying characters are the same raw keys
-// English mode shows literally.
-const CHARACTER_POOL: Record<WordtrisLanguage, string[]> = {
-  english: [...new Set(ENGLISH_GLYPH_KEYS.map((k) => k.normal).filter(Boolean))],
-  hindi: [...new Set(HINDI_GLYPH_KEYS.map((k) => k.normal).filter(Boolean))],
-};
 
 // Small decorative drops drifting down behind the real, interactive one --
 // purely atmosphere, fixed (not random) so they don't reshuffle every
@@ -55,7 +42,7 @@ function shuffledPool(list: string[]) {
 }
 
 type Step = "setup" | "playing" | "gameover";
-type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
+type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>>; characterPool: Record<CharacterPoolLanguage, string[]> };
 type ActiveDrop = { id: number; text: string; target: string; fallMs: number; spawnedAt: number };
 
 function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: ActiveDrop; fontFamily?: string; typedLength: number; onMiss: (id: number) => void }) {
@@ -140,7 +127,7 @@ function WordtrisCloud({ className }: { className: string }) {
   );
 }
 
-export function WordtrisGame({ words }: Props) {
+export function WordtrisGame({ words, characterPool }: Props) {
   const [mode, setMode] = useState<WordtrisMode>("word");
   const [step, setStep] = useState<Step>("setup");
   const [language, setLanguage] = useState<WordtrisLanguage>("english");
@@ -195,8 +182,9 @@ export function WordtrisGame({ words }: Props) {
   }, []);
 
   // Only word mode's Hindi content is stored as Unicode needing conversion
-  // -- character mode's Hindi pool is already raw, typeable Kruti Dev
-  // bytes (see CHARACTER_POOL above), so converting it again would mangle it.
+  // -- character mode's Hindi pool (characterPool prop, admin-editable at
+  // /admin/character-pool) is already raw, typeable Kruti Dev bytes, so
+  // converting it again would mangle it.
   const buildTarget = useCallback((raw: string, m: WordtrisMode, lang: WordtrisLanguage) => {
     if (m === "word" && lang === "hindi") {
       try { return toTypeableKrutiDev(raw); } catch { return raw; }
@@ -221,7 +209,7 @@ export function WordtrisGame({ words }: Props) {
     setMode(m);
     setLanguage(lang);
     setCategory(cat);
-    poolRef.current = shuffledPool(m === "character" ? CHARACTER_POOL[lang] : words[lang][cat]);
+    poolRef.current = shuffledPool(m === "character" ? characterPool[lang] : words[lang][cat]);
     poolCursorRef.current = 0;
     nextIdRef.current = 0;
     activeDropRef.current = null;
@@ -240,7 +228,7 @@ export function WordtrisGame({ words }: Props) {
     if (m === "character") {
       try { setPersonalBest(Number(localStorage.getItem(`wordtris-best-character-${lang}`)) || null); } catch { setPersonalBest(null); }
     }
-  }, [words, startingWpm]);
+  }, [words, characterPool, startingWpm]);
 
   const onCatch = useCallback((drop: ActiveDrop) => {
     const points = wordtrisPoints(drop.text);

@@ -134,12 +134,13 @@ test("the leaderboard is scoped per (language, category), never compared across 
 // already-verified keyboard content -- not a new hand-typed character
 // list (the same class of byte-collision bug hindi-font-converter.ts
 // keeps finding).
-test("character mode reuses the Kruti Dev / English tutor keyboards' own GLYPH_KEYS, not a new hand-typed list, and has its own (smaller) reading buffer", async () => {
+test("character mode's key pool is the admin-configurable characterPool prop (which itself defaults to the Kruti Dev / English tutor keyboards' own GLYPH_KEYS -- see character-pool-content.ts), and has its own (smaller) reading buffer", async () => {
   const content = await read("lib/wordtris-content.ts");
   assert.match(content, /WORDTRIS_READING_BUFFER_MS: Record<WordtrisMode, number> = \{ word: 1200, character: 400 \};/);
+  const poolContent = await read("lib/character-pool-content.ts");
+  assert.match(poolContent, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "\.\/krutidev-tutor-content"/);
+  assert.match(poolContent, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "\.\/english-tutor-content"/);
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "@\/lib\/krutidev-tutor-content"/);
-  assert.match(game, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "@\/lib\/english-tutor-content"/);
   // mode (m) is passed through to wordtrisFallMs, which is what actually
   // selects the per-mode reading buffer (see the curve test above).
   assert.match(game, /const fallMs = wordtrisFallMs\(target, wpmRef\.current, m\);/);

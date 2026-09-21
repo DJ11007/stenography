@@ -51,10 +51,10 @@ test("Key Hunter requires a correct press to advance -- a wrong one flashes but 
   assert.doesNotMatch(wrongBranch, /setPromptIndex|setCurrentKey/);
 });
 
-test("Key Hunter reuses the same GLYPH_KEYS pool WordTris's character mode uses, not a new hand-typed list", async () => {
+test("Key Hunter receives the same admin-configurable characterPool prop WordTris's character mode uses, not a new hand-typed list", async () => {
   const game = await read("app/typing/games/key-hunter/key-hunter-game.tsx");
-  assert.match(game, /GLYPH_KEYS as HINDI_GLYPH_KEYS \} from "@\/lib\/krutidev-tutor-content"/);
-  assert.match(game, /GLYPH_KEYS as ENGLISH_GLYPH_KEYS \} from "@\/lib\/english-tutor-content"/);
+  assert.match(game, /import type \{ CharacterPoolLanguage \} from "@\/lib\/character-pool-content";/);
+  assert.match(game, /Props = \{ characterPool: Record<CharacterPoolLanguage, string\[\]> \}/);
 });
 
 test("a session is KEYHUNTER_SESSION_LENGTH keys long", async () => {
