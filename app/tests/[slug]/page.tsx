@@ -78,7 +78,12 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   const configuration=v.configuration as Record<string,unknown>|null;
   const version:ManagedTestVersion={id:v.id,testId:v.test_id,versionNumber:v.version_number,title:v.title,description:v.description??"",slug:test.slug,language:v.language,inputSystemId:v.input_system_id,mode:v.mode,durationSeconds:v.duration_seconds,passage:v.passage,requiredWpm:Number(v.required_wpm),requiredAccuracy:Number(v.required_accuracy),backspaceMode:v.backspace_mode,wordMethod:v.word_method,highlightMode:v.highlight_mode,visibility:v.visibility,audioPath:configuration?.audio_path as string|null??null,pdfPath:configuration?.pdf_path as string|null??null,pdfFileName:configuration?.pdf_file_name as string|null??null,dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"]??null,examCategory:configuration?.exam_category as string|null??null};
   const preset=managedVersionToPreset(version,viewAs);
-  if(version.audioPath){const{data:signed}=await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath,3600);preset.audioUrl=signed?.signedUrl??null;}
+  // Proxied through our own server (app/typing/stenography-audio/[...path])
+  // instead of a raw Supabase signed URL -- see that route's own comment:
+  // Supabase Storage's delivery for these larger audio files is
+  // intermittently very slow, and every student negotiating that flaky
+  // connection independently compounds it under concurrent load.
+  if(version.audioPath)preset.audioUrl=`/typing/stenography-audio/${version.audioPath.split("/").map(encodeURIComponent).join("/")}`;
   if(version.pdfPath){const{data:signed}=await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath,3600);preset.pdfUrl=signed?.signedUrl??null;}
   return <TypingStudentProvider student={studentIdentity}>
     <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at,resultsDelayMinutes:test.results_delay_minutes}} adminPreview={isAdmin}/>

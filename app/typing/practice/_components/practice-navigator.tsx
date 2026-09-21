@@ -129,7 +129,8 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
   const configuration = versionRow.configuration as Record<string,unknown>|null;
   const version: ManagedTestVersion = { id:versionRow.id, testId:versionRow.test_id, versionNumber:versionRow.version_number, title:versionRow.title, description:versionRow.description ?? "", slug:test.slug, language:versionRow.language, inputSystemId:versionRow.input_system_id, mode:versionRow.mode, durationSeconds:versionRow.duration_seconds, passage:versionRow.passage, requiredWpm:Number(versionRow.required_wpm), requiredAccuracy:Number(versionRow.required_accuracy), backspaceMode:versionRow.backspace_mode, wordMethod:versionRow.word_method, highlightMode:versionRow.highlight_mode, visibility:versionRow.visibility, audioPath:configuration?.audio_path as string|null ?? null, pdfPath:configuration?.pdf_path as string|null ?? null, pdfFileName:configuration?.pdf_file_name as string|null ?? null, dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"] ?? null };
   const preset = managedVersionToPreset(version);
-  if (version.audioPath) { const { data: signed } = await supabase.storage.from("stenography-audio").createSignedUrl(version.audioPath, 3600); preset.audioUrl = signed?.signedUrl ?? null; }
+  // Proxied through our own server -- see app/typing/stenography-audio/[...path]/route.ts.
+  if (version.audioPath) preset.audioUrl = `/typing/stenography-audio/${version.audioPath.split("/").map(encodeURIComponent).join("/")}`;
   if (version.pdfPath) { const { data: signed } = await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath, 3600); preset.pdfUrl = signed?.signedUrl ?? null; }
   // Scoped to the language (and stenography-ness) the student actually
   // came from -- not the unscoped /typing/practice picker, which would ask
