@@ -93,11 +93,21 @@ function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: Acti
         </svg>
         {/* Real reported reference: the typed-so-far portion of the word
             turns bold and dark against the remaining, still-plain letters
-            -- not a color swap -- so each character is its own span. */}
+            -- not a color swap. This used to be one span PER CHARACTER,
+            but Kruti Dev is a legacy 8-bit "font trick" encoding: several
+            of its bytes only draw the intended glyph (घ, ओ-matra, ड़'s
+            nukta dot, ...) by visually overlapping the NEXT character in
+            the same shaped text run -- splitting every character into its
+            own element broke that adjacency for any such word, leaving
+            visible gaps between letters that render fine as one string
+            (confirmed live: घोड़ा/बाघ/भेड़ all rendered correctly
+            contiguous, but visibly gapped once split like this). Two
+            spans -- typed-so-far, then the rest -- gives the identical
+            progressive bold effect while keeping each portion's own
+            glyphs adjacent to each other. */}
         <span className="relative">
-          {[...drop.target].map((ch, i) => (
-            <span key={i} className={i < typedLength ? "font-black text-slate-900" : "font-bold text-white/90"}>{ch}</span>
-          ))}
+          <span className="font-black text-slate-900">{drop.target.slice(0, typedLength)}</span>
+          <span className="font-bold text-white/90">{drop.target.slice(typedLength)}</span>
         </span>
       </div>
     </div>

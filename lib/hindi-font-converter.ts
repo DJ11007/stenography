@@ -6,6 +6,28 @@ export type ConvertedHindiText = Readonly<{ text: string; encoding: HindiTextFor
 
 const DEVANAGARI = /[\u0900-\u097f]/u;
 const DEVANAGARI_GLOBAL = /[\u0900-\u097f]/gu;
+// See the comment above this table's one use site in unicodeToKrutiDev.
+// Written with explicit \u escapes, not literal Devanagari, on purpose:
+// the whole point of this table is that a decomposed nukta letter (base
+// consonant + a separate U+093C mark) is visually IDENTICAL to its
+// precomposed counterpart, so a literal-glyph version of this table could
+// never be visually verified as correct -- and past bugs in this exact
+// file (see decodeLegacyWord's own comment on this) have shown that trap
+// is real, not hypothetical.
+// Built from hex codepoints, not literal Devanagari text, on purpose: a
+// decomposed nukta letter (base consonant + a separate U+093C mark) is
+// visually IDENTICAL to its precomposed counterpart, so a literal-glyph
+// version of this table could never be visually verified as correct --
+// past bugs in this exact file (see decodeLegacyWord's own comment) have
+// shown that trap is real. The eight precomposed nukta letters are a
+// contiguous block, U+0958..U+095F, in the same \u0915/\u0916/\u0917/\u091c/\u0921/\u0922/\u092b/\u092f order as
+// their plain bases below.
+const NUKTA_BASES = [0x0915, 0x0916, 0x0917, 0x091c, 0x0921, 0x0922, 0x092b, 0x092f];
+const NUKTA_MARK = String.fromCodePoint(0x093c);
+const NUKTA_COMPOSE: Record<string, string> = Object.fromEntries(
+  NUKTA_BASES.map((base, i) => [String.fromCodePoint(base) + NUKTA_MARK, String.fromCodePoint(0x0958 + i)]),
+);
+const NUKTA_DECOMPOSED_PATTERN = new RegExp(`[${NUKTA_BASES.map((base) => String.fromCodePoint(base)).join("")}]${NUKTA_MARK}`, "gu");
 // The trailing `?` on [dD][kZ]? was a bug: it made the second character
 // optional, so this matched on a bare "d"/"D" alone -- degenerately common
 // in ordinary English/transliterated text (e.g. any title containing the
@@ -414,6 +436,26 @@ export function unicodeToKrutiDev(text: string) {
   // smart-quotes autocorrect uses. Normalize to the curly equivalents
   // first so the existing ‘/’ legacy mapping below does the rest.
   working = working.replace(/(^|\s)'/gu, "$1‘").replace(/'(?=\s|$)/gu, "’");
+  // Real reported bug, live-reproduced rendering "भेड़िया" (WordTris's own
+  // animal word bank) as "भेड़यिा" -- ि and य visibly swapped. NFC
+  // normalization above does NOT compose a nukta consonant typed as base
+  // letter + separate combining nukta (े.g. ड, U+0921, followed by ़,
+  // U+093C) into the single precomposed letter ड़ (U+095C) -- confirmed
+  // directly: "ड".normalize("NFC")+"़" stays two codepoints, since these
+  // aren't canonically equivalent in Unicode's own data despite looking
+  // identical on screen. Every nukta-relevant regex below (reph placement,
+  // and especially the pre-base ि reorder just after it) matches consonants
+  // via a character class, so a decomposed nukta pair -- base consonant
+  // immediately followed by a SEPARATE ़ mark, exactly how a real Hindi
+  // keyboard/IME actually produces it, and exactly how this app's own
+  // bundled word lists are authored -- silently fails to match as one
+  // consonant unit: ड़ followed by ि. The pre-base regex then never moves
+  // ि before the cluster, and the main tokenizer emits ि's byte ("f") in
+  // its original (wrong) position, after ड़'s byte, not before it. Composing
+  // decomposed nukta letters into their atomic codepoint here, before any
+  // of these regexes run, fixes every one of them at once rather than
+  // patching each pattern to also match the decomposed form.
+  working = working.replace(NUKTA_DECOMPOSED_PATTERN, (pair) => NUKTA_COMPOSE[pair] ?? pair);
   // Kruti Dev stores reph after the complete orthographic syllable --
   // but BEFORE any trailing anusvara/visarga/chandrabindu, not after.
   // Real reported bug: वर्षों converted to "o"kksaZ" (reph Z placed

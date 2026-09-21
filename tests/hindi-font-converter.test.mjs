@@ -441,3 +441,38 @@ test("ॉ (candra-O vowel sign) now encodes to the keyboard-typeable \"kW\", whi
   assert.equal(krutiDevToUnicode("‚"),"ॉ");
   assert.equal(krutiDevToUnicode("kW"),"ॉ");
 });
+
+// Real reported bug, live-reproduced rendering WordTris's own animal word
+// bank: unicodeToKrutiDev("भेड़िया") rendered as "भेड़यिा" in the actual
+// bundled Kruti Dev 010 webfont -- ि and य visibly swapped. Root cause:
+// this app's word lists (and any real Hindi keyboard/IME) author a nukta
+// letter as a DECOMPOSED pair -- a plain base consonant immediately
+// followed by a separate combining nukta mark U+093C -- not the single
+// precomposed codepoint, and NFC normalization does NOT merge them (this
+// codebase's own fixtures use the decomposed form throughout, confirmed
+// against lib/wordtris-content.ts's literal source bytes). The pre-base
+// ि reorder regex matches consonants via a character class, so it never
+// recognized "ड + ़" as one consonant unit and never moved a following ि
+// before it. Built via explicit codepoints, not literal Devanagari text,
+// for the same reason NUKTA_COMPOSE in hindi-font-converter.ts is: a
+// decomposed nukta pair is visually indistinguishable from its
+// precomposed counterpart, so a literal-glyph test word could never be
+// verified as actually exercising the decomposed path.
+test("a decomposed nukta consonant (base + separate U+093C) immediately followed by ि is composed before encoding, fixing भेड़िया's visible ि/य swap",()=>{
+  const decomposedDa = String.fromCodePoint(0x0921, 0x093c); // ड + ़ (NOT the precomposed ड़, U+095C)
+  const bhediya = "भे" + decomposedDa + String.fromCodePoint(0x093f, 0x092f, 0x093e); // भे + ड़(decomposed) + िया
+  assert.equal([...bhediya].length, 7, "sanity check: this literal is genuinely 7 codepoints (2+2+3), i.e. really decomposed");
+  const encoded = unicodeToKrutiDev(bhediya);
+  // f (ि) must come before M+ (ड़), not after -- the exact swap that was reported.
+  assert.ok(encoded.indexOf("f") < encoded.indexOf("M+"), `expected f before M+ in ${JSON.stringify(encoded)}`);
+  assert.equal(krutiDevToUnicode(encoded), bhediya);
+  // The already-precomposed form (however a passage happens to be typed)
+  // must encode identically -- krutiDevToUnicode itself always decodes a
+  // nukta letter back to the decomposed form regardless of input, which
+  // is this dictionary's own pre-existing, unrelated convention (not
+  // something this fix changes), so the round-trip check above already
+  // covers decode; this just confirms both spellings of the SAME word
+  // produce the SAME keystrokes.
+  const precomposedBhediya = "भे" + String.fromCodePoint(0x095c, 0x093f, 0x092f, 0x093e);
+  assert.equal(unicodeToKrutiDev(precomposedBhediya), encoded);
+});
