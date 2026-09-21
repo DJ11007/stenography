@@ -399,6 +399,20 @@ test('a straight double quote (") converts by position to the same Þ/ß Alt-cod
   assert.equal(krutiDevToUnicode(legacy), "“ऑटोमन साम्राज्य”", "decodes back to the phrase wrapped in real curly quotes (the same Kruti Dev keyboard has no separate straight-quote key)");
 });
 
+// Second repro of the exact same rule, reported separately: a multi-word
+// phrase (not just one word) wrapped in straight double quotes, with no
+// trailing। danda this time -- confirms the position-based rule (right
+// after whitespace/start, right before whitespace/end) isn't accidentally
+// scoped to single words or sentence-final punctuation.
+test('the same straight-double-quote rule holds for a multi-word phrase with no trailing punctuation -- repro: "कानून के समक्ष समानता"',()=>{
+  const phrase = '"कानून के समक्ष समानता"';
+  const legacy = unicodeToKrutiDev(phrase);
+  assert.equal(legacy, "Þdkuwu ds le{k lekurkß");
+  assert.equal(legacy.codePointAt(0), 0xde, "opening quote must be Alt+0222 (Þ, U+00DE), not a raw ASCII \"");
+  assert.equal(legacy.codePointAt(legacy.length-1), 0xdf, "closing quote must be Alt+0223 (ß, U+00DF), not a raw ASCII \"");
+  assert.equal(krutiDevToUnicode(legacy), "“कानून के समक्ष समानता”");
+});
+
 // Found via a key-by-key audit of the official Kruti Dev 010 keyboard
 // chart against this font: Shift+4 (raw byte "$") draws a plain "+" glyph
 // in the bundled font, a remap the @anthro-ai dictionary has no entry for
