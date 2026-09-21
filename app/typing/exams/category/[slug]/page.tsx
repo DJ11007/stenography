@@ -2,22 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getExamCategory, defaultExamCategoryRules } from "@/lib/exam-categories";
-import { getExamCategoryNavigator, type ExamCategoryNavigatorItem } from "@/lib/exam-category-navigator-server";
 import { TypingBrandHeader } from "../../../_components/typing-brand";
 import { ExamCategoryIcon } from "../../_components/exam-category-icon";
-
-// How many of this category's real (admin-published) exercises to preview
-// inline, right on the rules page -- matches the Stenography Exam
-// Simulator's own equivalent box (RealTestList in
-// app/typing/practice/stenography/exams/[slug]/page.tsx), so a student can
-// jump straight to a real exercise instead of only ever landing on the
-// generic Official Pattern simulation. Kept small and linked out to the
-// full, paginated Exercises catalogue (already existing at
-// /typing/exams/category/[slug]/[language]) rather than listing everything
-// here, since -- unlike Stenography's per-category-scoped list -- every
-// exam exercise is shared onto every category's list (see
-// getExamCategoryNavigator's own comment), so the true total can be large.
-const REAL_TEST_PREVIEW_COUNT = 5;
 
 export async function generateMetadata({ params }: PageProps<"/typing/exams/category/[slug]">): Promise<Metadata> {
   const category = getExamCategory((await params).slug);
@@ -29,10 +15,6 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
   if (!category) notFound();
   const englishRules = defaultExamCategoryRules(category, "English");
   const hindiRules = defaultExamCategoryRules(category, "Hindi");
-  const [englishTests, hindiTests] = await Promise.all([
-    getExamCategoryNavigator({ categorySlug: category.slug, language: "English", page: undefined, sort: "oldest" }),
-    getExamCategoryNavigator({ categorySlug: category.slug, language: "Hindi", page: undefined, sort: "oldest" }),
-  ]);
 
   return (
     <main className="min-h-screen bg-slate-100">
@@ -71,7 +53,6 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
             <ul className="mt-4 flex-1 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {englishRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
-            <RealTestList categorySlug={category.slug} tests={englishTests.items} total={englishTests.total} language="English"/>
             <Link href={`/typing/exams/category/${category.slug}/english`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
               Start in English
             </Link>
@@ -81,7 +62,6 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
             <ul className="mt-4 flex-1 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {hindiRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
-            <RealTestList categorySlug={category.slug} tests={hindiTests.items} total={hindiTests.total} language="Hindi"/>
             <Link href={`/typing/exams/category/${category.slug}/hindi`} className="mt-6 block rounded-xl bg-blue-700 px-4 py-3 text-center font-black text-white hover:bg-blue-800">
               हिंदी में शुरू करें (Start in Hindi)
             </Link>
@@ -89,38 +69,5 @@ export default async function ExamCategoryRulesPage({ params }: PageProps<"/typi
         </div>
       </section>
     </main>
-  );
-}
-
-// Mirrors Stenography Exam Simulator's own RealTestList (app/typing/practice/
-// stenography/exams/[slug]/page.tsx) -- same box styling and copy, adapted
-// for exam exercises being shared across every category (see
-// getExamCategoryNavigator's own comment) rather than scoped to just one:
-// previews a handful, links out to the full paginated catalogue for the
-// rest instead of listing everything inline.
-function RealTestList({ categorySlug, tests, total, language }: { categorySlug: string; tests: ExamCategoryNavigatorItem[]; total: number; language: "English" | "Hindi" }) {
-  const preview = tests.slice(0, REAL_TEST_PREVIEW_COUNT);
-  return (
-    <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-      <h3 className="text-sm font-black text-emerald-900">{language === "English" ? "Real tests" : "वास्तविक टेस्ट"}</h3>
-      {preview.length ? (
-        <ul className="mt-2 space-y-1.5">
-          {preview.map((item) => (
-            <li key={item.id}>
-              <Link href={`/tests/${item.slug}?viewAs=${categorySlug}`} className="block rounded-lg bg-white px-3 py-2 text-sm font-bold text-emerald-900 shadow-sm hover:bg-emerald-100">
-                {item.title}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-2 text-xs font-bold text-emerald-800">{language === "English" ? "No exercises published yet -- the Official Pattern below is always available." : "अभी कोई अभ्यास प्रकाशित नहीं है -- आधिकारिक पैटर्न नीचे हमेशा उपलब्ध है।"}</p>
-      )}
-      {total > preview.length && (
-        <Link href={`/typing/exams/category/${categorySlug}/${language.toLowerCase()}`} className="mt-2 inline-block text-xs font-black text-emerald-800 underline">
-          {language === "English" ? `See all ${total} exercises →` : `सभी ${total} अभ्यास देखें →`}
-        </Link>
-      )}
-    </div>
   );
 }
