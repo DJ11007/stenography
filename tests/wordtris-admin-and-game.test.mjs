@@ -175,3 +175,18 @@ test("the WordTris admin word manager blocks Save when a Hindi word doesn't dete
   assert.match(manager, /disabled=\{savePending \|\| Boolean\(hindiWordWarning\)\}/);
   assert.match(manager, /\{hindiWordWarning && <p role="alert"/);
 });
+
+// Real reported gap: a multi-word word-bank entry ("दमकल गाड़ी", "पानी का
+// टैंकर", ...) could never be caught in play. Space always meant "submit
+// now", so finishing the first word and pressing Space to continue typing
+// the second word submitted a (mismatched) incomplete answer instead of
+// typing the space. Fixed by only treating Space as submit when the typed
+// text is already a complete match, or when a space wouldn't continue
+// toward the target at all -- otherwise it's a real mid-phrase space and
+// is left to type normally.
+test("WordTris lets Space type as a normal character mid-phrase (multi-word entries), only treating it as submit on a complete match or a genuinely wrong guess", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const isCompleteMatch = Boolean\(activeDrop\) && dropText\(activeDrop!\) === normalize\(typed\);/);
+  assert.match(game, /const continuesPhrase = Boolean\(activeDrop\) && isValidPrefix\(`\$\{typed\} `\);/);
+  assert.match(game, /if \(!isCompleteMatch && continuesPhrase\) return;/);
+});

@@ -22,7 +22,7 @@ export type CategoryInfo = { id: WordtrisCategory; hi: string; en: string };
 
 export const CATEGORIES: CategoryInfo[] = [
   { id: "animals", hi: "जानवर", en: "Animals" },
-  { id: "cars", hi: "वाहन", en: "Cars" },
+  { id: "cars", hi: "वाहन", en: "Vehicles" },
   { id: "common", hi: "सामान्य शब्द", en: "Common" },
   { id: "countries", hi: "देश", en: "Countries" },
   { id: "easy_words", hi: "आसान शब्द", en: "Easy Words" },

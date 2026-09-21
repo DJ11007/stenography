@@ -374,8 +374,25 @@ export function WordtrisGame({ words, previewMode = false }: Props) {
     onCatch(activeDropRef.current);
   }, [typed, normalize, dropText, onCatch]);
 
+  // Real reported gap: a multi-word word-bank entry ("दमकल गाड़ी", "पानी का
+  // टैंकर", ...) could never actually be caught -- Space always meant
+  // "submit now", so the moment a student finished the first word and
+  // pressed Space to continue to the second, it was treated as a
+  // (mismatched) final answer instead of a mid-phrase space. A space is
+  // only treated as confirm-and-submit when the word is already a
+  // complete match (unchanged from before, since a single word's target
+  // never contains a space and this branch alone covers all of today's
+  // single-word behavior) or when adding a literal space wouldn't
+  // continue toward the target at all (a genuinely wrong/premature
+  // guess, same shake-and-reject as always). Otherwise the space is a
+  // real continuation of the target phrase, so it's left to type
+  // normally instead of being intercepted.
   const handleTypedKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== " " && event.code !== "Space") return;
+    const activeDrop = activeDropRef.current;
+    const isCompleteMatch = Boolean(activeDrop) && dropText(activeDrop!) === normalize(typed);
+    const continuesPhrase = Boolean(activeDrop) && isValidPrefix(`${typed} `);
+    if (!isCompleteMatch && continuesPhrase) return;
     event.preventDefault();
     trySubmit();
   };
