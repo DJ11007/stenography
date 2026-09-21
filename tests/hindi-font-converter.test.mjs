@@ -377,6 +377,28 @@ test("typographic double quotes (“”) convert to their real Kruti Dev Alt-cod
   assert.equal(krutiDevToUnicode(unicodeToKrutiDev(sentence)), sentence.replace(/—/g,"-"));
 });
 
+// Real reported bug: a passage wrapped a proper noun in plain STRAIGHT
+// double quotes ("ऑटोमन साम्राज्य") -- what a student actually gets by
+// pressing Shift+' on a real keyboard, not the curly pair above, which
+// needs an input method nobody here uses. The raw " (U+0022) byte was
+// passed straight through unconverted, and this font already claims
+// Shift+' for ष् (confirmed: krutiDevToUnicode('"') === "ष्"), so the
+// quotes silently corrupted into that half-form -- round-tripping the
+// broken output produced "ष्ऑटोमन साम्राज्यष्", not the original phrase.
+// Same fix as the straight-apostrophe normalization above, one character
+// over: position (right after whitespace/start = opening, right before
+// whitespace/end = closing) tells open from close, feeding into the
+// existing "/Þ, "/ß mapping. Verified at the code-point level, not just
+// how the raw bytes look in a normal font.
+test('a straight double quote (") converts by position to the same Þ/ß Alt-code keys as a real curly pair, instead of colliding with this font\'s ष् half-form -- repro: "ऑटोमन साम्राज्य"',()=>{
+  const phrase = '"ऑटोमन साम्राज्य"';
+  const legacy = unicodeToKrutiDev(phrase);
+  assert.equal(legacy.codePointAt(0), 0xde, "opening quote must be Alt+0222 (Þ, U+00DE), not a raw ASCII \"");
+  assert.equal(legacy.codePointAt(legacy.length-1), 0xdf, "closing quote must be Alt+0223 (ß, U+00DF), not a raw ASCII \"");
+  assert.equal(legacy, "Þ" + unicodeToKrutiDev("ऑटोमन साम्राज्य") + "ß", "the phrase's own conversion must be byte-for-byte unchanged -- only the quote bytes differ");
+  assert.equal(krutiDevToUnicode(legacy), "“ऑटोमन साम्राज्य”", "decodes back to the phrase wrapped in real curly quotes (the same Kruti Dev keyboard has no separate straight-quote key)");
+});
+
 // Found via a key-by-key audit of the official Kruti Dev 010 keyboard
 // chart against this font: Shift+4 (raw byte "$") draws a plain "+" glyph
 // in the bundled font, a remap the @anthro-ai dictionary has no entry for

@@ -510,6 +510,22 @@ export function unicodeToKrutiDev(text: string) {
   // smart-quotes autocorrect uses. Normalize to the curly equivalents
   // first so the existing ‘/’ legacy mapping below does the rest.
   working = working.replace(/(^|\s)'/gu, "$1‘").replace(/'(?=\s|$)/gu, "’");
+  // Real reported bug: a passage wrapped a proper noun in plain straight
+  // double quotes ("ऑटोमन साम्राज्य") -- what a student actually gets by
+  // pressing Shift+' -- and the raw " (U+0022) byte was passed straight
+  // through unconverted (the general loop below only touches characters
+  // whose DECODED meaning is Devanagari; " itself isn't, so it looked
+  // like ordinary punctuation needing no help). But in this font Shift+'
+  // is already claimed for ष् (confirmed: krutiDevToUnicode('"') decodes
+  // to ष्, matching the keyboard chart), so the quotes silently corrupted
+  // into that unrelated half-form instead of drawing as quote marks --
+  // confirmed by round-tripping the encoded output straight back to
+  // "ष्ऑटोमन साम्राज्यष्", not the original phrase. Same fix as the
+  // straight-apostrophe normalization just above, one character over:
+  // position tells open from close, and the existing "/Þ, "/ß legacy
+  // mapping below (added for an earlier reported bug with curly double
+  // quotes) does the rest.
+  working = working.replace(/(^|\s)"/gu, "$1“").replace(/"(?=\s|$)/gu, "”");
   // Real reported bug, live-reproduced rendering "भेड़िया" (WordTris's own
   // animal word bank) as "भेड़यिा" -- ि and य visibly swapped. NFC
   // normalization above does NOT compose a nukta consonant typed as base
