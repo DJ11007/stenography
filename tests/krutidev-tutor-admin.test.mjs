@@ -146,20 +146,13 @@ test("the tutor has a full-screen toggle", async () => {
   assert.match(tutor, /fullscreenchange/);
 });
 
-// Real reported request: whatever was done to the English tutor should be
-// mirrored onto the Kruti Dev tutor -- a permanent, admin-gated preview
-// route (mirrors /admin/preview/english-tutor), the on-screen keyboard
-// off by default, the passage/typing boxes sharing the exact same
-// explicit clamp()-based height, and full screen replacing that fixed
-// height with a flex-1 layout guaranteed to fit exactly one screen.
-test("a permanent, admin-gated preview route renders the real KrutiDevTutor component, wired into the admin dashboard", async () => {
-  const preview = await read("app/admin/preview/krutidev-tutor/page.tsx");
-  assert.match(preview, /await requireAdmin\(\);/);
-  assert.match(preview, /getKrutiDevExercises/);
-  assert.match(preview, /<KrutiDevTutor/);
-  assert.match(preview, /<TypingStudentProvider/);
+// Real requested removal: the admin no longer wants the read-only
+// "Preview: X" pages cluttering the admin dashboard (they test with a
+// real student account instead), so every /admin/preview/* route,
+// including this one, was deleted.
+test("the Kruti Dev tutor's admin preview route is gone", async () => {
   const admin = await read("app/admin/page.tsx");
-  assert.match(admin, /"\/admin\/preview\/krutidev-tutor", "Preview: Kruti Dev Typing Tutor"/);
+  assert.doesNotMatch(admin, /admin\/preview\/krutidev-tutor/);
 });
 
 test("the on-screen keyboard defaults off, and the passage/typing boxes share the exact same explicit clamp()-based height", async () => {

@@ -64,28 +64,20 @@ test("Speed Race's own solo score is localStorage-only, independent of the Live 
   assert.match(game, /localStorage\.setItem\(bestKey, String\(wpm\)\);/);
 });
 
-// Real reported bug, live-tested: getMyJoinedRoom (called unconditionally
-// on mount to recover an in-progress joined room after a refresh) is
-// gated by requireStudent() -- calling it from the admin-only preview
-// session (which is an admin, not a real student) redirected the admin
-// straight out of the page the instant the component mounted. The exact
-// same bug class already fixed once for WordTris's own admin preview.
-// previewMode skips the whole multiplayer recovery/join path.
-test("previewMode skips the requireStudent()-gated multiplayer recovery effect and hides the join box, so the admin preview is never redirected out of Speed Race", async () => {
+// Real requested removal: the admin no longer wants the read-only
+// "Preview: X" pages cluttering the admin dashboard (they test with a
+// real student account instead), so every /admin/preview/* route was
+// deleted, and previewMode (which only ever existed to keep those pages
+// from being redirected out by requireStudent()-gated calls) was
+// removed from SpeedRaceGame entirely -- the join box is now always shown.
+test("the Speed Race admin dashboard link is gone, and SpeedRaceGame has no previewMode escape hatch", async () => {
+  const admin = await read("app/admin/page.tsx");
+  assert.doesNotMatch(admin, /admin\/preview\/speed-race/);
   const game = await read("app/typing/games/speed-race/speed-race-game.tsx");
-  assert.match(game, /type Props = \{ words: Record<WordtrisLanguage, Record<WordtrisCategory, string\[\]>>; previewMode\?: boolean \};/);
-  assert.match(game, /export function SpeedRaceGame\(\{ words, previewMode = false \}: Props\)/);
-  assert.match(game, /useEffect\(\(\) => \{\s*\n\s*if \(previewMode\) return;\s*\n\s*\(async \(\) => \{\s*\n\s*const joined = await getMyJoinedRoom\(\);/);
-  assert.match(game, /if \(previewMode\) return;\s*\n\s*const trimmed = joinCode\.trim\(\)\.toUpperCase\(\);/); // handleJoin
-  assert.match(game, /\{!previewMode && \(\s*\n\s*<div className="mt-5 rounded-2xl border border-dashed border-amber-300/); // the join box itself
-  const preview = await read("app/admin/preview/speed-race/page.tsx");
-  assert.match(preview, /await requireAdmin\(\);/);
-  assert.match(preview, /<SpeedRaceGame words=\{words\} previewMode \/>/);
+  assert.doesNotMatch(game, /previewMode/);
 });
 
-test("Speed Race is wired into the Typing Hub's games list and the admin dashboard nav", async () => {
+test("Speed Race is wired into the Typing Hub's games list", async () => {
   const hub = await read("app/typing/games/page.tsx");
   assert.match(hub, /href: "\/typing\/games\/speed-race"/);
-  const admin = await read("app/admin/page.tsx");
-  assert.match(admin, /\/admin\/preview\/speed-race/);
 });

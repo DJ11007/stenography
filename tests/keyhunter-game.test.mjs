@@ -63,18 +63,19 @@ test("a session is KEYHUNTER_SESSION_LENGTH keys long", async () => {
   assert.match(game, /if \(next >= KEYHUNTER_SESSION_LENGTH\) \{ setStep\("finished"\); return i; \}/);
 });
 
-test("Key Hunter has no server-gated action to redirect an admin preview out of the game -- per-key stats are localStorage-only", async () => {
+test("Key Hunter has no server-gated action -- per-key stats are localStorage-only", async () => {
   const game = await read("app/typing/games/key-hunter/key-hunter-game.tsx");
   assert.doesNotMatch(game, /requireStudent/);
   assert.doesNotMatch(game, /"use server"/);
   assert.match(game, /localStorage\.setItem\(statsKey, JSON\.stringify\(updatedStats\)\);/);
-  const preview = await read("app/admin/preview/key-hunter/page.tsx");
-  assert.match(preview, /await requireAdmin\(\);/);
 });
 
-test("Key Hunter is wired into the Typing Hub's games list and the admin dashboard nav", async () => {
+// Real requested removal: the admin no longer wants the read-only
+// "Preview: X" pages cluttering the admin dashboard (they test with a
+// real student account instead), so every /admin/preview/* route was deleted.
+test("Key Hunter is wired into the Typing Hub's games list, and its admin preview route is gone", async () => {
   const hub = await read("app/typing/games/page.tsx");
   assert.match(hub, /href: "\/typing\/games\/key-hunter"/);
   const admin = await read("app/admin/page.tsx");
-  assert.match(admin, /\/admin\/preview\/key-hunter/);
+  assert.doesNotMatch(admin, /admin\/preview\/key-hunter/);
 });

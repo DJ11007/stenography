@@ -61,18 +61,19 @@ test("Word Defender reuses WordTris's own admin-editable word banks as vocabular
   assert.match(page, /getWordtrisWords/);
 });
 
-test("Word Defender has no server-gated score action to redirect an admin preview out of the game -- personal best is localStorage-only", async () => {
+test("Word Defender has no server-gated score action -- personal best is localStorage-only", async () => {
   const game = await read("app/typing/games/word-defender/word-defender-game.tsx");
   assert.doesNotMatch(game, /requireStudent/);
   assert.doesNotMatch(game, /"use server"/);
   assert.match(game, /localStorage\.setItem\(bestKey, String\(scoreRef\.current\)\);/);
-  const preview = await read("app/admin/preview/word-defender/page.tsx");
-  assert.match(preview, /await requireAdmin\(\);/);
 });
 
-test("Word Defender is wired into the Typing Hub's games list and the admin dashboard nav", async () => {
+// Real requested removal: the admin no longer wants the read-only
+// "Preview: X" pages cluttering the admin dashboard (they test with a
+// real student account instead), so every /admin/preview/* route was deleted.
+test("Word Defender is wired into the Typing Hub's games list, and its admin preview route is gone", async () => {
   const hub = await read("app/typing/games/page.tsx");
   assert.match(hub, /href: "\/typing\/games\/word-defender"/);
   const admin = await read("app/admin/page.tsx");
-  assert.match(admin, /\/admin\/preview\/word-defender/);
+  assert.doesNotMatch(admin, /admin\/preview\/word-defender/);
 });
