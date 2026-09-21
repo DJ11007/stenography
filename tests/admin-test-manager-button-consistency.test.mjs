@@ -22,3 +22,20 @@ test("the admin test row's action buttons share one consistent neutral icon styl
   assert.match(manager, /\$\{ICON_BUTTON\} \$\{tone==="primary"\?"bg-blue-700 text-white hover:bg-blue-800":""\}/);
   assert.match(manager, /icon=\{test\.status==="published"\?"⏸":"▶"\} title=\{test\.status==="published"\?"Unpublish":"Publish"\} tone=\{test\.status==="published"\?"neutral":"primary"\}/);
 });
+
+// Real reported bug: with a dictation audio file attached (routine for a
+// stenography test), clicking either "Save draft" or "Publish" made BOTH
+// buttons flip to "Uploading…" -- a single shared `uploading` boolean
+// gated both labels, so the button the admin did NOT click still falsely
+// claimed to be uploading. Both must stay disabled during the upload (to
+// block a second submit mid-upload), but only the one actually clicked
+// should relabel itself -- tracked via a separate uploadingIntent state,
+// set from the real submitter button's own name="intent" value.
+test("only the submit button actually clicked relabels to \"Uploading…\" -- the other stays disabled but keeps its own label", async () => {
+  const manager = await read("app/admin/tests/test-manager.tsx");
+  assert.match(manager, /const \[uploadingIntent,setUploadingIntent\] = useState<string\|null>\(null\);/);
+  assert.match(manager, /setUploadingIntent\(submitter\?\.name==="intent"\?submitter\.value:"single"\);/);
+  assert.match(manager, /setUploading\(false\);\s*setUploadingIntent\(null\);/);
+  assert.match(manager, /disabled=\{pending\|\|uploading\} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">\{uploading&&uploadingIntent==="draft"\?"Uploading…":"Save draft"\}/);
+  assert.match(manager, /disabled=\{pending\|\|uploading\} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">\{uploading&&uploadingIntent==="publish"\?"Uploading…":"Publish"\}/);
+});

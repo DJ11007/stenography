@@ -160,6 +160,16 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   // the Server Action actually receives.
   const [uploadError,setUploadError] = useState<string|null>(null);
   const [uploading,setUploading] = useState(false);
+  // Real reported bug: with an audio/PDF file attached (routine for a
+  // stenography test's dictation audio), the upload step above takes a
+  // few real seconds -- during which BOTH "Save draft" and "Publish"
+  // flipped to "Uploading…", even though only one of them was clicked.
+  // A single shared `uploading` boolean can't tell them apart. Both
+  // buttons still need to stay disabled (to block a second submit mid-
+  // upload), but only the one actually clicked should relabel itself;
+  // the other should just look inactive, not falsely claim to be
+  // uploading too.
+  const [uploadingIntent,setUploadingIntent] = useState<string|null>(null);
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUploadError(null);
@@ -169,6 +179,7 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
     // it every submission loses that value entirely and the server action
     // can never tell draft from publish.
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    setUploadingIntent(submitter?.name==="intent"?submitter.value:"single");
     const formData = new FormData(event.currentTarget, submitter ?? undefined);
     const audioFile = formData.get("audioFile");
     const pdfFile = formData.get("pdfFile");
@@ -193,6 +204,7 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
       }
     } finally {
       setUploading(false);
+      setUploadingIntent(null);
     }
     // useActionState's dispatch must be invoked inside startTransition when
     // called imperatively like this (not passed straight to a form/button's
@@ -414,7 +426,7 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
         {preview&&<div className="max-h-56 overflow-auto rounded-xl bg-slate-50 p-4"><h3 className="font-bold">Passage preview</h3>{passageFormat==="krutidev"&&<span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">Kruti Dev 010 · Legacy encoded text</span>}<p className="mt-2 whitespace-pre-wrap text-lg leading-8" style={{fontFamily:inputSystem.includes("krutidev")?'"Kruti Dev 010", sans-serif':language==="Hindi"?'"Nirmala UI", Mangal, sans-serif':"Arial, sans-serif"}}>{passage||"No passage entered."}</p></div>}
         {uploadError&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{uploadError}</p>}
         {state.error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}{state.success&&<p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{state.success}</p>}
-        {learningOnly?<button disabled={pending||uploading} className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":editing?"Save and Publish Changes":"Create and Publish Test"}</button>:<div className="grid grid-cols-2 gap-2"><button disabled={pending||uploading} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">{uploading?"Uploading…":"Save draft"}</button><button disabled={pending||uploading} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":"Publish"}</button></div>}
+        {learningOnly?<button disabled={pending||uploading} className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":editing?"Save and Publish Changes":"Create and Publish Test"}</button>:<div className="grid grid-cols-2 gap-2"><button disabled={pending||uploading} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">{uploading&&uploadingIntent==="draft"?"Uploading…":"Save draft"}</button><button disabled={pending||uploading} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading&&uploadingIntent==="publish"?"Uploading…":"Publish"}</button></div>}
       </form>{converterOpen&&<div role="dialog" aria-modal="true" aria-label="Font and text converter" className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/70 p-3 sm:p-6"><div className="mx-auto max-w-[1500px] rounded-3xl bg-slate-100 p-5 shadow-2xl"><div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Font & Text Converter</h2><button type="button" aria-label="Close converter" onClick={()=>setConverterOpen(false)} className="rounded-lg bg-white px-4 py-2 text-xl font-black">×</button></div><FontConverter initialText={passage} initialSource={passageFormat} expectedOutput={passageFormat} onUse={(result)=>{if(result.encoding!==passageFormat){alert(`Select ${passageFormat==="krutidev"?"Kruti Dev 010":"Unicode Hindi — Mangal"} output before inserting.`);return;}if(confirm("Replace the Passage / matter field with this converted text? The current passage will remain unchanged until you confirm.")){setPassage(result.text);setConverterOpen(false);}}}/></div></div>}
     </aside>
   </div>;
