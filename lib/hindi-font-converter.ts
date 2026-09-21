@@ -28,6 +28,11 @@ const NUKTA_COMPOSE: Record<string, string> = Object.fromEntries(
   NUKTA_BASES.map((base, i) => [String.fromCodePoint(base) + NUKTA_MARK, String.fromCodePoint(0x0958 + i)]),
 );
 const NUKTA_DECOMPOSED_PATTERN = new RegExp(`[${NUKTA_BASES.map((base) => String.fromCodePoint(base)).join("")}]${NUKTA_MARK}`, "gu");
+// A private-use codepoint (never appears in real text) marking a "dead"
+// consonant's halant that must render as the explicit, standalone "~"
+// mark rather than the dictionary's compact half-form ligature byte --
+// see this table's one use site in unicodeToKrutiDev for why.
+const DEAD_CONSONANT_HALANT = "";
 // The trailing `?` on [dD][kZ]? was a bug: it made the second character
 // optional, so this matched on a bare "d"/"D" alone -- degenerately common
 // in ordinary English/transliterated text (e.g. any title containing the
@@ -218,6 +223,65 @@ preferredLegacy.set("ब्र", "Ckz");
 // the subjoined-र), which renders as the compact स्र conjunct -- confirmed
 // side by side in the same font.
 preferredLegacy.set("स्र", "lz");
+// Real reported bug, same class again, spotted in "भ्रष्टाचार": भ्र (bha +
+// halant + subjoined-र) converted to "Hj" -- confirmed by rendering that
+// this, too, draws as disconnected भ+र, not the compact भ्र ligature.
+// Same fix: the full-consonant spelling ("Hk", भ's own keyboard-typeable
+// form -- see the Ò ligature fold below) followed by the explicit
+// subjoined-र "z".
+preferredLegacy.set("भ्र", "Hkz");
+// Auditing every consonant against this exact same "half-form + full र
+// doesn't kern" defect (systematic check, all 33 consonants, each
+// rendered side by side against the real Unicode conjunct and this
+// font's compact half-form-ligature spelling) found twelve more with
+// the identical bug, confirmed the same way. ल्र was also checked and
+// is deliberately EXCLUDED: its own "full-consonant + z" candidate
+// ("yz") does not render ल्र at all -- it collides with an unrelated
+// ligature in this font and draws "ब" -- so ल्र is left on its
+// existing (imperfect, but at least not actively wrong) spelling.
+preferredLegacy.set("ख्र", "[kz");
+preferredLegacy.set("च्र", "pz");
+preferredLegacy.set("ज्र", "tz");
+preferredLegacy.set("झ्र", ">z");
+preferredLegacy.set("ण्र", ".kz");
+preferredLegacy.set("थ्र", "Fkz");
+preferredLegacy.set("ध्र", "/kz");
+preferredLegacy.set("न्र", "uz");
+preferredLegacy.set("म्र", "ez");
+preferredLegacy.set("य्र", ";z");
+preferredLegacy.set("व्र", "oz");
+preferredLegacy.set("ष्र", "\"kz");
+// Real reported bug: "पृथक्करण" converted to "i`Fkôj.k" -- क्क (a
+// doubled/geminated क, ka immediately followed by another ka) has its
+// own dedicated single-byte dictionary entry, "ô", but confirmed by
+// rendering it directly in the bundled font: "ô" draws क्ष (ksha), a
+// completely different conjunct, not क्क at all -- simply the wrong
+// byte. Every OTHER doubled consonant checked (त्त, न्न, प्प, म्म, ल्ल,
+// स्स, ब्ब, द्द, च्च, ज्ज, ट्ट, ड्ड) already renders correctly with its
+// own dictionary spelling, so this is isolated to क्क: overriding
+// directly to "Dd" (क्'s own half-form byte, confirmed to kern
+// correctly when immediately followed by another consonant -- see the
+// DEAD_CONSONANT_HALANT override below for the different, word-final
+// case where it does NOT kern) renders the correct क्क, confirmed side
+// by side against the real Unicode conjunct.
+preferredLegacy.set("क्क", "Dd");
+// Real reported bug: "पृथक्" (a "dead", word-final क्, not followed by
+// anything) converted to "i`FkD" -- confirmed by rendering "D" alone in
+// the bundled font that it is PIXEL-IDENTICAL to plain क, silently
+// dropping the halant entirely (not a subtle kerning gap like the
+// conjuncts above -- the halant mark is simply invisible). The exact
+// same byte, immediately followed by another consonant (क् + क in
+// पृथक्करण above), DOES kern correctly. So this bug is positional, not
+// specific to क्: every word-final half-form consonant checked (जगत्,
+// सत्, विद्युत्, अर्थात्, and पृथक् itself) showed the identical missing
+// halant, confirmed the same way. DEAD_CONSONANT_HALANT marks exactly
+// this position (a consonant + halant NOT followed by another
+// consonant) so the tokenizer emits the full consonant's own byte plus
+// the explicit, always-visible standalone halant "~" instead of the
+// dictionary's normally-shorter (but here wrong) half-form ligature --
+// confirmed rendering every example above matches the real Unicode
+// reference exactly.
+preferredLegacy.set(DEAD_CONSONANT_HALANT, "~");
 // Real reported bug, from an official Kruti Dev 010 Alt-code reference
 // chart (Samradhi Classes' own teaching material) cross-checked word by
 // word against this converter: ट्ट has two same-length dictionary entries
@@ -476,6 +540,21 @@ export function unicodeToKrutiDev(text: string) {
   working = working.replace(/र्([क-हक़-य़](?:्[क-हक़-य़])*(?:[ािीुूृॄेैोौॅॉ]*)?)/gu, "$1Z");
   // Its pre-base i-matra marker is stored before the consonant cluster.
   working = working.replace(/([क-हक़-य़](?:्[क-हक़-य़])*)ि/gu, "ि$1");
+  // A "dead" consonant (one ending in a halant with nothing after it --
+  // almost always word-final, e.g. जगत्/सत्/विद्युत्/पृथक्) cannot use the
+  // dictionary's normal, shorter half-form ligature byte: confirmed by
+  // rendering it alone in the bundled font, that byte only draws its
+  // halant correctly as a kerning effect against a FOLLOWING consonant
+  // (it renders pixel-identical to the plain, no-halant consonant when
+  // nothing follows). Mark exactly this position -- a consonant + halant
+  // NOT immediately followed by another consonant -- with a private-use
+  // sentinel the token table below maps to the explicit, always-visible
+  // standalone halant "~" instead, so the tokenizer emits the full
+  // consonant's own byte plus "~" here rather than the ligature byte.
+  // Run after the reph/pre-base-ि regexes above: both of those only
+  // match a halant immediately followed by another consonant, so they
+  // never touch (and can't conflict with) the dead-consonant case here.
+  working = working.replace(/([क-हक़-य़])्(?![क-हक़-य़])/gu, `$1${DEAD_CONSONANT_HALANT}`);
   let output = "";
   for (let index = 0; index < working.length;) {
     if (working[index] === "ि") { output += "f"; index += 1; continue; }

@@ -494,3 +494,67 @@ test("a decomposed nukta consonant (base + separate U+093C) immediately followed
   const precomposedBhediya = "भे" + String.fromCodePoint(0x095c, 0x093f, 0x092f, 0x093e);
   assert.equal(unicodeToKrutiDev(precomposedBhediya), encoded);
 });
+
+// Real reported bug, teacher-supplied: भ्रष्टाचार and family converted with
+// भ्र as disconnected "Hj" instead of the compact "Hkz" ligature (same class
+// as the already-fixed घ्र/ब्र/स्र above, this time reported directly against
+// this exact word family) -- confirmed by rendering "Hj" in the bundled font
+// draws separate भ+र, not भ्र. Also पृथक्/पृथक्करण: a WORD-FINAL "dead" क्
+// (nothing follows it) rendered with NO halant at all ("D" alone is pixel-
+// identical to plain क in the bundled font), while the exact same byte
+// immediately followed by another क (क्क, as in पृथक्करण) previously used
+// the dictionary's own "ô" byte, which renders as an unrelated क्ष, not क्क.
+// Fixed generally: DEAD_CONSONANT_HALANT forces [full consonant]+"~" for any
+// word-final half-form (not just क्), and क्क is overridden directly to "Dd".
+test("भ्रष्टाचार family and पृथक्/पृथक्करण convert exactly as reported -- mandatory, teacher-authored test cases",()=>{
+  const mandatory=[
+    ["भ्रष्टाचार",'Hkz"Vkpkj'],
+    ["भ्रष्टाचारी",'Hkz"Vkpkjh'],
+    ["भ्रष्ट",'Hkz"V'],
+    ["भ्रष्टाचारियों",'Hkz"Vkpkfj;ksa'],
+    ["पृथक्","i`Fkd~"],
+    ["पृथक्करण","i`FkDdj.k"],
+  ];
+  for(const [unicode,legacy] of mandatory){assert.equal(unicodeToKrutiDev(unicode),legacy);assert.equal(krutiDevToUnicode(legacy),unicode);}
+});
+
+// Real reported requirement: a 30+ word regression sweep across conjuncts,
+// halant placement (mid-word AND word-final "dead" consonants), reph, nukta,
+// matras, and anusvara/chandrabindu -- confirming the भ्र/क्/क्क/word-final-
+// halant fixes above don't disturb any of these, not just the six words
+// that were directly reported. Every word here is real, common Hindi
+// vocabulary (not a contrived string), and is checked for lossless
+// round-tripping (encode then decode returns the exact original) -- the
+// same bar every other fixture list in this file already holds itself to.
+test("a 30+ word regression sweep (conjuncts, reph, nukta, matras, anusvara, word-final halant) round-trips losslessly after the भ्र/क्क/dead-halant fixes",()=>{
+  const words=[
+    // क्ष / ज्ञ conjuncts
+    "अक्षर","परीक्षा","रक्षा","ज्ञान","विज्ञान",
+    // त्र / श्र / द्व / द्य conjuncts
+    "पत्र","मित्र","चित्र","श्रम","श्रेणी","विद्वान","द्वार","विद्यालय","विद्या",
+    // reph (र् + consonant)
+    "कर्म","धर्म","वर्ष","सूर्य","कार्य",
+    // ों / ें / ाँ (vowel-sign + anusvara/chandrabindu ordering)
+    "वर्षों","शहरों","में","उन्हें","जाँच","माँ",
+    // nukta letters (ड़ ढ़ ज़ फ़)
+    "बड़ा","पढ़ना","गाड़ी","अंग्रेज़ी","फ़ोन",
+    // ृ matra
+    "कृपा","कृषि","गृह",
+    // mid-word half-form (NOT word-final -- must still use the compact
+    // ligature byte, unaffected by the new word-final-only halant rule)
+    "सत्य","नित्य",
+    // word-final "dead" consonant (the new general fix's whole point) --
+    // several different consonants, not just क्
+    "जगत्","सत्","विद्युत्","अर्थात्","क्वचित्",
+    // भ्र family beyond the mandatory six above
+    "भ्रम","भ्रमण",
+    // मिस्र (स्र fix, from the previous session's report)
+    "मिस्र","मिस्र की सभ्यता",
+  ];
+  assert.ok(words.length>=30,`expected at least 30 words, got ${words.length}`);
+  for(const word of words){
+    const legacy=unicodeToKrutiDev(word);
+    assert.doesNotMatch(legacy,/\p{Script=Devanagari}/u,`${word} left raw Devanagari untouched: ${JSON.stringify(legacy)}`);
+    assert.equal(krutiDevToUnicode(legacy),word,`${word} -> ${JSON.stringify(legacy)} did not round-trip`);
+  }
+});
