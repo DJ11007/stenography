@@ -29,13 +29,13 @@ test("getStenographyCategoryNavigator scopes a court category's query to every c
   assert.match(source, /\.eq\("mode", "stenography"\)\.eq\("status", "published"\)\.eq\("visibility", "public"\)\.eq\("is_live", false\)\.eq\("language", language\)/);
 });
 
-test("the stenography category rules page fetches and renders both languages' navigator lists via RealTestNavigator, above the generic sample link", async () => {
+test("the stenography category rules page fetches and renders both languages' navigator lists via RealTestGrid, above the generic sample link", async () => {
   const page = await read("app/typing/practice/stenography/exams/[slug]/page.tsx");
   assert.match(page, /import \{ getStenographyCategoryNavigator \} from "@\/lib\/stenography-category-navigator-server";/);
-  assert.match(page, /import \{ RealTestNavigator \} from "\.\/real-test-navigator";/);
+  assert.match(page, /import \{ RealTestGrid \} from "\.\/real-test-grid";/);
   assert.match(page, /const \[englishTests, hindiTests\] = await Promise\.all\(\[/);
-  assert.match(page, /<RealTestNavigator tests=\{englishTests\} language="English"\/>/);
-  assert.match(page, /<RealTestNavigator tests=\{hindiTests\} language="Hindi"\/>/);
+  assert.match(page, /<RealTestGrid tests=\{englishTests\} language="English"\/>/);
+  assert.match(page, /<RealTestGrid tests=\{hindiTests\} language="Hindi"\/>/);
 });
 
 test("getStenographyCategoryNavigator orders oldest-first, matching the Take Tests practice navigator's own convention", async () => {
@@ -43,16 +43,17 @@ test("getStenographyCategoryNavigator orders oldest-first, matching the Take Tes
   assert.match(source, /query\.order\("published_at", \{ ascending: true \}\)\.order\("id", \{ ascending: true \}\);/);
 });
 
-// Real reported request: replace the previous stacked-button list (one
-// row per real test) with a compact ‹ Test X of Y ▾ › navigator -- the
-// exact same arrows+dropdown pattern the in-workspace "Take Tests"
-// practice navigator already uses (ExamWorkspace in
-// configurable-typing-exam.tsx), for visual/interaction consistency.
-test("RealTestNavigator mirrors the in-workspace practice navigator's own ‹ Test X of Y ▾ › pattern -- arrows plus a dropdown, not a stacked list", async () => {
-  const navigator = await read("app/typing/practice/stenography/exams/[slug]/real-test-navigator.tsx");
-  assert.match(navigator, /aria-label="Previous test"/);
-  assert.match(navigator, /aria-label="Next test"/);
-  assert.match(navigator, /\{tests\.map\(\(t, i\) => <option key=\{t\.slug\} value=\{t\.slug\} title=\{t\.title\}>\{`Test \$\{i \+ 1\} of \$\{tests\.length\}`\}<\/option>\)\}/);
-  assert.doesNotMatch(navigator, /<ul className="mt-2 space-y-1\.5">/); // the old stacked-button list must be gone
-  assert.match(navigator, /router\.push\(`\/tests\/\$\{tests\[nextIndex\]\.slug\}`\);/); // selecting/arrowing navigates immediately, same as the in-workspace one
+// Real reported request: replace the ‹ Test X of Y ▾ › dropdown navigator
+// with the same numbered-card grid the Exam Simulator's own exercise
+// catalogue uses -- easier for a student to scan and pick a specific real
+// test directly, instead of stepping through a <select>.
+test("RealTestGrid renders a numbered grid of test links, not a dropdown or a prev/next navigator", async () => {
+  const grid = await read("app/typing/practice/stenography/exams/[slug]/real-test-grid.tsx");
+  assert.doesNotMatch(grid, /aria-label="Previous test"/);
+  assert.doesNotMatch(grid, /<select /);
+  assert.doesNotMatch(grid, /router\.push/);
+  assert.match(grid, /<div className="mt-3 grid gap-2 sm:grid-cols-2">/);
+  assert.match(grid, /\{tests\.map\(\(test, index\) => \(/);
+  assert.match(grid, /href=\{`\/tests\/\$\{test\.slug\}`\}/);
+  assert.match(grid, /\{index \+ 1\}<\/span>/); // the numbered badge, matching the exam category catalogue's own card style
 });

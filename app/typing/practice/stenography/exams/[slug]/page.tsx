@@ -5,7 +5,7 @@ import { getStenographyCategory, stenographyCategoryPresetId, defaultStenography
 import { getStenographyCategoryNavigator } from "@/lib/stenography-category-navigator-server";
 import { TypingBrandHeader } from "../../../../_components/typing-brand";
 import { ExamCategoryIcon } from "../../../../exams/_components/exam-category-icon";
-import { RealTestNavigator } from "./real-test-navigator";
+import { RealTestGrid } from "./real-test-grid";
 
 export async function generateMetadata({ params }: PageProps<"/typing/practice/stenography/exams/[slug]">): Promise<Metadata> {
   const category = getStenographyCategory((await params).slug);
@@ -57,7 +57,7 @@ export default async function StenographyCategoryRulesPage({ params }: PageProps
             <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {englishRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
-            <RealTestNavigator tests={englishTests} language="English"/>
+            <RealTestGrid tests={englishTests} language="English"/>
             <Link href={englishHref} className="mt-4 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white hover:bg-violet-800">
               Start in English
             </Link>
@@ -67,7 +67,7 @@ export default async function StenographyCategoryRulesPage({ params }: PageProps
             <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
               {hindiRules.map((rule) => <li key={rule}>{rule}</li>)}
             </ul>
-            <RealTestNavigator tests={hindiTests} language="Hindi"/>
+            <RealTestGrid tests={hindiTests} language="Hindi"/>
             <Link href={hindiHref} className="mt-4 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white hover:bg-violet-800">
               हिंदी में शुरू करें (Start in Hindi)
             </Link>
