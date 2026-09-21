@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { detectHindiTextFormat, toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { CATEGORIES, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage } from "@/lib/wordtris-content";
 import { deleteWordtrisWord, saveWordtrisWord, type WordtrisWordActionState } from "./actions";
 
@@ -39,6 +39,24 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
       return "";
     }
   }, [liveWord, liveLanguage]);
+
+  // Real reported bug: an admin, thinking in Kruti Dev keystrokes (their
+  // day-to-day typing skill), typed the raw legacy keys for "घोड़ा" straight
+  // into this Unicode-only Word field instead of the actual Hindi word --
+  // and mistyped the keystrokes too (missing one key). toTypeableKrutiDev
+  // has no way to tell "this was never Unicode to begin with" from "this
+  // is a real Unicode word" -- it just ran its own literal-punctuation
+  // safety remapping (a real "?" is legacy ध् and needed escaping) on text
+  // that was never punctuation at all, producing student-preview garbage
+  // that decoded to a different, wrong word entirely. This field only
+  // ever makes sense as real Hindi Unicode text (unlike the main passage
+  // editor elsewhere, which deliberately accepts either format) -- so
+  // anything that doesn't detect as Unicode is always a mistake here, and
+  // is worth blocking before it reaches the word bank a hundred students
+  // will see.
+  const hindiWordWarning = liveLanguage === "hindi" && liveWord.trim() && detectHindiTextFormat(liveWord) !== "unicode"
+    ? "This doesn't look like a real Hindi word -- it looks like raw Kruti Dev keystrokes were typed here instead. Type or paste the actual Hindi word (e.g. घोड़ा), not the keys a student would press to type it."
+    : null;
 
   const draft = editing && "id" in editing ? editing : null;
 
@@ -137,6 +155,7 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
             <label className="text-xs font-bold text-slate-600">Word
               <input name="word" value={liveWord} onChange={(event) => setLiveWord(event.target.value)} required maxLength={40} className="input mt-1 w-full" style={{ fontFamily: liveLanguage === "hindi" ? HI : undefined }} />
             </label>
+            {hindiWordWarning && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-800">{hindiWordWarning}</p>}
             {liveLanguage === "hindi" && (
               <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
                 <p className="text-xs font-bold text-slate-500">Student preview — Kruti Dev 010</p>
@@ -148,7 +167,7 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
               <input type="checkbox" name="isPublished" defaultChecked={draft?.is_published ?? true} /> Published (shown to students)
             </label>
             <div className="flex gap-2">
-              <button type="submit" disabled={savePending} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
+              <button type="submit" disabled={savePending || Boolean(hindiWordWarning)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
               <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black hover:bg-slate-50">Cancel</button>
             </div>
             <Feedback state={saveState} />

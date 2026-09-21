@@ -1,8 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { detectHindiTextFormat } from "../lib/hindi-font-converter.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+
+// Real reported bug: an admin, typing in Kruti Dev keystrokes out of habit
+// (not the actual Hindi word), typed the raw legacy keys for "घोड़ा" straight
+// into the WordTris admin's Word field -- and even mistyped the keystrokes
+// (missing one key), so the "Student preview" showed a completely different,
+// wrong word ("घेड़ा" instead of "घोड़ा"). detectHindiTextFormat is what the
+// manager now checks before allowing Save; this pins down that the exact
+// reported bad input is caught (detected as neither real Unicode nor a
+// recognized Kruti Dev signal -- "unknown" -- which is exactly why it isn't
+// covered by the existing krutidev/mixed-only encodingValidationMessage
+// check the main passage editor uses, and needs its own, stricter gate for
+// a field that only ever means "a real Hindi word").
+test("detectHindiTextFormat flags the exact reported bad WordTris entry (raw, even incomplete, Kruti Dev keystrokes) as not real Hindi Unicode text", () => {
+  assert.equal(detectHindiTextFormat("?ksM+k"), "unknown");
+  assert.equal(detectHindiTextFormat("घोड़ा"), "unicode");
+});
 
 test("the WordTris admin page is gated by requireAdmin and falls back to bundled word lists when the DB isn't ready", async () => {
   const page = await read("app/admin/wordtris-words/page.tsx");
@@ -149,4 +166,12 @@ test("character mode never calls the word-mode leaderboard/score RPCs, and keeps
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /if \(mode === "word"\) \{\s*\n\s*void submitWordtrisScore/);
   assert.match(game, /wordtris-best-character-\$\{language\}/);
+});
+
+test("the WordTris admin word manager blocks Save when a Hindi word doesn't detect as real Unicode text, warning that it looks like raw Kruti Dev keystrokes", async () => {
+  const manager = await read("app/admin/wordtris-words/wordtris-words-manager.tsx");
+  assert.match(manager, /import \{ detectHindiTextFormat, toTypeableKrutiDev \} from "@\/lib\/hindi-font-converter";/);
+  assert.match(manager, /detectHindiTextFormat\(liveWord\) !== "unicode"/);
+  assert.match(manager, /disabled=\{savePending \|\| Boolean\(hindiWordWarning\)\}/);
+  assert.match(manager, /\{hindiWordWarning && <p role="alert"/);
 });
