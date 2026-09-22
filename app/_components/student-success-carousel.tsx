@@ -96,16 +96,19 @@ export function StudentSuccessCarousel() {
         <button type="button" onClick={() => show(active - 1)} aria-label="Previous student" className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
         <button type="button" onClick={() => show(active + 1)} aria-label="Next student" className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
         <article key={student.name} aria-live="polite" className="student-slide grid gap-6 sm:grid-cols-[170px_1fr]">
-          {/* Real reported problem: the photo's own aspect-ratio sized it
-              shorter than the text column beside it (name/stats/quote),
-              leaving a block of blank space below the photo whenever
-              that column was taller -- most of the time. A relatively
-              positioned wrapper that stretches to the grid row's full
-              height (the row's default cross-axis stretch, unopposed by
-              any fixed size on the wrapper itself) lets the photo fill
-              it edge to edge via `fill` + object-cover instead. */}
-          <div className="relative mx-auto h-56 w-44 overflow-hidden rounded-2xl shadow-md sm:h-full">
-            <Image src={student.image} alt={student.imageAlt} fill sizes="176px" className="object-cover object-top"/>
+          {/* Real reported follow-up: filling the photo edge-to-edge to
+              the grid row's full height (a fix for the blank space below
+              it) stretched some students' photos into an oddly tall,
+              elongated crop -- for a short text column, "full row
+              height" is still tall enough to reveal awkward extra
+              framing below the face. Keeping the photo at its normal
+              aspect-[4/5] portrait size and centering it (not top-
+              anchoring it) within a wrapper that still stretches to the
+              row's height gets both: a well-composed headshot crop, AND
+              no blank strip pinned below it -- any leftover height splits
+              evenly above/below instead. */}
+          <div className="mx-auto flex w-44 items-center justify-center sm:h-full">
+            <Image src={student.image} alt={student.imageAlt} width={1024} height={1280} className="aspect-[4/5] w-44 rounded-2xl object-cover object-top shadow-md"/>
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-widest text-green-700">Student success story</p><h2 className="mt-2 text-2xl font-black text-slate-950">{student.name}</h2><p className="mt-1 font-bold text-blue-700">{student.selection}</p></div><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">{student.badge}</span></div>
