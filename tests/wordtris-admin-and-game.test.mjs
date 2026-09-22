@@ -269,7 +269,7 @@ test("character mode's key pool is the admin-configurable characterPool prop (wh
 // to word mode only.
 test("character mode's Hindi pool bypasses toTypeableKrutiDev -- only word mode's Unicode word banks need that conversion", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /if \(m === "word" && lang === "hindi"\) \{\s*\n\s*try \{ return toTypeableKrutiDev\(raw\); \}/);
+  assert.match(game, /if \(m === "word" && lang === "hindi"\) \{\s*\n\s*const verified = category === "common" \? getVerifiedHindiCommonKeys\(raw\) : undefined;\s*\n\s*if \(verified\) return verified;\s*\n\s*try \{ return toTypeableKrutiDev\(raw\); \}/);
 });
 
 // Character mode has no server-side leaderboard (its scores aren't
@@ -317,7 +317,7 @@ test("stale Save feedback from a previous edit doesn't bleed into a newly opened
 // is left to type normally.
 test("WordTris lets Space type as a normal character mid-phrase (multi-word entries), only treating it as submit on a complete match or a genuinely wrong guess", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /const isCompleteMatch = Boolean\(activeDrop\) && dropText\(activeDrop!\) === normalize\(typed\);/);
+  assert.match(game, /const isCompleteMatch = Boolean\(activeDrop\) && isExactKrutiDevMatch\(normalize\(typed\), dropText\(activeDrop!\)\);/);
   assert.match(game, /const continuesPhrase = Boolean\(activeDrop\) && typed\.length > 0 && isValidPrefix\(`\$\{typed\} `\);/);
   assert.match(game, /if \(!isCompleteMatch && continuesPhrase\) return;/);
 });

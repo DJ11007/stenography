@@ -114,7 +114,7 @@ test("Speed Race shows a passage picker only once at least one is published for 
   assert.match(game, /const availablePassages = passagesByLanguage\[language\] \?\? \[\];/);
   assert.match(game, /\{availablePassages\.length > 0 && \(/);
   assert.match(game, /const chosen = availablePassages\.find\(\(p\) => p\.id === selectedPassageId\);/);
-  assert.match(game, /const nextPassage = chosen \? chosen\.passage : buildSpeedRacePassage\(words\[language\]\?\.\[category\] \?\? \[\]\);/);
+  assert.match(game, /const nextPassage = chosen\s*\n\s*\? toRaceableText\(chosen\.passage, language\)\s*\n\s*: buildSpeedRacePassage\(/);
 });
 
 test("Speed Race's page.tsx fetches passages for both languages and passes them down, alongside the existing word banks", async () => {

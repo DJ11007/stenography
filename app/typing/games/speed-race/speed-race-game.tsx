@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { getVerifiedHindiCommonKeys, checkKrutiDevKeystrokes, countKeystrokeDiff } from "@/lib/kruti-dev-word-bank";
 import { CATEGORIES, type WordtrisCategory, type WordtrisLanguage } from "@/lib/wordtris-content";
 import { SPEEDRACE_WORDS_PER_RACE, SPEEDRACE_DEFAULT_PACE_WPM, SPEEDRACE_MIN_PACE_WPM, SPEEDRACE_MAX_PACE_WPM, SPEEDRACE_BOOSTS_PER_RACE, buildSpeedRacePassage, speedRaceProgressAtElapsed, speedRaceNetWpm, speedRaceAccuracy } from "@/lib/speedrace-content";
 import type { SpeedRacePassage } from "@/lib/speedrace-passages-server";
@@ -98,6 +100,28 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
   const fontFamily = language === "hindi" ? KD : undefined;
   const bestKey = `speedrace-best-${language}-${category}`;
 
+  // Real bug fixed here: a Hindi passage (auto word-mix, an admin-authored
+  // one, or one a live-race host built) was always stored/typed as real
+  // Unicode text, but rendered with the Kruti Dev 010 font and then
+  // compared character-by-character against the student's raw legacy
+  // keystrokes below -- Kruti Dev 010 is a legacy encoding font, not a
+  // Unicode Devanagari font, so it never actually drew real Unicode text
+  // correctly, and a legacy keystroke could never equal a Unicode
+  // character anyway. Convert right before it becomes what the student
+  // sees/types. "common" category words use the verified sequence from
+  // lib/kruti-dev-word-bank.ts; anything else (another category's words,
+  // or free-form admin/host passage text) falls back to the same
+  // well-tested live converter used everywhere else in this app.
+  const buildHindiWordTarget = useCallback((raw: string, cat: WordtrisCategory) => {
+    const verified = cat === "common" ? getVerifiedHindiCommonKeys(raw) : undefined;
+    if (verified) return verified;
+    try { return toTypeableKrutiDev(raw); } catch { return raw; }
+  }, []);
+  const toRaceableText = useCallback((text: string, lang: WordtrisLanguage) => {
+    if (lang !== "hindi") return text;
+    try { return toTypeableKrutiDev(text); } catch { return text; }
+  }, []);
+
   useEffect(() => {
     try {
       const v = Number(localStorage.getItem(bestKey));
@@ -117,19 +141,23 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
         setLanguage(cfg.language);
         setCategory(cfg.category);
         setPaceWpm(cfg.paceWpm);
-        setPassage(cfg.passage);
+        setPassage(toRaceableText(cfg.passage, cfg.language));
         startedAtRef.current = Date.now();
         setStep("racing");
       } else {
         setStep("lobby");
       }
     })();
-  }, []);
+  }, [toRaceableText]);
 
+  // CORRECTNESS = EXACT KRUTI DEV 010 (or plain ASCII, for English) KEY
+  // SEQUENCE -- see lib/kruti-dev-word-bank.ts. `currentPassage` here is
+  // already the raceable target built by toRaceableText/buildHindiWordTarget
+  // above, never the raw Unicode/display text, so this is a raw keystroke
+  // comparison, not a rendered-glyph one.
   const finishRace = useCallback((finalTyped: string, currentPassage: string) => {
     const timeMs = startedAtRef.current ? Date.now() - startedAtRef.current : 0;
-    let correct = 0;
-    for (let i = 0; i < finalTyped.length; i += 1) if (finalTyped[i] === currentPassage[i]) correct += 1;
+    const { correct } = countKeystrokeDiff(finalTyped, currentPassage);
     const wpm = Math.round(speedRaceNetWpm(correct, timeMs));
     const accuracy = speedRaceAccuracy(correct, finalTyped.length);
 
@@ -155,7 +183,13 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
 
   const startRace = useCallback(() => {
     const chosen = availablePassages.find((p) => p.id === selectedPassageId);
-    const nextPassage = chosen ? chosen.passage : buildSpeedRacePassage(words[language]?.[category] ?? []);
+    const nextPassage = chosen
+      ? toRaceableText(chosen.passage, language)
+      : buildSpeedRacePassage(
+          language === "hindi"
+            ? (words[language]?.[category] ?? []).map((w) => buildHindiWordTarget(w, category))
+            : (words[language]?.[category] ?? []),
+        );
     setPassage(nextPassage);
     setTyped("");
     setBoostsLeft(SPEEDRACE_BOOSTS_PER_RACE);
@@ -163,7 +197,7 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
     setFinishStats(null);
     startedAtRef.current = null;
     setStep("racing");
-  }, [words, language, category, availablePassages, selectedPassageId]);
+  }, [words, language, category, availablePassages, selectedPassageId, toRaceableText, buildHindiWordTarget]);
 
   const handleJoin = async () => {
     const trimmed = joinCode.trim().toUpperCase();
@@ -205,7 +239,7 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
         setLanguage(cfg.language);
         setCategory(cfg.category);
         setPaceWpm(cfg.paceWpm);
-        setPassage(cfg.passage);
+        setPassage(toRaceableText(cfg.passage, cfg.language));
         setTyped("");
         setBoostsLeft(SPEEDRACE_BOOSTS_PER_RACE);
         setElapsedMs(0);
@@ -217,7 +251,7 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
     tick();
     const timer = window.setInterval(tick, GAME_ROOM_POLL_MS);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [step, room]);
+  }, [step, room, toRaceableText]);
 
   useEffect(() => {
     if (step !== "racing") return;
@@ -262,9 +296,13 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
   };
 
   // Live HUD figures while racing -- finishStats holds the frozen final
-  // numbers once the race actually ends.
-  let liveCorrect = 0;
-  for (let i = 0; i < typed.length; i += 1) if (typed[i] === passage[i]) liveCorrect += 1;
+  // numbers once the race actually ends. keystrokeChecks is the same
+  // position-by-position raw-keystroke comparison the passage below is
+  // colored from (lib/kruti-dev-word-bank.ts) -- one shared source for
+  // both the live WPM/accuracy figures and the error highlighting, so
+  // they can never disagree with each other.
+  const keystrokeChecks = checkKrutiDevKeystrokes(typed, passage);
+  const { correct: liveCorrect } = countKeystrokeDiff(typed, passage);
   const liveWpm = Math.round(speedRaceNetWpm(liveCorrect, elapsedMs || 1));
   const liveAccuracy = speedRaceAccuracy(liveCorrect, typed.length);
 
@@ -464,7 +502,7 @@ export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
             <p className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 text-xl leading-9 tracking-wide" style={{ fontFamily }}>
               {[...passage].map((ch, i) => {
                 const cls = i < typed.length
-                  ? (typed[i] === ch ? "text-emerald-600" : "rounded bg-rose-200 text-rose-700")
+                  ? (keystrokeChecks[i]?.correct ? "text-emerald-600" : "rounded bg-rose-200 text-rose-700")
                   : i === typed.length
                     ? "rounded bg-amber-300 text-slate-900"
                     : "text-slate-400";

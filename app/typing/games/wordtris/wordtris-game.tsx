@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { getVerifiedHindiCommonKeys, isExactKrutiDevMatch } from "@/lib/kruti-dev-word-bank";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
 import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
@@ -202,12 +203,21 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // -- character mode's Hindi pool (characterPool prop, admin-editable at
   // /admin/character-pool) is already raw, typeable Kruti Dev bytes, so
   // converting it again would mangle it.
+  //
+  // The "common" category's exact keystroke sequence comes from the
+  // verified, human-auditable table in lib/kruti-dev-word-bank.ts instead
+  // of a live conversion -- see that file's header comment. Any other
+  // Hindi category (or a "common" word not yet in that table, e.g. a
+  // brand-new admin-authored one) still falls back to the same
+  // well-tested live converter this always used.
   const buildTarget = useCallback((raw: string, m: WordtrisMode, lang: WordtrisLanguage) => {
     if (m === "word" && lang === "hindi") {
+      const verified = category === "common" ? getVerifiedHindiCommonKeys(raw) : undefined;
+      if (verified) return verified;
       try { return toTypeableKrutiDev(raw); } catch { return raw; }
     }
     return raw;
-  }, []);
+  }, [category]);
 
   const spawnDrop = useCallback((m: WordtrisMode, lang: WordtrisLanguage) => {
     if (activeDropRef.current) return;
@@ -387,7 +397,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
   const trySubmit = useCallback(() => {
     if (!typed || !activeDropRef.current) return;
     const normalizedTyped = normalize(typed);
-    if (dropText(activeDropRef.current) !== normalizedTyped) {
+    if (!isExactKrutiDevMatch(normalizedTyped, dropText(activeDropRef.current))) {
       setInputShake(true);
       window.setTimeout(() => setInputShake(false), 320);
       return;
@@ -435,7 +445,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
     }
     if (event.key !== " " && event.code !== "Space") return;
     const activeDrop = activeDropRef.current;
-    const isCompleteMatch = Boolean(activeDrop) && dropText(activeDrop!) === normalize(typed);
+    const isCompleteMatch = Boolean(activeDrop) && isExactKrutiDevMatch(normalize(typed), dropText(activeDrop!));
     // Real reported bug: a space pressed with nothing typed yet (a very
     // natural way to answer "Press any key to start", or just an early
     // stray keystroke) used to slip through here. isValidPrefix treats an

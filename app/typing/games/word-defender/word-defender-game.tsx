@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { getVerifiedHindiCommonKeys, isExactKrutiDevMatch } from "@/lib/kruti-dev-word-bank";
 import { CATEGORIES, type WordtrisCategory, type WordtrisLanguage } from "@/lib/wordtris-content";
 import { WORDDEFENDER_STARTING_HEALTH, WORDDEFENDER_LANES, WORDDEFENDER_KILLS_PER_WAVE, worddefenderFallMs, worddefenderSpawnMs } from "@/lib/worddefender-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
@@ -112,10 +113,18 @@ export function WordDefenderGame({ words }: Props) {
     return item;
   }, []);
 
+  // The "common" category's exact keystroke sequence comes from the
+  // verified table in lib/kruti-dev-word-bank.ts (shared with WordTris
+  // and Speed Race, which draw the same word bank) instead of a live
+  // conversion -- see that file's header comment. Any other category,
+  // or a "common" word not yet in that table, falls back to the same
+  // well-tested live converter this always used.
   const buildTarget = useCallback((raw: string, lang: WordtrisLanguage) => {
     if (lang !== "hindi") return raw;
+    const verified = category === "common" ? getVerifiedHindiCommonKeys(raw) : undefined;
+    if (verified) return verified;
     try { return toTypeableKrutiDev(raw); } catch { return raw; }
-  }, []);
+  }, [category]);
 
   const spawnEnemy = useCallback((lang: WordtrisLanguage) => {
     const used = new Set(enemiesRef.current.map((e) => e.lane));
@@ -227,7 +236,7 @@ export function WordDefenderGame({ words }: Props) {
     if (!isShrinking && norm && !enemiesRef.current.some((e) => enemyText(e).startsWith(norm))) return;
     setTyped(value);
     if (!norm) return;
-    const killed = enemiesRef.current.find((e) => enemyText(e) === norm);
+    const killed = enemiesRef.current.find((e) => isExactKrutiDevMatch(norm, enemyText(e)));
     if (killed) onKill(killed);
   };
 

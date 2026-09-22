@@ -32,7 +32,7 @@ test("Word Defender destroys an enemy the instant its word is fully typed -- no 
   const game = await read("app/typing/games/word-defender/word-defender-game.tsx");
   assert.doesNotMatch(game, /handleTypedKeyDown/);
   assert.doesNotMatch(game, /key !== " "/);
-  assert.match(game, /const killed = enemiesRef\.current\.find\(\(e\) => enemyText\(e\) === norm\);/);
+  assert.match(game, /const killed = enemiesRef\.current\.find\(\(e\) => isExactKrutiDevMatch\(norm, enemyText\(e\)\)\);/);
   assert.match(game, /if \(killed\) onKill\(killed\);/);
 });
 

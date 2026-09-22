@@ -223,7 +223,7 @@ test("the shared multiplayer actions require the right role per action (admin fo
 
 test("joining a live race forces the host's identical passage/pace/category onto the student, never their own picker", async () => {
   const game = await read("app/typing/games/speed-race/speed-race-game.tsx");
-  assert.match(game, /const cfg = room\.config;\s*\n\s*setLanguage\(cfg\.language\);\s*\n\s*setCategory\(cfg\.category\);\s*\n\s*setPaceWpm\(cfg\.paceWpm\);\s*\n\s*setPassage\(cfg\.passage\);/);
+  assert.match(game, /const cfg = room\.config;\s*\n\s*setLanguage\(cfg\.language\);\s*\n\s*setCategory\(cfg\.category\);\s*\n\s*setPaceWpm\(cfg\.paceWpm\);\s*\n\s*setPassage\(toRaceableText\(cfg\.passage, cfg\.language\)\);/);
 });
 
 test("Speed Race pushes live progress on a stable interval (not one that resets every keystroke) via a ref, not a state dependency", async () => {
