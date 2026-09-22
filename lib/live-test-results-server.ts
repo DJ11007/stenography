@@ -20,8 +20,9 @@ export async function getPublishedLiveResults(limit = 30): Promise<PublicLiveRes
   return (data ?? []) as PublicLiveResult[];
 }
 
-// Per-language top-3 podium for the homepage.
-export async function getLiveTestTopRankers(language: string, limit = 3): Promise<LiveTestTopRanker[]> {
+// Per-language top-10 leaderboard for the homepage (the RPC itself caps
+// at 20 -- see published_live_test_top_rankers' own migration comment).
+export async function getLiveTestTopRankers(language: string, limit = 10): Promise<LiveTestTopRanker[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("published_live_test_top_rankers", { p_language: language, p_limit: limit });
   if (error) { logRpcFailure(`Top rankers listing failed (${language})`, error); return []; }

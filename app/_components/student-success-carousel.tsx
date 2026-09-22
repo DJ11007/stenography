@@ -92,29 +92,49 @@ export function StudentSuccessCarousel() {
 
   return (
     <section aria-label="Student success stories" className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
-      <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }} className="relative min-w-0 p-5 sm:p-7">
+      {/* Real bug found live while verifying the reorg below: the prev/
+          next arrows sit at the card's vertical center (top-1/2), which
+          used to land on the photo (harmless to overlap slightly) but
+          now lands on the stats grid, cutting off "Final marks" text
+          under the button. Left/right padding widened (p-5/p-7 ->
+          separate px-14/16, py unchanged) so no text content reaches
+          under either 44px arrow circle at any card height. */}
+      <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }} className="relative min-w-0 px-14 py-5 sm:px-16 sm:py-7">
         <button type="button" onClick={() => show(active - 1)} aria-label="Previous student" className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
         <button type="button" onClick={() => show(active + 1)} aria-label="Next student" className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
-        <article key={student.name} aria-live="polite" className="student-slide grid gap-6 sm:grid-cols-[170px_1fr]">
-          {/* Real reported follow-up: filling the photo edge-to-edge to
-              the grid row's full height (a fix for the blank space below
-              it) stretched some students' photos into an oddly tall,
-              elongated crop -- for a short text column, "full row
-              height" is still tall enough to reveal awkward extra
-              framing below the face. Keeping the photo at its normal
-              aspect-[4/5] portrait size and centering it (not top-
-              anchoring it) within a wrapper that still stretches to the
-              row's height gets both: a well-composed headshot crop, AND
-              no blank strip pinned below it -- any leftover height splits
-              evenly above/below instead. */}
-          <div className="mx-auto flex w-44 items-center justify-center sm:h-full">
-            <Image src={student.image} alt={student.imageAlt} width={1024} height={1280} className="aspect-[4/5] w-44 rounded-2xl object-cover object-top shadow-md"/>
+        <article key={student.name} aria-live="polite" className="student-slide">
+          {/* Real requested reorganization: the photo moves to the
+              top-right corner at its same visual size (w-44/aspect-[4/5],
+              unchanged) instead of a left-hand column, freeing the area
+              to its left and below for the heading/name/course info,
+              with the full stats grid and testimonial spanning the whole
+              card width beneath. `flex-col-reverse` + `sm:flex-row` is a
+              deliberate trick: on mobile (single column) the LAST DOM
+              child renders visually first, so the photo still appears
+              above the text exactly like before; at `sm:` it becomes a
+              normal left-to-right row (text left, photo right) --
+              achieving "top-right on desktop, stacks cleanly on mobile"
+              without two different layouts to maintain. object-cover
+              keeps every student's photo cropped to the same frame
+              regardless of their source image's own proportions. */}
+          <div className="flex flex-col-reverse gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black uppercase tracking-widest text-green-700">Student success story</p>
+              <h2 className="mt-2 text-2xl font-black text-slate-950">{student.name}</h2>
+              <p className="mt-1 font-bold text-blue-700">{student.selection}</p>
+              <span className="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">{student.badge}</span>
+            </div>
+            <Image src={student.image} alt={student.imageAlt} width={1024} height={1280} className="mx-auto aspect-[4/5] w-44 shrink-0 rounded-2xl object-cover object-top shadow-md sm:mx-0"/>
           </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-xs font-black uppercase tracking-widest text-green-700">Student success story</p><h2 className="mt-2 text-2xl font-black text-slate-950">{student.name}</h2><p className="mt-1 font-bold text-blue-700">{student.selection}</p></div><span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">{student.badge}</span></div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">{student.stats.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-black text-slate-950">{value}</dd></div>)}</dl>
-            <blockquote className="mt-4 max-h-40 overflow-y-auto rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-sm font-semibold leading-7 text-slate-800">“{student.review}”</blockquote>
-          </div>
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">{student.stats.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-black text-slate-950">{value}</dd></div>)}</dl>
+          {/* Real requested change: the testimonial used to be capped at
+              max-h-40 with its own internal scroll, which could hide part
+              of a longer message. Uncapped now -- the card grows to fit
+              the complete text instead of truncating it; the outer grid
+              (app/page.tsx) already stretches the results column to match
+              whatever height this card ends up needing on any given
+              slide. */}
+          <blockquote className="mt-4 w-full rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-sm font-semibold leading-7 text-slate-800">“{student.review}”</blockquote>
         </article>
       </div>
       <style jsx>{`@keyframes student-slide-in{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:translateX(0)}}.student-slide{animation:student-slide-in .45s ease-out}@media(prefers-reduced-motion:reduce){.student-slide{animation:none}}`}</style>
