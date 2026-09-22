@@ -59,3 +59,16 @@ test("the name span has min-w-0 so truncate can actually engage, preventing hori
   assert.match(component, /<span className="flex min-w-0 flex-1 items-center gap-2 font-black">/);
   assert.match(component, /<span className="truncate">\{r\.student_name\}<\/span>/);
 });
+
+// Real requested change: the shared header row above both columns (a
+// "Top Rankers" label plus a leaderboard-naming heading) was removed
+// from app/page.tsx entirely. "Top Rankers" now reads as the Hindi
+// card's own heading (it sat visually above Hindi anyway); English keeps
+// its plain "English" heading with no such text added.
+test("Podium takes a separate heading prop -- the Hindi card's heading now carries the 'Top Rankers' wording, English stays plain", async () => {
+  const component = await read("app/_components/live-test-top-rankers.tsx");
+  assert.match(component, /function Podium\(\{ language, heading, rankers \}: \{ language: string; heading: string; rankers: LiveTestTopRanker\[\] \}\)/);
+  assert.match(component, /<h3 className="text-xs font-black uppercase tracking-widest text-slate-500">\{heading\}<\/h3>/);
+  assert.match(component, /<Podium language="Hindi" heading="Top Rankers — Hindi Live Test" rankers=\{hindi\} \/>/);
+  assert.match(component, /<Podium language="English" heading="English" rankers=\{english\} \/>/);
+});

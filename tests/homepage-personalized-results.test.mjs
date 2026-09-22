@@ -98,18 +98,17 @@ test("the left results column stretches to match the success-story column's heig
   assert.match(page, /flex flex-1 flex-col rounded-2xl border border-blue-100 bg-blue-50\/60 p-3/);
 });
 
-// Real reported follow-up: the "Top Rankers" label and "Live-test
-// leaderboard" heading were stacked on two lines, left-aligned, leaving a
-// blank strip above the two podium cards once the box grew taller to
-// balance the results columns. Put on one row instead (label left,
-// heading right), and the podium row itself is flex-1 so it -- not idle
-// centering -- absorbs any leftover height.
-test("the Top Rankers label and heading share one row (label left, heading right), and the podium row is flex-1", async () => {
+// Real requested change: the shared header row above both columns (a
+// "Top Rankers" label plus a leaderboard-naming heading) is gone
+// entirely from app/page.tsx -- "Top Rankers" now reads as the Hindi
+// card's own heading (it sat visually above Hindi anyway, see
+// live-test-top-rankers.test.mjs), and the other heading text no longer
+// appears anywhere on the page.
+test("the shared 'Top Rankers'-plus-heading row above the two columns is gone from both branches", async () => {
   const page = await read("app/page.tsx");
-  assert.match(page, /<div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0\.5">/);
-  assert.match(page, /<p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers<\/p>/);
-  assert.match(page, /<h2 className="text-base font-black">Live-test leaderboard<\/h2>/);
-  assert.match(page, /<div className="mt-2 flex-1"><LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/><\/div>/);
+  assert.doesNotMatch(page, /Live-test leaderboard/);
+  assert.doesNotMatch(page, /<p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers<\/p>/);
+  assert.match(page, /<div className="mt-3 flex flex-1 flex-col rounded-2xl border border-blue-100 bg-blue-50\/60 p-3">\s*\n\s*<div className="flex-1"><LiveTestTopRankers/);
 });
 
 test("StudentSuccessCarousel no longer hardcodes its own top margin (the call site controls spacing now that it's reused inside a grid column)", async () => {

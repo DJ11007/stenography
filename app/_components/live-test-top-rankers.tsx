@@ -19,10 +19,10 @@ const TONE = [
 // unbounded) so the Hindi and English cards stay the same size as each
 // other regardless of how many of the 10 slots either language actually
 // has filled, and so this section doesn't grow taller than it needs to.
-function Podium({ language, rankers }: { language: string; rankers: LiveTestTopRanker[] }) {
+function Podium({ language, heading, rankers }: { language: string; heading: string; rankers: LiveTestTopRanker[] }) {
   return (
     <div className="flex h-full flex-col justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{language}</h3>
+      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{heading}</h3>
       {rankers.length ? (
         <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-0.5">
           {rankers.map((r, i) => (
@@ -59,11 +59,18 @@ function Podium({ language, rankers }: { language: string; rankers: LiveTestTopR
 // longer the only real-name exception -- see lib/live-test-results-server.ts.
 // Two separate leaderboards (not one combined ranking) per the "show
 // results different different by language" request.
+//
+// Real requested follow-up: a shared "TOP RANKERS" / "Live-test
+// leaderboard" header used to sit above both columns (app/page.tsx) --
+// removed entirely. "Top Rankers" now reads as the Hindi card's own
+// heading instead (it visually sat above Hindi anyway), and "Live-test
+// leaderboard" text no longer appears anywhere; English keeps its plain
+// "English" heading.
 export function LiveTestTopRankers({ english, hindi }: { english: LiveTestTopRanker[]; hindi: LiveTestTopRanker[] }) {
   return (
     <div className="grid h-full gap-4 sm:grid-cols-2">
-      <Podium language="Hindi" rankers={hindi} />
-      <Podium language="English" rankers={english} />
+      <Podium language="Hindi" heading="Top Rankers — Hindi Live Test" rankers={hindi} />
+      <Podium language="English" heading="English" rankers={english} />
     </div>
   );
 }
