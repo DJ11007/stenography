@@ -198,7 +198,7 @@ export function HomepageTypingDemo() {
             </div>
 
             <button type="button" onClick={start} className="mt-6 w-full rounded-xl bg-gradient-to-r from-cyan-400 to-violet-400 px-5 py-3 text-base font-black text-slate-950 shadow-lg transition hover:brightness-105 sm:w-auto">
-              Start Free Test →
+              Demo Typing →
             </button>
           </div>
         )}
