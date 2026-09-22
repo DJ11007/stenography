@@ -25,14 +25,8 @@ const EXAM_CATEGORIES = [
   {
     icon: "flag",
     iconColor: "text-amber-300",
-    label: "All India Exams",
-    text: "SSC CGL/CHSL, NTPC, DSSSB, BSF, Army, KVS/NVS and Assam Rifles.",
-  },
-  {
-    icon: "map",
-    iconColor: "text-emerald-300",
-    label: "State Exams",
-    text: "RSSB LDC, RSSB IA, RHC LDC, RHC SA, RVVUNL, MP-CPCT, UPPSC, UPPCL, UP Police and BELTRON.",
+    label: "All India & State Exams",
+    text: "SSC CGL/CHSL, NTPC, DSSSB, BSF, Army, KVS/NVS, Assam Rifles, RSSB LDC, RSSB IA, RHC LDC, RHC SA, RVVUNL, MP-CPCT, UPPSC, UPPCL, UP Police and BELTRON.",
   },
   {
     icon: "mic",
