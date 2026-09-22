@@ -27,25 +27,26 @@ test("LiveTestList groups tests by calendar day in IST, independent of the serve
   assert.match(list, /function dayHeading/);
 });
 
-// Real reported request: hindi/english/stenography/efficiency tests were
-// all mixed together with no way to tell them apart at a glance. An
-// always-visible category tablist (unlike the language tabs, which only
-// appear once there's more than one language) filters by Typing /
-// Stenography / Efficiency, and each card also shows its category next to
-// the LIVE badge so the grouping is visible even with the "All" tab active.
-test("LiveTestList offers an always-visible category filter (Typing/Stenography/Efficiency) and shows the category on each card", async () => {
+// Real reported follow-up: separate category (Typing/Stenography/
+// Efficiency) and language (All languages/Hindi/English) tab rows made a
+// student combine two filters just to find "Hindi typing tests," and the
+// "All languages" catch-all was explicitly asked to go. Collapsed into ONE
+// always-visible row of exactly four fixed sections -- Typing tests split
+// by language into their own Hindi/English sections, Stenography and
+// Efficiency stay single sections spanning both languages.
+test("LiveTestList offers a single always-visible section filter with exactly four fixed sections (Hindi/English/Stenography/Efficiency), no All-languages catch-all", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
-  assert.match(list, /const CATEGORY_TABS = \["Typing", "Stenography", "Efficiency"\] as const;/);
-  assert.match(list, /aria-label="Filter by category"/);
-  assert.doesNotMatch(list, /category\.length > 1/);
+  assert.match(list, /const SECTION_TABS = \["Hindi", "English", "Stenography", "Efficiency"\] as const;/);
+  assert.match(list, /aria-label="Filter by section"/);
+  assert.doesNotMatch(list, /All languages/);
+  assert.doesNotMatch(list, /aria-label="Filter by language"/);
+  assert.doesNotMatch(list, /aria-label="Filter by category"/);
   assert.match(list, /\{test\.category\}/);
 });
 
-test("LiveTestList offers a status filter (anytime/upcoming/open/results-published/closed), a language filter, and a newest/oldest sort", async () => {
+test("LiveTestList offers a status filter (anytime/upcoming/open/results-published/closed) and a newest/oldest sort", async () => {
   const list = await read("app/live-test/live-test-list.tsx");
   assert.match(list, /const STATUS_TABS = \["anytime", "upcoming", "open", "results-published", "closed"\] as const;/);
-  assert.match(list, /aria-label="Filter by language"/);
-  assert.match(list, /languages\.length > 1/);
   assert.match(list, /<option value="newest">Newest first<\/option>/);
   assert.match(list, /<option value="oldest">Oldest first<\/option>/);
 });

@@ -17,18 +17,33 @@ export type LiveTest = {
   results_delay_minutes: number | null;
   is_live: boolean;
   // Real reported request: group live tests by Typing / Stenography /
-  // Efficiency instead of mixing them together with no visual distinction.
-  // startHref/resultsHref let each category carry its own routing (typing
-  // and stenography both live at /tests/{slug}; efficiency tests use a
-  // completely different /typing/{subject}-efficiency/{language}/{id}/...
-  // route shape and have no shared public results ticker to send closed
-  // "results-published" cards to, so they point at /student/results instead).
+  // Efficiency instead of mixing them together with no visual distinction
+  // (Typing is further split by language into its own Hindi/English
+  // filter sections -- see SECTION_TABS below). startHref/resultsHref let
+  // each category carry its own routing (typing and stenography both live
+  // at /tests/{slug}; efficiency tests use a completely different
+  // /typing/{subject}-efficiency/{language}/{id}/... route shape and have
+  // no shared public results ticker to send closed "results-published"
+  // cards to, so they point at /student/results instead).
   category: "Typing" | "Stenography" | "Efficiency";
   startHref: string;
   resultsHref: string;
 };
 
-const CATEGORY_TABS = ["Typing", "Stenography", "Efficiency"] as const;
+// Real reported follow-up: separate "category" (Typing/Stenography/
+// Efficiency) and "language" (an all-languages option plus Hindi/English)
+// tab rows were confusing -- a student had to combine two filters just to
+// find "Hindi typing tests." Collapsed into ONE row of four fixed sections:
+// Typing tests are split by language (Hindi/English are each their own
+// section), while Stenography and Efficiency stay single sections
+// spanning both languages (the requested shape has exactly four sections,
+// not six).
+const SECTION_TABS = ["Hindi", "English", "Stenography", "Efficiency"] as const;
+type Section = (typeof SECTION_TABS)[number];
+function matchesSection(test: LiveTest, section: Section) {
+  if (section === "Hindi" || section === "English") return test.category === "Typing" && test.language === section;
+  return test.category === section;
+}
 
 // Real reported problem: once 100+ live tests pile up, the old one-card-
 // per-test layout (always showing Starts/Ends/Duration/Results expanded)
@@ -74,11 +89,9 @@ function dayHeading(iso: string | null) {
 }
 
 export function LiveTestList({ tests }: { tests: LiveTest[] }) {
-  const [category, setCategory] = useState<"All" | LiveTest["category"]>("All");
-  const [language, setLanguage] = useState<"All" | string>("All");
+  const [section, setSection] = useState<Section>("Hindi");
   const [status, setStatus] = useState<"All" | LiveTestState>("All");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
-  const languages = useMemo(() => [...new Set(tests.map((test) => test.language))], [tests]);
 
   const withState = useMemo(
     () => tests.map((test) => ({ test, state: liveTestState({ isLive: test.is_live, startsAt: test.live_starts_at, endsAt: test.live_ends_at, resultsPublishAt: test.results_publish_at, resultsDelayMinutes: test.results_delay_minutes }) })),
@@ -87,13 +100,13 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
 
   const filtered = useMemo(
     () => withState
-      .filter(({ test, state }) => (category === "All" || test.category === category) && (language === "All" || test.language === language) && (status === "All" || state === status))
+      .filter(({ test, state }) => matchesSection(test, section) && (status === "All" || state === status))
       .sort((a, b) => {
         const at = a.test.live_starts_at ? new Date(a.test.live_starts_at).getTime() : 0;
         const bt = b.test.live_starts_at ? new Date(b.test.live_starts_at).getTime() : 0;
         return sort === "newest" ? bt - at : at - bt;
       }),
-    [withState, category, language, status, sort],
+    [withState, section, status, sort],
   );
 
   // Anytime tests have no live_starts_at to group/sort by, and "always
@@ -116,9 +129,8 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
 
   return (
     <div>
-      <div role="tablist" aria-label="Filter by category" className="flex flex-wrap gap-2">
-        <button type="button" role="tab" aria-selected={category === "All"} onClick={() => setCategory("All")} className={`rounded-full px-3 py-1.5 text-xs font-black ${category === "All" ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>All</button>
-        {CATEGORY_TABS.map((value) => <button key={value} type="button" role="tab" aria-selected={category === value} onClick={() => setCategory(value)} className={`rounded-full px-3 py-1.5 text-xs font-black ${category === value ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{value}</button>)}
+      <div role="tablist" aria-label="Filter by section" className="flex flex-wrap gap-2">
+        {SECTION_TABS.map((value) => <button key={value} type="button" role="tab" aria-selected={section === value} onClick={() => setSection(value)} className={`rounded-full px-3 py-1.5 text-xs font-black ${section === value ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{value}</button>)}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <div role="tablist" aria-label="Filter by status" className="flex flex-wrap gap-2">
@@ -130,12 +142,6 @@ export function LiveTestList({ tests }: { tests: LiveTest[] }) {
           <option value="oldest">Oldest first</option>
         </select>
       </div>
-      {languages.length > 1 && (
-        <div role="tablist" aria-label="Filter by language" className="mt-2 flex flex-wrap gap-2">
-          <button type="button" role="tab" aria-selected={language === "All"} onClick={() => setLanguage("All")} className={`rounded-full px-3 py-1 text-xs font-black ${language === "All" ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>All languages</button>
-          {languages.map((lang) => <button key={lang} type="button" role="tab" aria-selected={language === lang} onClick={() => setLanguage(lang)} className={`rounded-full px-3 py-1 text-xs font-black ${language === lang ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>{lang}</button>)}
-        </div>
-      )}
       {groups.length === 0 && <p className="mt-6 rounded-2xl bg-white p-7 text-center text-slate-600 shadow">No live test matches this view.</p>}
       <div className="mt-6 space-y-7">
         {groups.map((group) => (
