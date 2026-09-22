@@ -143,12 +143,13 @@ test("the falling word's readout below the bucket shows the full word with typed
 // roughly halved (min-h-24 -> min-h-12, text-4xl/sm:text-5xl ->
 // text-xl/sm:text-2xl) and capped with a max-w so it stays proportionate
 // instead of stretching edge to edge at every viewport width.
-test("the readout is sized roughly half of its first pass, and capped with a max-width so it stays proportionate at every screen size", async () => {
+test("the readout is a compact pill, capped with a max-width so it stays proportionate at every screen size", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /min-h-12 w-full max-w-sm/);
-  assert.match(game, /text-xl font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-2xl/);
-  assert.doesNotMatch(game, /flex min-h-24 w-full/); // the old, oversized box
-  assert.doesNotMatch(game, /text-4xl font-black outline-none/); // the old, oversized text
+  assert.match(game, /min-h-8 w-full max-w-\[12rem\]/);
+  assert.match(game, /text-base font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-lg/);
+  assert.doesNotMatch(game, /flex min-h-24 w-full/); // the original, oversized box
+  assert.doesNotMatch(game, /flex min-h-12 w-full max-w-sm/); // the first (still too big) size cut
+  assert.doesNotMatch(game, /text-4xl font-black outline-none/); // the original, oversized text
 });
 
 // Real reported reference: missed words stack up as their own labeled

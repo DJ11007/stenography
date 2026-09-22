@@ -572,17 +572,17 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 splitting per character would break some legacy bytes'
                 rendering). The whole thing only clears once the word is
                 actually caught (a real Space-confirmed exact match), not
-                as each letter is typed. Real reported follow-up: this was
-                sized too big at first pass -- roughly halved (min-h-24 ->
-                min-h-12, text-4xl/sm:text-5xl -> text-xl/sm:text-2xl) and
-                kept on a max-w so it stays proportionate at every
-                viewport width instead of stretching edge to edge. */}
+                as each letter is typed. Real reported follow-up (twice):
+                sized too big at first, cut roughly in half, then reduced
+                again to a compact pill (min-h-8, text-base/sm:text-lg,
+                max-w-[12rem]) that stays proportionate at every viewport
+                width instead of stretching edge to edge. */}
             <button
               type="button"
               onClick={() => inputRef.current?.focus()}
               tabIndex={-1}
               aria-hidden="true"
-              className={`mx-auto mt-4 flex min-h-12 w-full max-w-sm items-center justify-center rounded-2xl bg-slate-50 px-4 py-2.5 text-center text-xl font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-2xl ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
+              className={`mx-auto mt-3 flex min-h-8 w-full max-w-[12rem] items-center justify-center rounded-xl bg-slate-50 px-3 py-1.5 text-center text-base font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-lg ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
               style={{ fontFamily }}
             >
               {activeDrop ? (
@@ -591,7 +591,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
                   <span className="text-slate-900">{activeDrop.target.slice(typedLength)}</span>
                 </span>
               ) : (
-                <span className="text-sm font-bold text-slate-400">{awaitingFirstKey ? "⌨ Press any key to start…" : "Get ready…"}</span>
+                <span className="text-xs font-bold text-slate-400">{awaitingFirstKey ? "⌨ Press any key to start…" : "Get ready…"}</span>
               )}
             </button>
 
