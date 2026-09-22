@@ -44,7 +44,7 @@ const sections = [
   },
   {
     title: "Live Test Centre",
-    description: "Free scheduled live tests with a single secure attempt and an anonymized results leaderboard.",
+    description: "Free scheduled live tests with a single secure attempt and a public results leaderboard.",
     href: "/live-test",
     action: "View live schedule",
     icon: "●",

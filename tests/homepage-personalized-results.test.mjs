@@ -7,9 +7,9 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // Real requested feature: the homepage shows three stacked, PERSONALIZED
 // (the current visitor's own) result cards -- Typing (net/gross WPM), then
 // Stenography (Pass/Fail), then Efficiency (marks + Pass/Fail) -- distinct
-// from the pre-existing anonymized LiveResultsTicker (everyone's recent
-// live-test results), which stays, just moved below these new cards.
-// Nothing renders for a logged-out visitor.
+// from the pre-existing LiveResultsTicker (everyone's recent live-test
+// results), which stays, just moved below these new cards. Nothing
+// renders for a logged-out visitor.
 
 test("the homepage queries the current student's own most recent typing, stenography, and efficiency attempts, split by test mode", async () => {
   const page = await read("app/page.tsx");

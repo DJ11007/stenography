@@ -5,6 +5,11 @@ import { PGlite } from "@electric-sql/pglite";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = () => read("supabase/migrations/202609222100_live_results_language_and_top_rankers.sql");
+// Real requested follow-up: published_live_results now shows the real full
+// name instead of the anonymized "X•••" format (an explicit reversal of
+// the anonymization this same file originally tested for). Applied on top
+// of the base migration above, exactly as it's pasted in the Dashboard.
+const fullNameMigration = () => read("supabase/migrations/202609222300_live_results_show_full_names.sql");
 
 const studentA = "00000000-0000-4000-8000-000000000001";
 const studentB = "00000000-0000-4000-8000-000000000002";
@@ -27,13 +32,14 @@ insert into public.profiles values
   ('${studentC}','Chetan Roy');
 `);
   await db.exec(await migration());
+  await db.exec(await fullNameMigration());
   return db;
 }
 
 const PAST = "now() - interval '1 hour'";
 const FUTURE = "now() + interval '1 hour'";
 
-test("published_live_results now returns a language column, still excludes unpublished rows, and keeps the X••• anonymized name format unchanged", async () => {
+test("published_live_results now returns a language column, still excludes unpublished rows, and shows the student's real full name (not anonymized)", async () => {
   const db = await database();
   await db.query(`insert into public.tests(id, title, language, results_publish_at) values
     (gen_random_uuid(), 'English Live Test', 'English', ${PAST})`);
@@ -48,7 +54,7 @@ test("published_live_results now returns a language column, still excludes unpub
   assert.equal(rows.length, 1, "the not-yet-published test's attempt must not appear");
   assert.equal(rows[0].language, "English");
   assert.equal(Number(rows[0].net_wpm), 42);
-  assert.match(rows[0].student_name, /^A•••$/);
+  assert.equal(rows[0].student_name, "Asha Verma", "real name, not anonymized");
   await db.close();
 });
 

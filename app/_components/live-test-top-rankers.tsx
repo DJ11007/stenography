@@ -36,12 +36,12 @@ function Podium({ language, rankers }: { language: string; rankers: LiveTestTopR
 }
 
 // Real requested feature: a homepage "Top Rankers" podium, gold/silver/
-// bronze, name + net WPM -- a narrow, explicitly user-approved exception
-// to this app's otherwise-anonymized live-test results (see
-// lib/live-test-results-server.ts and published_live_test_top_rankers'
-// own migration comment), scoped to just the top 3 per language and
-// nowhere else. Two separate podiums (not one combined ranking) per the
-// same "show results different different by language" request.
+// bronze, name + net WPM, scoped to just the top 3 per language (the
+// general published_live_results ticker also shows full names now, so
+// this is no longer the only real-name exception -- see
+// lib/live-test-results-server.ts). Two separate podiums (not one
+// combined ranking) per the "show results different different by
+// language" request.
 export function LiveTestTopRankers({ english, hindi }: { english: LiveTestTopRanker[]; hindi: LiveTestTopRanker[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
