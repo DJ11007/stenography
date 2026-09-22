@@ -181,15 +181,27 @@ test("the whole bucket assembly (clouds, rim, rain lane, base plate) is wrapped 
   assert.doesNotMatch(game, /transition sm:h-\[34rem\]/);
 });
 
-// Real reported reference: missed words stack up as their own labeled
-// block at the bottom of the bucket (like the reference game), one block
-// per life lost -- not a continuous fill level -- so six stacked misses
+// Real reported reference: each miss labels its own layer at the bottom
+// of the bucket, one layer per life lost, sized so six stacked misses
 // exactly fill it (matches WORDTRIS_STARTING_LIVES).
-test("a missed word stacks up as a labeled block in the bucket, sized so six of them exactly fill it", async () => {
+test("a missed word stacks up as a labeled layer in the bucket, sized so six of them exactly fill it", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /setMissedStack\(\(s\) => \[\.\.\.s, \{ id: missed\.id, text: missed\.target \}\]\);/);
   assert.match(game, /style=\{\{ height: `\$\{100 \/ startingLives\}%`, fontFamily \}\}/);
   assert.match(game, /flex-col-reverse/); // oldest miss stays at the floor, newest piles on top
+});
+
+// Real reported request: missed words used to stack up as flat grey
+// blocks -- now rendered as rising water filling the bucket, one sixth
+// per miss, with a wavy surface at the current level, matching the
+// game's own rain/bucket theme.
+test("missed words render as rising water (a continuous gradient sized to the miss count, with a wavy surface), not flat grey blocks", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /\{missedStack\.length > 0 && \(/);
+  assert.match(game, /bg-gradient-to-b from-cyan-400\/85 via-cyan-600\/90 to-cyan-800\/95/);
+  assert.match(game, /style=\{\{ height: `\$\{\(missedStack\.length \/ startingLives\) \* 100\}%` \}\}/);
+  assert.match(game, /<path d="M0,4 Q10,0 20,4 T40,4 T60,4 T80,4 T100,4 V8 H0 Z" fill="currentColor" \/>/); // the wavy water surface
+  assert.doesNotMatch(game, /border-t border-slate-400\/50 bg-slate-300\/95/); // the old flat grey blocks
 });
 
 // Real bug found and fixed during review: resetting a drop's position on

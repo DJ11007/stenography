@@ -565,21 +565,37 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 {splash !== null && (
                   <span aria-hidden="true" className="animate-wordtris-splash pointer-events-none absolute bottom-2 left-1/2 z-10 h-12 w-12 rounded-full border-2 border-cyan-100" />
                 )}
-                {/* Missed words, stacked bottom-up -- oldest at the floor,
-                    newest on top of the pile (flex-col-reverse renders the
-                    last DOM child at the container's start edge, which for
-                    a bottom-anchored column is the bottom). */}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col-reverse" aria-hidden="true">
-                  {missedStack.map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-center overflow-hidden border-t border-slate-400/50 bg-slate-300/95 px-3 text-sm font-bold text-slate-600"
-                      style={{ height: `${100 / startingLives}%`, fontFamily }}
-                    >
-                      {m.text}
+                {/* Real reported request: missed words used to stack up as
+                    flat grey blocks -- now rendered as rising WATER
+                    filling the bucket instead, one sixth per miss (6
+                    misses = full), with a wavy surface at the current
+                    level. Oldest at the floor, newest on top of the pile
+                    (flex-col-reverse renders the last DOM child at the
+                    container's start edge, which for a bottom-anchored
+                    column is the bottom) -- the word labels float in the
+                    water at their own layer, unchanged in position. */}
+                {missedStack.length > 0 && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 bottom-0 z-10 overflow-hidden bg-gradient-to-b from-cyan-400/85 via-cyan-600/90 to-cyan-800/95"
+                    style={{ height: `${(missedStack.length / startingLives) * 100}%` }}
+                    aria-hidden="true"
+                  >
+                    <svg viewBox="0 0 100 8" preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-3 w-full text-cyan-300/80">
+                      <path d="M0,4 Q10,0 20,4 T40,4 T60,4 T80,4 T100,4 V8 H0 Z" fill="currentColor" />
+                    </svg>
+                    <div className="flex h-full flex-col-reverse">
+                      {missedStack.map((m) => (
+                        <div
+                          key={m.id}
+                          className="flex items-center justify-center overflow-hidden px-3 text-sm font-bold text-white [text-shadow:0_1px_3px_rgba(8,51,68,0.6)]"
+                          style={{ height: `${100 / startingLives}%`, fontFamily }}
+                        >
+                          {m.text}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
 
