@@ -53,18 +53,33 @@ test("the three cards render in Typing -> Stenography -> Efficiency order, above
 // column with lots of unused space beside them, and the Student Success
 // Story carousel (with its "Visit Samradhi Classes" info box) sat much
 // further down the page, disconnected from this section. Moved up to sit
-// beside the result cards as a second column (removed from its old spot,
-// appears once) -- deliberately tied to the same "has a result" condition
-// as the cards, per the user's own explicit choice, not shown standalone
-// for a logged-out visitor or one with no attempts yet.
-test("the Student Success Story carousel now sits beside the result cards as a second column, and only appears once (moved, not duplicated)", async () => {
+// beside the result cards as a second column, removed from its old spot.
+test("the Student Success Story carousel sits beside the result cards as a second column when a personalized result exists", async () => {
   const page = await read("app/page.tsx");
   assert.match(page, /grid gap-6 lg:grid-cols-2/);
-  const occurrences = page.match(/<StudentSuccessCarousel\s*\/>/g) ?? [];
-  assert.equal(occurrences.length, 1, "StudentSuccessCarousel must appear exactly once, not duplicated");
   const resultsGridIndex = page.indexOf("grid gap-6 lg:grid-cols-2");
   const carouselIndex = page.indexOf("<StudentSuccessCarousel");
   assert.ok(resultsGridIndex > 0 && carouselIndex > resultsGridIndex, "the carousel must be inside the two-column results grid");
+});
+
+// Real reported regression: pairing the carousel only with the results
+// column made it vanish entirely for a logged-out visitor or one with no
+// personalized result yet -- it must always be visible on the homepage.
+// Fixed by pairing it with Top Rankers in the same two-column layout in
+// the "no personalized result" branch too, so it renders exactly once at
+// runtime either way (the two branches are mutually exclusive), never
+// zero times and never duplicated.
+test("the Student Success Story carousel is never hidden entirely -- it also pairs with Top Rankers when there's no personalized result to show", async () => {
+  const page = await read("app/page.tsx");
+  const occurrences = page.match(/<StudentSuccessCarousel\s*\/>/g) ?? [];
+  assert.equal(occurrences.length, 2, "must appear once per branch (hasPersonalizedResults ? ... : ...), the two branches being mutually exclusive at runtime");
+  // The second occurrence (the else branch's) must sit in its own
+  // two-column grid alongside Top Rankers, not standalone.
+  const secondCarouselIndex = page.indexOf("<StudentSuccessCarousel", page.indexOf("<StudentSuccessCarousel") + 1);
+  const precedingGridIndex = page.lastIndexOf("grid gap-6 lg:grid-cols-2", secondCarouselIndex);
+  const precedingTopRankersIndex = page.lastIndexOf("<LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />", secondCarouselIndex);
+  assert.ok(precedingGridIndex > 0 && precedingGridIndex < secondCarouselIndex, "the second carousel must be inside a two-column grid");
+  assert.ok(precedingTopRankersIndex > precedingGridIndex && precedingTopRankersIndex < secondCarouselIndex, "Top Rankers must render before the second carousel, inside that same grid");
 });
 
 // Real reported follow-up: side-by-siding the Top Rankers podiums shrank
@@ -123,10 +138,11 @@ test("the 'Visit Samradhi Classes' contact box has moved into the site footer an
 // more Visit-Samradhi-Classes aside beside it), the result cards column
 // left a blank gap below it. Nesting Top Rankers into that same left
 // column (only when there's a personalized result to show) fills the
-// gap; for a visitor with no personalized result, Top Rankers keeps its
-// original full-width standalone placement so it's never hidden from
-// anyone.
-test("Top Rankers nests into the results column when a personalized result exists, and stays a full-width standalone section otherwise", async () => {
+// gap; for a visitor with no personalized result, Top Rankers renders in
+// the other branch instead -- now paired with the success-story carousel
+// in the same two-column layout (see the "never hidden entirely" test
+// above), so it's never hidden from anyone either way.
+test("Top Rankers nests into the results column when a personalized result exists, and renders in the other branch otherwise", async () => {
   const page = await read("app/page.tsx");
   assert.match(page, /const hasPersonalizedResults = Boolean\(typingResult \|\| stenographyResult \|\| efficiencyResult\);/);
   assert.match(page, /\{hasPersonalizedResults \? \(/);

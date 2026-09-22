@@ -276,7 +276,17 @@ export default async function Home() {
                   keeps the two columns visually balanced automatically as
                   the number of result cards or top rankers changes,
                   rather than depending on hand-tuned padding staying in
-                  sync with content that will keep changing. */}
+                  sync with content that will keep changing.
+
+                  Real reported regression: pairing the success-story
+                  carousel with the results column made it disappear
+                  entirely for a logged-out visitor or one with no
+                  personalized result yet (the else branch below used to
+                  render Top Rankers alone, full-width). It must always be
+                  visible on the homepage -- so the else branch now pairs
+                  it with Top Rankers in this same two-column layout
+                  instead, rather than going back to duplicating it in
+                  both branches or dropping this balanced layout. */}
               <div className="mt-3 grid gap-6 lg:grid-cols-2">
                 <div className="flex flex-col gap-4">
                   {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
@@ -295,10 +305,13 @@ export default async function Home() {
             </Reveal>
           ) : (
             <Reveal>
-              <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
-              <h2 className="mt-1 text-2xl font-black">Live-test leaderboard</h2>
-              <div className="mt-4">
-                <LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="flex flex-col">
+                  <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
+                  <h2 className="mt-1 text-2xl font-black">Live-test leaderboard</h2>
+                  <div className="mt-4 flex-1"><LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} /></div>
+                </div>
+                <StudentSuccessCarousel />
               </div>
             </Reveal>
           )}
