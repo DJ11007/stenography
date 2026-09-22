@@ -507,6 +507,15 @@ export function WordtrisGame({ words, characterPool }: Props) {
               </div>
             </div>
 
+            {/* Real reported request: the whole bucket/play-field assembly
+                (clouds, rim, rain lane, base plate) was too big -- shown a
+                red-boxed target size to match. Wrapped the whole assembly
+                in a shared, centered max-width (max-w-64) so every
+                percentage-sized piece inside (the rim, base plate) shrinks
+                together proportionately, and cut the rain lane's own
+                height roughly in half (h-[28rem]/sm:h-[34rem] ->
+                h-64/sm:h-80). */}
+            <div className="mx-auto max-w-64">
             {/* A small overlapping cluster of clouds drifts above the
                 bucket, each moving independently so they slide across and
                 past one another -- purely atmospheric, the drop visually
@@ -537,7 +546,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-3 left-0 z-20 w-2.5 rounded-full bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 sm:w-3" />
               <div className="pointer-events-none absolute inset-y-3 right-0 z-20 w-2.5 rounded-full bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 sm:w-3" />
-              <div className={`wordtris-rain-lane relative h-[28rem] overflow-hidden rounded-[2rem] ring-1 ring-slate-700 transition sm:h-[34rem] ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
+              <div className={`wordtris-rain-lane relative h-64 overflow-hidden rounded-[2rem] ring-1 ring-slate-700 transition sm:h-80 ${flash === "catch" ? "ring-4 ring-emerald-400" : flash === "miss" ? "ring-4 ring-rose-400" : ""}`}>
                 {AMBIENT_DROPS.map((drop, i) => (
                   <svg
                     key={i}
@@ -576,6 +585,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
 
             {/* Base plate. */}
             <div className="mx-auto -mt-2 h-3 w-[86%] rounded-full bg-gradient-to-b from-slate-500 to-slate-700 shadow-md sm:w-[82%]" />
+            </div>
 
             {/* Real reported request: this used to be a small "letters
                 left to type" readout, and the actual typing happened in a

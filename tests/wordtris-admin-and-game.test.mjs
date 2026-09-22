@@ -166,6 +166,21 @@ test("the hidden keystroke-capturing input refocuses itself immediately if it ev
   assert.match(game, /return \(\) => input\.removeEventListener\("blur", refocus\);/);
 });
 
+// Real reported request, with a red box drawn over a screenshot marking
+// the target size: the whole bucket/play-field assembly (clouds, rim,
+// rain lane, base plate) was too big. Wrapped the whole assembly in one
+// shared, centered max-width so every percentage-sized piece inside (the
+// rim, base plate) shrinks together proportionately instead of the rim
+// ending up wider than a separately-shrunk rain lane, and cut the rain
+// lane's own height roughly in half.
+test("the whole bucket assembly (clouds, rim, rain lane, base plate) is wrapped in one shared max-width, and the rain lane's height is cut roughly in half", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /<div className="mx-auto max-w-64">/);
+  assert.match(game, /wordtris-rain-lane relative h-64 overflow-hidden rounded-\[2rem\] ring-1 ring-slate-700 transition sm:h-80/);
+  assert.doesNotMatch(game, /rain-lane relative h-\[28rem\]/); // the original, oversized rain lane
+  assert.doesNotMatch(game, /transition sm:h-\[34rem\]/);
+});
+
 // Real reported reference: missed words stack up as their own labeled
 // block at the bottom of the bucket (like the reference game), one block
 // per life lost -- not a continuous fill level -- so six stacked misses
