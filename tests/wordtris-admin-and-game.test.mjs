@@ -61,25 +61,26 @@ test("the WordTris admin dashboard no longer links to a preview route, and Wordt
   assert.doesNotMatch(game, /previewMode/);
 });
 
-// Real reported request: the old ms-based curve (fixed base time shrinking
-// by a constant exponential factor per catch) had no relationship to a
-// real typing speed and felt too fast from the first drop. Replaced with
-// an explicit WPM milestone ladder: starts at the first milestone, every
-// WORDTRIS_CATCHES_PER_MILESTONE catches in a row advances to the next
-// rung, and a miss instead backs the WPM off by WORDTRIS_MISS_WPM_PENALTY
-// and restarts that catch count -- six missed drops (not five) end the
-// round either way.
-test("the difficulty curve is an explicit WPM milestone ladder -- starts slow, advances every 7 catches, eases off 3 WPM on a miss, six lives", async () => {
+// Real reported request: an explicit, continuous ADAPTIVE speed curve --
+// one clearly defined speed state (WPM), nudged by a small PERCENTAGE on
+// every single catch (+3%) or miss (-12%), replacing the milestone ladder
+// this used to be (flat until the 7th catch in a row, then a jump).
+// Min/start/max bound it; the two factors shape it -- five constants are
+// the entire curve. Six missed drops (not five) still end the round.
+test("the difficulty curve is a continuous percentage-based adaptive speed: +3% per catch, -12% per miss, bounded by min/start/max, six lives", async () => {
   const content = await read("lib/wordtris-content.ts");
-  assert.match(content, /WORDTRIS_WPM_MILESTONES = \[15, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30\]/);
-  assert.match(content, /WORDTRIS_CATCHES_PER_MILESTONE = 7/);
-  assert.match(content, /WORDTRIS_MISS_WPM_PENALTY = 3/);
+  assert.match(content, /WORDTRIS_START_WPM = 15/);
+  assert.match(content, /WORDTRIS_MIN_WPM = 10/);
+  assert.match(content, /WORDTRIS_MAX_WPM = 30/);
+  assert.match(content, /WORDTRIS_CATCH_SPEEDUP_FACTOR = 1\.03/);
+  assert.match(content, /WORDTRIS_MISS_SLOWDOWN_FACTOR = 0\.88/);
   assert.match(content, /WORDTRIS_STARTING_LIVES = 6/);
   assert.match(content, /export function wordtrisFallMs\(text: string, wpm: number, mode: WordtrisMode\)/);
-  assert.match(content, /export function wordtrisNextMilestone\(currentWpm: number\)/);
+  assert.match(content, /export function wordtrisSpeedUpOnCatch\(currentWpm: number\): number \{\s*\n\s*return Math\.min\(WORDTRIS_MAX_WPM, currentWpm \* WORDTRIS_CATCH_SPEEDUP_FACTOR\);/);
+  assert.match(content, /export function wordtrisSlowDownOnMiss\(currentWpm: number\): number \{\s*\n\s*return Math\.max\(WORDTRIS_MIN_WPM, currentWpm \* WORDTRIS_MISS_SLOWDOWN_FACTOR\);/);
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /catchesSinceBumpRef\.current \+= 1;/); // ramps up every N catches
-  assert.match(game, /const eased = Math\.max\(WORDTRIS_MIN_WPM, wpmRef\.current - WORDTRIS_MISS_WPM_PENALTY\);/); // eases off on miss
+  assert.match(game, /const next = wordtrisSpeedUpOnCatch\(wpmRef\.current\);/); // speeds up every catch
+  assert.match(game, /const eased = wordtrisSlowDownOnMiss\(wpmRef\.current\);/); // eases off on miss
   assert.match(game, /const fallMs = wordtrisFallMs\(target, wpmRef\.current, m\);/);
 });
 
@@ -129,15 +130,15 @@ test("the starting keystroke spawns the first drop synchronously (via the ref), 
   assert.match(game, /if \(awaitingFirstKey && !MODIFIER_ONLY_KEYS\.has\(event\.key\)\) \{\s*\n\s*setAwaitingFirstKey\(false\);\s*\n\s*spawnDrop\(mode, language\);\s*\n\s*\}/);
 });
 
-// Real reported request, follow-up: starting speed and the speed-up
-// interval were briefly made setup-screen settings, then explicitly
-// asked to be removed again -- both are fixed in code now
-// (WORDTRIS_WPM_MILESTONES[0], WORDTRIS_CATCHES_PER_MILESTONE), with no
-// setup-screen control for either.
-test("starting speed and the speed-up interval are fixed in code, with no setup-screen control for either", async () => {
+// Real reported request, follow-up: starting speed and the per-catch/
+// per-miss speed adjustment were briefly made setup-screen settings, then
+// explicitly asked to be removed again -- both are fixed in code now
+// (WORDTRIS_START_WPM, WORDTRIS_CATCH_SPEEDUP_FACTOR / WORDTRIS_MISS_
+// SLOWDOWN_FACTOR), with no setup-screen control for either.
+test("starting speed and the per-catch/per-miss speed adjustment are fixed in code, with no setup-screen control for either", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /wpmRef\.current = WORDTRIS_WPM_MILESTONES\[0\];/);
-  assert.match(game, /if \(catchesSinceBumpRef\.current >= WORDTRIS_CATCHES_PER_MILESTONE\) \{/);
+  assert.match(game, /wpmRef\.current = WORDTRIS_START_WPM;/);
+  assert.match(game, /const next = wordtrisSpeedUpOnCatch\(wpmRef\.current\);/);
   assert.doesNotMatch(game, /Starting speed</);
   assert.doesNotMatch(game, /Speed up every…</);
   assert.doesNotMatch(game, /setStartingWpm/);

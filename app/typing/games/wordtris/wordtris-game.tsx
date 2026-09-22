@@ -5,7 +5,7 @@ import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { getVerifiedHindiCommonKeys, isExactKrutiDevMatch, checkKrutiDevKeystrokes } from "@/lib/kruti-dev-word-bank";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
-import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
+import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_START_WPM, wordtrisFallMs, wordtrisSpeedUpOnCatch, wordtrisSlowDownOnMiss, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from "./actions";
 
@@ -148,7 +148,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // Current typing speed the falling drop is paced to, in real WPM (see
   // lib/wordtris-content.ts) -- shown live in the HUD, adjustable from the
   // setup screen before a round starts.
-  const [wpm, setWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
+  const [wpm, setWpm] = useState<number>(WORDTRIS_START_WPM);
   // Real reported request: clicking Start used to drop the first word
   // immediately -- now the play field appears paused ("Press any key to
   // start") and nothing falls until the student's first keystroke.
@@ -180,8 +180,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // still a fresh random shuffle every time the pool runs out.
   const poolSequentialRef = useRef(false);
   const nextIdRef = useRef(0);
-  const wpmRef = useRef<number>(WORDTRIS_WPM_MILESTONES[0]);
-  const catchesSinceBumpRef = useRef(0);
+  const wpmRef = useRef<number>(WORDTRIS_START_WPM);
   const activeDropRef = useRef<ActiveDrop | null>(null);
   useEffect(() => { wpmRef.current = wpm; }, [wpm]);
 
@@ -249,9 +248,8 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setWordsCaught(0);
     setStreak(0);
     setMissedStack([]);
-    wpmRef.current = WORDTRIS_WPM_MILESTONES[0];
-    setWpm(WORDTRIS_WPM_MILESTONES[0]);
-    catchesSinceBumpRef.current = 0;
+    wpmRef.current = WORDTRIS_START_WPM;
+    setWpm(WORDTRIS_START_WPM);
     setTyped("");
     setSubmitted(false);
     setAwaitingFirstKey(true);
@@ -271,15 +269,14 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setTyped("");
     setFlash("catch");
     window.setTimeout(() => setFlash(null), 300);
-    // Every WORDTRIS_CATCHES_PER_MILESTONE catches in a row advances the
-    // WPM to the next rung on the ladder -- see lib/wordtris-content.ts.
-    catchesSinceBumpRef.current += 1;
-    if (catchesSinceBumpRef.current >= WORDTRIS_CATCHES_PER_MILESTONE) {
-      catchesSinceBumpRef.current = 0;
-      const next = wordtrisNextMilestone(wpmRef.current);
-      wpmRef.current = next;
-      setWpm(next);
-    }
+    // Every catch nudges the speed up a small percentage -- applied here,
+    // between drops, so it only ever takes effect on the NEXT spawn (see
+    // spawnDrop's spawn-time-only read of wpmRef.current); the drop that
+    // was just caught already had its own fall duration fixed for its
+    // entire fall. See lib/wordtris-content.ts for the one tunable curve.
+    const next = wordtrisSpeedUpOnCatch(wpmRef.current);
+    wpmRef.current = next;
+    setWpm(next);
   }, []);
 
   const onMiss = useCallback((dropId: number) => {
@@ -299,12 +296,17 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setMissedStack((s) => [...s, { id: missed.id, text: missed.target }]);
     setSplash(missed.id);
     window.setTimeout(() => setSplash((id) => (id === missed.id ? null : id)), 550);
-    // A miss backs the WPM off and restarts the catch count toward the
-    // next milestone, so climbing back up always retraces the ladder.
-    catchesSinceBumpRef.current = 0;
-    const eased = Math.max(WORDTRIS_MIN_WPM, wpmRef.current - WORDTRIS_MISS_WPM_PENALTY);
+    // A miss eases the speed back down a larger percentage -- same
+    // next-word-only timing as the catch speed-up above. Not a reset to
+    // WORDTRIS_START_WPM: the student keeps most of the ground they'd
+    // built up and climbs back from here, rather than starting over.
+    const eased = wordtrisSlowDownOnMiss(wpmRef.current);
     wpmRef.current = eased;
     setWpm(eased);
+    // WORDTRIS_STARTING_LIVES doubles as the miss cap -- the sixth miss
+    // (lives reaching 0) ends the round; the guard above (missed.id !==
+    // dropId) already ensures this only ever runs once per real miss, so
+    // this count can't be double-incremented.
     setLives((l) => {
       const left = l - 1;
       if (left <= 0) setStep("gameover");
@@ -524,10 +526,12 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 <p className="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">Every letter{language === "hindi" ? " and मात्रा" : ""} key on the {language === "hindi" ? "Kruti Dev" : "English"} keyboard, dropped one at a time.</p>
               )}
 
-              {/* Real reported request: starting speed and the speed-up
-                  interval used to be adjustable here -- both are fixed in
-                  code now (WORDTRIS_WPM_MILESTONES[0], WORDTRIS_CATCHES_
-                  PER_MILESTONE), not exposed as a setting. */}
+              {/* Real reported request: starting speed and the per-catch/
+                  per-miss speed adjustment used to be adjustable here --
+                  both are fixed in code now (WORDTRIS_START_WPM,
+                  WORDTRIS_CATCH_SPEEDUP_FACTOR, WORDTRIS_MISS_SLOWDOWN_
+                  FACTOR in lib/wordtris-content.ts), not exposed as a
+                  setting. */}
 
               <button type="button" onClick={() => startRound(mode, language, category)} className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-3 text-base font-black text-white shadow-lg transition hover:bg-slate-800">Start →</button>
             </div>
@@ -545,7 +549,15 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 ))}
               </div>
               <div className="flex items-center gap-4 text-sm font-black text-slate-700">
-                <span>Speed <b className="text-lg text-slate-950">{wpm} WPM</b></span>
+                {/* Real bug found during verification: the speed state is
+                    now a continuously-compounding float (15 * 1.03^n),
+                    not always a clean integer like the old milestone
+                    ladder produced -- displaying it raw showed "Speed
+                    15.450000000000001 WPM". Rounded for display only;
+                    wpmRef/wpm themselves stay full-precision so repeated
+                    +3%/-12% adjustments keep compounding accurately
+                    instead of drifting from rounding each step. */}
+                <span>Speed <b className="text-lg text-slate-950">{Math.round(wpm)} WPM</b></span>
                 <span>Score <b className="text-lg text-slate-950">{score}</b></span>
                 <span>Streak <b className="text-lg text-slate-950">{streak}</b></span>
               </div>

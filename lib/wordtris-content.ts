@@ -37,25 +37,31 @@ export function wordtrisPoints(word: string) {
   return 10 + [...word].length * 2;
 }
 
-// Real reported request: the previous curve (a fixed base fall time
-// shrinking by a constant exponential factor per catch) had no real
-// relationship to an actual typing speed, and felt too fast from the very
-// first drop. This is an explicit WPM ("words per minute") curve instead --
-// every drop's fall time is computed FROM a target WPM (the standard
-// formula: one "word" = 5 characters), so "speed" is always describable in
-// the same units a student already understands, and the ramp shape is a
-// plain, tunable milestone list rather than an opaque exponent. A round
-// starts at the first milestone; every WORDTRIS_CATCHES_PER_MILESTONE
-// catches in a row advances to the next (bigger jumps early, smaller ones
-// as it approaches the cap); a miss instead backs the WPM off by
-// WORDTRIS_MISS_WPM_PENALTY and restarts that catch count, so recovering
-// back up always retraces the same ladder. Six missed drops (not five)
-// end the round.
-export const WORDTRIS_WPM_MILESTONES = [15, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30] as const;
-export const WORDTRIS_CATCHES_PER_MILESTONE = 7;
-export const WORDTRIS_MISS_WPM_PENALTY = 3;
-export const WORDTRIS_STARTING_LIVES = 6;
+// Real reported request: an explicit, continuous ADAPTIVE speed curve --
+// one clearly defined speed state (WPM, "words per minute", the same unit
+// the HUD already shows and wordtrisFallMs already converts to a fall
+// duration), nudged by a small PERCENTAGE on every single catch or miss,
+// rather than the milestone ladder this replaced (flat until the 7th
+// catch in a row, then a jump). A percentage keeps the ramp gradual and
+// self-relative: the same 3% speed-up is a small nudge early on and a
+// slightly bigger one once the student is already fast, and the 12%
+// slow-down on a miss eases them back toward a speed they can actually
+// recover from instead of a flat penalty that would hit hardest exactly
+// when they're already struggling near the floor. These five constants
+// are the ENTIRE curve -- min/start/max bound it, the two factors shape
+// it -- change any of them to retune difficulty without touching game
+// logic (see wordtrisSpeedUpOnCatch / wordtrisSlowDownOnMiss below, and
+// their call sites in wordtris-game.tsx's onCatch/onMiss).
+export const WORDTRIS_START_WPM = 15;
 export const WORDTRIS_MIN_WPM = 10;
+export const WORDTRIS_MAX_WPM = 30;
+export const WORDTRIS_CATCH_SPEEDUP_FACTOR = 1.03; // +3% per successful catch
+export const WORDTRIS_MISS_SLOWDOWN_FACTOR = 0.88; // -12% per miss
+// Six missed drops (not five) end the round -- see WORDTRIS_STARTING_LIVES
+// below, which doubles as both "lives left" and "misses stacked in the
+// bucket" (they move in lockstep: every miss consumes exactly one life
+// and adds exactly one block, see onMiss).
+export const WORDTRIS_STARTING_LIVES = 6;
 
 // Reading/reaction time added on top of the raw keystroke time a drop's own
 // text would take at the current WPM -- a real student needs to *see* and
@@ -73,12 +79,23 @@ export function wordtrisFallMs(text: string, wpm: number, mode: WordtrisMode) {
   return Math.max(WORDTRIS_MIN_FALL_MS, WORDTRIS_READING_BUFFER_MS[mode] + typingMs);
 }
 
-// The next rung up the ladder from the current WPM -- used both for the
-// normal every-7-catches advance and for climbing back up after a miss
-// knocked the WPM down mid-ladder. Caps at the top milestone.
-export function wordtrisNextMilestone(currentWpm: number): number {
-  const next = WORDTRIS_WPM_MILESTONES.find((m) => m > currentWpm);
-  return next ?? WORDTRIS_WPM_MILESTONES[WORDTRIS_WPM_MILESTONES.length - 1];
+// Called once per successful catch (never mid-fall -- the caller only
+// ever reads/writes this between drops, see spawnDrop's spawn-time-only
+// read of the current speed in wordtris-game.tsx). A plain multiply, so
+// repeated catches compound smoothly instead of adding a flat amount
+// each time; clamped so a long streak can't overshoot the configured
+// ceiling.
+export function wordtrisSpeedUpOnCatch(currentWpm: number): number {
+  return Math.min(WORDTRIS_MAX_WPM, currentWpm * WORDTRIS_CATCH_SPEEDUP_FACTOR);
+}
+
+// Called once per miss. A percentage of the CURRENT speed (not a flat
+// subtraction) -- an already-slow round eases back by a proportionally
+// smaller amount than a fast one, so one more miss near the floor can't
+// overshoot past it the way a flat penalty could; clamped to the
+// configured floor regardless.
+export function wordtrisSlowDownOnMiss(currentWpm: number): number {
+  return Math.max(WORDTRIS_MIN_WPM, currentWpm * WORDTRIS_MISS_SLOWDOWN_FACTOR);
 }
 
 export const BUNDLED_WORDS: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> = {
