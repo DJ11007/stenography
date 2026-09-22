@@ -2,15 +2,24 @@ import { createClient } from "@/lib/supabase/server";
 import { LiveResultsByLanguage } from "@/app/_components/live-results-by-language";
 import { BackButton } from "@/app/_components/back-button";
 import { LiveTestList, type LiveTest } from "./live-test-list";
-import { getPublishedLiveResults, getLiveEfficiencyTests } from "@/lib/live-test-results-server";
+import { LiveResultDateTabs } from "./live-result-date-tabs";
+import { getPublishedLiveResultDates, getPublishedLiveResultsByDate, getLiveEfficiencyTests } from "@/lib/live-test-results-server";
 
-export default async function LiveTestCentre(){
+export default async function LiveTestCentre({ searchParams }: { searchParams: Promise<{ date?: string }> }){
   const supabase=await createClient();
-  const[{data:tests},results,efficiencyTests]=await Promise.all([
+  const params = await searchParams;
+  const[{data:tests},resultDates,efficiencyTests]=await Promise.all([
     supabase.from("tests").select("id,title,slug,description,language,mode,duration_seconds,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes,is_live").eq("status","published").eq("visibility","public").eq("is_live",true).order("live_starts_at",{ascending:false}),
-    getPublishedLiveResults(30),
+    getPublishedLiveResultDates(90),
     getLiveEfficiencyTests(),
   ]);
+  // Real requested feature: a result from a few days back used to scroll
+  // off the old "latest 30 overall" ticker and become unfindable. Default
+  // to the most recent day that actually has a published result; an
+  // unrecognized/stale ?date= (or none at all when nothing's ever been
+  // published) falls back the same way.
+  const selectedDate = params.date && resultDates.includes(params.date) ? params.date : resultDates[0];
+  const results = selectedDate ? await getPublishedLiveResultsByDate(selectedDate) : [];
   // Typing/Stenography are both rows in public.tests (a genuinely public
   // table today); Efficiency tests come from the separate, RLS-restricted
   // word/excel tables via a SECURITY DEFINER RPC (see the migration's own
@@ -34,5 +43,5 @@ export default async function LiveTestCentre(){
       startHref: `/typing/${test.subject}-efficiency/${test.language.toLowerCase()}/${test.id}/instructions`, resultsHref: "/student/results",
     })),
   ];
-  return <main className="min-h-screen bg-slate-100"><section className="bg-gradient-to-br from-blue-800 to-indigo-950 px-4 py-12 text-white"><div className="mx-auto max-w-7xl"><BackButton href="/typing" label="Typing Hub" dark/><p className="mt-6 text-sm font-black uppercase tracking-[.2em] text-blue-200">Free for registered students</p><h1 className="mt-3 text-4xl font-black sm:text-5xl">Samradhi Live Test Centre</h1><p className="mt-4 max-w-3xl text-blue-100">Join during the scheduled window (or anytime, for tests marked Anytime), submit one secure attempt, and see your own result once it unlocks.</p></div></section><section className="mx-auto max-w-7xl px-4 py-10"><h2 className="text-2xl font-black">Scheduled live tests</h2><div className="mt-5">{entries.length?<LiveTestList tests={entries}/>:<p className="rounded-2xl bg-white p-7 text-slate-600 shadow">No free live test is scheduled yet. Please check again soon.</p>}</div><div className="mt-12 flex items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Released leaderboard</p><h2 className="mt-1 text-2xl font-black">Latest student results</h2></div></div><div className="mt-5"><LiveResultsByLanguage results={results}/></div><p className="mt-4 text-xs text-slate-500">Results appear automatically only after the administrator-scheduled publication time.</p></section></main>;
+  return <main className="min-h-screen bg-slate-100"><section className="bg-gradient-to-br from-blue-800 to-indigo-950 px-4 py-12 text-white"><div className="mx-auto max-w-7xl"><BackButton href="/typing" label="Typing Hub" dark/><p className="mt-6 text-sm font-black uppercase tracking-[.2em] text-blue-200">Free for registered students</p><h1 className="mt-3 text-4xl font-black sm:text-5xl">Samradhi Live Test Centre</h1><p className="mt-4 max-w-3xl text-blue-100">Join during the scheduled window (or anytime, for tests marked Anytime), submit one secure attempt, and see your own result once it unlocks.</p></div></section><section className="mx-auto max-w-7xl px-4 py-10"><h2 className="text-2xl font-black">Scheduled live tests</h2><div className="mt-5">{entries.length?<LiveTestList tests={entries}/>:<p className="rounded-2xl bg-white p-7 text-slate-600 shadow">No free live test is scheduled yet. Please check again soon.</p>}</div><div id="results" className="mt-12 flex items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Released leaderboard</p><h2 className="mt-1 text-2xl font-black">Student results by date</h2></div></div>{resultDates.length>0&&<LiveResultDateTabs dates={resultDates} selected={selectedDate}/>}<div className="mt-5"><LiveResultsByLanguage results={results}/></div><p className="mt-4 text-xs text-slate-500">Results appear automatically only after the administrator-scheduled publication time.</p></section></main>;
 }

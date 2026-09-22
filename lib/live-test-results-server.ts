@@ -20,10 +20,7 @@ export async function getPublishedLiveResults(limit = 30): Promise<PublicLiveRes
   return (data ?? []) as PublicLiveResult[];
 }
 
-// Per-language top-3 podium for the homepage -- the one narrow, approved
-// exception where a real name (not the usual X••• anonymization) is
-// shown, scoped to just the top few ranks. See published_live_results
-// above for the still-anonymized general results feed.
+// Per-language top-3 podium for the homepage.
 export async function getLiveTestTopRankers(language: string, limit = 3): Promise<LiveTestTopRanker[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("published_live_test_top_rankers", { p_language: language, p_limit: limit });
@@ -36,4 +33,24 @@ export async function getLiveEfficiencyTests(): Promise<LiveEfficiencyTest[]> {
   const { data, error } = await supabase.rpc("published_live_efficiency_tests");
   if (error) { logRpcFailure("Live efficiency tests listing failed", error); return []; }
   return (data ?? []) as LiveEfficiencyTest[];
+}
+
+// Real requested feature: published_live_results only ever returns the
+// latest 30 rows overall, so a result from a few days back becomes
+// unfindable once enough newer attempts pile up. These two power a date
+// browser on /live-test -- dates() lists which IST calendar days actually
+// have a published result (so the picker never offers an empty day), and
+// byDate() returns that whole day's results, uncapped by the 30-row limit.
+export async function getPublishedLiveResultDates(limit = 90): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("published_live_result_dates", { p_limit: limit });
+  if (error) { logRpcFailure("Live result dates listing failed", error); return []; }
+  return (data ?? []).map((row: { result_date: string }) => row.result_date);
+}
+
+export async function getPublishedLiveResultsByDate(date: string, limit = 200): Promise<PublicLiveResult[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("published_live_results_by_date", { p_date: date, p_limit: limit });
+  if (error) { logRpcFailure(`Live results by date listing failed (${date})`, error); return []; }
+  return (data ?? []) as PublicLiveResult[];
 }
