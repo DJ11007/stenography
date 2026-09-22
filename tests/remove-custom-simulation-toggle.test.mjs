@@ -28,7 +28,7 @@ test("the workspace toolbar no longer shows an Official Preset / Custom Simulati
 test("attemptVariant still exists and still governs rule-locking internally -- only the visible toggle/badge were removed, not the underlying behavior", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(workspace, /const \[attemptVariant\] = useState<AttemptVariant>\(mode === "practice" \|\| customPreset \? "custom" : "official"\);/);
-  assert.match(workspace, /const durationLocked = attemptVariant === "official"/);
+  assert.match(workspace, /const durationLocked = \(\(attemptVariant === "official"/);
   // rulesLocked is now hoisted into its own named const (reused by the new
   // passage-word-count feature's lock computation too) instead of being
   // computed inline at the ExamWorkspace call site -- same expression, same

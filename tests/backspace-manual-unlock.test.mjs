@@ -30,6 +30,18 @@ test("manualUnlock state exists, is only offered before the timer starts, and fo
   assert.equal(wordMethodMatches.length, 2, "expected the useEffect initializer and start() to both apply the manual unlock to wordMethod");
 });
 
+// Real reported gap: the unlock button already covered Highlight/Backspace/
+// Word calculation but left Duration forced to the official/managed test's
+// fixed value regardless -- an admin explicitly asked for "unlock" to mean
+// every official rule, duration included. timerStarted still overrides it
+// unconditionally (you can never change a running countdown), matching the
+// pre-existing behavior that already made duration re-lock once typing starts.
+test("manualUnlock also frees Duration (both activeDurationSeconds and durationLocked), not just Highlight/Backspace/Word calculation, and can never override a timer that has actually started", async () => {
+  const source = await read("app/typing/_components/configurable-typing-exam.tsx");
+  assert.match(source, /const activeDurationSeconds = \(attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\)\) && !manualUnlock \? preset\.durationSeconds : preferences\.durationMinutes \* 60;/);
+  assert.match(source, /const durationLocked = \(\(attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\)\) && !manualUnlock\) \|\| timerStarted;/);
+});
+
 test("backspaceLocked and wordMethodLocked (not the blanket rulesLocked) thread through ExamWorkspace to gate their own controls and the reset button", async () => {
   const source = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(source, /backspaceLocked: boolean; wordMethodLocked: boolean; manualUnlock: boolean; onManualUnlockChange\?: \(value: boolean\) => void;/);

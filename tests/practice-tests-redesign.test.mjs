@@ -62,7 +62,7 @@ test("the server derives duration/wpm/accuracy/backspace from the chosen exam ca
 
 test("a practice-mode managed test's duration is no longer forced to the admin's fixed value (real fix -- it used to be, even though the UI showed it as editable)", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
-  assert.match(workspace, /const activeDurationSeconds = attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\) \? preset\.durationSeconds : preferences\.durationMinutes \* 60;/);
+  assert.match(workspace, /const activeDurationSeconds = \(attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\)\) && !manualUnlock \? preset\.durationSeconds : preferences\.durationMinutes \* 60;/);
   // Every other managed mode still forces it: managedRulesLocked is true for
   // everything except practice-non-live (see managedTestSettingsLocks), so
   // Boolean(managedTest) && managedRulesLocked is unchanged (still true) for
@@ -110,7 +110,7 @@ test("directWorkspace (the practice-hub entry point every student actually uses,
 
 test("duration can be changed from the in-workspace Settings popup too (not just ExamStart, which directWorkspace students never see), and locks once typing has actually started", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
-  assert.match(workspace, /const durationLocked = attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\) \|\| timerStarted;/);
+  assert.match(workspace, /const durationLocked = \(\(attemptVariant === "official" \|\| matterPreset \|\| \(Boolean\(managedTest\) && managedRulesLocked\)\) && !manualUnlock\) \|\| timerStarted;/);
   assert.match(workspace, /const changeDuration = \(minutes: number\) => \{ updatePreferences\(\{ durationMinutes: minutes \}\); if \(!timerStarted\) setTimeLeft\(minutes \* 60\); \};/);
   assert.match(workspace, /durationMinutes=\{activeDurationSeconds \/ 60\} durationLocked=\{durationLocked\} onDurationChange=\{changeDuration\}/);
   const settingsPanel = await read("app/typing/_components/universal-typing-settings.tsx");

@@ -108,7 +108,15 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // it for ALL managed tests including practice, which is the bug this fixes
   // -- the duration field already rendered "unlocked" for practice tests,
   // but the timer ran on the admin's fixed value regardless.
-  const activeDurationSeconds = attemptVariant === "official" || matterPreset || (Boolean(managedTest) && managedRulesLocked) ? preset.durationSeconds : preferences.durationMinutes * 60;
+  // Real reported request: "Unlock official rules for this attempt"
+  // already frees Highlight/Backspace/Word calculation (see
+  // highlightLocked/backspaceLocked/wordMethodLocked below) but left
+  // Duration forced to the preset's fixed value regardless -- the
+  // admin wants unlock to mean ALL official rules, duration included.
+  // manualUnlock only ever matters once it's actually possible to
+  // toggle it (started && !timerStarted -- see onManualUnlockChange
+  // below), so this can't let a running attempt's timer change.
+  const activeDurationSeconds = (attemptVariant === "official" || matterPreset || (Boolean(managedTest) && managedRulesLocked)) && !manualUnlock ? preset.durationSeconds : preferences.durationMinutes * 60;
   const [inputSystemId, setInputSystemId] = useState(preset.inputSystems[0].id);
   const [fontCheck, setFontCheck] = useState<{ id: string; available: boolean } | null>(null);
   const inputSystem = preset.inputSystems.find((system) => system.id === inputSystemId) ?? preset.inputSystems[0];
@@ -215,13 +223,16 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"]; if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode; if (manualUnlock) resolved.wordMethod = preferences.wordMethod; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
   const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
   // Duration is only actually changeable through this same set of
-  // conditions that stop activeDurationSeconds from being forced -- plus
-  // once the timer has genuinely started, since changing it mid-attempt
-  // would desync the running countdown. This is what lets a practice
-  // student (who reaches the workspace directly via directWorkspace and
-  // never sees ExamStart's own duration picker) still change it, from the
+  // conditions that stop activeDurationSeconds from being forced (now
+  // including manualUnlock, so "Unlock official rules for this attempt"
+  // covers duration too, not just Highlight/Backspace/Word calculation)
+  // -- plus once the timer has genuinely started, since changing it
+  // mid-attempt would desync the running countdown; that part is never
+  // overridable by manualUnlock. This is what lets a practice student
+  // (who reaches the workspace directly via directWorkspace and never
+  // sees ExamStart's own duration picker) still change it, from the
   // in-workspace Settings popup, before they start typing.
-  const durationLocked = attemptVariant === "official" || matterPreset || (Boolean(managedTest) && managedRulesLocked) || timerStarted;
+  const durationLocked = ((attemptVariant === "official" || matterPreset || (Boolean(managedTest) && managedRulesLocked)) && !manualUnlock) || timerStarted;
   const changeDuration = (minutes: number) => { updatePreferences({ durationMinutes: minutes }); if (!timerStarted) setTimeLeft(minutes * 60); };
   // The student can submit at any point, at whatever length -- the only
   // thing blocked outright is a genuinely empty attempt, which would score
