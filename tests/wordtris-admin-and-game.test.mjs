@@ -92,8 +92,51 @@ test("only one drop is ever active at a time, and the next one spawns shortly af
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /const \[activeDrop, setActiveDrop\] = useState<ActiveDrop \| null>\(null\);/);
   assert.match(game, /if \(activeDropRef\.current\) return;/);
-  assert.match(game, /if \(step !== "playing" \|\| activeDrop\) return;/);
+  assert.match(game, /if \(step !== "playing" \|\| activeDrop \|\| awaitingFirstKey\) return;/);
   assert.match(game, /window\.setTimeout\(\(\) => spawnDrop\(mode, language\), NEXT_DROP_DELAY_MS\);/);
+});
+
+// Real reported request: clicking Start used to drop the first word the
+// instant the play field appeared. Now it waits, showing "Press any key
+// to start", until the student's own first real keystroke (a lone
+// modifier like Shift doesn't count) -- confirmed here by the spawn
+// effect's own added guard and the keydown handler that clears it.
+test("the first drop doesn't fall until the student's first keystroke, not the instant Start is clicked", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const \[awaitingFirstKey, setAwaitingFirstKey\] = useState\(false\);/);
+  assert.match(game, /setAwaitingFirstKey\(true\);\s*\n\s*setStep\("playing"\);/); // startRound arms it
+  assert.match(game, /if \(awaitingFirstKey && !MODIFIER_ONLY_KEYS\.has\(event\.key\)\) setAwaitingFirstKey\(false\);/);
+  assert.match(game, /Press any key to start/);
+});
+
+// Real reported request: the ladder step (how many catches in a row
+// before the speed bumps up) used to be the fixed WORDTRIS_CATCHES_PER_
+// MILESTONE constant. Now adjustable at setup, same +/- pattern as
+// starting speed, 7-10 (WORDTRIS_MIN/MAX_CATCHES_PER_MILESTONE).
+test("how often the speed steps up (7-10 catches) is adjustable at setup, not a fixed constant", async () => {
+  const content = await read("lib/wordtris-content.ts");
+  assert.match(content, /WORDTRIS_MIN_CATCHES_PER_MILESTONE = 7/);
+  assert.match(content, /WORDTRIS_MAX_CATCHES_PER_MILESTONE = 10/);
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const \[catchesPerMilestone, setCatchesPerMilestone\] = useState<number>\(WORDTRIS_CATCHES_PER_MILESTONE\);/);
+  assert.match(game, /if \(catchesSinceBumpRef\.current >= catchesPerMilestoneRef\.current\) \{/);
+  assert.match(game, /setCatchesPerMilestone\(\(c\) => Math\.max\(WORDTRIS_MIN_CATCHES_PER_MILESTONE, c - 1\)\)/);
+  assert.match(game, /setCatchesPerMilestone\(\(c\) => Math\.min\(WORDTRIS_MAX_CATCHES_PER_MILESTONE, c \+ 1\)\)/);
+});
+
+// Real reported request: the separate bordered "type here" input box is
+// gone -- the enlarged readout below the bucket is now the visible
+// typing surface, showing the FULL word with the typed-so-far portion
+// changed to a different COLOR (not removed from view), clearing only
+// once the word is actually caught. The real input still exists (needed
+// to reliably capture keystrokes/mobile keyboards) but is visually
+// hidden, not shown as its own box.
+test("the falling word's readout below the bucket shows the full word with typed letters colored, not truncated, and there's no separate visible input box", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /<span className="text-emerald-600">\{activeDrop\.target\.slice\(0, typedLength\)\}<\/span>/);
+  assert.match(game, /<span className="text-slate-900">\{activeDrop\.target\.slice\(typedLength\)\}<\/span>/);
+  assert.doesNotMatch(game, /border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500/); // the old visible input box styling
+  assert.match(game, /className="absolute h-px w-px overflow-hidden whitespace-nowrap opacity-0"/); // the real input, now visually hidden
 });
 
 // Real reported reference: missed words stack up as their own labeled

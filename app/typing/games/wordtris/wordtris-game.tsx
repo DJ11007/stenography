@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
-import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
+import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MIN_CATCHES_PER_MILESTONE, WORDTRIS_MAX_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from "./actions";
 
@@ -32,6 +32,12 @@ const AMBIENT_DROPS = Array.from({ length: 5 }, (_, i) => ({
 // lanes -- the next one spawns shortly after the current one resolves
 // (caught or missed). See the spawn effect in WordtrisGame.
 const NEXT_DROP_DELAY_MS = 250;
+
+// Keys that shouldn't, by themselves, count as "the student started
+// typing" for the awaiting-first-key gate below -- a lone modifier is
+// almost always incidental (adjusting posture, a stuck Shift), not an
+// actual attempt to type the falling word.
+const MODIFIER_ONLY_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Tab"]);
 
 function shuffledPool(list: string[]) {
   const pool = [...list];
@@ -143,6 +149,15 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // setup screen before a round starts.
   const [wpm, setWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
   const [startingWpm, setStartingWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
+  // Real reported request: this was a fixed 7-catch ladder step; now
+  // adjustable at setup, same +/- control as starting speed.
+  const [catchesPerMilestone, setCatchesPerMilestone] = useState<number>(WORDTRIS_CATCHES_PER_MILESTONE);
+  const catchesPerMilestoneRef = useRef<number>(WORDTRIS_CATCHES_PER_MILESTONE);
+  useEffect(() => { catchesPerMilestoneRef.current = catchesPerMilestone; }, [catchesPerMilestone]);
+  // Real reported request: clicking Start used to drop the first word
+  // immediately -- now the play field appears paused ("Press any key to
+  // start") and nothing falls until the student's first keystroke.
+  const [awaitingFirstKey, setAwaitingFirstKey] = useState(false);
   // Real reported reference: only one word falls at a time, dead center --
   // not several concurrent lanes -- so there is at most one active drop.
   const [activeDrop, setActiveDrop] = useState<ActiveDrop | null>(null);
@@ -235,6 +250,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
     catchesSinceBumpRef.current = 0;
     setTyped("");
     setSubmitted(false);
+    setAwaitingFirstKey(true);
     setStep("playing");
     if (m === "character") {
       try { setPersonalBest(Number(localStorage.getItem(`wordtris-best-character-${lang}`)) || null); } catch { setPersonalBest(null); }
@@ -251,10 +267,11 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setTyped("");
     setFlash("catch");
     window.setTimeout(() => setFlash(null), 300);
-    // Every WORDTRIS_CATCHES_PER_MILESTONE catches in a row advances the
-    // WPM to the next rung on the ladder -- see lib/wordtris-content.ts.
+    // Every catchesPerMilestone catches in a row advances the WPM to the
+    // next rung on the ladder -- see lib/wordtris-content.ts. Admin/student
+    // adjustable at setup (7-10), default WORDTRIS_CATCHES_PER_MILESTONE.
     catchesSinceBumpRef.current += 1;
-    if (catchesSinceBumpRef.current >= WORDTRIS_CATCHES_PER_MILESTONE) {
+    if (catchesSinceBumpRef.current >= catchesPerMilestoneRef.current) {
       catchesSinceBumpRef.current = 0;
       const next = wordtrisNextMilestone(wpmRef.current);
       wpmRef.current = next;
@@ -294,12 +311,14 @@ export function WordtrisGame({ words, characterPool }: Props) {
 
   // The next drop spawns a short beat after the field is clear (caught or
   // missed) -- not on a separate spawn-interval schedule, since only one
-  // is ever on screen at a time.
+  // is ever on screen at a time. Held off entirely while awaitingFirstKey
+  // -- the very first drop only spawns once the student actually presses
+  // a key, not the instant they click Start.
   useEffect(() => {
-    if (step !== "playing" || activeDrop) return;
+    if (step !== "playing" || activeDrop || awaitingFirstKey) return;
     const timer = window.setTimeout(() => spawnDrop(mode, language), NEXT_DROP_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [step, activeDrop, mode, language, spawnDrop]);
+  }, [step, activeDrop, mode, language, spawnDrop, awaitingFirstKey]);
 
   useEffect(() => {
     if (step === "playing") requestAnimationFrame(() => inputRef.current?.focus());
@@ -380,6 +399,10 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // real continuation of the target phrase, so it's left to type
   // normally instead of being intercepted.
   const handleTypedKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // Real reported request: the first drop shouldn't fall the instant
+    // Start is clicked -- the play field waits until the student actually
+    // presses a key (any real key, not just a lone modifier).
+    if (awaitingFirstKey && !MODIFIER_ONLY_KEYS.has(event.key)) setAwaitingFirstKey(false);
     if (event.key !== " " && event.code !== "Space") return;
     const activeDrop = activeDropRef.current;
     const isCompleteMatch = Boolean(activeDrop) && dropText(activeDrop!) === normalize(typed);
@@ -390,12 +413,11 @@ export function WordtrisGame({ words, characterPool }: Props) {
   };
 
   // How many of the falling word's own characters are "typed so far" --
-  // drives both the letter-by-letter bold feedback in FallingDropView and
-  // the "remaining letters" readout below the bucket. handleTyped already
+  // drives the letter-by-letter color feedback in both FallingDropView
+  // and the enlarged readout below the bucket. handleTyped already
   // guarantees `typed` is always a valid prefix of the active drop, so
   // this is just its length.
   const typedLength = activeDrop ? typed.length : 0;
-  const remainingText = activeDrop ? activeDrop.target.slice(typed.length) : "";
 
   const displayCategories = CATEGORIES;
 
@@ -454,7 +476,15 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 <span className="flex-1 text-center text-sm font-black text-slate-800">{startingWpm} WPM</span>
                 <button type="button" onClick={() => setStartingWpm((w) => Math.min(WORDTRIS_MAX_WPM, w + 1))} aria-label="Increase starting speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">+</button>
               </div>
-              <p className="mt-1.5 text-xs text-slate-500">Drops start paced to this real typing speed, then speed up every {WORDTRIS_CATCHES_PER_MILESTONE} catches -- and ease back off after a miss.</p>
+              <p className="mt-1.5 text-xs text-slate-500">Drops start paced to this real typing speed, then speed up every {catchesPerMilestone} catches -- and ease back off after a miss.</p>
+
+              <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Speed up every…</p>
+              <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">
+                <button type="button" onClick={() => setCatchesPerMilestone((c) => Math.max(WORDTRIS_MIN_CATCHES_PER_MILESTONE, c - 1))} aria-label="Speed up less often" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">−</button>
+                <span className="flex-1 text-center text-sm font-black text-slate-800">{catchesPerMilestone} catches</span>
+                <button type="button" onClick={() => setCatchesPerMilestone((c) => Math.min(WORDTRIS_MAX_CATCHES_PER_MILESTONE, c + 1))} aria-label="Speed up more often" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">+</button>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">How many words in a row you have to catch before the speed steps up.</p>
 
               <button type="button" onClick={() => startRound(mode, language, category)} className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-3 text-base font-black text-white shadow-lg transition hover:bg-slate-800">Start →</button>
             </div>
@@ -548,33 +578,55 @@ export function WordtrisGame({ words, characterPool }: Props) {
             {/* Base plate. */}
             <div className="mx-auto -mt-2 h-3 w-[86%] rounded-full bg-gradient-to-b from-slate-500 to-slate-700 shadow-md sm:w-[82%]" />
 
-            {/* Real reported reference: a readout below the bucket shows
-                only the letters still left to type, with a caret marking
-                where you are in the word -- separate from the color
-                feedback inside the falling drop itself. */}
-            <div className="mt-4 flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-50 px-4 py-2.5 text-lg font-bold text-blue-700" style={{ fontFamily }}>
+            {/* Real reported request: this used to be a small "letters
+                left to type" readout, and the actual typing happened in a
+                separate bordered text box below it. Removed that box --
+                this readout IS the interactive surface now (a click
+                refocuses the hidden input backing it), sized much bigger.
+                It shows the FULL falling word, not just what's left: the
+                typed-so-far portion changes COLOR instead of being
+                removed from view (matching the same two-span technique
+                FallingDropView uses, for the same Kruti Dev glyph-
+                adjacency reason -- splitting per character would break
+                some legacy bytes' rendering). The whole thing only
+                clears once the word is actually caught (a real Space-
+                confirmed exact match), not as each letter is typed. */}
+            <button
+              type="button"
+              onClick={() => inputRef.current?.focus()}
+              tabIndex={-1}
+              aria-hidden="true"
+              className={`mt-4 flex min-h-24 w-full items-center justify-center rounded-2xl bg-slate-50 px-6 py-5 text-center text-4xl font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-5xl ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
+              style={{ fontFamily }}
+            >
               {activeDrop ? (
-                <>
-                  <span aria-hidden="true" className="text-emerald-600">▸</span>
-                  <span className="underline decoration-2 underline-offset-2">{remainingText}</span>
-                </>
-              ) : <span className="text-sm font-bold text-slate-400">Get ready…</span>}
-            </div>
+                <span>
+                  <span className="text-emerald-600">{activeDrop.target.slice(0, typedLength)}</span>
+                  <span className="text-slate-900">{activeDrop.target.slice(typedLength)}</span>
+                </span>
+              ) : (
+                <span className="text-lg font-bold text-slate-400">{awaitingFirstKey ? "⌨ Press any key to start…" : "Get ready…"}</span>
+              )}
+            </button>
 
-            <div className="mt-3">
-              <input
-                ref={inputRef}
-                value={typed}
-                onChange={(event) => handleTyped(event.target.value)}
-                onKeyDown={handleTypedKeyDown}
-                spellCheck={false}
-                autoFocus
-                aria-label={`Type the falling ${mode === "character" ? "character" : "word"}, then press Space`}
-                className={`w-full rounded-xl border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500 ${inputShake ? "animate-wordtris-shake border-rose-400" : ""}`}
-                style={{ fontFamily }}
-                placeholder={mode === "character" ? "Type the falling key, then press Space…" : "Type the falling word, then press Space…"}
-              />
-            </div>
+            {/* The actual keystroke-capturing input -- carries the real
+                accessible label (the button above is purely decorative,
+                aria-hidden) and is visually hidden with a standard sr-only
+                clip pattern (not display:none, so it still reliably
+                receives focus and mobile virtual keyboards) rather than
+                shown as its own box; the enlarged readout above is the
+                visible surface now. */}
+            <input
+              ref={inputRef}
+              value={typed}
+              onChange={(event) => handleTyped(event.target.value)}
+              onKeyDown={handleTypedKeyDown}
+              spellCheck={false}
+              autoFocus
+              aria-label={`Type the falling ${mode === "character" ? "character" : "word"}, then press Space`}
+              className="absolute h-px w-px overflow-hidden whitespace-nowrap opacity-0"
+              style={{ clip: "rect(0,0,0,0)" }}
+            />
           </div>
         )}
 
