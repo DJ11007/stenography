@@ -125,9 +125,21 @@ begin
   order by gr.created_at desc limit 1;
   if target.id is null then raise exception 'Room not found, or the race has already started.'; end if;
 
+  -- Real reported bug, live-tested: "column reference student_id is
+  -- ambiguous" on every join attempt. This function's own OUT parameter
+  -- (returns table(..., student_id uuid)) shadows the plain conflict-
+  -- target column LIST "(room_id, student_id)" specifically -- confirmed
+  -- empirically (PGlite): the identical insert with no ON CONFLICT
+  -- clause at all works fine, and even naming the OUT parameter is fine
+  -- on its own; it's specifically the bare column list inside ON
+  -- CONFLICT that plpgsql can't disambiguate from its own OUT parameter.
+  -- Naming the unique constraint directly (its Postgres-auto-generated
+  -- name for `unique(room_id, student_id)` above) sidesteps the column
+  -- list entirely -- confirmed this resolves it with no other change.
   insert into public.game_room_participants(room_id, student_id, student_name)
   values (target.id, auth.uid(), student_name)
-  on conflict (room_id, student_id) do update set student_name = excluded.student_name;
+  on conflict on constraint game_room_participants_room_id_student_id_key
+  do update set student_name = excluded.student_name;
 
   return query select target.id, target.game, target.status, target.config, auth.uid();
 end $fn$;
