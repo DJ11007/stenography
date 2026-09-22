@@ -15,8 +15,8 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // per-card "Details" toggle instead of always showing them.
 test("the live-test page delegates its list to the new LiveTestList component instead of an inline always-expanded grid", async () => {
   const page = await read("app/live-test/page.tsx");
-  assert.match(page, /import \{ LiveTestList \} from "\.\/live-test-list";/);
-  assert.match(page, /<LiveTestList tests=\{tests\}\/>/);
+  assert.match(page, /import \{ LiveTestList, type LiveTest \} from "\.\/live-test-list";/);
+  assert.match(page, /<LiveTestList tests=\{entries\}\/>/);
   assert.doesNotMatch(page, /function LiveTestCard/);
 });
 
@@ -25,6 +25,20 @@ test("LiveTestList groups tests by calendar day in IST, independent of the serve
   assert.match(list, /formatISTDate/);
   assert.match(list, /function dayKey/);
   assert.match(list, /function dayHeading/);
+});
+
+// Real reported request: hindi/english/stenography/efficiency tests were
+// all mixed together with no way to tell them apart at a glance. An
+// always-visible category tablist (unlike the language tabs, which only
+// appear once there's more than one language) filters by Typing /
+// Stenography / Efficiency, and each card also shows its category next to
+// the LIVE badge so the grouping is visible even with the "All" tab active.
+test("LiveTestList offers an always-visible category filter (Typing/Stenography/Efficiency) and shows the category on each card", async () => {
+  const list = await read("app/live-test/live-test-list.tsx");
+  assert.match(list, /const CATEGORY_TABS = \["Typing", "Stenography", "Efficiency"\] as const;/);
+  assert.match(list, /aria-label="Filter by category"/);
+  assert.doesNotMatch(list, /category\.length > 1/);
+  assert.match(list, /\{test\.category\}/);
 });
 
 test("LiveTestList offers a status filter (anytime/upcoming/open/results-published/closed), a language filter, and a newest/oldest sort", async () => {
