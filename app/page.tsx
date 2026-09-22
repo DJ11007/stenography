@@ -248,6 +248,31 @@ export default async function Home() {
 
       <HomepageTypingDemo />
 
+      <section className="border-b border-blue-100 bg-white px-4 py-12">
+        <div className="mx-auto max-w-7xl">
+          {(typingResult || stenographyResult || efficiencyResult) && (
+            <Reveal>
+              <p className="text-xs font-black uppercase tracking-widest text-blue-700">Your latest results</p>
+              <div className="mt-3 grid gap-4">
+                {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
+                {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
+                {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
+              </div>
+            </Reveal>
+          )}
+          <Reveal className={(typingResult || stenographyResult || efficiencyResult) ? "mt-8" : ""}>
+            <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
+            <h2 className="mt-1 text-2xl font-black">Live-test leaderboard</h2>
+            <div className="mt-4">
+              <LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />
+            </div>
+          </Reveal>
+          <Reveal className="mt-8">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Published automatically</p><h2 className="mt-1 text-2xl font-black">Latest live-test results</h2></div><Link href="/live-test" className="text-sm font-black text-blue-700">Open live-test centre →</Link></div><LiveResultsByLanguage results={liveResults}/>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="border-b border-blue-100 bg-slate-50 px-4 py-12">
         <div className="mx-auto max-w-7xl">
           <Reveal className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm lg:p-9">
@@ -264,26 +289,6 @@ export default async function Home() {
           </Reveal>
           <Reveal className="mt-8">
             <VacancySections vacancies={vacancies} officialWebsites={officialWebsites} compact />
-          </Reveal>
-          {(typingResult || stenographyResult || efficiencyResult) && (
-            <Reveal className="mt-8">
-              <p className="text-xs font-black uppercase tracking-widest text-blue-700">Your latest results</p>
-              <div className="mt-3 grid gap-4">
-                {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
-                {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
-                {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
-              </div>
-            </Reveal>
-          )}
-          <Reveal className="mt-8">
-            <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
-            <h2 className="mt-1 text-2xl font-black">Live-test leaderboard</h2>
-            <div className="mt-4">
-              <LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />
-            </div>
-          </Reveal>
-          <Reveal className="mt-8">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Published automatically</p><h2 className="mt-1 text-2xl font-black">Latest live-test results</h2></div><Link href="/live-test" className="text-sm font-black text-blue-700">Open live-test centre →</Link></div><LiveResultsByLanguage results={liveResults}/>
           </Reveal>
           <Reveal className="mt-8">
             <StudentSuccessCarousel />
