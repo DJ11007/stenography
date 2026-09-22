@@ -4,15 +4,17 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-// Real reported request: the English/Hindi podiums were side-by-side,
-// squeezed inside a narrow parent column once Top Rankers nested into
-// the "Your latest results" left column. Stacked into a single column
-// instead, Hindi on top, English below.
-test("LiveTestTopRankers stacks the two podiums in one column, Hindi above English", async () => {
+// Real reported follow-up: stacking the podiums in one column (an
+// earlier fix for the nested "Your latest results" placement being too
+// narrow) left a big unused strip of blank space beside each compact
+// podium card once its own padding/spacing were tightened. Restored to a
+// side-by-side grid -- Hindi left, English right -- which now fits fine
+// at the tightened sizing, filling that space instead of leaving it
+// blank.
+test("LiveTestTopRankers arranges the two podiums side by side, Hindi left, English right", async () => {
   const component = await read("app/_components/live-test-top-rankers.tsx");
-  assert.match(component, /<div className="grid gap-4">/);
-  assert.doesNotMatch(component, /sm:grid-cols-2/);
+  assert.match(component, /<div className="grid gap-4 sm:grid-cols-2">/);
   const hindiIndex = component.indexOf('<Podium language="Hindi"');
   const englishIndex = component.indexOf('<Podium language="English"');
-  assert.ok(hindiIndex > 0 && englishIndex > hindiIndex, "Hindi podium must render before English");
+  assert.ok(hindiIndex > 0 && englishIndex > hindiIndex, "Hindi podium must render before English (left column)");
 });
