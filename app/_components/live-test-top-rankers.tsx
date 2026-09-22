@@ -12,19 +12,24 @@ const TONE = [
   "from-orange-400 to-amber-600 text-orange-950",
 ];
 
-// Real requested feature: top 10 (was top 3) per language. Ranks 1-3 keep
-// the crown/gradient podium treatment unchanged; 4-10 get a plain numbered
-// badge instead of repeating the bronze crown ten times. The rows list is
-// height-capped with internal scrolling (not the whole card growing
-// unbounded) so the Hindi and English cards stay the same size as each
-// other regardless of how many of the 10 slots either language actually
-// has filled, and so this section doesn't grow taller than it needs to.
+// Real requested follow-up: showing 10 entries in a height-capped,
+// scrollable list meant only ~6 were visible at a glance, and centering
+// the content (justify-center) inside a box that stretched to match
+// whichever success-story slide happened to be showing made the rows
+// visibly jump/re-center every time the carousel auto-rotated (every
+// student's testimonial is a different length). Both fixed here: no more
+// scroll cap -- all up to 10 rows render in full, top to bottom -- and
+// this card no longer stretches to or centers within an externally
+// determined height; app/page.tsx now gives the whole row (both podiums
+// + the success-story card) one shared, STATIC height instead, with this
+// card's own natural 10-row content as the height that static value is
+// based on (see the comment there).
 function Podium({ language, heading, rankers }: { language: string; heading: string; rankers: LiveTestTopRanker[] }) {
   return (
-    <div className="flex h-full flex-col justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{heading}</h3>
       {rankers.length ? (
-        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-0.5">
+        <div className="mt-3 space-y-2">
           {rankers.map((r, i) => (
             <div key={r.student_id} className={`flex items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-sm ${i < 3 ? `bg-gradient-to-r ${TONE[i]}` : "bg-slate-50 text-slate-700"}`}>
               {/* Real bug found live: a long name (e.g. "mahesh kumar

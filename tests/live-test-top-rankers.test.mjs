@@ -19,26 +19,25 @@ test("LiveTestTopRankers arranges the two podiums side by side, Hindi left, Engl
   assert.ok(hindiIndex > 0 && englishIndex > hindiIndex, "Hindi podium must render before English (left column)");
 });
 
-// Real reported follow-up: once the two podiums grew a taller wrapping
-// box (to balance the "Your latest results" columns), each podium's own
-// fixed-height card left a blank gap below it inside that taller box.
-// Both podiums now stretch to the box's full height (h-full) and center
-// their own content, so the two cards stay equal height and fill the
-// space instead of leaving a gap under one or both.
-test("each Podium card stretches to its container's full height and centers its own rows", async () => {
+test("each Podium card stretches to its container's full height", async () => {
   const component = await read("app/_components/live-test-top-rankers.tsx");
-  assert.match(component, /className="flex h-full flex-col justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"/);
+  assert.match(component, /className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"/);
 });
 
-// Real requested feature: top 10 (was top 3) per language. Ranks 1-3 keep
-// the crown/gradient treatment; 4-10 get a plain numbered badge instead
-// of repeating the bronze crown ten times over. The rows list is height-
-// capped with internal scrolling so both language cards stay the same
-// size regardless of how many of the 10 slots are actually filled,
-// instead of the whole section growing unbounded.
-test("shows crowns for ranks 1-3 and a numbered badge for ranks 4-10, inside a height-capped, internally scrollable rows list", async () => {
+// Real reported follow-up: showing all 10 in a height-capped, scrollable
+// list meant only ~6 were visible without scrolling, and centering the
+// content (justify-center) inside a box that stretched to match whichever
+// success-story slide happened to be showing made the rows visibly
+// jump/re-center every time the carousel auto-rotated. Fixed: no more
+// scroll cap or centering -- all up to 10 rows render in full, top to
+// bottom, at this card's own natural (now carousel-rotation-independent)
+// height. See student-success-carousel-photo-height.test.mjs for the
+// matching fix on the success-story side.
+test("shows crowns for ranks 1-3 and a numbered badge for ranks 4-10, with no scroll cap or centering -- all 10 rows render in full, top to bottom", async () => {
   const component = await read("app/_components/live-test-top-rankers.tsx");
-  assert.match(component, /max-h-72 space-y-2 overflow-y-auto/);
+  assert.doesNotMatch(component, /max-h-72/);
+  assert.doesNotMatch(component, /overflow-y-auto/);
+  assert.match(component, /<div className="mt-3 space-y-2">/);
   assert.match(component, /\$\{i < 3 \? `bg-gradient-to-r \$\{TONE\[i\]\}` : "bg-slate-50 text-slate-700"\}/);
   assert.match(component, /i < 3 \? \(\s*\n\s*<span aria-hidden="true">\{CROWN\[i\]\}<\/span>/);
   assert.match(component, /<span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-\[11px\] text-slate-600">\{i \+ 1\}<\/span>/);

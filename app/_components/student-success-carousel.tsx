@@ -91,7 +91,7 @@ export function StudentSuccessCarousel() {
   }, [paused]);
 
   return (
-    <section aria-label="Student success stories" className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
+    <section aria-label="Student success stories" className="h-full overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
       {/* Real bug found live while verifying the reorg below: the prev/
           next arrows sit at the card's vertical center (top-1/2), which
           used to land on the photo (harmless to overlap slightly) but
@@ -99,10 +99,26 @@ export function StudentSuccessCarousel() {
           under the button. Left/right padding widened (p-5/p-7 ->
           separate px-14/16, py unchanged) so no text content reaches
           under either 44px arrow circle at any card height. */}
-      <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }} className="relative min-w-0 px-14 py-5 sm:px-16 sm:py-7">
+      <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }} className="relative min-w-0 h-full px-14 py-5 sm:px-16 sm:py-7">
         <button type="button" onClick={() => show(active - 1)} aria-label="Previous student" className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
         <button type="button" onClick={() => show(active + 1)} aria-label="Next student" className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
-        <article key={student.name} aria-live="polite" className="student-slide">
+        {/* Real requested follow-up: the card used to grow/shrink to fit
+            whichever student's testimonial happened to be showing, so the
+            whole row (this card + the Top Rankers columns beside it, see
+            app/page.tsx) visibly resized every time the carousel
+            auto-rotated. Fixed by no longer letting the testimonial's own
+            length affect this card's height at all: the header row and
+            stats stay their natural size, and the blockquote is `flex-1
+            min-h-0 overflow-y-auto` -- it fills whatever space is left
+            (which is now constant, since nothing here still varies by
+            slide) and only scrolls internally in the rare case a
+            testimonial doesn't fit, rather than resizing the card around
+            it. min-h-0 matters here for the same reason min-w-0 mattered
+            for the leaderboard row's name truncation -- a flex child
+            can't shrink below its content's intrinsic size (here, the
+            full unwrapped text height) without it, so overflow-y-auto
+            would otherwise never actually engage. */}
+        <article key={student.name} aria-live="polite" className="student-slide flex h-full flex-col">
           {/* Real requested reorganization: the photo moves to the
               top-right corner at its same visual size (w-44/aspect-[4/5],
               unchanged) instead of a left-hand column, freeing the area
@@ -127,14 +143,7 @@ export function StudentSuccessCarousel() {
             <Image src={student.image} alt={student.imageAlt} width={1024} height={1280} className="mx-auto aspect-[4/5] w-44 shrink-0 rounded-2xl object-cover object-top shadow-md sm:mx-0"/>
           </div>
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">{student.stats.map(([label, value]) => <div key={label} className="rounded-xl bg-slate-50 p-3"><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-black text-slate-950">{value}</dd></div>)}</dl>
-          {/* Real requested change: the testimonial used to be capped at
-              max-h-40 with its own internal scroll, which could hide part
-              of a longer message. Uncapped now -- the card grows to fit
-              the complete text instead of truncating it; the outer grid
-              (app/page.tsx) already stretches the results column to match
-              whatever height this card ends up needing on any given
-              slide. */}
-          <blockquote className="mt-4 w-full rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-sm font-semibold leading-7 text-slate-800">“{student.review}”</blockquote>
+          <blockquote className="mt-4 min-h-0 w-full flex-1 overflow-y-auto rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-sm font-semibold leading-7 text-slate-800">“{student.review}”</blockquote>
         </article>
       </div>
       <style jsx>{`@keyframes student-slide-in{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:translateX(0)}}.student-slide{animation:student-slide-in .45s ease-out}@media(prefers-reduced-motion:reduce){.student-slide{animation:none}}`}</style>

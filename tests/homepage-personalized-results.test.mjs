@@ -54,48 +54,42 @@ test("the three cards render in Typing -> Stenography -> Efficiency order, above
 // Story carousel (with its "Visit Samradhi Classes" info box) sat much
 // further down the page, disconnected from this section. Moved up to sit
 // beside the result cards as a second column, removed from its old spot.
-test("the Student Success Story carousel sits beside the result cards as a second column when a personalized result exists", async () => {
+test("the Student Success Story carousel sits beside the result cards via EqualHeightRow when a personalized result exists", async () => {
   const page = await read("app/page.tsx");
-  assert.match(page, /grid gap-6 lg:grid-cols-2/);
-  const resultsGridIndex = page.indexOf("grid gap-6 lg:grid-cols-2");
+  const resultsGridIndex = page.indexOf("<EqualHeightRow");
   const carouselIndex = page.indexOf("<StudentSuccessCarousel");
-  assert.ok(resultsGridIndex > 0 && carouselIndex > resultsGridIndex, "the carousel must be inside the two-column results grid");
+  assert.ok(resultsGridIndex > 0 && carouselIndex > resultsGridIndex, "the carousel must be inside the EqualHeightRow paired with the results column");
 });
 
 // Real reported regression: pairing the carousel only with the results
 // column made it vanish entirely for a logged-out visitor or one with no
 // personalized result yet -- it must always be visible on the homepage.
-// Fixed by pairing it with Top Rankers in the same two-column layout in
-// the "no personalized result" branch too, so it renders exactly once at
-// runtime either way (the two branches are mutually exclusive), never
-// zero times and never duplicated.
-test("the Student Success Story carousel is never hidden entirely -- it also pairs with Top Rankers when there's no personalized result to show", async () => {
+// Fixed by pairing it with Top Rankers via EqualHeightRow in the "no
+// personalized result" branch too, so it renders exactly once at runtime
+// either way (the two branches are mutually exclusive), never zero times
+// and never duplicated.
+test("the Student Success Story carousel is never hidden entirely -- it also pairs with Top Rankers via EqualHeightRow when there's no personalized result to show", async () => {
   const page = await read("app/page.tsx");
   const occurrences = page.match(/<StudentSuccessCarousel\s*\/>/g) ?? [];
   assert.equal(occurrences.length, 2, "must appear once per branch (hasPersonalizedResults ? ... : ...), the two branches being mutually exclusive at runtime");
-  // The second occurrence (the else branch's) must sit in its own
-  // two-column grid alongside Top Rankers, not standalone.
-  const secondCarouselIndex = page.indexOf("<StudentSuccessCarousel", page.indexOf("<StudentSuccessCarousel") + 1);
-  const precedingGridIndex = page.lastIndexOf("grid gap-6 lg:grid-cols-2", secondCarouselIndex);
-  const precedingTopRankersIndex = page.lastIndexOf("<LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />", secondCarouselIndex);
-  assert.ok(precedingGridIndex > 0 && precedingGridIndex < secondCarouselIndex, "the second carousel must be inside a two-column grid");
-  assert.ok(precedingTopRankersIndex > precedingGridIndex && precedingTopRankersIndex < secondCarouselIndex, "Top Rankers must render before the second carousel, inside that same grid");
+  const equalHeightRowOccurrences = page.match(/<EqualHeightRow/g) ?? [];
+  assert.equal(equalHeightRowOccurrences.length, 2, "both branches must use EqualHeightRow to pair their left column with the carousel");
+  const elseBranch = page.slice(page.indexOf(") : ("), page.indexOf(")}\n          <Reveal className=\"mt-8\">"));
+  assert.match(elseBranch, /<EqualHeightRow left=\{<LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/>\} right=\{<StudentSuccessCarousel \/>\} \/>/, "the else branch must pair Top Rankers with the carousel via EqualHeightRow");
 });
 
-// Real reported follow-up: side-by-siding the Top Rankers podiums shrank
-// that card's natural height, leaving a visible blank gap below the
-// left column relative to the taller success-story column. Fixed by
-// removing lg:items-start (grid's default stretch makes the left
-// column's box match the right column's height) and making the Top
-// Rankers card flex-1 inside a flex-col left column, so IT absorbs any
-// leftover height instead of a gap appearing beneath a fixed-height
-// card -- self-balancing as the number of cards/rankers changes, not
-// dependent on hand-tuned padding staying in sync with changing content.
-test("the left results column stretches to match the success-story column's height via grid's default stretch, and the Top Rankers card (not a fixed-height card) absorbs the extra space", async () => {
+// Real reported follow-up: the row visibly resized every ~5 seconds as
+// the carousel auto-rotated through students with different testimonial
+// lengths, because a plain CSS grid's default "stretch" alignment still
+// let the right column's content-based intrinsic height influence the
+// row's auto-sized track. EqualHeightRow (app/_components/equal-height-
+// row.tsx) fixes this by JS-measuring the left column's own real height
+// (result cards + Top Rankers, neither of which depends on the carousel)
+// and locking the whole row to that explicit height instead.
+test("the results/Top-Rankers column and the carousel are paired through EqualHeightRow, not a plain CSS grid", async () => {
   const page = await read("app/page.tsx");
-  assert.doesNotMatch(page, /lg:items-start/);
-  assert.match(page, /<div className="flex flex-col gap-4">/);
-  assert.match(page, /flex flex-1 flex-col rounded-2xl border border-blue-100 bg-blue-50\/60 p-3/);
+  assert.match(page, /import \{ EqualHeightRow \} from "\.\/_components\/equal-height-row";/);
+  assert.doesNotMatch(page, /<div className="grid gap-6 lg:grid-cols-2">/, "the raw grid wrapper must be replaced by EqualHeightRow");
 });
 
 // Real requested change: the shared header row above both columns (a
@@ -108,13 +102,13 @@ test("the shared 'Top Rankers'-plus-heading row above the two columns is gone fr
   const page = await read("app/page.tsx");
   assert.doesNotMatch(page, /Live-test leaderboard/);
   assert.doesNotMatch(page, /<p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers<\/p>/);
-  assert.match(page, /<div className="mt-3 flex flex-1 flex-col rounded-2xl border border-blue-100 bg-blue-50\/60 p-3">\s*\n\s*<div className="flex-1"><LiveTestTopRankers/);
+  assert.match(page, /<div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50\/60 p-3">\s*\n\s*<LiveTestTopRankers/);
 });
 
-test("StudentSuccessCarousel no longer hardcodes its own top margin (the call site controls spacing now that it's reused inside a grid column)", async () => {
+test("StudentSuccessCarousel no longer hardcodes its own top margin (the call site controls spacing now that it's reused inside a grid column), and fills the height EqualHeightRow gives it", async () => {
   const component = await read("app/_components/student-success-carousel.tsx");
   assert.doesNotMatch(component, /className="mt-8 grid overflow-hidden/);
-  assert.match(component, /className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm"/);
+  assert.match(component, /className="h-full overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm"/);
 });
 
 // Real reported follow-up: the "Visit Samradhi Classes" address/Call/Maps
@@ -145,8 +139,8 @@ test("Top Rankers nests into the results column when a personalized result exist
   const page = await read("app/page.tsx");
   assert.match(page, /const hasPersonalizedResults = Boolean\(typingResult \|\| stenographyResult \|\| efficiencyResult\);/);
   assert.match(page, /\{hasPersonalizedResults \? \(/);
-  const grid = page.slice(page.indexOf("grid gap-6 lg:grid-cols-2"), page.indexOf("<StudentSuccessCarousel"));
-  assert.match(grid, /<LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/>/, "Top Rankers must be nested inside the left results column");
+  const ifBranch = page.slice(page.indexOf("{hasPersonalizedResults ? ("), page.indexOf(") : ("));
+  assert.match(ifBranch, /<LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/>/, "Top Rankers must be nested inside the left results column");
   const elseBranch = page.slice(page.indexOf(") : ("), page.indexOf(")}\n          <Reveal className=\"mt-8\">"));
   assert.match(elseBranch, /<LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/>/, "the standalone fallback must still render Top Rankers for visitors with no personalized result");
 });

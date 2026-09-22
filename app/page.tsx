@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { LiveResultsByLanguage } from "./_components/live-results-by-language";
 import { LiveTestTopRankers } from "./_components/live-test-top-rankers";
+import { EqualHeightRow } from "./_components/equal-height-row";
 import { Reveal } from "./_components/reveal";
 import { SiteFooter } from "./_components/site-footer";
 import { SiteHeader } from "./_components/site-header";
@@ -266,18 +267,6 @@ export default async function Home() {
                   Top Rankers stays a full-width standalone section (see
                   the else branch) so every visitor still sees it.
 
-                  No cross-axis "start" alignment on this grid (deliberately) -- its default
-                  stretch alignment makes the left column's box always
-                  match the right column's natural height, whichever is
-                  taller. The Top Rankers card is `flex-1` inside a
-                  `flex-col` left column, so it's the one that absorbs any
-                  leftover height (centering its content) instead of
-                  leaving a blank gap below a fixed-height card -- this
-                  keeps the two columns visually balanced automatically as
-                  the number of result cards or top rankers changes,
-                  rather than depending on hand-tuned padding staying in
-                  sync with content that will keep changing.
-
                   Real reported regression: pairing the success-story
                   carousel with the results column made it disappear
                   entirely for a logged-out visitor or one with no
@@ -286,34 +275,45 @@ export default async function Home() {
                   visible on the homepage -- so the else branch now pairs
                   it with Top Rankers in this same two-column layout
                   instead, rather than going back to duplicating it in
-                  both branches or dropping this balanced layout. */}
-              <div className="mt-3 grid gap-6 lg:grid-cols-2">
-                <div className="flex flex-col gap-4">
-                  {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
-                  {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
-                  {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
-                  {/* Real requested change: the shared header row above
-                      both columns (a "Top Rankers" label plus a
-                      leaderboard-naming heading) was removed -- "Top
-                      Rankers" reads as the Hindi column's own heading now
-                      (it sat visually above Hindi anyway), and the other
-                      heading text no longer appears anywhere (see
-                      LiveTestTopRankers' own Hindi Podium heading). */}
-                  <div className="mt-3 flex flex-1 flex-col rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
-                    <div className="flex-1"><LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} /></div>
-                  </div>
-                </div>
-                <StudentSuccessCarousel />
+                  both branches or dropping this balanced layout.
+
+                  Real requested follow-up: the two columns used to be a
+                  plain CSS grid relying on default "stretch" alignment,
+                  which visibly resized every ~5 seconds as the carousel
+                  rotated through students with different testimonial
+                  lengths. EqualHeightRow (app/_components/equal-height-
+                  row.tsx) replaces that -- it measures this LEFT column's
+                  own real height (result cards + Top Rankers, neither of
+                  which depends on the carousel) and locks the whole row
+                  to that, so it only changes when this column's real
+                  content changes, never just because the carousel
+                  advanced. See that file's own comment for why a plain
+                  CSS fix (flex-1/min-h-0/overflow-y-auto on the
+                  testimonial alone) wasn't enough on its own. */}
+              <div className="mt-3">
+                <EqualHeightRow
+                  left={<>
+                    {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
+                    {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
+                    {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
+                    {/* Real requested change: the shared header row above
+                        both columns (a "Top Rankers" label plus a
+                        leaderboard-naming heading) was removed -- "Top
+                        Rankers" reads as the Hindi column's own heading now
+                        (it sat visually above Hindi anyway), and the other
+                        heading text no longer appears anywhere (see
+                        LiveTestTopRankers' own Hindi Podium heading). */}
+                    <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                      <LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />
+                    </div>
+                  </>}
+                  right={<StudentSuccessCarousel />}
+                />
               </div>
             </Reveal>
           ) : (
             <Reveal>
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="flex flex-col">
-                  <div className="flex-1"><LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} /></div>
-                </div>
-                <StudentSuccessCarousel />
-              </div>
+              <EqualHeightRow left={<LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />} right={<StudentSuccessCarousel />} />
             </Reveal>
           )}
           <Reveal className="mt-8">
