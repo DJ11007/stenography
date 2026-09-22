@@ -59,12 +59,28 @@ test("the three cards render in Typing -> Stenography -> Efficiency order, above
 // for a logged-out visitor or one with no attempts yet.
 test("the Student Success Story carousel now sits beside the result cards as a second column, and only appears once (moved, not duplicated)", async () => {
   const page = await read("app/page.tsx");
-  assert.match(page, /grid gap-6 lg:grid-cols-2 lg:items-start/);
+  assert.match(page, /grid gap-6 lg:grid-cols-2/);
   const occurrences = page.match(/<StudentSuccessCarousel\s*\/>/g) ?? [];
   assert.equal(occurrences.length, 1, "StudentSuccessCarousel must appear exactly once, not duplicated");
-  const resultsGridIndex = page.indexOf("grid gap-6 lg:grid-cols-2 lg:items-start");
+  const resultsGridIndex = page.indexOf("grid gap-6 lg:grid-cols-2");
   const carouselIndex = page.indexOf("<StudentSuccessCarousel");
   assert.ok(resultsGridIndex > 0 && carouselIndex > resultsGridIndex, "the carousel must be inside the two-column results grid");
+});
+
+// Real reported follow-up: side-by-siding the Top Rankers podiums shrank
+// that card's natural height, leaving a visible blank gap below the
+// left column relative to the taller success-story column. Fixed by
+// removing lg:items-start (grid's default stretch makes the left
+// column's box match the right column's height) and making the Top
+// Rankers card flex-1 inside a flex-col left column, so IT absorbs any
+// leftover height instead of a gap appearing beneath a fixed-height
+// card -- self-balancing as the number of cards/rankers changes, not
+// dependent on hand-tuned padding staying in sync with changing content.
+test("the left results column stretches to match the success-story column's height via grid's default stretch, and the Top Rankers card (not a fixed-height card) absorbs the extra space", async () => {
+  const page = await read("app/page.tsx");
+  assert.doesNotMatch(page, /lg:items-start/);
+  assert.match(page, /<div className="flex flex-col gap-4">/);
+  assert.match(page, /flex flex-1 flex-col justify-center rounded-2xl border border-blue-100 bg-blue-50\/60 p-3/);
 });
 
 test("StudentSuccessCarousel no longer hardcodes its own top margin (the call site controls spacing now that it's reused inside a grid column)", async () => {

@@ -264,13 +264,25 @@ export default async function Home() {
                   right column. This nested placement only happens when
                   the visitor actually has a result to show -- otherwise
                   Top Rankers stays a full-width standalone section (see
-                  the else branch) so every visitor still sees it. */}
-              <div className="mt-3 grid gap-6 lg:grid-cols-2 lg:items-start">
-                <div className="grid gap-4">
+                  the else branch) so every visitor still sees it.
+
+                  No cross-axis "start" alignment on this grid (deliberately) -- its default
+                  stretch alignment makes the left column's box always
+                  match the right column's natural height, whichever is
+                  taller. The Top Rankers card is `flex-1` inside a
+                  `flex-col` left column, so it's the one that absorbs any
+                  leftover height (centering its content) instead of
+                  leaving a blank gap below a fixed-height card -- this
+                  keeps the two columns visually balanced automatically as
+                  the number of result cards or top rankers changes,
+                  rather than depending on hand-tuned padding staying in
+                  sync with content that will keep changing. */}
+              <div className="mt-3 grid gap-6 lg:grid-cols-2">
+                <div className="flex flex-col gap-4">
                   {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
                   {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
                   {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
-                  <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                  <div className="mt-3 flex flex-1 flex-col justify-center rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
                     <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
                     <h2 className="mt-0.5 text-base font-black">Live-test leaderboard</h2>
                     <div className="mt-2"><LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} /></div>
