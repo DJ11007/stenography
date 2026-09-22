@@ -42,6 +42,13 @@ export async function SiteHeader() {
           <Link href="/typing" className="hidden rounded-lg px-3 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50 md:block">
             Typing Hub
           </Link>
+          <Link href="/live-test" className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-rose-50 px-3.5 py-2 text-xs font-black text-rose-700 shadow-sm ring-1 ring-rose-200 transition-all hover:-translate-y-0.5 hover:bg-rose-100 sm:px-4 sm:text-sm">
+            <span className="relative flex h-2 w-2" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600" />
+            </span>
+            Join Live Test
+          </Link>
           <Link href="/connect" className="group relative inline-flex items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-full bg-gradient-to-r from-teal-500 via-cyan-500 to-sky-500 px-3.5 py-2 text-xs font-black text-white shadow-md shadow-cyan-500/30 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600 sm:px-4 sm:text-sm">
             <span aria-hidden className="absolute inset-0 -translate-x-full bg-white/25 transition-transform duration-700 group-hover:translate-x-full" style={{ clipPath: "polygon(0 0, 30% 0, 10% 100%, -20% 100%)" }} />
             <ConnectIcon className="h-4 w-4" />
