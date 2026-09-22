@@ -109,19 +109,19 @@ test("the first drop doesn't fall until the student's first keystroke, not the i
   assert.match(game, /Press any key to start/);
 });
 
-// Real reported request: the ladder step (how many catches in a row
-// before the speed bumps up) used to be the fixed WORDTRIS_CATCHES_PER_
-// MILESTONE constant. Now adjustable at setup, same +/- pattern as
-// starting speed, 7-10 (WORDTRIS_MIN/MAX_CATCHES_PER_MILESTONE).
-test("how often the speed steps up (7-10 catches) is adjustable at setup, not a fixed constant", async () => {
-  const content = await read("lib/wordtris-content.ts");
-  assert.match(content, /WORDTRIS_MIN_CATCHES_PER_MILESTONE = 7/);
-  assert.match(content, /WORDTRIS_MAX_CATCHES_PER_MILESTONE = 10/);
+// Real reported request, follow-up: starting speed and the speed-up
+// interval were briefly made setup-screen settings, then explicitly
+// asked to be removed again -- both are fixed in code now
+// (WORDTRIS_WPM_MILESTONES[0], WORDTRIS_CATCHES_PER_MILESTONE), with no
+// setup-screen control for either.
+test("starting speed and the speed-up interval are fixed in code, with no setup-screen control for either", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /const \[catchesPerMilestone, setCatchesPerMilestone\] = useState<number>\(WORDTRIS_CATCHES_PER_MILESTONE\);/);
-  assert.match(game, /if \(catchesSinceBumpRef\.current >= catchesPerMilestoneRef\.current\) \{/);
-  assert.match(game, /setCatchesPerMilestone\(\(c\) => Math\.max\(WORDTRIS_MIN_CATCHES_PER_MILESTONE, c - 1\)\)/);
-  assert.match(game, /setCatchesPerMilestone\(\(c\) => Math\.min\(WORDTRIS_MAX_CATCHES_PER_MILESTONE, c \+ 1\)\)/);
+  assert.match(game, /wpmRef\.current = WORDTRIS_WPM_MILESTONES\[0\];/);
+  assert.match(game, /if \(catchesSinceBumpRef\.current >= WORDTRIS_CATCHES_PER_MILESTONE\) \{/);
+  assert.doesNotMatch(game, /Starting speed</);
+  assert.doesNotMatch(game, /Speed up every…</);
+  assert.doesNotMatch(game, /setStartingWpm/);
+  assert.doesNotMatch(game, /setCatchesPerMilestone/);
 });
 
 // Real reported request: the separate bordered "type here" input box is
@@ -137,6 +137,18 @@ test("the falling word's readout below the bucket shows the full word with typed
   assert.match(game, /<span className="text-slate-900">\{activeDrop\.target\.slice\(typedLength\)\}<\/span>/);
   assert.doesNotMatch(game, /border-2 border-slate-200 p-3 text-lg outline-none focus:border-slate-500/); // the old visible input box styling
   assert.match(game, /className="absolute h-px w-px overflow-hidden whitespace-nowrap opacity-0"/); // the real input, now visually hidden
+});
+
+// Real reported follow-up: the readout was sized too big at first pass --
+// roughly halved (min-h-24 -> min-h-12, text-4xl/sm:text-5xl ->
+// text-xl/sm:text-2xl) and capped with a max-w so it stays proportionate
+// instead of stretching edge to edge at every viewport width.
+test("the readout is sized roughly half of its first pass, and capped with a max-width so it stays proportionate at every screen size", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /min-h-12 w-full max-w-sm/);
+  assert.match(game, /text-xl font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-2xl/);
+  assert.doesNotMatch(game, /flex min-h-24 w-full/); // the old, oversized box
+  assert.doesNotMatch(game, /text-4xl font-black outline-none/); // the old, oversized text
 });
 
 // Real reported reference: missed words stack up as their own labeled

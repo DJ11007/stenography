@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
-import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MIN_CATCHES_PER_MILESTONE, WORDTRIS_MAX_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, WORDTRIS_MAX_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
+import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from "./actions";
 
@@ -148,12 +148,6 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // lib/wordtris-content.ts) -- shown live in the HUD, adjustable from the
   // setup screen before a round starts.
   const [wpm, setWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
-  const [startingWpm, setStartingWpm] = useState<number>(WORDTRIS_WPM_MILESTONES[0]);
-  // Real reported request: this was a fixed 7-catch ladder step; now
-  // adjustable at setup, same +/- control as starting speed.
-  const [catchesPerMilestone, setCatchesPerMilestone] = useState<number>(WORDTRIS_CATCHES_PER_MILESTONE);
-  const catchesPerMilestoneRef = useRef<number>(WORDTRIS_CATCHES_PER_MILESTONE);
-  useEffect(() => { catchesPerMilestoneRef.current = catchesPerMilestone; }, [catchesPerMilestone]);
   // Real reported request: clicking Start used to drop the first word
   // immediately -- now the play field appears paused ("Press any key to
   // start") and nothing falls until the student's first keystroke.
@@ -245,8 +239,8 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setWordsCaught(0);
     setStreak(0);
     setMissedStack([]);
-    wpmRef.current = startingWpm;
-    setWpm(startingWpm);
+    wpmRef.current = WORDTRIS_WPM_MILESTONES[0];
+    setWpm(WORDTRIS_WPM_MILESTONES[0]);
     catchesSinceBumpRef.current = 0;
     setTyped("");
     setSubmitted(false);
@@ -255,7 +249,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
     if (m === "character") {
       try { setPersonalBest(Number(localStorage.getItem(`wordtris-best-character-${lang}`)) || null); } catch { setPersonalBest(null); }
     }
-  }, [words, characterPool, startingWpm]);
+  }, [words, characterPool]);
 
   const onCatch = useCallback((drop: ActiveDrop) => {
     const points = wordtrisPoints(drop.text);
@@ -267,11 +261,10 @@ export function WordtrisGame({ words, characterPool }: Props) {
     setTyped("");
     setFlash("catch");
     window.setTimeout(() => setFlash(null), 300);
-    // Every catchesPerMilestone catches in a row advances the WPM to the
-    // next rung on the ladder -- see lib/wordtris-content.ts. Admin/student
-    // adjustable at setup (7-10), default WORDTRIS_CATCHES_PER_MILESTONE.
+    // Every WORDTRIS_CATCHES_PER_MILESTONE catches in a row advances the
+    // WPM to the next rung on the ladder -- see lib/wordtris-content.ts.
     catchesSinceBumpRef.current += 1;
-    if (catchesSinceBumpRef.current >= catchesPerMilestoneRef.current) {
+    if (catchesSinceBumpRef.current >= WORDTRIS_CATCHES_PER_MILESTONE) {
       catchesSinceBumpRef.current = 0;
       const next = wordtrisNextMilestone(wpmRef.current);
       wpmRef.current = next;
@@ -470,21 +463,10 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 <p className="mt-5 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">Every letter{language === "hindi" ? " and मात्रा" : ""} key on the {language === "hindi" ? "Kruti Dev" : "English"} keyboard, dropped one at a time.</p>
               )}
 
-              <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Starting speed</p>
-              <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">
-                <button type="button" onClick={() => setStartingWpm((w) => Math.max(WORDTRIS_MIN_WPM, w - 1))} aria-label="Decrease starting speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">−</button>
-                <span className="flex-1 text-center text-sm font-black text-slate-800">{startingWpm} WPM</span>
-                <button type="button" onClick={() => setStartingWpm((w) => Math.min(WORDTRIS_MAX_WPM, w + 1))} aria-label="Increase starting speed" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">+</button>
-              </div>
-              <p className="mt-1.5 text-xs text-slate-500">Drops start paced to this real typing speed, then speed up every {catchesPerMilestone} catches -- and ease back off after a miss.</p>
-
-              <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Speed up every…</p>
-              <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">
-                <button type="button" onClick={() => setCatchesPerMilestone((c) => Math.max(WORDTRIS_MIN_CATCHES_PER_MILESTONE, c - 1))} aria-label="Speed up less often" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">−</button>
-                <span className="flex-1 text-center text-sm font-black text-slate-800">{catchesPerMilestone} catches</span>
-                <button type="button" onClick={() => setCatchesPerMilestone((c) => Math.min(WORDTRIS_MAX_CATCHES_PER_MILESTONE, c + 1))} aria-label="Speed up more often" className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-slate-700 shadow-sm hover:bg-slate-100">+</button>
-              </div>
-              <p className="mt-1.5 text-xs text-slate-500">How many words in a row you have to catch before the speed steps up.</p>
+              {/* Real reported request: starting speed and the speed-up
+                  interval used to be adjustable here -- both are fixed in
+                  code now (WORDTRIS_WPM_MILESTONES[0], WORDTRIS_CATCHES_
+                  PER_MILESTONE), not exposed as a setting. */}
 
               <button type="button" onClick={() => startRound(mode, language, category)} className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-3 text-base font-black text-white shadow-lg transition hover:bg-slate-800">Start →</button>
             </div>
@@ -582,30 +564,34 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 left to type" readout, and the actual typing happened in a
                 separate bordered text box below it. Removed that box --
                 this readout IS the interactive surface now (a click
-                refocuses the hidden input backing it), sized much bigger.
-                It shows the FULL falling word, not just what's left: the
-                typed-so-far portion changes COLOR instead of being
-                removed from view (matching the same two-span technique
-                FallingDropView uses, for the same Kruti Dev glyph-
-                adjacency reason -- splitting per character would break
-                some legacy bytes' rendering). The whole thing only
-                clears once the word is actually caught (a real Space-
-                confirmed exact match), not as each letter is typed. */}
+                refocuses the hidden input backing it). It shows the FULL
+                falling word, not just what's left: the typed-so-far
+                portion changes COLOR instead of being removed from view
+                (matching the same two-span technique FallingDropView
+                uses, for the same Kruti Dev glyph-adjacency reason --
+                splitting per character would break some legacy bytes'
+                rendering). The whole thing only clears once the word is
+                actually caught (a real Space-confirmed exact match), not
+                as each letter is typed. Real reported follow-up: this was
+                sized too big at first pass -- roughly halved (min-h-24 ->
+                min-h-12, text-4xl/sm:text-5xl -> text-xl/sm:text-2xl) and
+                kept on a max-w so it stays proportionate at every
+                viewport width instead of stretching edge to edge. */}
             <button
               type="button"
               onClick={() => inputRef.current?.focus()}
               tabIndex={-1}
               aria-hidden="true"
-              className={`mt-4 flex min-h-24 w-full items-center justify-center rounded-2xl bg-slate-50 px-6 py-5 text-center text-4xl font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-5xl ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
+              className={`mx-auto mt-4 flex min-h-12 w-full max-w-sm items-center justify-center rounded-2xl bg-slate-50 px-4 py-2.5 text-center text-xl font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-2xl ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
               style={{ fontFamily }}
             >
               {activeDrop ? (
-                <span>
+                <span className="break-words">
                   <span className="text-emerald-600">{activeDrop.target.slice(0, typedLength)}</span>
                   <span className="text-slate-900">{activeDrop.target.slice(typedLength)}</span>
                 </span>
               ) : (
-                <span className="text-lg font-bold text-slate-400">{awaitingFirstKey ? "⌨ Press any key to start…" : "Get ready…"}</span>
+                <span className="text-sm font-bold text-slate-400">{awaitingFirstKey ? "⌨ Press any key to start…" : "Get ready…"}</span>
               )}
             </button>
 

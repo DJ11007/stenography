@@ -52,15 +52,10 @@ export function wordtrisPoints(word: string) {
 // back up always retraces the same ladder. Six missed drops (not five)
 // end the round.
 export const WORDTRIS_WPM_MILESTONES = [15, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30] as const;
-// Real reported request: this used to be a fixed constant -- now
-// adjustable at setup (like starting speed), 7-10 catches per bump.
 export const WORDTRIS_CATCHES_PER_MILESTONE = 7;
-export const WORDTRIS_MIN_CATCHES_PER_MILESTONE = 7;
-export const WORDTRIS_MAX_CATCHES_PER_MILESTONE = 10;
 export const WORDTRIS_MISS_WPM_PENALTY = 3;
 export const WORDTRIS_STARTING_LIVES = 6;
 export const WORDTRIS_MIN_WPM = 10;
-export const WORDTRIS_MAX_WPM = 40;
 
 // Reading/reaction time added on top of the raw keystroke time a drop's own
 // text would take at the current WPM -- a real student needs to *see* and
