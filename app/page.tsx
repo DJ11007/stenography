@@ -270,10 +270,10 @@ export default async function Home() {
                   {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
                   {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
                   {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
-                  <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                  <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
                     <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
-                    <h2 className="mt-1 text-lg font-black">Live-test leaderboard</h2>
-                    <div className="mt-3"><LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} /></div>
+                    <h2 className="mt-0.5 text-base font-black">Live-test leaderboard</h2>
+                    <div className="mt-2"><LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} /></div>
                   </div>
                 </div>
                 <StudentSuccessCarousel />

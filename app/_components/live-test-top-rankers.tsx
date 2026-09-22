@@ -14,12 +14,12 @@ const TONE = [
 
 function Podium({ language, rankers }: { language: string; rankers: LiveTestTopRanker[] }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">{language}</h3>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{language}</h3>
       {rankers.length ? (
-        <div className="mt-4 space-y-2">
+        <div className="mt-3 space-y-2">
           {rankers.map((r, i) => (
-            <div key={r.student_id} className={`flex items-center justify-between rounded-xl bg-gradient-to-r px-4 py-3 ${TONE[i] ?? "bg-slate-50 text-slate-700"}`}>
+            <div key={r.student_id} className={`flex items-center justify-between rounded-xl bg-gradient-to-r px-3.5 py-2.5 text-sm ${TONE[i] ?? "bg-slate-50 text-slate-700"}`}>
               <span className="flex items-center gap-2 font-black">
                 <span aria-hidden="true">{CROWN[i] ?? "🏅"}</span>
                 {r.student_name}
@@ -29,7 +29,7 @@ function Podium({ language, rankers }: { language: string; rankers: LiveTestTopR
           ))}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-slate-500">No published results yet for {language}.</p>
+        <p className="mt-2.5 text-sm text-slate-500">No published results yet for {language}.</p>
       )}
     </div>
   );
