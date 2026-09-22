@@ -9,6 +9,7 @@ import { VacancyCarousel } from "./_components/vacancy-carousel";
 import { VacancySections } from "./_components/vacancy-sections";
 import { FeedbackSection } from "./_components/feedback-section";
 import { WhatsAppButton } from "./_components/whatsapp-button";
+import { HomepageTypingDemo } from "./_components/homepage-typing-demo";
 import { BuyNowButton } from "./_components/buy-now-button";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -264,6 +265,8 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      <HomepageTypingDemo />
 
       <section className="border-b border-blue-100 bg-slate-50 px-4 py-12">
         <div className="mx-auto max-w-7xl">
