@@ -91,7 +91,7 @@ export function StudentSuccessCarousel() {
   }, [paused]);
 
   return (
-    <section aria-label="Student success stories and institution details" className="grid overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm lg:grid-cols-[1.35fr_.65fr]">
+    <section aria-label="Student success stories" className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
       <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }} className="relative min-w-0 p-5 sm:p-7">
         <button type="button" onClick={() => show(active - 1)} aria-label="Previous student" className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
         <button type="button" onClick={() => show(active + 1)} aria-label="Next student" className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-blue-700/90 text-white shadow-lg transition hover:scale-110 hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
@@ -104,7 +104,6 @@ export function StudentSuccessCarousel() {
           </div>
         </article>
       </div>
-      <aside className="border-t border-blue-100 bg-blue-700 p-6 text-white lg:border-l lg:border-t-0 lg:p-7"><p className="text-xs font-black uppercase tracking-widest text-blue-200">Offline institution</p><h2 className="mt-2 text-2xl font-black">Visit Samradhi Classes</h2><address className="mt-4 not-italic leading-7 text-blue-50">26, Bairwa Colony, near Shri Ram Marriage Garden, near Sanganer Airport, behind Choudhary Petrol Pump, Sanganer, Jaipur – 302029</address><a href="tel:7014371324" className="mt-5 block rounded-xl bg-white px-4 py-3 text-center font-black text-blue-700">Call 7014371324</a><a href="https://www.google.com/maps/search/?api=1&query=26%2C%20Bairwa%20Colony%2C%20Sanganer%2C%20Jaipur%20302029" target="_blank" rel="noopener noreferrer" className="mt-3 block rounded-xl border border-blue-300 px-4 py-3 text-center font-black text-white hover:bg-blue-600">Open in Google Maps</a></aside>
       <style jsx>{`@keyframes student-slide-in{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:translateX(0)}}.student-slide{animation:student-slide-in .45s ease-out}@media(prefers-reduced-motion:reduce){.student-slide{animation:none}}`}</style>
     </section>
   );

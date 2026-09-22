@@ -21,11 +21,16 @@ export function SiteFooter() {
           <p className="font-black tracking-wide">SAMRADHI CLASSES</p>
           <p className="mt-1 text-sm text-blue-200">Typing, stenography and competitive-exam preparation.</p>
           <p className="mt-3 text-sm text-blue-200">
-            26, Bairwa Colony, near Shri Ram Marriage Garden, Sanganer, Jaipur – 302029
+            26, Bairwa Colony, near Shri Ram Marriage Garden, near Sanganer Airport, behind Choudhary Petrol Pump, Sanganer, Jaipur – 302029
           </p>
-          <a href="tel:+917014371324" className="mt-1 inline-block text-sm font-bold text-white hover:text-blue-200">
-            Call: 7014371324
-          </a>
+          <div className="mt-4 flex flex-wrap justify-center gap-2 md:justify-start">
+            <a href="tel:+917014371324" className="inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-black text-blue-950 transition-colors hover:bg-blue-50">
+              Call 7014371324
+            </a>
+            <a href="https://www.google.com/maps/search/?api=1&query=26%2C%20Bairwa%20Colony%2C%20Sanganer%2C%20Jaipur%20302029" target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-lg border border-blue-400 px-4 py-2 text-sm font-black text-white transition-colors hover:bg-blue-900">
+              Open in Google Maps
+            </a>
+          </div>
         </div>
 
         <nav aria-label="Company links" className="text-center md:text-left">

@@ -70,5 +70,38 @@ test("the Student Success Story carousel now sits beside the result cards as a s
 test("StudentSuccessCarousel no longer hardcodes its own top margin (the call site controls spacing now that it's reused inside a grid column)", async () => {
   const component = await read("app/_components/student-success-carousel.tsx");
   assert.doesNotMatch(component, /className="mt-8 grid overflow-hidden/);
-  assert.match(component, /className="grid overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm lg:grid-cols-\[1\.35fr_\.65fr\]"/);
+  assert.match(component, /className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm"/);
+});
+
+// Real reported follow-up: the "Visit Samradhi Classes" address/Call/Maps
+// box used to live inside the success-story card as a second internal
+// column -- moved into the site footer (visible on every page) instead,
+// and removed from the card entirely, which is now a single full-width
+// card with no internal split.
+test("the 'Visit Samradhi Classes' contact box has moved into the site footer and is no longer inside StudentSuccessCarousel", async () => {
+  const component = await read("app/_components/student-success-carousel.tsx");
+  assert.doesNotMatch(component, /Visit Samradhi Classes/);
+  assert.doesNotMatch(component, /Offline institution/);
+  assert.doesNotMatch(component, /<aside/);
+  const footer = await read("app/_components/site-footer.tsx");
+  assert.match(footer, /near Sanganer Airport, behind Choudhary Petrol Pump/);
+  assert.match(footer, /Call 7014371324/);
+  assert.match(footer, /Open in Google Maps/);
+});
+
+// Real reported follow-up: with the success-story card now shorter (no
+// more Visit-Samradhi-Classes aside beside it), the result cards column
+// left a blank gap below it. Nesting Top Rankers into that same left
+// column (only when there's a personalized result to show) fills the
+// gap; for a visitor with no personalized result, Top Rankers keeps its
+// original full-width standalone placement so it's never hidden from
+// anyone.
+test("Top Rankers nests into the results column when a personalized result exists, and stays a full-width standalone section otherwise", async () => {
+  const page = await read("app/page.tsx");
+  assert.match(page, /const hasPersonalizedResults = Boolean\(typingResult \|\| stenographyResult \|\| efficiencyResult\);/);
+  assert.match(page, /\{hasPersonalizedResults \? \(/);
+  const grid = page.slice(page.indexOf("grid gap-6 lg:grid-cols-2"), page.indexOf("<StudentSuccessCarousel"));
+  assert.match(grid, /<LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/>/, "Top Rankers must be nested inside the left results column");
+  const elseBranch = page.slice(page.indexOf(") : ("), page.indexOf(")}\n          <Reveal className=\"mt-8\">"));
+  assert.match(elseBranch, /<LiveTestTopRankers english=\{topRankersEnglish\} hindi=\{topRankersHindi\} \/>/, "the standalone fallback must still render Top Rankers for visitors with no personalized result");
 });
