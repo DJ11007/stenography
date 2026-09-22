@@ -237,3 +237,26 @@ test("the admin host page and Live Classroom Race nav entry exist", async () => 
   const host = await read("app/admin/live-race/live-race-host.tsx");
   assert.match(host, /createGameRoom\("speed-race", config\)/);
 });
+
+// Real reported gap: once a room existed there was no way back to the
+// language/category/passage picker at all -- an admin who wanted to
+// change any of that had to run an entire race to completion first.
+// Also, the passage was always silently auto-built with no way to see
+// or edit it, and there was no way to get a fresh one without changing
+// category. Fixed: a Cancel button in the waiting room ends it and goes
+// straight back to the picker (skipping the podium, since no race
+// happened); the passage is now a plain editable textarea, reshuffled
+// (a fresh random draw from the same word pool) on every language/
+// category change or an explicit "New random passage" request.
+test("the admin can cancel a still-waiting room to get back to the picker, and the passage is an editable, reshufflable textarea (not silently auto-built)", async () => {
+  const host = await read("app/admin/live-race/live-race-host.tsx");
+  assert.match(host, /const \[passage, setPassage\] = useState\(\(\) => buildSpeedRacePassage\(words\.english\?\.easy_words \?\? \[\]\)\);/);
+  assert.match(host, /const shufflePassage = useCallback\(\(lang: WordtrisLanguage, cat: WordtrisCategory\) => \{/);
+  assert.match(host, /const cancelRoom = async \(\) => \{\s*\n\s*if \(!room\) return;\s*\n\s*await finishGameRoom\(room\.id\);\s*\n\s*startNewRoom\(\);/);
+  assert.match(host, /onClick=\{cancelRoom\}/);
+  assert.match(host, /<textarea\s*\n\s*value=\{passage\}\s*\n\s*onChange=\{\(event\) => setPassage\(event\.target\.value\)\}/);
+  assert.match(host, /🎲 New random passage/);
+  // language/category buttons must reshuffle, not silently keep stale wording
+  assert.match(host, /onClick=\{\(\) => \{ setLanguage\("english"\); shufflePassage\("english", category\); \}\}/);
+  assert.match(host, /onClick=\{\(\) => \{ setCategory\(cat\.id\); shufflePassage\(language, cat\.id\); \}\}/);
+});

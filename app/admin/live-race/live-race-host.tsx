@@ -18,9 +18,22 @@ export function LiveRaceHost({ words }: Props) {
   const [language, setLanguage] = useState<WordtrisLanguage>("english");
   const [category, setCategory] = useState<WordtrisCategory>("easy_words");
   const [paceWpm, setPaceWpm] = useState(SPEEDRACE_DEFAULT_PACE_WPM);
+  // Real reported gap: the passage was always auto-built from the chosen
+  // category with no way to see or edit it before creating the room, and
+  // once a room existed there was no way back to this screen at all --
+  // an admin who wanted a different language/category/passage had to run
+  // an entire race to completion first just to reach "Host a new room".
+  // Now editable directly, and reshuffled (a fresh random draw from the
+  // same word pool) on every language/category change or explicit
+  // request, so students don't keep seeing the same wording.
+  const [passage, setPassage] = useState(() => buildSpeedRacePassage(words.english?.easy_words ?? []));
   const [error, setError] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(true);
   const roomRef = useRef<Room | null>(null);
+
+  const shufflePassage = useCallback((lang: WordtrisLanguage, cat: WordtrisCategory) => {
+    setPassage(buildSpeedRacePassage(words[lang]?.[cat] ?? []));
+  }, [words]);
 
   useEffect(() => {
     (async () => {
@@ -49,14 +62,24 @@ export function LiveRaceHost({ words }: Props) {
 
   const createRoom = async () => {
     setError(null);
-    const pool = words[language]?.[category] ?? [];
-    const passage = buildSpeedRacePassage(pool);
+    if (!passage.trim()) { setError("Write or shuffle a passage before creating the room."); return; }
     const config = { language, category, paceWpm, passage };
     const result = await createGameRoom("speed-race", config);
     if ("error" in result) { setError(result.error); return; }
     const next: Room = { id: result.id, code: result.code, status: "waiting" };
     roomRef.current = next;
     setRoom(next);
+  };
+
+  // Ending a still-'waiting' room (nobody has raced yet) the same way a
+  // finished race ends, then going straight back to the setup screen
+  // instead of showing a podium for a race that never happened -- this
+  // is the admin's only way back to change language/category/passage
+  // once a room exists.
+  const cancelRoom = async () => {
+    if (!room) return;
+    await finishGameRoom(room.id);
+    startNewRoom();
   };
 
   const start = async () => {
@@ -103,18 +126,32 @@ export function LiveRaceHost({ words }: Props) {
           <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
             <p className="text-xs font-black uppercase tracking-wider text-slate-500">Language</p>
             <div className="mt-2 flex gap-2">
-              <button type="button" onClick={() => setLanguage("english")} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "english" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>English</button>
-              <button type="button" onClick={() => setLanguage("hindi")} style={{ fontFamily: HI }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "hindi" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>हिन्दी</button>
+              <button type="button" onClick={() => { setLanguage("english"); shufflePassage("english", category); }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "english" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>English</button>
+              <button type="button" onClick={() => { setLanguage("hindi"); shufflePassage("hindi", category); }} style={{ fontFamily: HI }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-black transition ${language === "hindi" ? "bg-amber-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>हिन्दी</button>
             </div>
 
             <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Category</p>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
               {CATEGORIES.map((cat) => (
-                <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={`rounded-lg px-3 py-2 text-sm font-bold transition ${category === cat.id ? "bg-amber-50 text-amber-800 ring-2 ring-amber-600" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}>
+                <button key={cat.id} type="button" onClick={() => { setCategory(cat.id); shufflePassage(language, cat.id); }} className={`rounded-lg px-3 py-2 text-sm font-bold transition ${category === cat.id ? "bg-amber-50 text-amber-800 ring-2 ring-amber-600" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}>
                   {language === "hindi" ? cat.hi : cat.en}
                 </button>
               ))}
             </div>
+
+            <div className="mt-5 flex items-center justify-between">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-500">Passage</p>
+              <button type="button" onClick={() => shufflePassage(language, category)} className="rounded-lg border border-amber-300 px-3 py-1 text-xs font-black text-amber-800 hover:bg-amber-50">🎲 New random passage</button>
+            </div>
+            <textarea
+              value={passage}
+              onChange={(event) => setPassage(event.target.value)}
+              rows={4}
+              className="input mt-2 w-full leading-7"
+              style={{ fontFamily: language === "hindi" ? HI : undefined }}
+              placeholder="Write your own dictation passage, or shuffle one from the category above."
+            />
+            <p className="mt-1 text-xs text-slate-500">Edit freely, or shuffle a fresh random one from the category above -- every room can use different wording so students don't see the same passage race after race.</p>
 
             <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Pace car speed</p>
             <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">
@@ -143,6 +180,7 @@ export function LiveRaceHost({ words }: Props) {
                 {!participants.length && <p className="text-sm text-slate-500">No one has joined yet.</p>}
               </ul>
               <button type="button" onClick={start} className="mt-5 w-full rounded-xl bg-emerald-600 px-5 py-3 text-base font-black text-white shadow-lg transition hover:bg-emerald-700">Start race →</button>
+              <button type="button" onClick={cancelRoom} className="mt-2 w-full rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-black text-slate-600 hover:bg-slate-50">Cancel and change language/category/passage</button>
             </div>
           </div>
         )}
