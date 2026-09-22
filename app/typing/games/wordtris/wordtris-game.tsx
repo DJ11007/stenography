@@ -436,7 +436,21 @@ export function WordtrisGame({ words, characterPool }: Props) {
     if (event.key !== " " && event.code !== "Space") return;
     const activeDrop = activeDropRef.current;
     const isCompleteMatch = Boolean(activeDrop) && dropText(activeDrop!) === normalize(typed);
-    const continuesPhrase = Boolean(activeDrop) && isValidPrefix(`${typed} `);
+    // Real reported bug: a space pressed with nothing typed yet (a very
+    // natural way to answer "Press any key to start", or just an early
+    // stray keystroke) used to slip through here. isValidPrefix treats an
+    // all-whitespace value as trivially valid (it's the check for "is the
+    // empty string a valid prefix", needed elsewhere), so `typed=""` plus
+    // a leading space read as "continues the phrase" even though there was
+    // no phrase yet -- letting the browser's native space-insertion store
+    // a literal " " into `typed`. Every real letter typed after that was
+    // then checked as a continuation of " ", which no target ever starts
+    // with, so it was silently rejected forever: the exact "type the first
+    // key, then can't type anything else" report. Requiring some real
+    // non-space content already typed before a space can "continue a
+    // phrase" closes this -- a bare leading space now just falls through
+    // to trySubmit()'s own no-op-on-empty guard instead.
+    const continuesPhrase = Boolean(activeDrop) && typed.length > 0 && isValidPrefix(`${typed} `);
     if (!isCompleteMatch && continuesPhrase) return;
     event.preventDefault();
     trySubmit();

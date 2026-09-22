@@ -318,6 +318,21 @@ test("stale Save feedback from a previous edit doesn't bleed into a newly opened
 test("WordTris lets Space type as a normal character mid-phrase (multi-word entries), only treating it as submit on a complete match or a genuinely wrong guess", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /const isCompleteMatch = Boolean\(activeDrop\) && dropText\(activeDrop!\) === normalize\(typed\);/);
-  assert.match(game, /const continuesPhrase = Boolean\(activeDrop\) && isValidPrefix\(`\$\{typed\} `\);/);
+  assert.match(game, /const continuesPhrase = Boolean\(activeDrop\) && typed\.length > 0 && isValidPrefix\(`\$\{typed\} `\);/);
   assert.match(game, /if \(!isCompleteMatch && continuesPhrase\) return;/);
+});
+
+// Real reported bug: pressing Space as the very first keystroke (a
+// natural way to answer "Press any key to start") used to slip through
+// the same multi-word "continues the phrase" branch above with
+// typed="" -- isValidPrefix treats an all-whitespace value as trivially
+// valid, so the browser's native space-insertion wasn't prevented, and a
+// literal " " got stored into `typed`. Every real letter typed after
+// that was rejected as an invalid continuation of " ", which no target
+// starts with -- the exact "type the first key, then can't type
+// anything else" report. Requiring typed.length > 0 before a space can
+// "continue a phrase" closes this.
+test("WordTris does not let a bare Space (typed is still empty) fall through as a phrase-continuation and silently poison further typing", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const continuesPhrase = Boolean\(activeDrop\) && typed\.length > 0 && isValidPrefix/);
 });
