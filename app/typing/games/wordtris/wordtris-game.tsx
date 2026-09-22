@@ -412,7 +412,27 @@ export function WordtrisGame({ words, characterPool }: Props) {
     // Real reported request: the first drop shouldn't fall the instant
     // Start is clicked -- the play field waits until the student actually
     // presses a key (any real key, not just a lone modifier).
-    if (awaitingFirstKey && !MODIFIER_ONLY_KEYS.has(event.key)) setAwaitingFirstKey(false);
+    //
+    // Real reported bug this caused: setAwaitingFirstKey(false) here only
+    // SCHEDULES a state update -- the spawn effect that actually creates
+    // the drop doesn't run until after this render commits, roughly
+    // 250ms later. But the browser fires this keydown, then the input's
+    // own value change and onChange, synchronously in the very same
+    // event dispatch -- all BEFORE any of that. So the exact keystroke
+    // that starts the round always arrived while activeDropRef.current
+    // was still null, isValidPrefix rejected it, and React's controlled
+    // input reverted it to blank -- confirmed live (dispatched the real
+    // keydown-then-input sequence and watched the value snap back to "").
+    // The student's first keystroke was silently thrown away every
+    // single round, throwing off everything they typed after it until
+    // the word eventually fell unanswered. Fixed by spawning the first
+    // drop SYNCHRONOUSLY here, via the ref (not the delayed effect), so
+    // this exact keystroke lands on a drop that already exists by the
+    // time the input's own change handler runs immediately afterward.
+    if (awaitingFirstKey && !MODIFIER_ONLY_KEYS.has(event.key)) {
+      setAwaitingFirstKey(false);
+      spawnDrop(mode, language);
+    }
     if (event.key !== " " && event.code !== "Space") return;
     const activeDrop = activeDropRef.current;
     const isCompleteMatch = Boolean(activeDrop) && dropText(activeDrop!) === normalize(typed);

@@ -105,8 +105,28 @@ test("the first drop doesn't fall until the student's first keystroke, not the i
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
   assert.match(game, /const \[awaitingFirstKey, setAwaitingFirstKey\] = useState\(false\);/);
   assert.match(game, /setAwaitingFirstKey\(true\);\s*\n\s*setStep\("playing"\);/); // startRound arms it
-  assert.match(game, /if \(awaitingFirstKey && !MODIFIER_ONLY_KEYS\.has\(event\.key\)\) setAwaitingFirstKey\(false\);/);
+  assert.match(game, /if \(awaitingFirstKey && !MODIFIER_ONLY_KEYS\.has\(event\.key\)\) \{/);
   assert.match(game, /Press any key to start/);
+});
+
+// Real reported bug: the exact keystroke that started the round was
+// silently thrown away every single time. setAwaitingFirstKey(false)
+// only SCHEDULES a state update -- the spawn effect that actually
+// creates the drop doesn't run until after that render commits, ~250ms
+// later. But the browser fires this keydown, then the input's own value
+// change and onChange, synchronously in the very same event dispatch --
+// all before any of that. So the starting keystroke always arrived
+// while activeDropRef.current was still null, isValidPrefix rejected
+// it, and React's controlled input reverted it to blank -- confirmed
+// live (dispatched the real keydown-then-input sequence and watched the
+// value snap back to ""). Fixed by spawning the first drop
+// SYNCHRONOUSLY in the keydown handler (via the ref, not the delayed
+// effect), so the exact keystroke that starts the round lands on a drop
+// that already exists by the time the input's own change handler runs
+// immediately afterward.
+test("the starting keystroke spawns the first drop synchronously (via the ref), so that same keystroke can be validated against it instead of being silently discarded", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /if \(awaitingFirstKey && !MODIFIER_ONLY_KEYS\.has\(event\.key\)\) \{\s*\n\s*setAwaitingFirstKey\(false\);\s*\n\s*spawnDrop\(mode, language\);\s*\n\s*\}/);
 });
 
 // Real reported request, follow-up: starting speed and the speed-up
