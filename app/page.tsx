@@ -245,17 +245,6 @@ export default async function Home() {
             style={{ animationDelay: "200ms" }}
           >
             <Link
-              href="/live-test"
-              className="inline-flex items-center gap-2.5 rounded-xl bg-white px-6 py-3 font-black text-blue-700 shadow-lg shadow-blue-950/30 transition-transform hover:-translate-y-0.5 hover:bg-blue-50"
-            >
-              <span className="relative flex h-2.5 w-2.5" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
-              </span>
-              Join Live Test
-            </Link>
-
-            <Link
               href="/typing"
               className="group inline-flex items-center gap-2 rounded-xl border-2 border-white/80 px-6 py-3 font-black text-white transition-all hover:-translate-y-0.5 hover:bg-white hover:text-blue-700"
             >
