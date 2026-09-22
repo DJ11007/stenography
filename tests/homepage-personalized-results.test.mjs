@@ -44,7 +44,7 @@ test("the three cards render in Typing -> Stenography -> Efficiency order, above
   const typingIndex = page.indexOf("typingResult && <MyResultCard");
   const stenographyIndex = page.indexOf("stenographyResult && <MyResultCard");
   const efficiencyIndex = page.indexOf("efficiencyResult && <MyResultCard");
-  const tickerIndex = page.indexOf("<LiveResultsTicker");
+  const tickerIndex = page.indexOf("<LiveResultsByLanguage");
   assert.ok(typingIndex > 0 && stenographyIndex > typingIndex && efficiencyIndex > stenographyIndex && tickerIndex > efficiencyIndex);
   assert.match(page, /Your latest results/);
 });

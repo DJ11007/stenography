@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { LiveResultsTicker, type PublicLiveResult } from "./_components/live-results-ticker";
+import { LiveResultsByLanguage } from "./_components/live-results-by-language";
+import { LiveTestTopRankers } from "./_components/live-test-top-rankers";
 import { Reveal } from "./_components/reveal";
 import { SiteFooter } from "./_components/site-footer";
 import { SiteHeader } from "./_components/site-header";
@@ -14,6 +15,7 @@ import { BuyNowButton } from "./_components/buy-now-button";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
+import { getPublishedLiveResults, getLiveTestTopRankers } from "@/lib/live-test-results-server";
 
 const EXAM_CATEGORIES = [
   {
@@ -117,8 +119,10 @@ function Icon({ name, className }: { name: IconName; className: string }) {
 
 export default async function Home() {
   const supabase = await createClient();
-  const [{ data: liveResults }, vacancies, feedback, officialWebsites, user] = await Promise.all([
-    supabase.rpc("published_live_results", { p_limit: 20 }),
+  const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user] = await Promise.all([
+    getPublishedLiveResults(20),
+    getLiveTestTopRankers("English"),
+    getLiveTestTopRankers("Hindi"),
     getPublishedVacancies(),
     getApprovedFeedback(6),
     getPublishedOfficialWebsites(),
@@ -272,7 +276,14 @@ export default async function Home() {
             </Reveal>
           )}
           <Reveal className="mt-8">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Published automatically</p><h2 className="mt-1 text-2xl font-black">Latest live-test results</h2></div><Link href="/live-test" className="text-sm font-black text-blue-700">Open live-test centre →</Link></div><LiveResultsTicker results={(liveResults??[]) as PublicLiveResult[]}/>
+            <p className="text-xs font-black uppercase tracking-widest text-blue-700">Top Rankers</p>
+            <h2 className="mt-1 text-2xl font-black">Live-test leaderboard</h2>
+            <div className="mt-4">
+              <LiveTestTopRankers english={topRankersEnglish} hindi={topRankersHindi} />
+            </div>
+          </Reveal>
+          <Reveal className="mt-8">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-widest text-blue-700">Published automatically</p><h2 className="mt-1 text-2xl font-black">Latest live-test results</h2></div><Link href="/live-test" className="text-sm font-black text-blue-700">Open live-test centre →</Link></div><LiveResultsByLanguage results={liveResults}/>
           </Reveal>
           <Reveal className="mt-8">
             <StudentSuccessCarousel />

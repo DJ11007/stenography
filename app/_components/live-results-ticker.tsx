@@ -1,4 +1,4 @@
-export type PublicLiveResult = { student_name: string; test_title: string; net_wpm: number; accuracy: number; submitted_at: string };
+export type PublicLiveResult = { student_name: string; test_title: string; language: string; net_wpm: number; accuracy: number; submitted_at: string };
 
 export function LiveResultsTicker({results}:{results:PublicLiveResult[]}){
   if(!results.length)return <div className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 px-5 py-6 text-center text-sm font-bold text-blue-800">Published live-test results will appear here automatically after their release time.</div>;
