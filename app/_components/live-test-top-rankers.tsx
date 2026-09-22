@@ -14,7 +14,7 @@ const TONE = [
 
 function Podium({ language, rankers }: { language: string; rankers: LiveTestTopRanker[] }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex h-full flex-col justify-center rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{language}</h3>
       {rankers.length ? (
         <div className="mt-3 space-y-2">
@@ -44,7 +44,7 @@ function Podium({ language, rankers }: { language: string; rankers: LiveTestTopR
 // language" request.
 export function LiveTestTopRankers({ english, hindi }: { english: LiveTestTopRanker[]; hindi: LiveTestTopRanker[] }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid h-full gap-4 sm:grid-cols-2">
       <Podium language="Hindi" rankers={hindi} />
       <Podium language="English" rankers={english} />
     </div>
