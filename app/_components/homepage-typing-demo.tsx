@@ -11,6 +11,50 @@ import { KeyboardDiagram } from "./keyboard-diagram";
 const KD_FONT = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 const MONO_FONT = 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace';
 
+// Purely decorative background flair -- a scattered mix of large, faint,
+// colorful English letters and Kruti Dev glyph keys (single consonant
+// bytes, not real words, so there's nothing here for a student to
+// mis-learn) sitting behind the actual demo card. Fixed, hardcoded
+// positions/rotations rather than Math.random() so a client-rendered
+// component never risks a different layout between renders.
+const BACKGROUND_KEYCAPS: { char: string; kd?: boolean; top: string; left: string; size: string; rotate: number; color: string }[] = [
+  { char: "A", top: "6%", left: "8%", size: "5rem", rotate: -12, color: "#22d3ee" },
+  { char: "d", kd: true, top: "14%", left: "82%", size: "6rem", rotate: 10, color: "#a78bfa" },
+  { char: "K", top: "68%", left: "4%", size: "4.5rem", rotate: 8, color: "#fb923c" },
+  { char: "g", kd: true, top: "78%", left: "90%", size: "5.5rem", rotate: -8, color: "#4ade80" },
+  { char: "S", top: "40%", left: "94%", size: "4rem", rotate: 15, color: "#f472b6" },
+  { char: "j", kd: true, top: "4%", left: "45%", size: "4rem", rotate: -6, color: "#38bdf8" },
+  { char: "T", top: "85%", left: "35%", size: "5rem", rotate: 6, color: "#facc15" },
+  { char: "l", kd: true, top: "55%", left: "18%", size: "4.5rem", rotate: 14, color: "#f87171" },
+  { char: "E", top: "22%", left: "2%", size: "3.5rem", rotate: -10, color: "#2dd4bf" },
+  { char: "v", kd: true, top: "90%", left: "65%", size: "4rem", rotate: -14, color: "#c084fc" },
+  { char: "R", top: "8%", left: "65%", size: "3.5rem", rotate: 12, color: "#34d399" },
+  { char: "s", kd: true, top: "48%", left: "55%", size: "3.5rem", rotate: -4, color: "#fbbf24" },
+];
+
+function BackgroundKeyboardDecoration() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.12]">
+      {BACKGROUND_KEYCAPS.map((cap, i) => (
+        <span
+          key={i}
+          className="absolute font-black leading-none"
+          style={{
+            top: cap.top,
+            left: cap.left,
+            fontSize: cap.size,
+            color: cap.color,
+            transform: `rotate(${cap.rotate}deg)`,
+            fontFamily: cap.kd ? KD_FONT : MONO_FONT,
+          }}
+        >
+          {cap.char}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 type Language = "english" | "hindi-krutidev";
 type Phase = "setup" | "running" | "done";
 const DURATIONS = [1, 5, 10] as const;
@@ -113,8 +157,9 @@ export function HomepageTypingDemo() {
   };
 
   return (
-    <section id="try-free-typing-test" className="bg-slate-950 px-6 py-16 text-white">
-      <div className="mx-auto max-w-5xl">
+    <section id="try-free-typing-test" className="relative overflow-hidden bg-slate-950 px-6 py-16 text-white">
+      <BackgroundKeyboardDecoration />
+      <div className="relative z-10 mx-auto max-w-5xl">
         <span className="inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase tracking-wide text-cyan-300">
           Speed Evaluation
         </span>
