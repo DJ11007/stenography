@@ -215,13 +215,6 @@ export default async function Home() {
             SAMRADHI CLASSES
           </h1>
 
-          <p
-            className="animate-fade-in-up mt-3 text-lg font-bold text-blue-50 sm:text-xl"
-            style={{ animationDelay: "120ms" }}
-          >
-            Typing, Efficiency and Stenography Test
-          </p>
-
           <div
             className="animate-fade-in-up mx-auto mt-6 grid max-w-6xl gap-3 text-left sm:grid-cols-2 lg:grid-cols-4"
             style={{ animationDelay: "160ms" }}
