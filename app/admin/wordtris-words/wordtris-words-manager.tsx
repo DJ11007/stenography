@@ -60,6 +60,21 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
 
   const draft = editing && "id" in editing ? editing : null;
 
+  // Real reported bug: opening the edit dialog for one word (e.g. a
+  // pre-existing bad entry stored as raw Kruti Dev keystrokes, "ek")
+  // showed a green "Word saved." message alongside the red validation
+  // warning -- looking exactly like the invalid word had just been
+  // saved, even though Save was correctly disabled the whole time.
+  // saveState/saveAction live in this parent component, not the dialog
+  // itself, so a SUCCESS message from an earlier save (of a completely
+  // different word, in an earlier open/close of this same dialog) stays
+  // truthy and gets rendered again the instant any new dialog opens --
+  // useActionState has no way to "clear" that state short of dispatching
+  // another action. Track whether THIS dialog has actually submitted;
+  // only show feedback once it has, and reset that flag every time a
+  // (possibly different) dialog opens.
+  const [dialogSubmitted, setDialogSubmitted] = useState(false);
+
   useEffect(() => {
     if (saveState.success) setEditing(null);
   }, [saveState]);
@@ -68,6 +83,7 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
     if (!editing) return;
     setLiveWord(editing && "id" in editing ? editing.word : "");
     setLiveLanguage(editing.language);
+    setDialogSubmitted(false);
   }, [editing]);
 
   useEffect(() => {
@@ -133,6 +149,7 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center" onMouseDown={() => setEditing(null)} role="presentation">
           <form
             action={saveAction}
+            onSubmit={() => setDialogSubmitted(true)}
             key={draft?.id ?? `new-${editing.language}-${editing.category}`}
             onMouseDown={(event) => event.stopPropagation()}
             className="my-8 grid w-full max-w-md gap-3 rounded-xl border border-blue-200 bg-white p-5 shadow-2xl"
@@ -170,7 +187,7 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
               <button type="submit" disabled={savePending || Boolean(hindiWordWarning)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
               <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black hover:bg-slate-50">Cancel</button>
             </div>
-            <Feedback state={saveState} />
+            {dialogSubmitted && <Feedback state={saveState} />}
           </form>
         </div>
       )}

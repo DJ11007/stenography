@@ -173,6 +173,23 @@ test("the WordTris admin word manager blocks Save when a Hindi word doesn't dete
   assert.match(manager, /\{hindiWordWarning && <p role="alert"/);
 });
 
+// Real reported bug: opening the edit dialog for one word showed a green
+// "Word saved." message alongside the red validation warning, looking
+// exactly like the currently-open (invalid) word had just been saved --
+// it hadn't; Save was correctly disabled the whole time. saveState lives
+// in the parent, not the dialog, so a SUCCESS message from an EARLIER
+// save (a different word, an earlier open/close of this same dialog)
+// stayed truthy and got rendered again the instant any new dialog
+// opened. Fixed by only showing feedback once THIS dialog has actually
+// submitted, reset every time a (possibly different) dialog opens.
+test("stale Save feedback from a previous edit doesn't bleed into a newly opened dialog for a different word", async () => {
+  const manager = await read("app/admin/wordtris-words/wordtris-words-manager.tsx");
+  assert.match(manager, /const \[dialogSubmitted, setDialogSubmitted\] = useState\(false\);/);
+  assert.match(manager, /setDialogSubmitted\(false\);\s*\n\s*\}, \[editing\]\);/);
+  assert.match(manager, /onSubmit=\{\(\) => setDialogSubmitted\(true\)\}/);
+  assert.match(manager, /\{dialogSubmitted && <Feedback state=\{saveState\} \/>\}/);
+});
+
 // Real reported gap: a multi-word word-bank entry ("दमकल गाड़ी", "पानी का
 // टैंकर", ...) could never be caught in play. Space always meant "submit
 // now", so finishing the first word and pressing Space to continue typing
