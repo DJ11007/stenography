@@ -175,7 +175,7 @@ export default async function Home() {
     <main className="min-h-screen bg-white">
       <SiteHeader />
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-800 to-violet-900 py-14 text-white sm:py-20">
+      <section className="relative overflow-hidden bg-gradient-to-b from-blue-700 via-indigo-900 to-slate-950 py-10 text-white sm:py-14">
         <div
           aria-hidden
           className="absolute inset-0 opacity-[0.15]"
@@ -205,7 +205,7 @@ export default async function Home() {
             width={72}
             height={72}
             priority
-            className="animate-fade-in-up mx-auto mt-5 h-[72px] w-[72px] rounded-full bg-white object-contain shadow-xl ring-2 ring-white/80"
+            className="animate-fade-in-up mx-auto mt-3 h-[72px] w-[72px] rounded-full bg-white object-contain shadow-xl ring-2 ring-white/80"
             style={{ animationDelay: "40ms" }}
           />
           <h1
@@ -223,7 +223,7 @@ export default async function Home() {
           </p>
 
           <div
-            className="animate-fade-in-up mx-auto mt-8 grid max-w-5xl gap-3 text-left sm:grid-cols-2"
+            className="animate-fade-in-up mx-auto mt-6 grid max-w-5xl gap-3 text-left sm:grid-cols-2"
             style={{ animationDelay: "160ms" }}
           >
             {EXAM_CATEGORIES.map((category) => (
