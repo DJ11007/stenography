@@ -48,3 +48,27 @@ test("the three cards render in Typing -> Stenography -> Efficiency order, above
   assert.ok(typingIndex > 0 && stenographyIndex > typingIndex && efficiencyIndex > stenographyIndex && tickerIndex > efficiencyIndex);
   assert.match(page, /Your latest results/);
 });
+
+// Real reported follow-up: the result cards were a full-width stacked
+// column with lots of unused space beside them, and the Student Success
+// Story carousel (with its "Visit Samradhi Classes" info box) sat much
+// further down the page, disconnected from this section. Moved up to sit
+// beside the result cards as a second column (removed from its old spot,
+// appears once) -- deliberately tied to the same "has a result" condition
+// as the cards, per the user's own explicit choice, not shown standalone
+// for a logged-out visitor or one with no attempts yet.
+test("the Student Success Story carousel now sits beside the result cards as a second column, and only appears once (moved, not duplicated)", async () => {
+  const page = await read("app/page.tsx");
+  assert.match(page, /grid gap-6 lg:grid-cols-2 lg:items-start/);
+  const occurrences = page.match(/<StudentSuccessCarousel\s*\/>/g) ?? [];
+  assert.equal(occurrences.length, 1, "StudentSuccessCarousel must appear exactly once, not duplicated");
+  const resultsGridIndex = page.indexOf("grid gap-6 lg:grid-cols-2 lg:items-start");
+  const carouselIndex = page.indexOf("<StudentSuccessCarousel");
+  assert.ok(resultsGridIndex > 0 && carouselIndex > resultsGridIndex, "the carousel must be inside the two-column results grid");
+});
+
+test("StudentSuccessCarousel no longer hardcodes its own top margin (the call site controls spacing now that it's reused inside a grid column)", async () => {
+  const component = await read("app/_components/student-success-carousel.tsx");
+  assert.doesNotMatch(component, /className="mt-8 grid overflow-hidden/);
+  assert.match(component, /className="grid overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm lg:grid-cols-\[1\.35fr_\.65fr\]"/);
+});

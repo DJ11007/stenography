@@ -253,10 +253,21 @@ export default async function Home() {
           {(typingResult || stenographyResult || efficiencyResult) && (
             <Reveal>
               <p className="text-xs font-black uppercase tracking-widest text-blue-700">Your latest results</p>
-              <div className="mt-3 grid gap-4">
-                {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
-                {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
-                {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
+              {/* Real reported problem: each result card was a full-width
+                  stacked row with lots of unused space to the right, and
+                  the Student Success Story carousel (with its "Visit
+                  Samradhi Classes" info box) sat much further down the
+                  page, disconnected from this section. Splitting into two
+                  columns fills that wasted space with the success story
+                  instead -- both only appear together, tied to whether
+                  this visitor actually has a result to show. */}
+              <div className="mt-3 grid gap-6 lg:grid-cols-2 lg:items-start">
+                <div className="grid gap-4">
+                  {typingResult && <MyResultCard label="Typing" tone="blue" href={typingResult.href} title={typingResult.title} metrics={[["Net WPM", String(typingResult.netWpm)], ["Gross WPM", String(typingResult.grossWpm)]]} />}
+                  {stenographyResult && <MyResultCard label="Stenography" tone="violet" href={stenographyResult.href} title={stenographyResult.title} metrics={[["Net WPM", String(stenographyResult.netWpm)], ["Result", stenographyResult.passed ? "Pass" : "Fail"]]} />}
+                  {efficiencyResult && <MyResultCard label={`Efficiency · ${efficiencyResult.subject}`} tone="emerald" href={efficiencyResult.href} title={efficiencyResult.title} metrics={[["Marks", `${efficiencyResult.marks} / ${efficiencyResult.maximumMarks}`], ["Result", efficiencyResult.passed == null ? "Not graded" : efficiencyResult.passed ? "Pass" : "Fail"]]} />}
+                </div>
+                <StudentSuccessCarousel />
               </div>
             </Reveal>
           )}
@@ -289,9 +300,6 @@ export default async function Home() {
           </Reveal>
           <Reveal className="mt-8">
             <VacancySections vacancies={vacancies} officialWebsites={officialWebsites} compact />
-          </Reveal>
-          <Reveal className="mt-8">
-            <StudentSuccessCarousel />
           </Reveal>
         </div>
       </section>
