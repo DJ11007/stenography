@@ -206,15 +206,19 @@ test("every RPC is revoked from public/anon and granted only to authenticated", 
   assert.match(revokeBlock, /to authenticated;/);
 });
 
-test("the shared multiplayer actions require the right role per action (admin for host actions, student for join/progress/result, any signed-in user for read-only roster/status)", async () => {
+test("the shared multiplayer actions require the right role per action (admin for host actions, student for join/result); the three high-frequency poll/push actions skip the app-layer check since their RPC already does its own row-scoped auth.uid() enforcement", async () => {
   const actions = await read("app/typing/games/_multiplayer/actions.ts");
   assert.match(actions, /export async function createGameRoom[\s\S]{0,200}await requireAdmin\(\);/);
   assert.match(actions, /export async function startGameRoom[\s\S]{0,200}await requireAdmin\(\);/);
   assert.match(actions, /export async function finishGameRoom[\s\S]{0,200}await requireAdmin\(\);/);
   assert.match(actions, /export async function joinGameRoom[\s\S]{0,200}await requireStudent\(\);/);
-  assert.match(actions, /export async function updateGameRoomProgress[\s\S]{0,200}await requireStudent\(\);/);
   assert.match(actions, /export async function submitGameRoomResult[\s\S]{0,200}await requireStudent\(\);/);
-  assert.match(actions, /export async function listGameRoomParticipants[\s\S]{0,200}await requireUser\(\);/);
+  const progressFn = actions.slice(actions.indexOf("export async function updateGameRoomProgress"), actions.indexOf("export async function submitGameRoomResult"));
+  assert.doesNotMatch(progressFn, /await require(Student|User|Admin)\(\);/);
+  const statusFn = actions.slice(actions.indexOf("export async function getGameRoomStatus"), actions.indexOf("export async function listGameRoomParticipants"));
+  assert.doesNotMatch(statusFn, /await require(Student|User|Admin)\(\);/);
+  const rosterFn = actions.slice(actions.indexOf("export async function listGameRoomParticipants"));
+  assert.doesNotMatch(rosterFn, /await require(Student|User|Admin)\(\);/);
 });
 
 test("joining a live race forces the host's identical passage/pace/category onto the student, never their own picker", async () => {

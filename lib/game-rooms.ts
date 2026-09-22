@@ -24,9 +24,22 @@ export type GameRoomParticipant = {
 // Every client (host dashboard, each racing student) polls
 // list_game_room_participants on this schedule -- frequent enough to feel
 // live, cheap enough for a classroom-scale room (a few dozen students).
-export const GAME_ROOM_POLL_MS = 1500;
+//
+// Real reported bug: live races with many students were slow to update,
+// and results often showed 0 WPM for students whose own screen had a
+// real speed. The actual bottleneck wasn't this interval -- it was two
+// redundant Supabase round trips (a live auth re-check plus a profiles
+// lookup) this app layer added on top of every single poll/push, which
+// is what was actually slow and, under load, silently dropping progress
+// pushes (see the removed requireStudent()/requireUser() calls in
+// app/typing/games/_multiplayer/actions.ts for the full explanation).
+// With those gone, each poll/push is now just the one RPC call it always
+// should have been, so tightening this further is now safe without
+// multiplying Supabase's own Auth API traffic the way a blind "poll N
+// times faster" would have on the OLD, heavier per-call cost.
+export const GAME_ROOM_POLL_MS = 800;
 // Each racing student pushes its own live position on this schedule.
-export const GAME_ROOM_PROGRESS_PUSH_MS = 1200;
+export const GAME_ROOM_PROGRESS_PUSH_MS = 600;
 
 export const GAME_ROOM_LABELS: Record<GameRoomGame, string> = {
   "speed-race": "Speed Race",
