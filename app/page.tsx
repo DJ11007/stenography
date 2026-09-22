@@ -223,13 +223,13 @@ export default async function Home() {
           </p>
 
           <div
-            className="animate-fade-in-up mx-auto mt-6 grid max-w-5xl gap-3 text-left sm:grid-cols-2"
+            className="animate-fade-in-up mx-auto mt-6 grid max-w-6xl gap-3 text-left sm:grid-cols-2 lg:grid-cols-4"
             style={{ animationDelay: "160ms" }}
           >
             {EXAM_CATEGORIES.map((category) => (
               <div
                 key={category.label}
-                className="flex gap-3 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm transition-colors hover:bg-white/15 sm:first:col-span-2"
+                className="flex gap-3 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm transition-colors hover:bg-white/15"
               >
                 <Icon name={category.icon} className={`${category.iconColor} mt-0.5 shrink-0`} />
                 <div>
