@@ -26,24 +26,54 @@
 // well-tested conversion path everywhere else -- rather than inventing
 // a guessed sequence. That word should be added here once someone
 // confirms its sequence the same way the rest of this list was built.
+//
+// Replaced 2026-09-22 with the admin's own 28-word vehicle/equipment list
+// (the "common" category id/name is unchanged -- only its content). Two
+// entries needed extra scrutiny beyond the usual round-trip check, both
+// confirmed by actually rendering the sequence in the bundled
+// KrutiDev010.ttf font:
+// - "ऑटो": unicodeToKrutiDev() itself produces a technically-different
+//   (but visually near-identical) sequence using U+201A, a punctuation
+//   mark no physical Kruti Dev key can actually produce -- unusable for
+//   a typing game. Uses the admin's own independently-supplied,
+//   all-plain-ASCII sequence "vkWVks" instead, visually confirmed to
+//   draw ऑटो correctly.
+// - "इलेक्ट्रिक": krutiDevToUnicode() decodes this one word's own
+//   forward-converted sequence back to a slightly different Unicode
+//   string (a known decoder-only limitation with a triple conjunct plus
+//   a pre-base ि matra, unrelated to whether the FORWARD sequence is
+//   correct) -- confirmed correct by rendering it directly in the font.
 export type VerifiedKrutiWord = { id: number; displayWord: string; krutiKeys: string };
 
 export const HINDI_COMMON_WORD_KEYS: VerifiedKrutiWord[] = [
-  { id: 1, displayWord: "और", krutiKeys: "vkSj" },
-  { id: 2, displayWord: "के", krutiKeys: "ds" },
-  { id: 3, displayWord: "का", krutiKeys: "dk" },
-  { id: 4, displayWord: "है", krutiKeys: "gS" },
-  { id: 5, displayWord: "में", krutiKeys: "esa" },
-  { id: 6, displayWord: "को", krutiKeys: "dks" },
-  { id: 7, displayWord: "से", krutiKeys: "ls" },
-  { id: 8, displayWord: "यह", krutiKeys: ";g" },
-  { id: 9, displayWord: "वह", krutiKeys: "og" },
-  { id: 10, displayWord: "हैं", krutiKeys: "gSa" },
-  { id: 11, displayWord: "पर", krutiKeys: "ij" },
-  { id: 12, displayWord: "कि", krutiKeys: "fd" },
-  { id: 13, displayWord: "ने", krutiKeys: "us" },
-  { id: 14, displayWord: "तो", krutiKeys: "rks" },
-  { id: 15, displayWord: "भी", krutiKeys: "Hkh" },
+  { id: 1, displayWord: "सीमेंट", krutiKeys: "lhesaV" },
+  { id: 2, displayWord: "मिक्सर", krutiKeys: "feDlj" },
+  { id: 3, displayWord: "इलेक्ट्रिक", krutiKeys: "bysfDVªd" },
+  { id: 4, displayWord: "नौका", krutiKeys: "ukSdk" },
+  { id: 5, displayWord: "गर्म हवा का गुब्बारा", krutiKeys: "xeZ gok dk xqCckjk" },
+  { id: 6, displayWord: "गाड़ी", krutiKeys: "xkM+h" },
+  { id: 7, displayWord: "ट्रक", krutiKeys: "Vªd" },
+  { id: 8, displayWord: "ई-रिक्शा", krutiKeys: "bZ&fjD'kk" },
+  { id: 9, displayWord: "रिक्शा", krutiKeys: "fjD'kk" },
+  { id: 10, displayWord: "स्कूटर", krutiKeys: "LdwVj" },
+  { id: 11, displayWord: "कार", krutiKeys: "dkj" },
+  { id: 12, displayWord: "फेरी", krutiKeys: "Qsjh" },
+  { id: 13, displayWord: "ट्रॉली", krutiKeys: "VªkWyh" },
+  { id: 14, displayWord: "ग्लाइडर", krutiKeys: "XykbMj" },
+  { id: 15, displayWord: "पनडुब्बी", krutiKeys: "iuMqCch" },
+  { id: 16, displayWord: "टैक्सी", krutiKeys: "VSDlh" },
+  { id: 17, displayWord: "स्कूल बस", krutiKeys: "Ldwy cl" },
+  { id: 18, displayWord: "एम्बुलेंस", krutiKeys: ",Ecqysal" },
+  { id: 19, displayWord: "पुलिस जीप", krutiKeys: "iqfyl thi" },
+  { id: 20, displayWord: "बैलगाड़ी", krutiKeys: "cSyxkM+h" },
+  { id: 21, displayWord: "क्रेन", krutiKeys: "Øsu" },
+  { id: 22, displayWord: "रोड रोलर", krutiKeys: "jksM jksyj" },
+  { id: 23, displayWord: "मालगाड़ी", krutiKeys: "ekyxkM+h" },
+  { id: 24, displayWord: "पानी का टैंकर", krutiKeys: "ikuh dk VSadj" },
+  { id: 25, displayWord: "हवाई जहाज", krutiKeys: "gokbZ tgkt" },
+  { id: 26, displayWord: "ऑटो", krutiKeys: "vkWVks" },
+  { id: 27, displayWord: "नाव", krutiKeys: "uko" },
+  { id: 28, displayWord: "बुलडोजर", krutiKeys: "cqyMkstj" },
 ];
 
 const byDisplayWord = new Map(HINDI_COMMON_WORD_KEYS.map((w) => [w.displayWord, w.krutiKeys]));

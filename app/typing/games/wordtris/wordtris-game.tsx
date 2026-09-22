@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
-import { getVerifiedHindiCommonKeys, isExactKrutiDevMatch } from "@/lib/kruti-dev-word-bank";
+import { getVerifiedHindiCommonKeys, isExactKrutiDevMatch, checkKrutiDevKeystrokes } from "@/lib/kruti-dev-word-bank";
 import type { CharacterPoolLanguage } from "@/lib/character-pool-content";
 import type { CharacterPoolForLanguage } from "@/lib/character-pool-server";
 import { CATEGORIES, WORDTRIS_STARTING_LIVES, WORDTRIS_WPM_MILESTONES, WORDTRIS_CATCHES_PER_MILESTONE, WORDTRIS_MISS_WPM_PENALTY, WORDTRIS_MIN_WPM, wordtrisFallMs, wordtrisNextMilestone, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage, type WordtrisMode } from "@/lib/wordtris-content";
@@ -702,6 +702,27 @@ export function WordtrisGame({ words, characterPool }: Props) {
               className="absolute h-px w-px overflow-hidden whitespace-nowrap opacity-0"
               style={{ clip: "rect(0,0,0,0)" }}
             />
+
+            {/* TEMPORARY developer/debug view -- requested to manually
+                verify every Hindi "common" word's Kruti Dev 010 keystroke
+                sequence position-by-position while the new vehicle word
+                list is being checked. Safe to delete once verification is
+                done; not linked from anywhere else. */}
+            {language === "hindi" && category === "common" && activeDrop && (
+              <div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-3 text-xs">
+                <p className="font-black text-amber-900">🔧 Debug: Kruti Dev keystroke check (temporary)</p>
+                <p className="mt-1 text-amber-800">Hindi target: <span style={{ fontFamily }}>{activeDrop.text}</span></p>
+                <p className="text-amber-800">Expected raw sequence: <code>{activeDrop.target}</code> ({activeDrop.target.length} keystrokes)</p>
+                <p className="text-amber-800">Student raw sequence: <code>{typed || "(none yet)"}</code> ({typed.length} keystrokes)</p>
+                <ol className="mt-2 space-y-0.5 font-mono">
+                  {checkKrutiDevKeystrokes(typed, activeDrop.target).map((c) => (
+                    <li key={c.position} className={c.correct ? "text-emerald-700" : "text-rose-700"}>
+                      {c.position + 1} → expected {c.expectedKey || "∅"} | typed {c.typedKey || "∅"} | {c.correct ? "correct" : "wrong"}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </div>
         )}
 
