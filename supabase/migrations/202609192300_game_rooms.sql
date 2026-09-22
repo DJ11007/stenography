@@ -152,12 +152,42 @@ begin
   if not found then raise exception 'Room not found, not yours, or already started.'; end if;
 end $fn$;
 
+-- Real reported bug: a student who was still mid-passage when the host
+-- ended the race showed 0 WPM in the final results, even though their
+-- own screen had been showing a real speed (e.g. 19 WPM) right up until
+-- the race ended. submit_game_room_result only ever runs when a student
+-- actually finishes typing the full passage (or spends their boost) --
+-- nothing calls it for someone the host cuts off mid-race, so their row
+-- keeps wpm = null, and the results screen's `p.wpm ?? 0` fallback shows
+-- a misleadingly precise zero instead of "did not finish". Fixed here,
+-- server-side, rather than relying on the student's own tab noticing the
+-- room went 'finished' in time (it might not even be open) -- their
+-- last-polled live_progress/live_wpm (already being written every ~1-2s
+-- by update_game_room_progress) becomes their final result, and the
+-- whole room's ranks are recomputed once more so late-finalized students
+-- are ranked consistently against everyone who finished normally.
 create or replace function public.finish_game_room(p_room_id uuid) returns void
 language plpgsql security definer set search_path=public as $fn$
 begin
   update public.game_rooms set status = 'finished', finished_at = now()
   where id = p_room_id and host_id = auth.uid() and status <> 'finished';
   if not found then raise exception 'Room not found, not yours, or already finished.'; end if;
+
+  update public.game_room_participants
+  set score = live_wpm, wpm = live_wpm, finished_at = now(), updated_at = now()
+  where room_id = p_room_id and finished_at is null;
+
+  with ranked as (
+    select id, row_number() over (
+      order by score desc nulls last, wpm desc nulls last, finished_at asc nulls last
+    ) as rn
+    from public.game_room_participants
+    where room_id = p_room_id
+  )
+  update public.game_room_participants gp
+  set rank = ranked.rn
+  from ranked
+  where gp.id = ranked.id;
 end $fn$;
 
 -- Cheap, frequent (every ~1-2s while racing) live-position update -- only

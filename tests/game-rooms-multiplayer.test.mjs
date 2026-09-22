@@ -75,6 +75,55 @@ test("a student can actually join a room, rejoin it (exercising the ON CONFLICT 
   await db.close();
 });
 
+// Real reported bug: a student's results showed 0 WPM even though their
+// own screen had been showing a real speed (e.g. 19 WPM) right up until
+// the host ended the race. submit_game_room_result only ever runs when a
+// student actually finishes typing the full passage -- nothing calls it
+// for someone the host cuts off mid-race, so their row kept wpm = null
+// and the results screen's `p.wpm ?? 0` fallback showed a misleadingly
+// precise zero. Fixed server-side (not relying on the student's own tab
+// noticing the room finished in time): finish_game_room now finalizes
+// any not-yet-finished participant using their last-polled live_wpm, and
+// recomputes ranks for the whole room so they're ranked consistently
+// against students who finished normally.
+test("a student still mid-race when the host ends it gets their last-known live WPM as their final result, not 0, and is ranked alongside students who finished normally", async () => {
+  const db = await database();
+  await asUser(db, adminId);
+  const created = await db.query("select * from public.create_game_room('speed-race', '{}'::jsonb)");
+  const roomId = created.rows[0].id;
+  const code = created.rows[0].code;
+
+  await asUser(db, studentId);
+  await db.query("select * from public.join_game_room($1)", [code]);
+  await asUser(db, student2Id);
+  await db.query("select * from public.join_game_room($1)", [code]);
+
+  await asUser(db, adminId);
+  await db.query("select public.start_game_room($1)", [roomId]);
+
+  // studentId is still typing (mid-race) when the host ends it.
+  await asUser(db, studentId);
+  await db.query("select public.update_game_room_progress($1, $2, $3)", [roomId, 45, 19]);
+
+  // student2Id genuinely finishes before the host ends the race.
+  await asUser(db, student2Id);
+  await db.query("select public.submit_game_room_result($1, $2, $3, $4)", [roomId, 32, 32, 96]);
+
+  await asUser(db, adminId);
+  await db.query("select public.finish_game_room($1)", [roomId]);
+
+  const roster = await db.query(
+    "select student_id, wpm, rank, finished_at is not null as finished from public.game_room_participants where room_id=$1 order by rank",
+    [roomId],
+  );
+  assert.deepEqual(roster.rows, [
+    { student_id: student2Id, wpm: "32", rank: 1, finished: true },
+    { student_id: studentId, wpm: "19", rank: 2, finished: true },
+  ]);
+
+  await db.close();
+});
+
 test("the exact requested podium messaging: gold/topper, silver/try harder, bronze/keep fighting, nothing for the rest", () => {
   assert.equal(gameRoomPodiumMessage(1), "🥇 Congratulations, you are the topper!");
   assert.equal(gameRoomPodiumMessage(2), "🥈 Try harder!");
