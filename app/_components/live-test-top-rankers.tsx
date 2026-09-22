@@ -44,9 +44,9 @@ function Podium({ language, rankers }: { language: string; rankers: LiveTestTopR
 // language" request.
 export function LiveTestTopRankers({ english, hindi }: { english: LiveTestTopRanker[]; hindi: LiveTestTopRanker[] }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Podium language="English" rankers={english} />
+    <div className="grid gap-4">
       <Podium language="Hindi" rankers={hindi} />
+      <Podium language="English" rankers={english} />
     </div>
   );
 }
