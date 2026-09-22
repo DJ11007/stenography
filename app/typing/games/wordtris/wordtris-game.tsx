@@ -317,6 +317,23 @@ export function WordtrisGame({ words, characterPool }: Props) {
     if (step === "playing") requestAnimationFrame(() => inputRef.current?.focus());
   }, [step]);
 
+  // Real reported risk: the keystroke-capturing input is now visually a
+  // 1px hidden element (see the readout redesign below) rather than an
+  // obvious text box -- if it ever loses focus mid-round (a stray click
+  // elsewhere, a device that's picky about focusing an invisible input),
+  // every subsequent keystroke would silently go nowhere, which looks
+  // exactly like "I typed a key and the word just sat there / reset".
+  // Refocus it immediately whenever that happens, for as long as a round
+  // is actually in progress.
+  useEffect(() => {
+    if (step !== "playing") return;
+    const input = inputRef.current;
+    if (!input) return;
+    const refocus = () => requestAnimationFrame(() => inputRef.current?.focus());
+    input.addEventListener("blur", refocus);
+    return () => input.removeEventListener("blur", refocus);
+  }, [step]);
+
   useEffect(() => {
     if (step !== "gameover" || submitted) return;
     setSubmitted(true);
@@ -572,17 +589,19 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 splitting per character would break some legacy bytes'
                 rendering). The whole thing only clears once the word is
                 actually caught (a real Space-confirmed exact match), not
-                as each letter is typed. Real reported follow-up (twice):
-                sized too big at first, cut roughly in half, then reduced
-                again to a compact pill (min-h-8, text-base/sm:text-lg,
-                max-w-[12rem]) that stays proportionate at every viewport
-                width instead of stretching edge to edge. */}
+                as each letter is typed. Real reported follow-up (three
+                rounds of "still too big"): halved again each time --
+                min-h-4, text-xs/sm:text-sm, max-w-[6rem] -- min-h is a
+                floor, not a cap, so it can still grow a little for a
+                longer word, but the resting size is now a quarter of the
+                original box. Stays proportionate at every viewport width
+                instead of stretching edge to edge. */}
             <button
               type="button"
               onClick={() => inputRef.current?.focus()}
               tabIndex={-1}
               aria-hidden="true"
-              className={`mx-auto mt-3 flex min-h-8 w-full max-w-[12rem] items-center justify-center rounded-xl bg-slate-50 px-3 py-1.5 text-center text-base font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-lg ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
+              className={`mx-auto mt-2 flex min-h-4 w-full max-w-[6rem] items-center justify-center rounded-lg bg-slate-50 px-1.5 py-0.5 text-center text-xs font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-sm ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
               style={{ fontFamily }}
             >
               {activeDrop ? (

@@ -143,13 +143,27 @@ test("the falling word's readout below the bucket shows the full word with typed
 // roughly halved (min-h-24 -> min-h-12, text-4xl/sm:text-5xl ->
 // text-xl/sm:text-2xl) and capped with a max-w so it stays proportionate
 // instead of stretching edge to edge at every viewport width.
-test("the readout is a compact pill, capped with a max-width so it stays proportionate at every screen size", async () => {
+test("the readout is a small pill (a quarter of its original size), capped with a max-width so it stays proportionate at every screen size", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /min-h-8 w-full max-w-\[12rem\]/);
-  assert.match(game, /text-base font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-lg/);
+  assert.match(game, /min-h-4 w-full max-w-\[6rem\]/);
+  assert.match(game, /text-xs font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-sm/);
   assert.doesNotMatch(game, /flex min-h-24 w-full/); // the original, oversized box
   assert.doesNotMatch(game, /flex min-h-12 w-full max-w-sm/); // the first (still too big) size cut
+  assert.doesNotMatch(game, /flex min-h-8 w-full max-w-\[12rem\]/); // the second (still too big) size cut
   assert.doesNotMatch(game, /text-4xl font-black outline-none/); // the original, oversized text
+});
+
+// Real reported risk: the keystroke-capturing input is a visually 1px
+// hidden element -- if it ever loses focus mid-round (a stray click, a
+// device that's picky about focusing an invisible input), every
+// subsequent keystroke would silently go nowhere, looking exactly like
+// "I typed a key and the word just sat there / reset". Refocus it
+// immediately on blur, for as long as a round is in progress.
+test("the hidden keystroke-capturing input refocuses itself immediately if it ever loses focus mid-round", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const refocus = \(\) => requestAnimationFrame\(\(\) => inputRef\.current\?\.focus\(\)\);/);
+  assert.match(game, /input\.addEventListener\("blur", refocus\);/);
+  assert.match(game, /return \(\) => input\.removeEventListener\("blur", refocus\);/);
 });
 
 // Real reported reference: missed words stack up as their own labeled
