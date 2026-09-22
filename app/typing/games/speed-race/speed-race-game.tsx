@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CATEGORIES, type WordtrisCategory, type WordtrisLanguage } from "@/lib/wordtris-content";
 import { SPEEDRACE_WORDS_PER_RACE, SPEEDRACE_DEFAULT_PACE_WPM, SPEEDRACE_MIN_PACE_WPM, SPEEDRACE_MAX_PACE_WPM, SPEEDRACE_BOOSTS_PER_RACE, buildSpeedRacePassage, speedRaceProgressAtElapsed, speedRaceNetWpm, speedRaceAccuracy } from "@/lib/speedrace-content";
+import type { SpeedRacePassage } from "@/lib/speedrace-passages-server";
 import { GAME_ROOM_POLL_MS, GAME_ROOM_PROGRESS_PUSH_MS, gameRoomPodiumMessage, gameRoomPodiumTone, type GameRoomParticipant } from "@/lib/game-rooms";
 import { joinGameRoom, getMyJoinedRoom, getGameRoomStatus, updateGameRoomProgress, submitGameRoomResult, listGameRoomParticipants } from "../_multiplayer/actions";
 import { TypingBrandHeader } from "../../_components/typing-brand";
@@ -10,8 +11,21 @@ import { TypingBrandHeader } from "../../_components/typing-brand";
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
+// A pool-built passage from the word bank is always available and is
+// what "Random word mix" selects -- represented by this sentinel rather
+// than a real passage id, since it has none.
+const RANDOM_MIX = "random-mix";
+
 type Step = "setup" | "lobby" | "racing" | "finished";
-type Props = { words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>> };
+type Props = {
+  words: Record<WordtrisLanguage, Record<WordtrisCategory, string[]>>;
+  // Real reported request: an admin wants to author real Speed Race
+  // passages and let students choose among them, per language, instead
+  // of every race being an auto-generated word mix. Empty for a
+  // language nobody has published any for yet -- the existing
+  // auto-generated behavior is unchanged in that case.
+  passagesByLanguage: Record<WordtrisLanguage, SpeedRacePassage[]>;
+};
 type FinishStats = { wpm: number; accuracy: number; timeMs: number; isNewBest: boolean };
 type RoomConfig = { language: WordtrisLanguage; category: WordtrisCategory; paceWpm: number; passage: string };
 type JoinedRoom = { id: string; code: string; config: RoomConfig; studentId: string };
@@ -39,11 +53,25 @@ function Racetrack({ label, progress, marker, tone }: { label: string; progress:
   );
 }
 
-export function SpeedRaceGame({ words }: Props) {
+export function SpeedRaceGame({ words, passagesByLanguage }: Props) {
   const [step, setStep] = useState<Step>("setup");
   const [language, setLanguage] = useState<WordtrisLanguage>("english");
   const [category, setCategory] = useState<WordtrisCategory>("easy_words");
   const [paceWpm, setPaceWpm] = useState(SPEEDRACE_DEFAULT_PACE_WPM);
+  // Which admin-authored passage (by id) or RANDOM_MIX the student has
+  // picked for their next race -- defaults to whichever the current
+  // language actually has: the admin's first published passage if any
+  // exist, otherwise the random word mix.
+  const [selectedPassageId, setSelectedPassageId] = useState<string>(RANDOM_MIX);
+  const availablePassages = passagesByLanguage[language] ?? [];
+
+  // Only re-picks a default when the language itself changes -- switching
+  // category shouldn't reset an already-made passage choice, and
+  // availablePassages is already a pure function of language + the
+  // passagesByLanguage prop (stable after the initial page load).
+  useEffect(() => {
+    setSelectedPassageId(availablePassages[0]?.id ?? RANDOM_MIX);
+  }, [language]);
 
   const [passage, setPassage] = useState("");
   const [typed, setTyped] = useState("");
@@ -126,8 +154,8 @@ export function SpeedRaceGame({ words }: Props) {
   }, [bestKey, room]);
 
   const startRace = useCallback(() => {
-    const pool = words[language]?.[category] ?? [];
-    const nextPassage = buildSpeedRacePassage(pool);
+    const chosen = availablePassages.find((p) => p.id === selectedPassageId);
+    const nextPassage = chosen ? chosen.passage : buildSpeedRacePassage(words[language]?.[category] ?? []);
     setPassage(nextPassage);
     setTyped("");
     setBoostsLeft(SPEEDRACE_BOOSTS_PER_RACE);
@@ -135,7 +163,7 @@ export function SpeedRaceGame({ words }: Props) {
     setFinishStats(null);
     startedAtRef.current = null;
     setStep("racing");
-  }, [words, language, category]);
+  }, [words, language, category, availablePassages, selectedPassageId]);
 
   const handleJoin = async () => {
     const trimmed = joinCode.trim().toUpperCase();
@@ -323,6 +351,29 @@ export function SpeedRaceGame({ words }: Props) {
                     </button>
                   ))}
                 </div>
+
+                {/* Real reported request: an admin wants to write real
+                    passages and let students choose among them, instead of
+                    every race silently auto-building from the category's
+                    word bank. Only shown once at least one has been
+                    published for this language (/admin/speedrace-passages)
+                    -- otherwise this section doesn't appear at all, and
+                    behavior is exactly what it always was. */}
+                {availablePassages.length > 0 && (
+                  <>
+                    <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Passage</p>
+                    <div className="mt-2 space-y-1.5">
+                      <button type="button" onClick={() => setSelectedPassageId(RANDOM_MIX)} className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-bold transition ${selectedPassageId === RANDOM_MIX ? "bg-amber-50 text-amber-800 ring-2 ring-amber-600" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`}>
+                        🎲 Random word mix <span className="font-normal text-slate-500">(uses the category below)</span>
+                      </button>
+                      {availablePassages.map((p) => (
+                        <button key={p.id} type="button" onClick={() => setSelectedPassageId(p.id)} className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-bold transition ${selectedPassageId === p.id ? "bg-amber-50 text-amber-800 ring-2 ring-amber-600" : "bg-slate-50 text-slate-700 hover:bg-slate-100"}`} style={{ fontFamily: language === "hindi" ? HI : undefined }}>
+                          {p.title}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 <p className="mt-5 text-xs font-black uppercase tracking-wider text-slate-500">Pace car speed</p>
                 <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-4 py-2.5">

@@ -53,6 +53,7 @@ const groups = [
     items: [
       ["/admin/wordtris-words", "WordTris Word Banks", "Add or edit the words students catch, per category and language.", "Manage →"],
       ["/admin/character-pool", "Character Pool", "Choose which keys WordTris's Character mode and Key Hunter drill, per language.", "Manage →"],
+      ["/admin/speedrace-passages", "Speed Race Passages", "Write real passages for Speed Race and let students choose among them, per language, instead of an auto-generated word mix.", "Manage →"],
       ["/admin/live-race", "Live Classroom Race", "Host a live Speed Race for the whole class -- share a room code, students join from Speed Race's own setup screen, then race together with a live leaderboard and a gold/silver/bronze podium.", "Host →"],
     ],
   },
