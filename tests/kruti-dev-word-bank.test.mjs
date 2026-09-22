@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { krutiDevToUnicode } from "../lib/hindi-font-converter.ts";
+import { krutiDevToUnicode, convertHindiText } from "../lib/hindi-font-converter.ts";
 import {
   HINDI_COMMON_WORD_KEYS,
   getVerifiedHindiCommonKeys,
@@ -16,6 +16,13 @@ test("every verified Hindi common word's krutiKeys round-trips back to its exact
   assert.equal(HINDI_COMMON_WORD_KEYS.length, 15);
   for (const { displayWord, krutiKeys } of HINDI_COMMON_WORD_KEYS) {
     assert.equal(krutiDevToUnicode(krutiKeys), displayWord, `${krutiKeys} should decode back to ${displayWord}`);
+  }
+});
+
+test("the admin Font & Text Converter tool (app/admin/font-converter) agrees with the verified word bank both directions -- convertHindiText is the exact function that tool calls, so this catches any future drift between the two", () => {
+  for (const { displayWord, krutiKeys } of HINDI_COMMON_WORD_KEYS) {
+    assert.equal(convertHindiText(displayWord, "unicode", "krutidev"), krutiKeys);
+    assert.equal(convertHindiText(krutiKeys, "krutidev", "unicode"), displayWord);
   }
 });
 
