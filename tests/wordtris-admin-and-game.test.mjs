@@ -164,14 +164,30 @@ test("the falling word's readout below the bucket shows the full word with typed
 // roughly halved (min-h-24 -> min-h-12, text-4xl/sm:text-5xl ->
 // text-xl/sm:text-2xl) and capped with a max-w so it stays proportionate
 // instead of stretching edge to edge at every viewport width.
-test("the readout is a small pill (a quarter of its original size), capped with a max-width so it stays proportionate at every screen size", async () => {
+test("the readout stays capped with a max-width so it stays proportionate at every screen size", async () => {
   const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
-  assert.match(game, /min-h-4 w-full max-w-\[6rem\]/);
-  assert.match(game, /text-xs font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-sm/);
+  assert.match(game, /min-h-4 w-full max-w-\[10rem\]/);
   assert.doesNotMatch(game, /flex min-h-24 w-full/); // the original, oversized box
   assert.doesNotMatch(game, /flex min-h-12 w-full max-w-sm/); // the first (still too big) size cut
   assert.doesNotMatch(game, /flex min-h-8 w-full max-w-\[12rem\]/); // the second (still too big) size cut
   assert.doesNotMatch(game, /text-4xl font-black outline-none/); // the original, oversized text
+});
+
+// Real requested feature: the readout was too small to read comfortably
+// in either language, and should be resizable by the student rather than
+// fixed. A student-facing A-/A+ stepper (matching the pattern already
+// used in app/typing/practice/error-drill/error-drill-practice.tsx)
+// adjusts an inline font-size in px, defaulting noticeably larger than
+// the old fixed text-xs/sm:text-sm (12-14px).
+test("the falling-word readout has a student-adjustable font size (A-/A+ stepper), defaulting larger than the old fixed size, applied via inline style so it works in both languages", async () => {
+  const game = await read("app/typing/games/wordtris/wordtris-game.tsx");
+  assert.match(game, /const READOUT_MIN_FONT_PX = 14;/);
+  assert.match(game, /const READOUT_MAX_FONT_PX = 32;/);
+  assert.match(game, /const READOUT_DEFAULT_FONT_PX = 20;/);
+  assert.match(game, /const \[readoutFontSize, setReadoutFontSize\] = useState\(READOUT_DEFAULT_FONT_PX\);/);
+  assert.match(game, /aria-label="Decrease word text size"/);
+  assert.match(game, /aria-label="Increase word text size"/);
+  assert.match(game, /style=\{\{ fontFamily, fontSize: `\$\{readoutFontSize\}px` \}\}/);
 });
 
 // Real reported risk: the keystroke-capturing input is a visually 1px

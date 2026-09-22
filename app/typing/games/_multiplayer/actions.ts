@@ -91,8 +91,23 @@ export async function updateGameRoomProgress(roomId: string, progress: number, w
   await supabase.rpc("update_game_room_progress", { p_room_id: roomId, p_progress: clamp(progress, 100), p_wpm: clamp(wpm) });
 }
 
+// Real reported bug, same shape and root cause as updateGameRoomProgress's
+// own comment above: many students' FINAL results were showing 0 WPM even
+// though their own screen had shown a real speed right up to the moment
+// they finished. This is the one remaining call in this file that still
+// carried the same redundant requireStudent() (a live auth.getUser()
+// network hit plus a profiles lookup) on top of the RPC's own row-scoped
+// `where room_id = p_room_id and student_id = auth.uid()` authorization --
+// already the real, sole enforcement, exactly like every other action here.
+// Called fire-and-forget (`void submitGameRoomResult(...)`) from each
+// game's finishRace with no retry, so when requireStudent() failed or was
+// merely slow under classroom-scale concurrent load (every student
+// finishing within the same few seconds near the end of a race is exactly
+// when this fires in a burst), the RPC call that actually records wpm/
+// finished_at never ran, and that student's row stayed at its pre-finish
+// value -- typically 0/null, the exact symptom reported. Removed for the
+// same reason as every other call in this file: no authorization is lost.
 export async function submitGameRoomResult(roomId: string, score: number, wpm: number, accuracy: number): Promise<void> {
-  await requireStudent();
   const supabase = await createClient();
   await supabase.rpc("submit_game_room_result", { p_room_id: roomId, p_score: clamp(score), p_wpm: clamp(wpm), p_accuracy: clamp(accuracy, 100) });
 }

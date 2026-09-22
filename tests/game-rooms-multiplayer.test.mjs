@@ -206,19 +206,35 @@ test("every RPC is revoked from public/anon and granted only to authenticated", 
   assert.match(revokeBlock, /to authenticated;/);
 });
 
-test("the shared multiplayer actions require the right role per action (admin for host actions, student for join/result); the three high-frequency poll/push actions skip the app-layer check since their RPC already does its own row-scoped auth.uid() enforcement", async () => {
+// Real reported follow-up: many students' FINAL results still showed 0
+// WPM after the first round of fixes (which only touched the three
+// highest-frequency poll/push actions). submitGameRoomResult -- fired
+// once per student, but in a burst near the end of a race -- carried the
+// exact same redundant requireStudent() overhead, and being called
+// fire-and-forget with no retry, a failure there silently dropped the
+// student's real final score the same way. Removed for the same reason:
+// the RPC's own row-scoped auth.uid() check is already the real, sole
+// enforcement.
+test("the shared multiplayer actions require the right role per action (admin for host actions, student for join only); every high-frequency or fire-and-forget action skips the app-layer check since their RPC already does its own row-scoped auth.uid() enforcement", async () => {
   const actions = await read("app/typing/games/_multiplayer/actions.ts");
   assert.match(actions, /export async function createGameRoom[\s\S]{0,200}await requireAdmin\(\);/);
   assert.match(actions, /export async function startGameRoom[\s\S]{0,200}await requireAdmin\(\);/);
   assert.match(actions, /export async function finishGameRoom[\s\S]{0,200}await requireAdmin\(\);/);
   assert.match(actions, /export async function joinGameRoom[\s\S]{0,200}await requireStudent\(\);/);
-  assert.match(actions, /export async function submitGameRoomResult[\s\S]{0,200}await requireStudent\(\);/);
   const progressFn = actions.slice(actions.indexOf("export async function updateGameRoomProgress"), actions.indexOf("export async function submitGameRoomResult"));
   assert.doesNotMatch(progressFn, /await require(Student|User|Admin)\(\);/);
+  const resultFn = actions.slice(actions.indexOf("export async function submitGameRoomResult"), actions.indexOf("export async function getGameRoomStatus"));
+  assert.doesNotMatch(resultFn, /await require(Student|User|Admin)\(\);/);
   const statusFn = actions.slice(actions.indexOf("export async function getGameRoomStatus"), actions.indexOf("export async function listGameRoomParticipants"));
   assert.doesNotMatch(statusFn, /await require(Student|User|Admin)\(\);/);
   const rosterFn = actions.slice(actions.indexOf("export async function listGameRoomParticipants"));
   assert.doesNotMatch(rosterFn, /await require(Student|User|Admin)\(\);/);
+});
+
+test("the live-race poll/push intervals were tightened once the redundant per-call auth overhead was removed", async () => {
+  const rooms = await read("lib/game-rooms.ts");
+  assert.match(rooms, /export const GAME_ROOM_POLL_MS = 500;/);
+  assert.match(rooms, /export const GAME_ROOM_PROGRESS_PUSH_MS = 400;/);
 });
 
 test("joining a live race forces the host's identical passage/pace/category onto the student, never their own picker", async () => {

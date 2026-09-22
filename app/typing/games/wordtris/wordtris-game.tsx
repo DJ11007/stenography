@@ -12,6 +12,18 @@ import { getWordtrisLeaderboard, submitWordtrisScore, type LeaderboardRow } from
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 
+// Real requested feature: the falling-word readout below the bucket was
+// too small to read comfortably (in both English and Hindi/Kruti Dev),
+// and the student should be able to size it to their own eyesight/screen
+// rather than it being fixed. Default is noticeably larger than the old
+// fixed text-xs/sm:text-sm (12-14px); the box's own min-h is already a
+// floor, not a cap (see the readout's own comment below), so it grows to
+// fit a bigger font without any other layout change.
+const READOUT_MIN_FONT_PX = 14;
+const READOUT_MAX_FONT_PX = 32;
+const READOUT_DEFAULT_FONT_PX = 20;
+const READOUT_FONT_STEP_PX = 2;
+
 // A real teardrop silhouette (sampled bottom-half ellipse tangent to a
 // single point at the top), not the rounded pill/bubble shape this
 // replaced -- percent-based points, so it scales cleanly to whatever
@@ -159,6 +171,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
   const [typed, setTyped] = useState("");
   const [flash, setFlash] = useState<"catch" | "miss" | null>(null);
   const [inputShake, setInputShake] = useState(false);
+  const [readoutFontSize, setReadoutFontSize] = useState(READOUT_DEFAULT_FONT_PX);
   // Every missed drop stacks up as its own labeled block at the bottom of
   // the bucket (the same "missed words pile up" visual the reference game
   // uses) -- one more block per life lost, six blocks fill it completely.
@@ -673,18 +686,21 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 actually caught (a real Space-confirmed exact match), not
                 as each letter is typed. Real reported follow-up (three
                 rounds of "still too big"): halved again each time --
-                min-h-4, text-xs/sm:text-sm, max-w-[6rem] -- min-h is a
-                floor, not a cap, so it can still grow a little for a
-                longer word, but the resting size is now a quarter of the
-                original box. Stays proportionate at every viewport width
-                instead of stretching edge to edge. */}
+                min-h-4, max-w-[6rem] -- min-h is a floor, not a cap, so
+                it can still grow for a longer word or a larger font size.
+                Stays proportionate at every viewport width instead of
+                stretching edge to edge. */}
+            <div className="mx-auto mt-2 flex items-center justify-center gap-1.5">
+              <button type="button" onClick={() => setReadoutFontSize((size) => Math.max(READOUT_MIN_FONT_PX, size - READOUT_FONT_STEP_PX))} aria-label="Decrease word text size" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-black text-slate-600 hover:bg-slate-200">A-</button>
+              <button type="button" onClick={() => setReadoutFontSize((size) => Math.min(READOUT_MAX_FONT_PX, size + READOUT_FONT_STEP_PX))} aria-label="Increase word text size" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[10px] font-black text-slate-600 hover:bg-slate-200">A+</button>
+            </div>
             <button
               type="button"
               onClick={() => inputRef.current?.focus()}
               tabIndex={-1}
               aria-hidden="true"
-              className={`mx-auto mt-2 flex min-h-4 w-full max-w-[6rem] items-center justify-center rounded-lg bg-slate-50 px-1.5 py-0.5 text-center text-xs font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 sm:text-sm ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
-              style={{ fontFamily }}
+              className={`mx-auto mt-1 flex min-h-4 w-full max-w-[10rem] items-center justify-center rounded-lg bg-slate-50 px-1.5 py-0.5 text-center font-black outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-blue-500 ${inputShake ? "animate-wordtris-shake ring-rose-400" : ""}`}
+              style={{ fontFamily, fontSize: `${readoutFontSize}px` }}
             >
               {activeDrop ? (
                 <span className="break-words">
