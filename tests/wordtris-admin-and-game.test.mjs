@@ -1,24 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { detectHindiTextFormat } from "../lib/hindi-font-converter.ts";
+import { detectHindiTextFormat, krutiDevToUnicode } from "../lib/hindi-font-converter.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-// Real reported bug: an admin, typing in Kruti Dev keystrokes out of habit
-// (not the actual Hindi word), typed the raw legacy keys for "घोड़ा" straight
-// into the WordTris admin's Word field -- and even mistyped the keystrokes
-// (missing one key), so the "Student preview" showed a completely different,
-// wrong word ("घेड़ा" instead of "घोड़ा"). detectHindiTextFormat is what the
-// manager now checks before allowing Save; this pins down that the exact
-// reported bad input is caught (detected as neither real Unicode nor a
-// recognized Kruti Dev signal -- "unknown" -- which is exactly why it isn't
-// covered by the existing krutidev/mixed-only encodingValidationMessage
-// check the main passage editor uses, and needs its own, stricter gate for
-// a field that only ever means "a real Hindi word").
-test("detectHindiTextFormat flags the exact reported bad WordTris entry (raw, even incomplete, Kruti Dev keystrokes) as not real Hindi Unicode text", () => {
+// Real reported bug (original fix): an admin, typing in Kruti Dev keystrokes
+// out of habit (not the actual Hindi word), typed the raw legacy keys for
+// "घोड़ा" straight into the WordTris admin's Word field -- and even mistyped
+// the keystrokes (missing one key), so the "Student preview" showed a
+// completely different, wrong word ("घेड़ा" instead of "घोड़ा"). The manager
+// used to hard-block anything that didn't detect as real Unicode text.
+//
+// Real requested follow-up: the admin's actual day-to-day typing skill IS
+// Kruti Dev keystrokes -- the manager now DECODES non-Unicode input via
+// krutiDevToUnicode instead of blocking it, covering the exact reported bad
+// input too (it detects as merely "unknown", not "krutidev", since it
+// doesn't match the LEGACY_SIGNAL heuristic -- the manager's own gate is
+// "!== unicode", not "=== krutidev", precisely so this case is still
+// covered). The decoded word is shown prominently so a mistyped keystroke
+// (like the original report) is still visually catchable before saving.
+test("detectHindiTextFormat flags the exact reported bad WordTris entry (raw, even incomplete, Kruti Dev keystrokes) as not real Hindi Unicode text, and krutiDevToUnicode still decodes it", () => {
   assert.equal(detectHindiTextFormat("?ksM+k"), "unknown");
   assert.equal(detectHindiTextFormat("घोड़ा"), "unicode");
+  assert.equal(typeof krutiDevToUnicode("?ksM+k"), "string");
+  assert.ok(krutiDevToUnicode("?ksM+k").length > 0);
 });
 
 test("the WordTris admin page is gated by requireAdmin and falls back to bundled word lists when the DB isn't ready", async () => {
@@ -299,12 +305,22 @@ test("character mode never calls the word-mode leaderboard/score RPCs, and keeps
   assert.match(game, /wordtris-best-character-\$\{language\}/);
 });
 
-test("the WordTris admin word manager blocks Save when a Hindi word doesn't detect as real Unicode text, warning that it looks like raw Kruti Dev keystrokes", async () => {
+test("the WordTris admin word manager auto-converts Kruti Dev keystrokes typed into the Hindi Word field, instead of blocking Save", async () => {
   const manager = await read("app/admin/wordtris-words/wordtris-words-manager.tsx");
-  assert.match(manager, /import \{ detectHindiTextFormat, toTypeableKrutiDev \} from "@\/lib\/hindi-font-converter";/);
-  assert.match(manager, /detectHindiTextFormat\(liveWord\) !== "unicode"/);
-  assert.match(manager, /disabled=\{savePending \|\| Boolean\(hindiWordWarning\)\}/);
-  assert.match(manager, /\{hindiWordWarning && <p role="alert"/);
+  assert.match(manager, /import \{ detectHindiTextFormat, krutiDevToUnicode, toTypeableKrutiDev \} from "@\/lib\/hindi-font-converter";/);
+  assert.match(manager, /const detectedFormat = liveLanguage === "hindi" \? detectHindiTextFormat\(liveWord\) : "unicode";/);
+  assert.match(manager, /return \{ canonicalWord: krutiDevToUnicode\(liveWord\), conversionError: null \};/);
+  // The visible field stays uncontrolled-by-name (shows exactly what the
+  // admin typed, Kruti Dev keys or real Hindi text); the actual "word"
+  // submitted is always the decoded/canonical Unicode value via a hidden
+  // input, so the DB keeps storing clean Unicode regardless of which way
+  // the admin typed it in.
+  assert.doesNotMatch(manager, /<input name="word" value=\{liveWord\}/);
+  assert.match(manager, /<input type="hidden" name="word" value=\{canonicalWord\} \/>/);
+  // Save is only blocked on a genuine decode failure now, not merely on
+  // detecting non-Unicode input.
+  assert.match(manager, /disabled=\{savePending \|\| Boolean\(conversionError\)\}/);
+  assert.doesNotMatch(manager, /hindiWordWarning/);
 });
 
 // Real reported bug: opening the edit dialog for one word showed a green

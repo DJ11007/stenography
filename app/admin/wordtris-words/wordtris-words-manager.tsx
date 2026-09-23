@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { detectHindiTextFormat, toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { detectHindiTextFormat, krutiDevToUnicode, toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { CATEGORIES, wordtrisPoints, type WordtrisCategory, type WordtrisLanguage } from "@/lib/wordtris-content";
 import { deleteWordtrisWord, saveWordtrisWord, type WordtrisWordActionState } from "./actions";
 
@@ -31,31 +31,55 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
   const [saveState, saveAction, savePending] = useActionState(saveWordtrisWord, initial);
   const [deleteState, deleteAction] = useActionState(deleteWordtrisWord, initial);
 
-  const livePreview = useMemo(() => {
-    if (liveLanguage !== "hindi" || !liveWord.trim()) return "";
+  // Real reported bug (original fix, since revised -- see below): an
+  // admin, thinking in Kruti Dev keystrokes (their day-to-day typing
+  // skill), typed the raw legacy keys for "घोड़ा" straight into this Word
+  // field -- and mistyped the keystrokes too (missing one key). The field
+  // used to hard-block anything that didn't detect as Unicode text,
+  // forcing the admin to type the real Hindi word directly instead.
+  //
+  // Real requested follow-up: the admin's actual, day-to-day typing skill
+  // IS Kruti Dev keystrokes -- blocking that workflow entirely was more
+  // friction than protection. Now: any detected non-Unicode input (krudev
+  // keystrokes, or -- like the original bad report, "?ksM+k" -- keystrokes
+  // that don't even match the LEGACY_SIGNAL heuristic and detect as merely
+  // "unknown") is decoded via krutiDevToUnicode into the real Hindi word,
+  // which becomes what's actually saved (see the hidden "word" input
+  // below) and what drives both the points calculation and the "Student
+  // preview" panel. The original safety net -- catching a mistyped
+  // keystroke before it reaches the word bank -- is preserved differently:
+  // the decoded word is shown prominently (hindiWordNote below) so a typo
+  // is still visually catchable by a Hindi-literate admin, just without
+  // forcing them to type Unicode text by hand.
+  const detectedFormat = liveLanguage === "hindi" ? detectHindiTextFormat(liveWord) : "unicode";
+  const { canonicalWord, conversionError } = useMemo(() => {
+    if (liveLanguage !== "hindi" || !liveWord.trim() || detectedFormat === "unicode" || detectedFormat === "empty") {
+      return { canonicalWord: liveWord, conversionError: null as string | null };
+    }
     try {
-      return toTypeableKrutiDev(liveWord);
+      return { canonicalWord: krutiDevToUnicode(liveWord), conversionError: null };
+    } catch (err) {
+      return { canonicalWord: liveWord, conversionError: err instanceof Error ? err.message : "Couldn't convert these Kruti Dev keystrokes." };
+    }
+  }, [liveWord, liveLanguage, detectedFormat]);
+
+  const livePreview = useMemo(() => {
+    if (liveLanguage !== "hindi" || !canonicalWord.trim()) return "";
+    try {
+      return toTypeableKrutiDev(canonicalWord);
     } catch {
       return "";
     }
-  }, [liveWord, liveLanguage]);
+  }, [canonicalWord, liveLanguage]);
 
-  // Real reported bug: an admin, thinking in Kruti Dev keystrokes (their
-  // day-to-day typing skill), typed the raw legacy keys for "घोड़ा" straight
-  // into this Unicode-only Word field instead of the actual Hindi word --
-  // and mistyped the keystrokes too (missing one key). toTypeableKrutiDev
-  // has no way to tell "this was never Unicode to begin with" from "this
-  // is a real Unicode word" -- it just ran its own literal-punctuation
-  // safety remapping (a real "?" is legacy ध् and needed escaping) on text
-  // that was never punctuation at all, producing student-preview garbage
-  // that decoded to a different, wrong word entirely. This field only
-  // ever makes sense as real Hindi Unicode text (unlike the main passage
-  // editor elsewhere, which deliberately accepts either format) -- so
-  // anything that doesn't detect as Unicode is always a mistake here, and
-  // is worth blocking before it reaches the word bank a hundred students
-  // will see.
-  const hindiWordWarning = liveLanguage === "hindi" && liveWord.trim() && detectHindiTextFormat(liveWord) !== "unicode"
-    ? "This doesn't look like a real Hindi word -- it looks like raw Kruti Dev keystrokes were typed here instead. Type or paste the actual Hindi word (e.g. घोड़ा), not the keys a student would press to type it."
+  const hindiWordNote = liveLanguage === "hindi" && liveWord.trim()
+    ? conversionError
+      ? { tone: "error" as const, message: `Couldn't convert these Kruti Dev keystrokes: ${conversionError}. Check the spelling and try again.` }
+      : detectedFormat === "mixed"
+      ? { tone: "warn" as const, message: `This looks like a mix of Kruti Dev keys and Hindi Unicode text -- double-check the word below is exactly right before saving.` }
+      : detectedFormat !== "unicode"
+      ? { tone: "info" as const, message: `Detected Kruti Dev keystrokes -- will save as the Hindi word "${canonicalWord}". Check it's exactly right before saving.` }
+      : null
     : null;
 
   const draft = editing && "id" in editing ? editing : null;
@@ -169,22 +193,27 @@ export function WordtrisWordsManager({ rows, dbReady = true }: { rows: Row[]; db
                 </select>
               </label>
             </div>
-            <label className="text-xs font-bold text-slate-600">Word
-              <input name="word" value={liveWord} onChange={(event) => setLiveWord(event.target.value)} required maxLength={40} className="input mt-1 w-full" style={{ fontFamily: liveLanguage === "hindi" ? HI : undefined }} />
+            <label className="text-xs font-bold text-slate-600">Word {liveLanguage === "hindi" && <span className="font-normal text-slate-400">(type the Hindi word, or its Kruti Dev keystrokes)</span>}
+              <input value={liveWord} onChange={(event) => setLiveWord(event.target.value)} required maxLength={40} className="input mt-1 w-full" style={{ fontFamily: liveLanguage === "hindi" ? (detectedFormat !== "unicode" ? KD : HI) : undefined }} />
             </label>
-            {hindiWordWarning && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-bold text-red-800">{hindiWordWarning}</p>}
+            <input type="hidden" name="word" value={canonicalWord} />
+            {hindiWordNote && (
+              <p role={hindiWordNote.tone === "error" ? "alert" : "status"} className={`rounded-lg p-3 text-sm font-bold ${hindiWordNote.tone === "error" ? "bg-red-50 text-red-800" : hindiWordNote.tone === "warn" ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>{hindiWordNote.message}</p>
+            )}
             {liveLanguage === "hindi" && (
               <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-                <p className="text-xs font-bold text-slate-500">Student preview — Kruti Dev 010</p>
+                <p className="text-xs font-bold text-slate-500">Hindi word that will be saved</p>
+                <p className="mt-1 min-h-9 text-2xl leading-loose text-slate-900" style={{ fontFamily: HI }}>{canonicalWord}</p>
+                <p className="mt-2 text-xs font-bold text-slate-500">Student preview — Kruti Dev 010</p>
                 <p className="mt-1 min-h-9 text-2xl leading-loose text-slate-900" style={{ fontFamily: KD }}>{livePreview}</p>
               </div>
             )}
-            <p className="text-xs font-bold text-slate-500">Points awarded: <span className="text-slate-900">+{wordtrisPoints(liveWord || "")}</span> (longer words are worth more)</p>
+            <p className="text-xs font-bold text-slate-500">Points awarded: <span className="text-slate-900">+{wordtrisPoints(canonicalWord || "")}</span> (longer words are worth more)</p>
             <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
               <input type="checkbox" name="isPublished" defaultChecked={draft?.is_published ?? true} /> Published (shown to students)
             </label>
             <div className="flex gap-2">
-              <button type="submit" disabled={savePending || Boolean(hindiWordWarning)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
+              <button type="submit" disabled={savePending || Boolean(conversionError)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
               <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black hover:bg-slate-50">Cancel</button>
             </div>
             {dialogSubmitted && <Feedback state={saveState} />}
