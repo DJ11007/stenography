@@ -432,11 +432,24 @@ export function toTypeableKrutiDev(unicode: string) {
 // to agree byte-for-byte.
 export function krutiDevTypingTarget(content: string): string {
   if (detectHindiTextFormat(content) !== "unicode") return content;
-  try {
-    return toTypeableKrutiDev(content);
-  } catch {
-    return content;
-  }
+  // Real reported bug: a Key drill mixing real Hindi lines with a raw-key
+  // line ("श्रेय ..." then "jkl;'") had the raw line converted too, since
+  // the converter maps ASCII punctuation as if it were Hindi punctuation --
+  // ";" and "'" came out as "(" and "*". A line with no Devanagari at all
+  // can only be raw Kruti Dev keystrokes, so it stays exactly as typed,
+  // same as all-ASCII content already does above. Lines that do contain
+  // Hindi are still converted whole.
+  return content
+    .split(/(\r?\n)/)
+    .map((part) => {
+      if (!DEVANAGARI.test(part)) return part;
+      try {
+        return toTypeableKrutiDev(part);
+      } catch {
+        return part;
+      }
+    })
+    .join("");
 }
 
 // The dependency searches globally and then replaces the first matching text,

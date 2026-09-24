@@ -243,6 +243,15 @@ test("krutiDevTypingTarget never converts already-Kruti-Dev content (avoiding th
   assert.equal(krutiDevTypingTarget("कर करक रकर"), "dj djd jdj");
 });
 
+// Real reported bug: a Key drill mixing Hindi lines with a raw-key line
+// converted the raw line too, turning "jkl;'" into "jkl(*".
+test("krutiDevTypingTarget keeps a line with no Hindi as raw keystrokes even when other lines are Unicode Hindi", async () => {
+  const { krutiDevTypingTarget } = await import("../lib/hindi-font-converter.ts");
+  assert.equal(krutiDevTypingTarget("कर करक\njkl;'\nरकर"), "dj djd\njkl;'\njdj");
+  assert.equal(krutiDevTypingTarget("कर\r\nSDFGH LKJ\r\nरकर"), "dj\r\nSDFGH LKJ\r\njdj");
+  assert.equal(krutiDevTypingTarget("कर करक रकर"), "dj djd jdj");
+});
+
 test("the student-facing tutor page's toTarget is krutiDevTypingTarget itself, not a re-implemented copy", async () => {
   const page = await read("app/typing/learn/krutidev/page.tsx");
   assert.match(page, /import \{ krutiDevTypingTarget \} from "@\/lib\/hindi-font-converter";/);
