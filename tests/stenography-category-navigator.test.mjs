@@ -29,13 +29,18 @@ test("getStenographyCategoryNavigator scopes a court category's query to every c
   assert.match(source, /\.eq\("mode", "stenography"\)\.eq\("status", "published"\)\.eq\("visibility", "public"\)\.eq\("is_live", false\)\.eq\("language", language\)/);
 });
 
-test("the stenography category rules page fetches and renders both languages' navigator lists via RealTestGrid, above the generic sample link", async () => {
+test("the stenography category rules page lists NO tests -- they appear on the per-language page after Start", async () => {
   const page = await read("app/typing/practice/stenography/exams/[slug]/page.tsx");
+  assert.doesNotMatch(page, /RealTestGrid|getStenographyCategoryNavigator/);
+});
+
+test("the per-language stenography page fetches that language's navigator list and renders it via RealTestGrid above the generic sample link", async () => {
+  const page = await read("app/typing/practice/stenography/exams/[slug]/[language]/page.tsx");
   assert.match(page, /import \{ getStenographyCategoryNavigator \} from "@\/lib\/stenography-category-navigator-server";/);
-  assert.match(page, /import \{ RealTestGrid \} from "\.\/real-test-grid";/);
-  assert.match(page, /const \[englishTests, hindiTests\] = await Promise\.all\(\[/);
-  assert.match(page, /<RealTestGrid tests=\{englishTests\} language="English"\/>/);
-  assert.match(page, /<RealTestGrid tests=\{hindiTests\} language="Hindi"\/>/);
+  assert.match(page, /import \{ RealTestGrid \} from "\.\.\/real-test-grid";/);
+  assert.match(page, /await getStenographyCategoryNavigator\(category\.slug, language\)/);
+  assert.match(page, /<RealTestGrid tests=\{tests\} language=\{language\} total=\{total\}/);
+  assert.match(page, /if \(!category \|\| !language\) notFound\(\)/);
 });
 
 test("getStenographyCategoryNavigator orders oldest-first, matching the Take Tests practice navigator's own convention", async () => {
@@ -52,8 +57,17 @@ test("RealTestGrid renders a numbered grid of test links, not a dropdown or a pr
   assert.doesNotMatch(grid, /aria-label="Previous test"/);
   assert.doesNotMatch(grid, /<select /);
   assert.doesNotMatch(grid, /router\.push/);
-  assert.match(grid, /<div className="mt-3 grid gap-2 sm:grid-cols-2">/);
+  assert.match(grid, /<div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">/);
   assert.match(grid, /\{tests\.map\(\(test, index\) => \(/);
   assert.match(grid, /href=\{`\/tests\/\$\{test\.slug\}`\}/);
-  assert.match(grid, /\{index \+ 1\}<\/span>/); // the numbered badge, matching the exam category catalogue's own card style
+  assert.match(grid, /\{startNumber \+ index\}<\/span>/); // the numbered badge (continues across pages), matching the exam category catalogue's own card style
+});
+
+test("the per-language stenography page paginates at the shared 50-per-page size with the same Newest/Oldest toggle and Prev/Next nav as the exam catalogue", async () => {
+  const page = await read("app/typing/practice/stenography/exams/[slug]/[language]/page.tsx");
+  assert.match(page, /import \{ normalizeExamCategoryPage, examCategoryPageBounds, sortExamCategoryNavigatorItems \} from "@\/lib\/exam-category-navigator";/);
+  assert.match(page, /const tests = all\.slice\(from, to \+ 1\);/);
+  assert.match(page, /aria-label="Sort tests"/);
+  assert.match(page, /aria-label="Test pages"/);
+  assert.match(page, /startNumber=\{from \+ 1\}/);
 });

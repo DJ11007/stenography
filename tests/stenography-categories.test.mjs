@@ -71,14 +71,18 @@ test("the stenography exam simulator hub renders a category grid using the share
   assert.match(hub, /<TypingBrandHeader backHref="\/typing\/practice\/stenography" backLabel="Stenography" \/>/);
 });
 
-test("the stenography category rules page shows English and Hindi rules with distinct start links into the shared exam workspace route", async () => {
+test("the stenography category rules page shows English and Hindi rules with Start links to the per-language tests page", async () => {
   const page = await read("app/typing/practice/stenography/exams/[slug]/page.tsx");
   assert.match(page, /getStenographyCategory/);
   assert.match(page, /if \(!category\) notFound\(\)/);
   assert.match(page, /Start in English/);
   assert.match(page, /Start in Hindi/);
-  assert.match(page, /stenographyCategoryPresetId\(category\.slug, "English"\)/);
-  assert.match(page, /stenographyCategoryPresetId\(category\.slug, "Hindi"\)/);
-  assert.match(page, /\/typing\/exams\/\$\{englishPresetId\}/);
-  assert.match(page, /\/typing\/exams\/\$\{hindiPresetId\}/);
+  assert.match(page, /\/typing\/practice\/stenography\/exams\/\$\{category\.slug\}\/english/);
+  assert.match(page, /\/typing\/practice\/stenography\/exams\/\$\{category\.slug\}\/hindi/);
+});
+
+test("the per-language stenography page keeps the generic sample as a link into the shared exam workspace route", async () => {
+  const page = await read("app/typing/practice/stenography/exams/[slug]/[language]/page.tsx");
+  assert.match(page, /stenographyCategoryPresetId\(category\.slug, language\)/);
+  assert.match(page, /\/typing\/exams\/\$\{samplePresetId\}/);
 });

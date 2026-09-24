@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { ExamPreset } from "@/lib/typing-curriculum";
 import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, PRACTICE_DURATION_MINUTES, type HalfErrorCategory } from "@/lib/typing-test";
+import { BackButton } from "@/app/_components/back-button";
 import { TypingBrandHeader } from "./typing-brand";
 import type { PracticeNavigation } from "./configurable-typing-exam";
 
@@ -128,6 +129,10 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
 
   return <main className="min-h-screen bg-slate-100">
     <TypingBrandHeader/>
+    {/* No href: goes back to whichever list the student opened this test from
+        (exam category tests, Take Tests picker, ...), unlike Exit below, which
+        always goes to the fixed backHref. */}
+    <div className="mx-auto max-w-7xl px-4 pt-3"><BackButton label="Back to all tests"/></div>
     <section className="mx-auto max-w-3xl px-4 py-10">
       <div className="rounded-3xl bg-white p-6 shadow-xl sm:p-10">
         <div className="flex flex-wrap items-center justify-between gap-3">
