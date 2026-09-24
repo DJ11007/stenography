@@ -254,3 +254,48 @@ test("the admin list's per-row Kruti Dev preview also uses the shared krutiDevTy
   assert.match(page, /import \{ krutiDevTypingTarget \} from "@\/lib\/hindi-font-converter";/);
   assert.match(page, /return \{ \.\.\.row, krutidev: krutiDevTypingTarget\(row\.content\) \};/);
 });
+
+// Real reported bug, found via pixel-level canvas measurement while
+// verifying the fix above: several Kruti Dev 010 glyphs (स among them)
+// have a substantial NEGATIVE left-side-bearing -- their ink draws to the
+// LEFT of the character's own advance origin. An isolated "s" glyph's
+// drawn pixels start well to the left of its nominal x origin (confirmed:
+// ctx.measureText('s') at 80px is ~0.07px wide, and a canvas ink-scan of
+// a fresh "s" showed ink starting ~27px left of where it was drawn).
+// Mid-string this is invisible (the overhang draws into space already
+// claimed by the PREVIOUS character's advance), but when such a glyph is
+// the very FIRST character on a line, there's nothing to its left to draw
+// into -- the overhang gets clipped by the element's own edge and the
+// character visibly vanishes. Reported live: typing "s s s s" (4
+// keystrokes) into the Kruti Dev lessons admin's Content field showed
+// only 3 marks in the Student preview. A small extra left padding, sized
+// to the worst-case overhang, is a complete fix -- verified live via a
+// canvas ink-region scan of the real rendered page (4 distinct regions,
+// not 1, after the fix) and confirmed the fourth mark visible in a
+// screenshot at 80px font size.
+test("Kruti-Dev-rendered text in the lessons admin gets extra left padding, to keep a negative-left-side-bearing first glyph (like स) from being clipped by the element's own edge", async () => {
+  const manager = await read("app/admin/krutidev-lessons/krutidev-lessons-manager.tsx");
+  assert.match(manager, /const KD_LEADING_PAD = "0\.4em";/);
+  // All four places that can render an admin-controlled first character in
+  // Kruti Dev: the live Content textarea, its Student preview, and the
+  // row list's two KD-styled previews.
+  assert.match(manager, /paddingLeft: isKrutiDevInput \? `calc\(0\.75rem \+ \$\{KD_LEADING_PAD\}\)` : undefined/);
+  assert.match(manager, /style=\{\{ fontFamily: KD, paddingLeft: KD_LEADING_PAD \}\}>\{livePreview\}<\/p>/);
+  const rowStyleMatches = [...manager.matchAll(/paddingLeft: KD_LEADING_PAD/g)];
+  assert.ok(rowStyleMatches.length >= 3, "the textarea, the live preview, and at least one row-list preview must all apply the leading padding fix");
+});
+
+// Same bug, same fix, applied to the actual student-facing tutor page --
+// found and fixed in the same pass since a real curriculum word starting
+// with स (e.g. "सुबह" in the bundled "दैनिक जीवन" word set) would hit the
+// identical clipping for real students, not just the admin editor. Here
+// the safety margin scales with the tutor's own adjustable font-size
+// control (default 30px, up to 56px via the A+ button) rather than being
+// a fixed em value, since a larger font makes the same glyph's overhang
+// proportionally wider in pixels.
+test("the student-facing Kruti Dev tutor's passage box and typing textarea both scale their extra left padding with the adjustable font size, for the same reason", async () => {
+  const tutor = await read("app/typing/learn/krutidev/krutidev-tutor.tsx");
+  assert.match(tutor, /function kdLeadingPad\(fontPx: number, basePadding: string\) \{/);
+  assert.match(tutor, /paddingLeft: kdLeadingPad\(fontPx, "1rem"\)/);
+  assert.match(tutor, /paddingLeft: kdLeadingPad\(fontPx, "0\.75rem"\)/);
+});

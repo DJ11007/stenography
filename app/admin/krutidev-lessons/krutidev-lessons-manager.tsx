@@ -29,6 +29,22 @@ const KIND_HINT: Record<Row["kind"], string> = {
 };
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
+// Real reported bug, found via pixel-level canvas measurement: several
+// Kruti Dev 010 glyphs (स among them) have a substantial NEGATIVE
+// left-side-bearing -- their ink draws to the LEFT of the character's own
+// advance origin. Mid-string this is invisible (the overhang draws into
+// space already claimed by the previous character's advance), but when
+// such a glyph is the very FIRST character in a line, there's nothing to
+// its left to draw into -- the overhang gets clipped by the element's own
+// edge, so the character appears to vanish entirely. Confirmed directly:
+// ctx.measureText('s') at 80px is ~0.07px wide (an isolated "s" has near-
+// zero forward advance), and a canvas ink-column scan of a fresh "s" glyph
+// shows its drawn pixels starting ~27px to the left of its nominal x
+// origin. A small left padding is a complete, robust fix -- it gives every
+// possible first character's overhang somewhere to draw into, regardless
+// of which glyph happens to lead the string. 0.4em safely covers the
+// worst overhang measured at every font size tested (24px-80px).
+const KD_LEADING_PAD = "0.4em";
 
 function Feedback({ state }: { state: KrutiDevLessonActionState }) {
   if (!state.error && !state.success) return null;
@@ -160,10 +176,10 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
                       </div>
                     )}
                   </div>
-                  <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600" style={{ fontFamily: detectHindiTextFormat(row.content) !== "unicode" ? KD : HI }}>{row.content}</p>
+                  <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600" style={{ fontFamily: detectHindiTextFormat(row.content) !== "unicode" ? KD : HI, paddingLeft: KD_LEADING_PAD }}>{row.content}</p>
                   <p
                     className="mt-2 line-clamp-2 whitespace-pre-wrap border-t border-dashed border-slate-200 pt-2 text-2xl leading-loose text-slate-800"
-                    style={{ fontFamily: KD }}
+                    style={{ fontFamily: KD, paddingLeft: KD_LEADING_PAD }}
                     title="What students see — Kruti Dev 010"
                   >
                     {row.krutidev}
@@ -203,14 +219,14 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
           </label>
           <label className="text-xs font-bold text-slate-600">Content <span className="font-normal text-slate-400">(type the Hindi text, or its Kruti Dev keystrokes)</span>
             <span className="ml-1 font-normal text-slate-400">— {editingKind ? KIND_HINT[editingKind] : ""}</span>
-            <textarea name="content" value={liveContent} onChange={(event) => setLiveContent(event.target.value)} rows={8} required className="input mt-1 w-full font-normal" style={{ fontFamily: isKrutiDevInput ? KD : HI }} />
+            <textarea name="content" value={liveContent} onChange={(event) => setLiveContent(event.target.value)} rows={8} required className="input mt-1 w-full font-normal" style={{ fontFamily: isKrutiDevInput ? KD : HI, paddingLeft: isKrutiDevInput ? `calc(0.75rem + ${KD_LEADING_PAD})` : undefined }} />
           </label>
           {contentNote && (
             <p role={contentNote.tone === "warn" ? "alert" : "status"} className={`rounded-lg p-3 text-sm font-bold ${contentNote.tone === "warn" ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>{contentNote.message}</p>
           )}
           <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
             <p className="text-xs font-bold text-slate-500">Student preview — Kruti Dev 010 <span className="font-normal text-slate-400">(exactly what gets saved and what students see)</span></p>
-            <p className="mt-1 max-h-48 min-h-9 overflow-y-auto whitespace-pre-wrap text-2xl leading-loose text-slate-900" style={{ fontFamily: KD }}>{livePreview}</p>
+            <p className="mt-1 max-h-48 min-h-9 overflow-y-auto whitespace-pre-wrap text-2xl leading-loose text-slate-900" style={{ fontFamily: KD, paddingLeft: KD_LEADING_PAD }}>{livePreview}</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-xs font-bold text-slate-600">Focus keys <span className="font-normal text-slate-400">(key drills only)</span>

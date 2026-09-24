@@ -7,6 +7,22 @@ import { TypingSettingsPopup } from "../../_components/configurable-typing-exam"
 
 const HI = '"Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif';
 const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
+// Real reported bug (found while fixing the admin lessons editor -- see
+// krutidev-lessons-manager.tsx's own comment on KD_LEADING_PAD for the
+// full root-cause writeup): several Kruti Dev 010 glyphs (स among them)
+// have a substantial NEGATIVE left-side-bearing -- their ink draws to the
+// LEFT of the character's own advance origin. When such a glyph is the
+// very first character on the line (the passage/typing boxes here render
+// every character in its own <span>, so this is the FIRST span with
+// nothing to its left), the overhang has nowhere to draw into but the
+// box's own edge -- at this tutor's default 30px font size the existing
+// padding (p-4/p-3) is just wide enough, but the A+ font-size control
+// goes up to 56px, at which point the overhang can exceed it and the
+// leading character visibly vanishes. Scaling the extra padding with
+// fontPx keeps it safe at every size, not just the default.
+function kdLeadingPad(fontPx: number, basePadding: string) {
+  return `calc(${basePadding} + ${(fontPx * 0.4).toFixed(1)}px)`;
+}
 
 type Exercise = { id: string; title: string; target: string; focusKeys?: string[] };
 
@@ -310,7 +326,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
 
                 <div
                   className={`mt-4 w-full max-w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl bg-amber-50/70 p-4 ring-1 ring-amber-100 ${isFullscreen ? "min-h-0 flex-1" : ""}`}
-                  style={isFullscreen ? { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400 } : { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
+                  style={isFullscreen ? { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, paddingLeft: kdLeadingPad(fontPx, "1rem") } : { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.9, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)", paddingLeft: kdLeadingPad(fontPx, "1rem") }}
                   aria-hidden
                 >
                   {[...target].map((char, position) => {
@@ -338,7 +354,7 @@ export function KrutiDevTutor({ keyboardRows, glyphKeys, fingers, lessons, wordS
                   autoFocus
                   aria-label="टाइपिंग क्षेत्र"
                   className={`mt-3 w-full max-w-full resize-y rounded-xl border-2 border-slate-200 p-3 outline-none focus:border-blue-500 ${isFullscreen ? "min-h-0 flex-1" : ""}`}
-                  style={isFullscreen ? { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400 } : { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)" }}
+                  style={isFullscreen ? { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, paddingLeft: kdLeadingPad(fontPx, "0.75rem") } : { fontFamily: KD, fontSize: `${fontPx}px`, lineHeight: 1.8, fontWeight: bold ? 700 : 400, height: "clamp(14rem, 45vh, 34rem)", paddingLeft: kdLeadingPad(fontPx, "0.75rem") }}
                   placeholder="यहाँ टाइप करना शुरू करें…"
                 />
 
