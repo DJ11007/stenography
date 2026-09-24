@@ -72,12 +72,12 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
   // First fixed by decoding non-Unicode input to Unicode via
   // krutiDevToUnicode before saving -- but that round-trip turned out to
   // be LOSSY for a Key drill's arbitrary key-practice sequences (not real
-  // words): Kruti Dev has multiple physical keys that decode to the
-  // IDENTICAL Devanagari glyph (both "s" and "l" decode to "स"), so
-  // re-deriving Kruti Dev bytes from the saved Unicode for the Student
-  // preview could silently swap in a DIFFERENT key than the admin typed
-  // -- confirmed live: "sdfgh" round-tripped through Unicode and back
-  // came out re-keyed with "l" where "s" was typed, meaning a student
+  // words): the decoder's word-initial-typo repair (see krutiDevTypingTarget's
+  // own comment in lib/hindi-font-converter.ts for the full story) assumes
+  // its input is a real word, so a bare "s" at the start of an arbitrary
+  // drill gets silently reinterpreted as the "l" key's स -- confirmed
+  // live: "sdfgh" round-tripped through Unicode and back came out
+  // re-keyed with "l" where "s" was typed, meaning a student
   // could end up practicing the wrong physical key entirely.
   //
   // Fixed properly: content is now saved EXACTLY as typed, verbatim --

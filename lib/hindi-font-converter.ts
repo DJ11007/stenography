@@ -409,16 +409,27 @@ export function toTypeableKrutiDev(unicode: string) {
 // toTypeableKrutiDev (Unicode -> Kruti Dev) on content that's ALREADY
 // Kruti Dev keystrokes corrupts it. Worse, converting Kruti-Dev-typed
 // content to Unicode for storage and back to Kruti Dev for display is
-// itself LOSSY: multiple physical keys decode to the identical Devanagari
-// glyph (both "s" and "l" decode to "स"), so that round trip can silently
-// substitute a different key than the one actually typed -- confirmed
-// live with "sdfgh" round-tripping into a re-keyed "l" where an "s" was
-// typed. The fix is to never convert Kruti-Dev-typed content at all: this
-// helper is the single shared "what should a student actually type"
-// resolver for exercise content that may be authored in either format --
-// used identically by the admin editor's live preview, the admin list's
-// row preview, and the student-facing tutor page's own target derivation,
-// so all three are always guaranteed to agree byte-for-byte.
+// itself LOSSY for arbitrary (non-word) sequences: repairDecodedWord's
+// `^े` -> `स` rule (its own comment above has the full story -- a
+// data-validated fix for the single most common real-world typo in this
+// curriculum, typing "s" for "l" at the start of a word) assumes its
+// input is a real word, which an arbitrary key-drill sequence is not --
+// confirmed live with "sdfgh" (raw keystrokes, "s" genuinely meant)
+// round-tripping into a re-keyed "l" where "s" was actually typed, since
+// the repair fired on a string that merely happened to start with the
+// "s" byte. (Earlier revisions of this comment, and of the memory notes
+// describing this fix, wrongly described this as "s" and "l" being
+// genuinely the same key -- they are not; "s" alone decodes to े, only a
+// WORD-INITIAL े gets reinterpreted as स. That mischaracterization traced
+// back to a misread keyboard-chart screenshot, since corrected -- but the
+// underlying round-trip bug this function fixes was real and remains
+// fixed regardless of the exact mechanism.) The fix is to never convert
+// Kruti-Dev-typed content at all: this helper is the single shared "what
+// should a student actually type" resolver for exercise content that may
+// be authored in either format -- used identically by the admin editor's
+// live preview, the admin list's row preview, and the student-facing
+// tutor page's own target derivation, so all three are always guaranteed
+// to agree byte-for-byte.
 export function krutiDevTypingTarget(content: string): string {
   if (detectHindiTextFormat(content) !== "unicode") return content;
   try {
