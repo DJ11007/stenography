@@ -1,25 +1,20 @@
 import type { Metadata } from "next";
-import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { krutiDevTypingTarget } from "@/lib/hindi-font-converter";
 import { FINGERS, GLYPH_KEYS, KEYBOARD_ROWS } from "@/lib/krutidev-tutor-content";
 import { getKrutiDevExercises } from "@/lib/krutidev-tutor-server";
 import { KrutiDevTutor } from "./krutidev-tutor";
 
 export const metadata: Metadata = { title: "कृतिदेव हिन्दी टाइपिंग सीखें" };
 
-// Drills are stored / authored in Unicode Hindi (readable, reviewable, and
-// admin-editable via /admin/krutidev-lessons) and converted to
-// keyboard-typeable Kruti Dev bytes here -- toTypeableKrutiDev rewrites
-// the Latin-1 ligature bytes the plain converter emits (Ò, è, ç ...) into
-// the ASCII sequences a student can actually press. A conversion that
-// throws on one bad exercise falls back to the raw text for that one
-// rather than 500-ing the page.
-function toTarget(text: string): string {
-  try {
-    return toTypeableKrutiDev(text);
-  } catch {
-    return text;
-  }
-}
+// Drills may be authored either in Unicode Hindi (readable, reviewable,
+// and admin-editable via /admin/krutidev-lessons) or as raw Kruti Dev
+// keystrokes directly -- krutiDevTypingTarget (lib/hindi-font-converter.ts)
+// is the single shared resolver used identically here and in the admin
+// editor, so what a student sees always matches what the admin saved,
+// byte-for-byte. See that function's own comment for why converting
+// already-Kruti-Dev content again would corrupt it, and why a lossy
+// Unicode round trip isn't used for it either.
+const toTarget = krutiDevTypingTarget;
 
 export default async function KrutiDevLearnPage() {
   const { lessons: rawLessons, wordSets: rawWordSets, paragraphs: rawParagraphs } = await getKrutiDevExercises();

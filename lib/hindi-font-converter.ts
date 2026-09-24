@@ -403,6 +403,31 @@ export function toTypeableKrutiDev(unicode: string) {
   return unicodeToKrutiDev(unicode);
 }
 
+// Real reported bug: a dual-format admin field (the Kruti Dev lessons
+// editor's Content box) lets an admin author either real Unicode Hindi OR
+// raw Kruti Dev keystrokes directly -- unconditionally running
+// toTypeableKrutiDev (Unicode -> Kruti Dev) on content that's ALREADY
+// Kruti Dev keystrokes corrupts it. Worse, converting Kruti-Dev-typed
+// content to Unicode for storage and back to Kruti Dev for display is
+// itself LOSSY: multiple physical keys decode to the identical Devanagari
+// glyph (both "s" and "l" decode to "स"), so that round trip can silently
+// substitute a different key than the one actually typed -- confirmed
+// live with "sdfgh" round-tripping into a re-keyed "l" where an "s" was
+// typed. The fix is to never convert Kruti-Dev-typed content at all: this
+// helper is the single shared "what should a student actually type"
+// resolver for exercise content that may be authored in either format --
+// used identically by the admin editor's live preview, the admin list's
+// row preview, and the student-facing tutor page's own target derivation,
+// so all three are always guaranteed to agree byte-for-byte.
+export function krutiDevTypingTarget(content: string): string {
+  if (detectHindiTextFormat(content) !== "unicode") return content;
+  try {
+    return toTypeableKrutiDev(content);
+  } catch {
+    return content;
+  }
+}
+
 // The dependency searches globally and then replaces the first matching text,
 // so one word can accidentally mutate a later word in a long passage. Decode
 // lexical tokens independently. Keep verified non-injective spellings explicit:

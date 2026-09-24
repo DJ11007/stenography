@@ -192,23 +192,65 @@ test("the Alt-codes reference button moved into the Settings popup, and the AltC
 // legacy keys directly ("sdfgh ';lkj", the literal home-row keys) into a
 // brand new Key drill -- and toTypeableKrutiDev (Unicode -> Kruti Dev) ran
 // on that non-Unicode input anyway, silently producing garbage in the
-// Student preview with no warning at all (worse than the WordTris word
-// manager's pre-fix state, which at least blocked Save). Fixed the same
-// way as that manager: detected non-Unicode input is decoded via
-// krutiDevToUnicode into the real Hindi text, which is what's actually
-// saved and what the preview is derived from.
-test("the Kruti Dev lessons manager auto-converts Kruti Dev keystrokes typed into Content, instead of silently mis-converting them", async () => {
+// Student preview with no warning at all.
+//
+// First fixed by decoding non-Unicode input to Unicode via
+// krutiDevToUnicode before saving (matching the WordTris word manager's
+// fix) -- but that round trip turned out to be LOSSY for a Key drill's
+// arbitrary key-practice sequences: Kruti Dev has multiple physical keys
+// that decode to the IDENTICAL Devanagari glyph (both "s" and "l" decode
+// to "स"), so re-deriving Kruti Dev bytes from the saved Unicode could
+// silently substitute a DIFFERENT key than the one the admin actually
+// typed and wanted students to practice -- confirmed live: "sdfgh"
+// round-tripped through Unicode and back came out re-keyed with "l"
+// where "s" was typed. Fixed properly: content is now saved EXACTLY as
+// typed (Kruti Dev keystrokes stay Kruti Dev keystrokes, Unicode stays
+// Unicode, no hidden input / no save-time conversion in either
+// direction), and krutiDevTypingTarget (lib/hindi-font-converter.ts) is
+// the single shared "what should a student type" resolver used
+// identically by the admin's live preview, the admin's row list, and the
+// student-facing tutor page -- so all three always agree byte-for-byte.
+test("the Kruti Dev lessons manager saves Content exactly as typed (Kruti Dev keystrokes or Unicode Hindi), never converting or blocking on non-Unicode input", async () => {
   const manager = await read("app/admin/krutidev-lessons/krutidev-lessons-manager.tsx");
-  assert.match(manager, /import \{ detectHindiTextFormat, krutiDevToUnicode, toTypeableKrutiDev \} from "@\/lib\/hindi-font-converter";/);
+  assert.match(manager, /import \{ detectHindiTextFormat, krutiDevToUnicode, krutiDevTypingTarget \} from "@\/lib\/hindi-font-converter";/);
   assert.match(manager, /const detectedFormat = detectHindiTextFormat\(liveContent\);/);
-  assert.match(manager, /return \{ canonicalContent: krutiDevToUnicode\(liveContent\), conversionError: null \};/);
-  // The visible textarea stays uncontrolled-by-name (echoes exactly what
-  // the admin typed); the actual "content" submitted is always the
-  // decoded/canonical Unicode value via a hidden input, so the DB keeps
-  // storing clean Unicode regardless of which way the admin typed it in.
-  assert.doesNotMatch(manager, /<textarea name="content"/);
-  assert.match(manager, /<input type="hidden" name="content" value=\{canonicalContent\} \/>/);
-  // Save is only blocked on a genuine decode failure now, not merely on
-  // detecting non-Unicode input.
-  assert.match(manager, /disabled=\{savePending \|\| Boolean\(conversionError\)\}/);
+  // The textarea submits its own raw value directly again -- no hidden
+  // input, no save-time conversion, so what's typed is exactly what's
+  // stored.
+  assert.match(manager, /<textarea name="content" value=\{liveContent\}/);
+  assert.doesNotMatch(manager, /type="hidden" name="content"/);
+  // Save is blocked only for genuinely ambiguous "mixed" input (which
+  // can't render correctly in either font); plain Kruti Dev keystrokes,
+  // however unusual-looking, are always safely storable verbatim.
+  assert.match(manager, /disabled=\{savePending \|\| detectedFormat === "mixed"\}/);
+  // The row list's own Kruti Dev preview (row.krutidev) and the live
+  // editor's preview (livePreview) both resolve through the one shared
+  // function, not a locally re-implemented conversion.
+  assert.match(manager, /const livePreview = useMemo\(\(\) => \(liveContent\.trim\(\) \? krutiDevTypingTarget\(liveContent\) : ""\), \[liveContent\]\);/);
+});
+
+// Real reported bug, the actual root cause: krutiDevTypingTarget is the
+// shared resolver now used by the admin editor, the admin row list, AND
+// the student-facing tutor page (app/typing/learn/krutidev/page.tsx) --
+// pinning its exact behavior here guards all three call sites at once.
+test("krutiDevTypingTarget never converts already-Kruti-Dev content (avoiding the lossy round trip / double-conversion bug), and still converts genuine Unicode", async () => {
+  const { krutiDevTypingTarget } = await import("../lib/hindi-font-converter.ts");
+  // The exact reported case: raw keystrokes come back byte-identical,
+  // not re-keyed through a lossy Unicode round trip.
+  assert.equal(krutiDevTypingTarget("sdfgh';lkj"), "sdfgh';lkj");
+  // Genuine Unicode Hindi still gets converted into typeable Kruti Dev
+  // bytes, exactly as it always has for Word sets/Paragraphs.
+  assert.equal(krutiDevTypingTarget("कर करक रकर"), "dj djd jdj");
+});
+
+test("the student-facing tutor page's toTarget is krutiDevTypingTarget itself, not a re-implemented copy", async () => {
+  const page = await read("app/typing/learn/krutidev/page.tsx");
+  assert.match(page, /import \{ krutiDevTypingTarget \} from "@\/lib\/hindi-font-converter";/);
+  assert.match(page, /const toTarget = krutiDevTypingTarget;/);
+});
+
+test("the admin list's per-row Kruti Dev preview also uses the shared krutiDevTypingTarget, not an unconditional toTypeableKrutiDev that would corrupt Kruti-Dev-typed content", async () => {
+  const page = await read("app/admin/krutidev-lessons/page.tsx");
+  assert.match(page, /import \{ krutiDevTypingTarget \} from "@\/lib\/hindi-font-converter";/);
+  assert.match(page, /return \{ \.\.\.row, krutidev: krutiDevTypingTarget\(row\.content\) \};/);
 });

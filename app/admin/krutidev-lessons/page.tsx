@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { krutiDevTypingTarget } from "@/lib/hindi-font-converter";
 import { KEY_LESSONS, PARAGRAPHS, WORD_SETS } from "@/lib/krutidev-tutor-content";
 import { BackButton } from "../../_components/back-button";
 import { KrutiDevLessonsManager } from "./krutidev-lessons-manager";
 
-// What students actually see: the Unicode content converted to keyboard-typeable
-// Kruti Dev bytes, rendered in the Kruti Dev 010 font on the card.
+// What students actually see: content may be authored either as Unicode
+// Hindi or as raw Kruti Dev keystrokes directly (krutiDevTypingTarget
+// detects which and only converts genuinely Unicode content -- see that
+// function's own comment in lib/hindi-font-converter.ts), rendered in the
+// Kruti Dev 010 font on the card.
 function withKrutiDevPreview<T extends { content: string }>(row: T) {
-  let krutidev = "";
-  try {
-    krutidev = toTypeableKrutiDev(row.content);
-  } catch {
-    krutidev = "";
-  }
-  return { ...row, krutidev };
+  return { ...row, krutidev: krutiDevTypingTarget(row.content) };
 }
 
 export const metadata: Metadata = { title: "Kruti Dev Typing Tutor | Admin" };
@@ -42,8 +39,9 @@ export default async function AdminKrutiDevLessonsPage() {
         <h1 className="mt-5 text-2xl font-black text-slate-950">Kruti Dev Typing Tutor</h1>
         <p className="mt-2 text-sm text-slate-600">
           Edit the key drills, word sets and paragraphs students practise on the Kruti Dev learn
-          simulator (<code>/typing/learn/krutidev</code>). Write in normal Unicode Hindi — it is
-          converted to Kruti Dev automatically. Add as many words / lines / paragraphs as you like.
+          simulator (<code>/typing/learn/krutidev</code>). Type in normal Unicode Hindi, or type the
+          raw Kruti Dev keystrokes directly — either way it's saved exactly as typed and shown
+          correctly to students. Add as many words / lines / paragraphs as you like.
         </p>
         {!dbReady && (
           <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">
