@@ -18,7 +18,24 @@ const unicodeTextClass = "text-xl leading-9";
 export function FontConverter({ initialText = "", initialSource = "unicode", expectedOutput, onUse }: { initialText?:string; initialSource?:HindiTextFormat; expectedOutput?:HindiTextFormat; onUse?:(result:ConvertedHindiText)=>void }) {
   const [source,setSource]=useState(initialSource); const [output,setOutput]=useState<HindiTextFormat>(expectedOutput??(initialSource==="unicode"?"krutidev":"unicode")); const [text,setText]=useState(initialText); const [converted,setConverted]=useState(""); const [error,setError]=useState("");
   const sourceCount=useMemo(()=>countHindiText(text),[text]); const outputCount=useMemo(()=>countHindiText(converted),[converted]);
-  const convert=()=>{try{const detected=detectHindiTextFormat(text);if(detected!=="empty"&&detected!=="unknown"&&detected!==source)throw new Error(`Source text appears to be ${detected === "krutidev" ? "Kruti Dev 010" : "Unicode Hindi"}. Select the matching source format.`);setConverted(convertHindiTextWithMarker(text,source,output).text);setError("");}catch(reason){setError(reason instanceof Error?reason.message:"Conversion failed.");}};
+  // Real reported bug: declaring Source format = "Unicode Hindi" and then
+  // typing/pasting plain English (e.g. testing raw Kruti Dev keys like
+  // "a s d f g h ' ; l k j" without switching Source to "Kruti Dev 010"
+  // first) silently corrupted ordinary punctuation -- unicodeToKrutiDev's
+  // apostrophe/semicolon remapping (curly-quote normalization, ";" -> "("
+  // so a literal semicolon doesn't collide with the Kruti Dev key that
+  // draws य) is correct and necessary for REAL Hindi prose that happens to
+  // contain that punctuation, but wrong to apply to text that was never
+  // Hindi at all. detectHindiTextFormat returns "unknown" for such
+  // text (no Devanagari, no legacy-signal match), and the mismatch check
+  // below explicitly let "unknown" through -- confirmed: convert() on
+  // that exact string returned "a s d f g h ^ ( l k j", not the original.
+  // Blocked specifically for source==="unicode": a "krutidev" source
+  // detecting as "unknown" is the NORMAL case for real (if short) Kruti
+  // Dev keystrokes -- see hindi-font-converter.test.mjs and this app's
+  // own admin editors, which rely on exactly that -- so only the unicode
+  // direction, where the corruption risk actually lives, is blocked.
+  const convert=()=>{try{const detected=detectHindiTextFormat(text);if(detected!=="empty"&&detected!=="unknown"&&detected!==source)throw new Error(`Source text appears to be ${detected === "krutidev" ? "Kruti Dev 010" : "Unicode Hindi"}. Select the matching source format.`);if(source==="unicode"&&detected==="unknown")throw new Error("This doesn't look like Hindi text -- no Devanagari characters found. If you're testing Kruti Dev keystrokes directly, switch Source format to \"Kruti Dev 010\" instead.");setConverted(convertHindiTextWithMarker(text,source,output).text);setError("");}catch(reason){setError(reason instanceof Error?reason.message:"Conversion failed.");}};
   const swap=()=>{setSource(output);setOutput(source);setText(converted||text);setConverted("");setError("");};
   const reset=()=>{setText(initialText);setConverted("");setSource(initialSource);setOutput(expectedOutput??(initialSource==="unicode"?"krutidev":"unicode"));setError("");};
   const download=()=>{const blob=new Blob([converted],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=output==="krutidev"?"krutidev-010.txt":"unicode-hindi.txt";anchor.click();URL.revokeObjectURL(url);};
