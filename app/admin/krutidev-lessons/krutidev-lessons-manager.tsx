@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { toTypeableKrutiDev } from "@/lib/hindi-font-converter";
+import { detectHindiTextFormat, krutiDevToUnicode, toTypeableKrutiDev } from "@/lib/hindi-font-converter";
 import { deleteKrutiDevExercise, saveKrutiDevExercise, type KrutiDevLessonActionState } from "./actions";
 
 type Row = {
@@ -48,14 +48,50 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
   const [saveState, saveAction, savePending] = useActionState(saveKrutiDevExercise, initial);
   const [deleteState, deleteAction] = useActionState(deleteKrutiDevExercise, initial);
 
-  const livePreview = useMemo(() => {
-    if (!liveContent.trim()) return "";
+  // Real reported bug: this Content field expects real Unicode Hindi text
+  // (the bundled seed data is real words like "कर करक रकर", built from
+  // each lesson's own focus keys -- not raw keystrokes), but an admin
+  // thinking in Kruti Dev keystrokes (their day-to-day typing skill)
+  // typed the raw legacy keys directly (e.g. "sdfgh ';lkj", the literal
+  // home-row keys) -- and toTypeableKrutiDev (Unicode -> Kruti Dev) ran on
+  // that non-Unicode input anyway, silently producing garbage in the
+  // Student preview with no warning at all. Same root cause as the
+  // WordTris admin word manager's original bug (see
+  // app/admin/wordtris-words/wordtris-words-manager.tsx) -- fixed the
+  // same way: detected non-Unicode input is decoded via krutiDevToUnicode
+  // into the real Hindi text, which becomes what's actually saved (see
+  // the hidden "content" input below) and what the Student preview is
+  // derived from, instead of being blocked or silently mis-converted.
+  const detectedFormat = detectHindiTextFormat(liveContent);
+  const { canonicalContent, conversionError } = useMemo(() => {
+    if (!liveContent.trim() || detectedFormat === "unicode" || detectedFormat === "empty") {
+      return { canonicalContent: liveContent, conversionError: null as string | null };
+    }
     try {
-      return toTypeableKrutiDev(liveContent);
+      return { canonicalContent: krutiDevToUnicode(liveContent), conversionError: null };
+    } catch (err) {
+      return { canonicalContent: liveContent, conversionError: err instanceof Error ? err.message : "Couldn't convert these Kruti Dev keystrokes." };
+    }
+  }, [liveContent, detectedFormat]);
+
+  const livePreview = useMemo(() => {
+    if (!canonicalContent.trim()) return "";
+    try {
+      return toTypeableKrutiDev(canonicalContent);
     } catch {
       return "";
     }
-  }, [liveContent]);
+  }, [canonicalContent]);
+
+  const contentNote = liveContent.trim()
+    ? conversionError
+      ? { tone: "error" as const, message: `Couldn't convert these Kruti Dev keystrokes: ${conversionError}. Check the spelling and try again.` }
+      : detectedFormat === "mixed"
+      ? { tone: "warn" as const, message: "This looks like a mix of Kruti Dev keys and Hindi Unicode text -- double-check the text below is exactly right before saving." }
+      : detectedFormat !== "unicode"
+      ? { tone: "info" as const, message: "Detected Kruti Dev keystrokes -- will save as real Hindi text. Check it's exactly right before saving." }
+      : null
+    : null;
 
   const groups: Row["kind"][] = ["key-lesson", "word-set", "paragraph"];
   const draft = editing && "id" in editing ? editing : null;
@@ -158,12 +194,18 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
           <label className="text-xs font-bold text-slate-600">Title (Hindi)
             <input name="title" defaultValue={draft?.title ?? ""} required maxLength={120} className="input mt-1 w-full" style={{ fontFamily: HI }} />
           </label>
-          <label className="text-xs font-bold text-slate-600">Content (Unicode Hindi)
+          <label className="text-xs font-bold text-slate-600">Content <span className="font-normal text-slate-400">(type the Hindi text, or its Kruti Dev keystrokes)</span>
             <span className="ml-1 font-normal text-slate-400">— {editingKind ? KIND_HINT[editingKind] : ""}</span>
-            <textarea name="content" value={liveContent} onChange={(event) => setLiveContent(event.target.value)} rows={8} required className="input mt-1 w-full font-normal" style={{ fontFamily: HI }} />
+            <textarea value={liveContent} onChange={(event) => setLiveContent(event.target.value)} rows={8} required className="input mt-1 w-full font-normal" style={{ fontFamily: detectedFormat !== "unicode" ? KD : HI }} />
           </label>
+          <input type="hidden" name="content" value={canonicalContent} />
+          {contentNote && (
+            <p role={contentNote.tone === "error" ? "alert" : "status"} className={`rounded-lg p-3 text-sm font-bold ${contentNote.tone === "error" ? "bg-red-50 text-red-800" : contentNote.tone === "warn" ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>{contentNote.message}</p>
+          )}
           <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-            <p className="text-xs font-bold text-slate-500">Student preview — Kruti Dev 010</p>
+            <p className="text-xs font-bold text-slate-500">Hindi text that will be saved</p>
+            <p className="mt-1 max-h-32 min-h-9 overflow-y-auto whitespace-pre-wrap text-lg leading-loose text-slate-900" style={{ fontFamily: HI }}>{canonicalContent}</p>
+            <p className="mt-2 text-xs font-bold text-slate-500">Student preview — Kruti Dev 010</p>
             <p className="mt-1 max-h-48 min-h-9 overflow-y-auto whitespace-pre-wrap text-2xl leading-loose text-slate-900" style={{ fontFamily: KD }}>{livePreview}</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -178,7 +220,7 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
             </label>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={savePending} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
+            <button type="submit" disabled={savePending || Boolean(conversionError)} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
             <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black hover:bg-slate-50">Cancel</button>
           </div>
           <Feedback state={saveState} />

@@ -184,3 +184,31 @@ test("the Alt-codes reference button moved into the Settings popup, and the AltC
   assert.match(tutor, /function AltCodesModal\(/);
   assert.match(tutor, /\{altOpen && <AltCodesModal onClose=\{\(\) => setAltOpen\(false\)\} \/>\}/);
 });
+
+// Real reported bug: the Content field expects real Unicode Hindi text
+// (the bundled seed data is real words like "कर करक रकर", built from each
+// lesson's own focus keys -- not raw keystrokes), but an admin thinking in
+// Kruti Dev keystrokes (their day-to-day typing skill) typed the raw
+// legacy keys directly ("sdfgh ';lkj", the literal home-row keys) into a
+// brand new Key drill -- and toTypeableKrutiDev (Unicode -> Kruti Dev) ran
+// on that non-Unicode input anyway, silently producing garbage in the
+// Student preview with no warning at all (worse than the WordTris word
+// manager's pre-fix state, which at least blocked Save). Fixed the same
+// way as that manager: detected non-Unicode input is decoded via
+// krutiDevToUnicode into the real Hindi text, which is what's actually
+// saved and what the preview is derived from.
+test("the Kruti Dev lessons manager auto-converts Kruti Dev keystrokes typed into Content, instead of silently mis-converting them", async () => {
+  const manager = await read("app/admin/krutidev-lessons/krutidev-lessons-manager.tsx");
+  assert.match(manager, /import \{ detectHindiTextFormat, krutiDevToUnicode, toTypeableKrutiDev \} from "@\/lib\/hindi-font-converter";/);
+  assert.match(manager, /const detectedFormat = detectHindiTextFormat\(liveContent\);/);
+  assert.match(manager, /return \{ canonicalContent: krutiDevToUnicode\(liveContent\), conversionError: null \};/);
+  // The visible textarea stays uncontrolled-by-name (echoes exactly what
+  // the admin typed); the actual "content" submitted is always the
+  // decoded/canonical Unicode value via a hidden input, so the DB keeps
+  // storing clean Unicode regardless of which way the admin typed it in.
+  assert.doesNotMatch(manager, /<textarea name="content"/);
+  assert.match(manager, /<input type="hidden" name="content" value=\{canonicalContent\} \/>/);
+  // Save is only blocked on a genuine decode failure now, not merely on
+  // detecting non-Unicode input.
+  assert.match(manager, /disabled=\{savePending \|\| Boolean\(conversionError\)\}/);
+});
