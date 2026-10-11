@@ -9,3 +9,12 @@ export async function saveWordEfficiencyGrading(formData:FormData){
  const scores=questionIds.map(questionId=>{const raw=String(formData.get(`marks:${questionId}`)??"").trim();return{questionId,awardedMarks:raw===""?null:Number(raw),feedback:String(formData.get(`feedback:${questionId}`)??"").trim(),privateNote:""}});
  const payload={scores,overallFeedback:String(formData.get("overallFeedback")??"").trim(),privateNote:String(formData.get("privateNote")??"").trim()};const supabase=await createClient();const{error}=await supabase.rpc("save_word_efficiency_grading",{p_attempt_id:attemptId,p_payload:payload,p_publish:publish});if(error)redirect(`/admin/word-efficiency-tests/attempts/${attemptId}?error=${encodeURIComponent(error.message)}`);revalidatePath(`/admin/word-efficiency-tests/attempts/${attemptId}`);revalidatePath(`/typing/word-efficiency/results/${attemptId}`);redirect(`/admin/word-efficiency-tests/attempts/${attemptId}?${publish?"published":"saved"}=1`)
 }
+
+export async function overrideWordEfficiencyMarks(formData:FormData){
+ await requireAdmin();const attemptId=String(formData.get("attemptId")??""),questionId=String(formData.get("questionId")??""),reason=String(formData.get("reason")??"").trim();const raw=String(formData.get("awardedMarks")??"").trim();const awarded=raw===""?Number.NaN:Number(raw);
+ const back=(query:string)=>redirect(`/admin/word-efficiency-tests/attempts/${attemptId}?${query}`);
+ if(!Number.isFinite(awarded))back(`error=${encodeURIComponent("Enter the new marks for that question.")}`);
+ const supabase=await createClient();const{error}=await supabase.rpc("override_word_efficiency_question_marks",{p_attempt_id:attemptId,p_question_id:questionId,p_awarded:awarded,p_reason:reason});
+ if(error)back(`error=${encodeURIComponent(error.message)}`);
+ revalidatePath(`/admin/word-efficiency-tests/attempts/${attemptId}`);revalidatePath(`/typing/word-efficiency/results/${attemptId}`);back("adjusted=1");
+}

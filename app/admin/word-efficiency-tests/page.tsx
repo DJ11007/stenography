@@ -312,6 +312,12 @@ export default async function Page({
                         >
                           Model Answer
                         </Link>
+                        <Link
+                          href={`/admin/word-efficiency-tests/${test.id}/auto-grading`}
+                          className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-800"
+                        >
+                          Auto-grading
+                        </Link>
                         <form action={duplicateWordEfficiencyTest}>
                           <input type="hidden" name="testId" value={test.id} />
                           <button className="w-full rounded-lg bg-cyan-50 px-3 py-2 text-sm font-bold text-cyan-800">
