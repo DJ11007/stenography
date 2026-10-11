@@ -1,5 +1,5 @@
 import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
-import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, RSSB_DEO_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
+import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, RSSB_DEO_MARKS_METHOD, DELHI_POLICE_HCM_ENGLISH_MARKS_METHOD, DELHI_POLICE_HCM_HINDI_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
 import { EXAM_CATEGORIES, type ExamCategoryDefinition } from "./exam-categories.ts";
 import { STENOGRAPHY_CATEGORIES } from "./stenography-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
@@ -219,5 +219,8 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     marksMethod: effectiveCategory?.slug === "rajasthan-ldc" ? (version.language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD)
       : effectiveCategory?.slug === "rajasthan-deo" ? RSSB_DEO_MARKS_METHOD
       : undefined,
+    // Same keying as marksMethod above: a shared Delhi Police HCM exercise is
+    // scored by that category's banded marks table only while viewed through it.
+    speedMarksMethod: effectiveCategory?.slug === "delhi-police-hcm" ? (version.language === "English" ? DELHI_POLICE_HCM_ENGLISH_MARKS_METHOD : DELHI_POLICE_HCM_HINDI_MARKS_METHOD) : undefined,
   };
 }

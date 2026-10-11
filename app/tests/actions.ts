@@ -5,7 +5,7 @@ import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tes
 import { repeatPassageToExactWordCount } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/lib/typing-language";
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories, type HalfErrorCategory } from "@/lib/typing-test";
-import { calculateConfiguredRssbMarks } from "@/lib/typing-results";
+import { calculateConfiguredRssbMarks, calculateSpeedBandMarks } from "@/lib/typing-results";
 
 type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[]; passageWordCount?: number | null; examCategorySlug?: string | null };
 
@@ -128,7 +128,10 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // (frozen at submission, per this project's convention) is unaffected --
   // lets each of those dashboards prefer the real figures when present.
   const marksResult = preset.marksMethod ? calculateConfiguredRssbMarks(score, preset.marksMethod) : null;
-  const marksNetWpm = marksResult ? Math.round(score.correctWords / Math.max(score.elapsedSeconds / 60, 1 / 60)) : null;
+  // Delhi Police HCM's banded scheme stores the same three fields: its "actual
+  // speed" is the generic netWpm, its qualification the qualifying-speed check.
+  const speedMarksResult = !marksResult && preset.speedMarksMethod ? calculateSpeedBandMarks(score, preset.speedMarksMethod) : null;
+  const marksNetWpm = marksResult ? Math.round(score.correctWords / Math.max(score.elapsedSeconds / 60, 1 / 60)) : speedMarksResult ? speedMarksResult.actualWpm : null;
   // Real reported bug: an attempt's list-view "Errors" tile (this file's
   // fullErrors/halfErrors, read verbatim by /student/results and the admin
   // per-test results table) is frozen forever, per this project's own
@@ -146,7 +149,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // lets both review pages use this frozen object directly instead of ever
   // recomputing it -- the list tiles and the detailed breakdown can no
   // longer drift apart, for English or Hindi, typing or stenography.
-  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
+  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : speedMarksResult ? speedMarksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : speedMarksResult ? speedMarksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
   const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   // Anytime mode's per-student unlock time is submitted_at + delay, not a
   // shared resultsPublishAt -- and the DB row can't be re-read to fetch its

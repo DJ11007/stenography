@@ -21,10 +21,10 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("recordManagedAttempt stores RSSB's real, marks-based Net WPM/qualification alongside (never replacing) the generic penalty-based fields, for every other exam left untouched", async () => {
   const actions = await read("app/tests/actions.ts");
-  assert.match(actions, /import \{ calculateConfiguredRssbMarks \} from "@\/lib\/typing-results";/);
+  assert.match(actions, /import \{ calculateConfiguredRssbMarks, calculateSpeedBandMarks \} from "@\/lib\/typing-results";/);
   assert.match(actions, /const marksResult = preset\.marksMethod \? calculateConfiguredRssbMarks\(score, preset\.marksMethod\) : null;/);
-  assert.match(actions, /const marksNetWpm = marksResult \? Math\.round\(score\.correctWords \/ Math\.max\(score\.elapsedSeconds \/ 60, 1 \/ 60\)\) : null;/);
-  assert.match(actions, /marksNetWpm, marksQualified: marksResult \? marksResult\.qualified : null, marksObtained: marksResult \? marksResult\.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized\.comparisonText \};/);
+  assert.match(actions, /const marksNetWpm = marksResult \? Math\.round\(score\.correctWords \/ Math\.max\(score\.elapsedSeconds \/ 60, 1 \/ 60\)\) : speedMarksResult \? speedMarksResult\.actualWpm : null;/);
+  assert.match(actions, /marksNetWpm, marksQualified: marksResult \? marksResult\.qualified : speedMarksResult \? speedMarksResult\.qualified : null, marksObtained: marksResult \? marksResult\.marksObtained : speedMarksResult \? speedMarksResult\.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized\.comparisonText \};/);
   // never replaces the generic fields every other exam and every
   // already-recorded attempt still relies on
   assert.match(actions, /netWpm: score\.netWpm,/);

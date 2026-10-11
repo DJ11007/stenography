@@ -57,7 +57,7 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
 
         <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-5">
           <p className="text-sm font-black text-blue-900">Official Pattern</p>
-          <p className="mt-1 text-sm text-blue-800">A synthetic practice passage built to this category&apos;s own target: {language === "English" ? category.speedEnglish : category.speedHindi} WPM, {category.durationMinutes} minutes, {category.accuracy}% accuracy, backspace {category.backspaceMode === "disabled" ? "not allowed" : category.backspaceMode === "word" ? "current word only" : "full"}. Always available, not one of the exercises below.</p>
+          <p className="mt-1 text-sm text-blue-800">A synthetic practice passage built to this category&apos;s own target: {language === "English" ? category.speedEnglish : category.speedHindi} WPM, {category.durationMinutes} minutes, {category.accuracy === 0 ? "no separate accuracy requirement" : `${category.accuracy}% accuracy`}, backspace {category.backspaceMode === "disabled" ? "not allowed" : category.backspaceMode === "word" ? "current word only" : "full"}. Always available, not one of the exercises below.</p>
           <Link href={`/typing/exams/${officialPresetId}`} className="mt-4 inline-block rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-800">Start Official Pattern</Link>
         </div>
 

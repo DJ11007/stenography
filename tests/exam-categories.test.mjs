@@ -320,8 +320,8 @@ test("RRB NTPC is researched with its real 5%-relaxation, flat-10-per-mistake fo
 // skill test runs backspace ENABLED (paper-to-screen), unlike CRPF's
 // confirmed backspace-disabled (screen-to-screen) -- previously all three
 // were set to the same conservative "disabled" baseline.
-test("the CAPF Head Constable (Ministerial) family (CRPF/BSF/SSB) all get the real 5%-relaxation formula, and BSF's confirmed backspace-enabled setting no longer matches CRPF's disabled one", () => {
-  for (const slug of ["crpf-hcm", "bsf-hcm", "ssb-hcm"]) {
+test("the CAPF Head Constable (Ministerial) family (CRPF/SSB) get the 5%-relaxation formula; BSF has its own 10% (see its test) and a Backspace-on default unlike CRPF's disabled one", () => {
+  for (const slug of ["crpf-hcm", "ssb-hcm"]) {
     const category = getExamCategory(slug);
     assert.ok(category, `expected ${slug} to exist`);
     assert.equal(category.fullErrorPenalty, 10, `${slug} fullErrorPenalty`);

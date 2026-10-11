@@ -108,6 +108,16 @@ export type ExamPreset = {
     requiredDurationSeconds: number;
     passageWordLimit: number;
   };
+  /** A banded WPM-to-marks scheme (Delhi Police HCM): marks come from the highest band whose
+   * minWpm the actual (net) speed reaches; below qualifyingWpm is disqualified with 0 marks.
+   * Kept separate from marksMethod, whose per-correct-word RSSB formula it is not. */
+  speedMarksMethod?: {
+    id: "speed-banded-marks";
+    maximumMarks: number;
+    qualifyingWpm: number;
+    requiredDurationSeconds: number;
+    bands: readonly { minWpm: number; marks: number }[];
+  };
 };
 
 // Exported so a student's chosen passage-length preference can resample any
@@ -201,6 +211,12 @@ export const RSSB_HINDI_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks
 // Hindi, unlike Rajasthan LDC's differing 500/400-word split, so this is
 // one shared constant rather than an English/Hindi pair.
 export const RSSB_DEO_MARKS_METHOD = { id: "configured-rssb-ldc", maximumMarks: 25, minimumPassingMarks: 10.5, marksPerCorrectWord: 0.02, requiredDurationSeconds: 900, passageWordLimit: 1250 } as const;
+// Delhi Police HCM's Typing Test on Computer clause: 25 marks maximum, banded by
+// actual speed (tentative speed minus 1 WPM per mistake -- what netWpm already is
+// under that category's 10-word flat penalty over 10 minutes). minWpm values are
+// inclusive lower bounds, e.g. English "31 to 35" = 12 marks is { minWpm: 31 }.
+export const DELHI_POLICE_HCM_ENGLISH_MARKS_METHOD = { id: "speed-banded-marks", maximumMarks: 25, qualifyingWpm: 30, requiredDurationSeconds: 600, bands: [{ minWpm: 30, marks: 10 }, { minWpm: 31, marks: 12 }, { minWpm: 36, marks: 15 }, { minWpm: 41, marks: 18 }, { minWpm: 46, marks: 21 }, { minWpm: 51, marks: 25 }] } as const;
+export const DELHI_POLICE_HCM_HINDI_MARKS_METHOD = { id: "speed-banded-marks", maximumMarks: 25, qualifyingWpm: 25, requiredDurationSeconds: 600, bands: [{ minWpm: 25, marks: 10 }, { minWpm: 26, marks: 12 }, { minWpm: 31, marks: 15 }, { minWpm: 36, marks: 18 }, { minWpm: 41, marks: 21 }, { minWpm: 46, marks: 25 }] } as const;
 
 export const EXAM_PRESETS: ExamPreset[] = [
   preset({ id: "rssb-ldc-english", slug: "english-typing", title: "English Typing", subtitle: "Independent typing practice simulation", category: "typing", language: "English", durationSeconds: 600, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, 500), inputSystems: [ENGLISH_QWERTY], speedRequirement: 35, accuracyRequirement: 90, backspaceMode: "full", wordMethod: "characters", scoringProfile: profile(35), marksMethod: RSSB_ENGLISH_MARKS_METHOD }),
@@ -231,6 +247,7 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
   const marksMethod = category.slug === "rajasthan-ldc" ? (language === "English" ? RSSB_ENGLISH_MARKS_METHOD : RSSB_HINDI_MARKS_METHOD)
     : category.slug === "rajasthan-deo" ? RSSB_DEO_MARKS_METHOD
     : undefined;
+  const speedMarksMethod = category.slug === "delhi-police-hcm" ? (language === "English" ? DELHI_POLICE_HCM_ENGLISH_MARKS_METHOD : DELHI_POLICE_HCM_HINDI_MARKS_METHOD) : undefined;
   if (language === "English") {
     // Rajasthan DEO's real passage is 1250 words regardless of the
     // 500-words-per-10-minutes scaling every other category uses (its own
@@ -238,7 +255,7 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
     // preset()'s build-time check against RSSB_DEO_MARKS_METHOD's
     // passageWordLimit to pass.
     const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(500 * (durationMinutes / 10)));
-    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedEnglish, { fullErrorPenalty: category.fullErrorPenalty, halfErrorPenalty: category.halfErrorPenalty, errorRelaxationPercent: category.errorRelaxationPercent, errorGraceCount: category.errorGraceCount, minorSpellingIsFullMistake: category.minorSpellingIsFullMistake, capMistakeUnitsPerWord: category.capMistakeUnitsPerWord, accuracyFromSpeedRatio: category.accuracyFromSpeedRatio, minimumStrokesFromPassSpeed: category.minimumStrokesFromPassSpeed, passAccuracy: category.accuracy === 0 ? 0 : undefined }), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod });
+    return preset({ id, slug: id, title: `${category.name} — English Typing`, subtitle, category: "typing", language: "English", durationSeconds, passage: repeatPassageToExactWordCount(ENGLISH_PASSAGE, wordCount), inputSystems: [ENGLISH_QWERTY], speedRequirement: category.speedEnglish, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedEnglish, { fullErrorPenalty: category.fullErrorPenalty, halfErrorPenalty: category.halfErrorPenalty, errorRelaxationPercent: category.errorRelaxationPercent, errorGraceCount: category.errorGraceCount, minorSpellingIsFullMistake: category.minorSpellingIsFullMistake, capMistakeUnitsPerWord: category.capMistakeUnitsPerWord, accuracyFromSpeedRatio: category.accuracyFromSpeedRatio, minimumStrokesFromPassSpeed: category.minimumStrokesFromPassSpeed, passAccuracy: category.accuracy === 0 ? 0 : undefined }), instructionNotes: category.patternNotes, patternSourced: category.patternSourced, marksMethod, speedMarksMethod });
   }
   const wordCount = category.slug === "rajasthan-deo" ? 1250 : Math.max(50, Math.round(400 * (durationMinutes / 10)));
   // Kruti Dev's passageOverride is otherwise a fixed 400-word constant
@@ -248,7 +265,7 @@ function categoryPreset(category: ExamCategoryDefinition, language: "English" | 
   const hindiInputSystems = category.slug === "rajasthan-deo"
     ? [krutiDevInputSystemForWordCount(wordCount), HINDI_UNICODE_MANGAL, HINDI_UNICODE_REMINGTON_GAIL, HINDI_UNICODE_REMINGTON_CBI, HINDI_UNICODE_INSCRIPT, HINDI_UNICODE_REMINGTON]
     : HINDI_INPUT_SYSTEMS;
-  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: hindiInputSystems, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedHindi, { fullErrorPenalty: category.fullErrorPenalty, halfErrorPenalty: category.halfErrorPenalty, errorRelaxationPercent: category.errorRelaxationPercent, errorGraceCount: category.errorGraceCount, minorSpellingIsFullMistake: category.minorSpellingIsFullMistake, capMistakeUnitsPerWord: category.capMistakeUnitsPerWord, accuracyFromSpeedRatio: category.accuracyFromSpeedRatio, minimumStrokesFromPassSpeed: category.minimumStrokesFromPassSpeed, passAccuracy: category.accuracy === 0 ? 0 : undefined }), instructionNotes: category.patternNotesHindi ?? category.patternNotes, patternSourced: category.patternSourced, marksMethod });
+  return preset({ id, slug: id, title: `${category.name} — Hindi Typing`, subtitle, category: "typing", language: "Hindi", durationSeconds, passage: repeatPassageToExactWordCount(HINDI_PASSAGE, wordCount), inputSystems: hindiInputSystems, speedRequirement: category.speedHindi, accuracyRequirement: category.accuracy, backspaceMode: category.backspaceMode, wordMethod: category.wordMethod ?? "characters", highlightMode: category.highlightMode, scoringProfile: profile(category.speedHindi, { fullErrorPenalty: category.fullErrorPenalty, halfErrorPenalty: category.halfErrorPenalty, errorRelaxationPercent: category.errorRelaxationPercent, errorGraceCount: category.errorGraceCount, minorSpellingIsFullMistake: category.minorSpellingIsFullMistake, capMistakeUnitsPerWord: category.capMistakeUnitsPerWord, accuracyFromSpeedRatio: category.accuracyFromSpeedRatio, minimumStrokesFromPassSpeed: category.minimumStrokesFromPassSpeed, passAccuracy: category.accuracy === 0 ? 0 : undefined }), instructionNotes: category.patternNotesHindi ?? category.patternNotes, patternSourced: category.patternSourced, marksMethod, speedMarksMethod });
 }
 
 export const EXAM_CATEGORY_PRESETS: ExamPreset[] = EXAM_CATEGORIES.flatMap((category) => [categoryPreset(category, "English"), categoryPreset(category, "Hindi")]);

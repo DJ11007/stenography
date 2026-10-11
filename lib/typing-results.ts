@@ -93,6 +93,26 @@ export function calculateConfiguredRssbMarks(score: TypingScore, method: NonNull
   };
 }
 
+// Delhi Police HCM's banded scheme: marks are read off the actual speed (netWpm,
+// already tentative speed minus 1 WPM per mistake under that category's flat
+// 10-word penalty), below the qualifying speed is disqualified with 0 marks.
+export function calculateSpeedBandMarks(score: TypingScore, method: NonNullable<import("./typing-curriculum.ts").ExamPreset["speedMarksMethod"]>) {
+  const durationMatches = score.elapsedSeconds === method.requiredDurationSeconds;
+  const actualWpm = score.netWpm;
+  const qualified = actualWpm >= method.qualifyingWpm;
+  const band = qualified ? [...method.bands].reverse().find((item) => actualWpm >= item.minWpm) : undefined;
+  return {
+    durationMatches,
+    maximumMarks: method.maximumMarks,
+    qualifyingWpm: method.qualifyingWpm,
+    grossWpm: score.grossWpm,
+    actualWpm,
+    marksObtained: band?.marks ?? 0,
+    qualified,
+    durationWarning: durationMatches ? null : `This marks scale is designed for a 10-minute typing test. This attempt used ${formatElapsedDuration(score.elapsedSeconds)}, so compare it cautiously.`,
+  };
+}
+
 function formatElapsedDuration(seconds: number) {
   const safe = Math.max(0, Math.round(seconds));
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
