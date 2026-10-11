@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const targetMigration = new URL("../supabase/migrations/202609081305_fix_word_efficiency_grading_target_uses_ephemeral_id.sql", import.meta.url);
 const overhaulMigration = new URL("../supabase/migrations/202610111200_word_efficiency_auto_grading_overhaul.sql", import.meta.url);
+const blankParagraphMigration = new URL("../supabase/migrations/202610111500_word_efficiency_blank_paragraph_tolerance.sql", import.meta.url);
 
 const admin = "10000000-0000-0000-0000-00000000000a", student = "20000000-0000-0000-0000-000000000002";
 const testId = "40000000-0000-0000-0000-000000000004", version = "50000000-0000-0000-0000-000000000005";
@@ -52,6 +53,7 @@ ${rule2 ? `,('${version}','${q2}','blocks.1.runs.0.bold','bold','true'::jsonb,2.
 `);
   await db.exec(await readFile(targetMigration, "utf8"));
   await db.exec(await readFile(overhaulMigration, "utf8"));
+  await db.exec(await readFile(blankParagraphMigration, "utf8"));
   return db;
 }
 
@@ -288,4 +290,81 @@ test("the admin history lists adjustments and re-grades with who made them and w
   assert.equal(history.length, 1);
   assert.deepEqual([history[0].question_number, Number(history[0].old_awarded), Number(history[0].new_awarded), history[0].source, history[0].reason, history[0].changed_by_name], [1, 0, 1, "override", "Partly correct on review", "Deepak Admin"]);
   await db.close();
+});
+
+// Real case: a student attempted Q1 and Q2 correctly but scored 0 everywhere -- their
+// document had ONE extra blank paragraph before the paragraphs the rules point at, so
+// every position-based rule read the wrong paragraph.
+const blank = () => para([run("")]);
+const shiftedDoc = () => doc([para([run(FULL_TEXT, { color: "C00000" })]), blank(), para([run("Bold me", { bold: true })])]);
+
+test("a blank paragraph in the student's document no longer shifts the rules onto the wrong paragraphs", async () => {
+  const db = await database();
+  await newAttempt(db, "e1000000-0000-0000-0000-000000000001");
+  await submit(db, "e1000000-0000-0000-0000-000000000001", shiftedDoc());
+  const rows = await scores(db, "e1000000-0000-0000-0000-000000000001");
+  assert.equal(Number(rows[0].awarded_marks), 2.5, "Q1 reads paragraph one, before the blank line");
+  assert.equal(Number(rows[1].awarded_marks), 2.5, "Q2's paragraph moved from position 1 to 2 but is found by its place among non-blank paragraphs");
+  await db.close();
+});
+
+test("the exact position is still tried first, and a shifted paragraph that is NOT bold still scores 0", async () => {
+  const db = await database();
+  await newAttempt(db, "e2000000-0000-0000-0000-000000000002");
+  await submit(db, "e2000000-0000-0000-0000-000000000002", doc([para([run(FULL_TEXT, { color: "C00000" })]), blank(), para([run("Bold me", { bold: false })])]));
+  const rows = await scores(db, "e2000000-0000-0000-0000-000000000002");
+  assert.equal(Number(rows[0].awarded_marks), 2.5);
+  assert.equal(Number(rows[1].awarded_marks), 0, "remapping finds the right paragraph, but it is not bold");
+  await db.close();
+});
+
+test("blank paragraphs anywhere (including a student document with several) are skipped when counting places", async () => {
+  const db = await database();
+  const many = doc([blank(), para([run(FULL_TEXT, { color: "C00000" })]), blank(), blank(), para([run("Bold me", { bold: true })])]);
+  await newAttempt(db, "e3000000-0000-0000-0000-000000000003");
+  await submit(db, "e3000000-0000-0000-0000-000000000003", many);
+  const rows = await scores(db, "e3000000-0000-0000-0000-000000000003");
+  assert.deepEqual(rows.map((row) => Number(row.awarded_marks)), [2.5, 2.5]);
+  await db.close();
+});
+
+test("with no model answer saved the matcher behaves exactly as before (no remapping, no error)", async () => {
+  const db = await database({ withModel: false });
+  await newAttempt(db, "e4000000-0000-0000-0000-000000000004");
+  await submit(db, "e4000000-0000-0000-0000-000000000004", shiftedDoc());
+  const rows = await scores(db, "e4000000-0000-0000-0000-000000000004");
+  assert.equal(Number(rows[0].awarded_marks), 2.5);
+  assert.equal(Number(rows[1].awarded_marks), 0, "without a model there is nothing to align against");
+  await db.close();
+});
+
+test("re-grade corrects an attempt that was auto-published with the old, position-only rules", async () => {
+  const db = await database();
+  await asAdmin(db);
+  await db.query("select public.set_word_efficiency_auto_publish($1,true)", [testId]);
+  await asStudent(db);
+  const id = "e5000000-0000-0000-0000-000000000005";
+  await newAttempt(db, id);
+  await submit(db, id, shiftedDoc());
+  // Put it back to how the old matcher scored it: everything 0.
+  await db.exec(`update public.word_efficiency_question_scores set awarded_marks=0, graded_by=null where attempt_id='${id}';
+update public.word_efficiency_attempts set result=result||'{"marks":0,"percentage":0,"passed":false}'::jsonb where id='${id}'`);
+  await asAdmin(db);
+  const out = (await db.query("select public.regrade_word_efficiency_version($1) as r", [version])).rows[0].r;
+  assert.equal(out.scoresChanged >= 2, true);
+  assert.equal(Number((await attemptState(db, id)).result.marks), 5);
+  assert.equal((await attemptState(db, id)).result.passed, true);
+  await db.close();
+});
+
+test("the self-test still passes, and the new migration keeps the transaction wrapper and balanced dollar quotes", async () => {
+  const db = await database();
+  await asAdmin(db);
+  assert.equal((await db.query("select public.check_word_efficiency_auto_grading($1) as c", [testId])).rows[0].c.ready, true);
+  await db.close();
+  const sql = await readFile(blankParagraphMigration, "utf8");
+  assert.match(sql, /^begin;/);
+  assert.match(sql, /commit;\s*$/);
+  assert.equal((sql.match(/\$\$/g) ?? []).length % 2, 0);
+  assert.doesNotMatch(sql, /as \d{3,}|end \d{3,};/);
 });
