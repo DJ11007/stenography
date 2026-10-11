@@ -58,9 +58,14 @@ function replaceEditorRangeTextPreservingRuns(range:Range,source:string,value:st
  const document=range.startContainer.ownerDocument;
  if(!document)return null;
  if(value.length!==source.length)return replaceEditorRangeText(range,value);
- const walker=document.createTreeWalker(range.commonAncestorContainer,NodeFilter.SHOW_TEXT);
+ const root=range.commonAncestorContainer;
  const nodes:Text[]=[];
- for(let node=walker.nextNode();node;node=walker.nextNode())if(range.intersectsNode(node))nodes.push(node as Text);
+ // A selection inside a single text node has that text node itself as its
+ // common ancestor, and a TreeWalker rooted at a text node never yields
+ // anything (it only visits descendants) -- the case change silently did
+ // nothing for exactly the most common selection, a phrase inside one run.
+ if(root.nodeType===3)nodes.push(root as Text);
+ else{const walker=document.createTreeWalker(root,4);for(let node=walker.nextNode();node;node=walker.nextNode())if(range.intersectsNode(node))nodes.push(node as Text)}
  let cursor=0;
  for(const node of nodes){
   const text=node.textContent??"";
@@ -91,3 +96,71 @@ export function replaceEditorText(root:HTMLElement,needle:string,replacement:str
 export function parseInches(raw:string|null|undefined):number{const match=(raw??"").trim().match(/^(-?\d+(?:\.\d+)?)\s*(in|pt|px)?$/i);if(!match)return 0;const amount=Number(match[1]),unit=(match[2]??"in").toLowerCase();return unit==="pt"?amount/72:unit==="px"?amount/96:amount}
 
 export function adjustParagraphIndent(blocks:HTMLElement[],direction:-1|1,stepInches=.25){for(const block of blocks){const inches=parseInches(block.style.marginLeft);block.style.marginLeft=`${Math.max(0,inches+direction*stepInches)}in`}return blocks.length>0}
+
+// Real reported bug: selecting a whole bullet/numbered line the normal way
+// (triple-click) and clicking Underline in the word-efficiency editor
+// (rich-document-editor.tsx's exec, right after document.execCommand) has
+// a Chromium execCommand failure mode distinct from the whole-block-split
+// case pruneStrayEmptyBlocks already guards -- confirmed live: it unwraps
+// the ENTIRE <ul>/<ol>, turning every sibling <li> into a direct child of
+// the editor root instead of staying nested, and replaces the actually-
+// selected <li> with a bare formatting <span> that has no list-item-ness
+// at all. pruneStrayEmptyBlocks can't catch this -- none of the newly-
+// orphaned top-level children are empty, they're the list's own real
+// content, so its emptiness check waves them through -- and left alone,
+// the list silently stops being one block in the saved document; it
+// becomes several, which corrupts position-based grading (every block
+// after it shifts by however many items the list had). Rewrap any run of
+// top-level <li> elements -- promoting a lone non-<li> element sitting in
+// the middle of such a run back into an <li> first, covering the demoted-
+// span case -- into a single list, reusing a directly adjacent <ul>/<ol>
+// if the run sits right next to one so an existing list's type/marker
+// style is preserved rather than split into two lists.
+export function reattachOrphanedListItems(root:HTMLElement){
+ const document=root.ownerDocument;
+ const isOrphanedListMember=(element:Element)=>element.tagName==="LI"||(!/^(P|UL|OL|TABLE|HR|FIGURE|SECTION|HEADER|FOOTER)$/.test(element.tagName)&&(element.textContent??"").trim()!=="");
+ const promoteToListItem=(element:HTMLElement)=>{const li=document.createElement("li");li.dataset.listStyle="bullet";element.replaceWith(li);li.appendChild(element);return li};
+ for(let guard=0;guard<50;guard++){
+  const children=[...root.children];
+  const liIndex=children.findIndex(child=>child.tagName==="LI");
+  if(liIndex===-1)return;
+  let start=liIndex,end=liIndex;
+  while(start>0&&isOrphanedListMember(children[start-1]))start--;
+  while(end<children.length-1&&isOrphanedListMember(children[end+1]))end++;
+  const run=children.slice(start,end+1).map(member=>member.tagName==="LI"?member as HTMLElement:promoteToListItem(member as HTMLElement));
+  const before=children[start-1]??null,after=run[run.length-1].nextElementSibling;
+  const reuse=before&&/^(UL|OL)$/.test(before.tagName)?before as HTMLElement:after&&/^(UL|OL)$/.test(after.tagName)?after as HTMLElement:null;
+  const target=reuse??(()=>{const list=document.createElement("ul");list.dataset.listStyle="bullet";root.insertBefore(list,run[0]);return list})();
+  const anchor=target===before?null:target.firstChild;
+  for(const item of run)target.insertBefore(item,anchor);
+ }
+}
+
+// Real reported bug (Word Efficiency auto-grading): a student who underlined a
+// paragraph with the toolbar's U button and also made it bold/italic got
+// underline:false in the saved snapshot, so the automatic check scored Q1 as 0
+// while the teacher, seeing the underline on screen, gave full marks.
+// document.execCommand("underline") wraps text in a plain <u>, and with bold and
+// italic applied the text node's own parent is a <b>/<i> INSIDE that <u>.
+// text-decoration is not an inherited CSS property -- it is painted from the
+// ancestor -- so getComputedStyle(parent).textDecoration on that inner element is
+// "none", and the snapshot builder (which only looked at the immediate parent,
+// plus the gallery's data-underline-style span) lost the underline. Same for
+// strikethrough via <s>/<strike>. This walks every ancestor up to the block and
+// reports whether an underline or strikethrough is painted over the text, by tag
+// (u, ins, s, strike, del) or by an inline text-decoration on any ancestor.
+export function inheritedTextDecoration(textNode:Node,root:Element):{underline:boolean;strike:boolean;doubleStrike:boolean}{
+ let underline=false,strike=false,doubleStrike=false;
+ for(let element=textNode.parentElement;element;element=element.parentElement){
+  const tag=element.tagName;
+  if(tag==="U"||tag==="INS")underline=true;
+  if(tag==="S"||tag==="STRIKE"||tag==="DEL")strike=true;
+  const style=(element as HTMLElement).style;
+  const inline=`${style?.textDecorationLine??""} ${style?.textDecoration??""}`;
+  if(inline.includes("underline"))underline=true;
+  if(inline.includes("line-through")){strike=true;if(style?.textDecorationStyle==="double"||inline.includes("double"))doubleStrike=true}
+  if((element as HTMLElement).dataset?.doubleStrike==="true")doubleStrike=true;
+  if(element===root)break;
+ }
+ return{underline,strike:strike&&!doubleStrike,doubleStrike};
+}

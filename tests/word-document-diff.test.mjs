@@ -20,7 +20,7 @@ test("a single run-level formatting change (bold) is detected with the right tar
   const after = doc([{ ...paragraph("block-6", "Hello"), runs: [{ text: "Hello", bold: true, italic: false, underline: false }] }]);
   const changes = diffWordDocuments(before, after);
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].target, "blocks.block-6.runs.0.bold");
+  assert.equal(changes[0].target, "blocks.0.runs.0.bold");
   assert.equal(changes[0].expectedValue, true);
   assert.match(changes[0].label, /Paragraph 1/);
 });
@@ -30,7 +30,7 @@ test("multiple simultaneous formatting changes on one paragraph are all detected
   const after = doc([{ ...paragraph("block-6", "Hello"), runs: [{ text: "Hello", bold: true, italic: true, underline: true }] }]);
   const changes = diffWordDocuments(before, after);
   const targets = changes.map((change) => change.target).sort();
-  assert.deepEqual(targets, ["blocks.block-6.runs.0.bold", "blocks.block-6.runs.0.italic", "blocks.block-6.runs.0.underline"]);
+  assert.deepEqual(targets, ["blocks.0.runs.0.bold", "blocks.0.runs.0.italic", "blocks.0.runs.0.underline"]);
 });
 
 test("a text replacement inside a run is detected as a text change", () => {
@@ -38,7 +38,7 @@ test("a text replacement inside a run is detected as a text change", () => {
   const after = doc([paragraph("block-3", "Patel")]);
   const changes = diffWordDocuments(before, after);
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].target, "blocks.block-3.runs.0.text");
+  assert.equal(changes[0].target, "blocks.0.runs.0.text");
   assert.equal(changes[0].expectedValue, "Patel");
 });
 
@@ -47,7 +47,7 @@ test("paragraph alignment and attrs (margins, shading) changes are detected", ()
   const after = doc([{ ...paragraph("block-1", "Hello"), alignment: "center", attrs: { marginLeft: "1.23in" } }]);
   const changes = diffWordDocuments(before, after);
   const targets = changes.map((change) => change.target).sort();
-  assert.deepEqual(targets, ["blocks.block-1.alignment", "blocks.block-1.attrs.marginLeft"]);
+  assert.deepEqual(targets, ["blocks.0.alignment", "blocks.0.attrs.marginLeft"]);
 });
 
 test("a table cell text edit is detected by row/column position, without disturbing unrelated cells", () => {
@@ -56,7 +56,7 @@ test("a table cell text edit is detected by row/column position, without disturb
   const after = doc([table([["A", "B"], ["C", "Patel"]])]);
   const changes = diffWordDocuments(before, after);
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].target, "blocks.block-9.attrs.rows.1.1");
+  assert.equal(changes[0].target, "blocks.0.attrs.rows.1.1");
   assert.equal(changes[0].expectedValue, "Patel");
 });
 
@@ -66,7 +66,7 @@ test("a table with a different row count is reported as one whole-table change i
   const after = doc([table([["A", "B"], ["New", "Row"]])]);
   const changes = diffWordDocuments(before, after);
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].target, "blocks.block-9.attrs.rows");
+  assert.equal(changes[0].target, "blocks.0.attrs.rows");
 });
 
 test("a paragraph whose run count changed (a sentence was split into multiple runs) is reported as one block-level change, not misleading per-index diffs", () => {
@@ -74,7 +74,7 @@ test("a paragraph whose run count changed (a sentence was split into multiple ru
   const after = doc([{ ...paragraph("block-2", "Hello world"), runs: [{ text: "Hello ", bold: false, italic: false, underline: false }, { text: "world", bold: true, italic: false, underline: false }] }]);
   const changes = diffWordDocuments(before, after);
   assert.equal(changes.length, 1);
-  assert.equal(changes[0].target, "blocks.block-2.runs");
+  assert.equal(changes[0].target, "blocks.0.runs");
 });
 
 test("page layout changes (e.g. margins) are detected under the pageLayout namespace", () => {
@@ -96,7 +96,7 @@ test("small caps, all caps, and hidden run changes are each detected independent
   const before = doc([paragraph("block-0", "Hello")]);
   const after = doc([{ ...paragraph("block-0", "Hello"), runs: [{ text: "Hello", bold: false, italic: false, underline: false, smallCaps: true, allCaps: true, hidden: true }] }]);
   const targets = diffWordDocuments(before, after).map((change) => change.target).sort();
-  assert.deepEqual(targets, ["blocks.block-0.runs.0.allCaps", "blocks.block-0.runs.0.hidden", "blocks.block-0.runs.0.smallCaps"]);
+  assert.deepEqual(targets, ["blocks.0.runs.0.allCaps", "blocks.0.runs.0.hidden", "blocks.0.runs.0.smallCaps"]);
 });
 
 test("a run missing outline/emboss entirely is NOT reported as different from a run that has them explicitly false, same as smallCaps/allCaps/hidden", () => {
@@ -111,7 +111,7 @@ test("outline and emboss run changes are each detected independently with readab
   const after = doc([{ ...paragraph("block-0", "Hello"), runs: [{ text: "Hello", bold: false, italic: false, underline: false, outline: true, emboss: true }] }]);
   const changes = diffWordDocuments(before, after);
   const targets = changes.map((change) => change.target).sort();
-  assert.deepEqual(targets, ["blocks.block-0.runs.0.emboss", "blocks.block-0.runs.0.outline"]);
+  assert.deepEqual(targets, ["blocks.0.runs.0.emboss", "blocks.0.runs.0.outline"]);
   assert.ok(changes.some((change) => change.target.endsWith(".outline") && /outline/i.test(change.label)));
   assert.ok(changes.some((change) => change.target.endsWith(".emboss") && /emboss/i.test(change.label)));
 });
@@ -120,7 +120,7 @@ test("a paragraph's special indent (mode and amount) is detected as an attrs cha
   const before = doc([{ ...paragraph("block-1", "Hello"), attrs: {} }]);
   const after = doc([{ ...paragraph("block-1", "Hello"), attrs: { specialIndentMode: "hanging", specialIndentAmount: "0.5in" } }]);
   const targets = diffWordDocuments(before, after).map((change) => change.target).sort();
-  assert.deepEqual(targets, ["blocks.block-1.attrs.specialIndentAmount", "blocks.block-1.attrs.specialIndentMode"]);
+  assert.deepEqual(targets, ["blocks.0.attrs.specialIndentAmount", "blocks.0.attrs.specialIndentMode"]);
 });
 
 test("a table's AutoFit (tableLayout) change is detected alongside, not instead of, cell edits", () => {
@@ -129,7 +129,7 @@ test("a table's AutoFit (tableLayout) change is detected alongside, not instead 
   const after = doc([table([["A", "Changed"]], "auto")]);
   const changes = diffWordDocuments(before, after);
   const targets = changes.map((change) => change.target).sort();
-  assert.deepEqual(targets, ["blocks.block-9.attrs.rows.0.1", "blocks.block-9.attrs.tableLayout"]);
+  assert.deepEqual(targets, ["blocks.0.attrs.rows.0.1", "blocks.0.attrs.tableLayout"]);
 });
 
 test("a change to only one of several paragraphs reports just that paragraph, with the correct 1-based position", () => {
@@ -139,4 +139,21 @@ test("a change to only one of several paragraphs reports just that paragraph, wi
   assert.equal(changes.length, 1);
   assert.equal(changes[0].blockPosition, 2);
   assert.match(changes[0].label, /Paragraph 2/);
+});
+
+// Real bug (commit 00ad78b): targets used to embed the block's id, but ids are
+// assigned fresh per snapshot, so an admin's model answer and a student's
+// attempt never agreed on them and auto-grading always scored 0. Targets now
+// address a paragraph by array position, so differing ids must not matter.
+test("a paragraph's target is its array position, identical whatever ids the two snapshots happen to carry", () => {
+  const model = diffWordDocuments(
+    doc([paragraph("matter-p-1", "One"), paragraph("matter-p-2", "Two")]),
+    doc([paragraph("matter-p-1", "One"), { ...paragraph("matter-p-2", "Two"), runs: [{ text: "Two", bold: true, italic: false, underline: false }] }]),
+  );
+  const student = diffWordDocuments(
+    doc([paragraph("block-0", "One"), paragraph("block-1", "Two")]),
+    doc([paragraph("block-0", "One"), { ...paragraph("block-1", "Two"), runs: [{ text: "Two", bold: true, italic: false, underline: false }] }]),
+  );
+  assert.deepEqual(model.map((change) => change.target), ["blocks.1.runs.0.bold"]);
+  assert.deepEqual(student.map((change) => change.target), model.map((change) => change.target));
 });

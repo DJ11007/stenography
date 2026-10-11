@@ -17,7 +17,7 @@ const EDITOR = "app/typing/word-efficiency/[language]/[testId]/workspace/rich-do
 // bug class already fixed once for font size (px taken literally as pt).
 test("the Paragraph dialog's Left/Right indent and special-indent prefill use parseInches, not a bare parseFloat that ignores the stored unit", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /import \{ adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, parseInches, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles \} from "@\/lib\/word-editor-dom";/);
+  assert.match(editor, /import \{ adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, inheritedTextDecoration, parseInches, reattachOrphanedListItems, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles \} from "@\/lib\/word-editor-dom";/);
   const body = editor.slice(editor.indexOf('paragraphDialog:()=>{'), editor.indexOf('};map[id]?.();'));
   assert.match(body, /marginLeft:String\(block\?Math\.abs\(parseInches\(block\.style\.marginLeft\)\):0\)/);
   assert.match(body, /marginRight:String\(block\?Math\.abs\(parseInches\(block\.style\.marginRight\)\):0\)/);
