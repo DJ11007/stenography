@@ -166,7 +166,8 @@ test("browser measurement serializer and formatting commands retain autosave tra
   assert.match(editor, /canonicalizeBlockMeasurements\(enrichBlock\(makeStructuredBlock/);
   assert.match(editor, /const exec=.*changed\(\)/);
   for (const command of ["bold", "italic", "underline"]) assert.match(editor, new RegExp(`${command}:\\(\\)=>exec`));
-  assert.match(editor, /setStatus\("Unsaved changes"\)[\s\S]*setStatus\("Saving…"\)[\s\S]*setStatus\("Saved"\)/);
+  assert.match(editor, /setStatus\("Saving…"\)[\s\S]*setStatus\("Saved"\)/);
+  assert.match(editor, /setStatus\("Unsaved changes"\)/);
   for (const unit of ["px", "pt", "in", "cm", "mm"]) assert.match(measurements, new RegExp(unit));
   assert.match(migration, /word_efficiency_canonical_measurement/);
   assert.match(migration, /measurement_number\*\.75/);

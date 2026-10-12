@@ -26,14 +26,25 @@ import {
 function useClampedFlyoutPosition(open: boolean, anchorRef: RefObject<HTMLElement | null>, align: "left" | "right" = "left") {
   const [position, setPosition] = useState<CSSProperties>({});
   const flyoutRef = useRef<HTMLDivElement>(null);
+  // Place the flyout under its trigger, and re-place it if the page scrolls or resizes
+  // while it is open (the flyout is position:fixed, so it would otherwise stay behind).
   useLayoutEffect(() => {
-    if (!open) return;
-    const rect = anchorRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setPosition({ position: "fixed", left: align === "left" ? rect.left : undefined, right: align === "right" ? Math.max(4, window.innerWidth - rect.right) : undefined, top: rect.bottom + 2 });
+    if (!open) { setPosition({}); return; }
+    const place = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPosition({ position: "fixed", left: align === "left" ? rect.left : undefined, right: align === "right" ? Math.max(4, window.innerWidth - rect.right) : undefined, top: rect.bottom + 2 });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open, align, anchorRef]);
+  // Only clamp once the flyout has actually been positioned under its trigger. Measuring it
+  // before that (while it still sits unpositioned at the top-left of the page) used to
+  // "clamp" it to the top-left corner of the screen instead of under the control.
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || position.position !== "fixed") return;
     const flyout = flyoutRef.current;
     if (!flyout) return;
     const rect = flyout.getBoundingClientRect();
@@ -46,6 +57,21 @@ function useClampedFlyoutPosition(open: boolean, anchorRef: RefObject<HTMLElemen
     if (Math.abs(left - rect.left) > 0.5 || Math.abs(top - rect.top) > 0.5) setPosition(current => ({ ...current, left, top, right: "auto" }));
   });
   return { position, flyoutRef };
+}
+
+// Close an open flyout when the user clicks anywhere outside it (and its trigger) or presses
+// Escape. Without this, galleries stayed open on screen until their trigger was clicked again.
+function useDismiss(open: boolean, close: () => void, refs: RefObject<HTMLElement | null>[]) {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!open) return;
+    const down = (event: MouseEvent) => { const target = event.target as Node; if (refs.some(ref => ref.current?.contains(target))) return; closeRef.current(); };
+    const key = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") closeRef.current(); };
+    document.addEventListener("mousedown", down, true);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", down, true); document.removeEventListener("keydown", key); };
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refs are stable ref objects
 }
 
 type Props = {
@@ -97,6 +123,8 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
   const groups = definition?.groups.map(group => {
     const configured = capabilities.tabs[definition.id].groups[group.id];
     let options = group.options.filter(option => configured.options[option.id]);
+    // Undo/Redo live on the title bar's Quick Access Toolbar, as in Word 2013.
+    if (definition.id === "Home" && group.id === "clipboard") options = options.filter(option => option.id !== "undo" && option.id !== "redo");
     if (definition.id === "Home" && group.id === "font" && CLEAR_FORMAT_DEPENDENCIES.every(id => configured.options[id])) options.splice(5, 0, CLEAR_FORMAT_OPTION);
     let launcher: RibbonOption | undefined;
     const launcherId = definition.id === "Home" ? GROUP_LAUNCHER_OPTION_IDS[group.id] : undefined;
@@ -183,6 +211,7 @@ function FontSizeBox({ label, preview, min, max, onChange }: { label: string; pr
   return <label data-ribbon-option="fontSize" className="word-ribbon-select word-ribbon-size">
     <span className="sr-only">{label}</span>
     <input ref={inputRef} aria-label={label} role="combobox" aria-haspopup="listbox" aria-expanded={open} disabled={preview} type="text" inputMode="decimal" value={text} onFocus={event => { setOpen(true); event.target.select(); }} onChange={event => setText(event.target.value)} onBlur={event => { commit(event.target.value); setOpen(false); }} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); commit((event.target as HTMLInputElement).value); setOpen(false); (event.target as HTMLInputElement).blur(); } else if (event.key === "Escape") { event.preventDefault(); setOpen(false); (event.target as HTMLInputElement).blur(); } }}/>
+    <button type="button" tabIndex={-1} className="word-combo-arrow" aria-label={`Show ${label.toLowerCase()} list`} title={label} disabled={preview} onMouseDown={event => event.preventDefault()} onClick={() => { if (open) inputRef.current?.blur(); else { inputRef.current?.focus(); setOpen(true); inputRef.current?.select(); } }}>▾</button>
     {gallery}
   </label>;
 }
@@ -205,26 +234,33 @@ function FontGallery({fonts,preview,onChange,currentFontFamily}:{fonts:string[];
   const filter=(items:readonly string[])=>items.filter(font=>fonts.includes(font)&&font.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const theme=filter(WORD_THEME_FONTS),recentFonts=filter(recent),all=filter(fonts.filter(font=>!WORD_THEME_FONTS.includes(font as typeof WORD_THEME_FONTS[number])));
   const gallery=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} className="word-font-gallery" role="listbox" aria-label="Font family" style={position}><FontSection title="Theme Fonts" fonts={theme} choose={choose}/><FontSection title="Recently Used Fonts" fonts={recentFonts} choose={choose}/><FontSection title="All Fonts" fonts={all} choose={choose}/>{!theme.length&&!recentFonts.length&&!all.length&&<p>No approved fonts found.</p>}</div>,document.body):null;
-  return <div data-ribbon-option="fontName" className="word-font-picker"><input ref={inputRef} aria-label="Font family" role="combobox" aria-haspopup="listbox" aria-expanded={open} disabled={preview} style={{fontFamily:fontCssName(text)}} value={text} onFocus={event=>{setOpen(true);setQuery("");event.target.select();}} onChange={event=>{setText(event.target.value);setQuery(event.target.value);}} onBlur={()=>{setOpen(false);setQuery("");setText(selected);}} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();const exact=fonts.find(font=>font.toLocaleLowerCase()===text.toLocaleLowerCase());if(exact)choose(exact);}else if(event.key==="Escape"){event.preventDefault();(event.target as HTMLInputElement).blur();}}}/>{gallery}</div>
+  return <div data-ribbon-option="fontName" className="word-font-picker"><input ref={inputRef} aria-label="Font family" role="combobox" aria-haspopup="listbox" aria-expanded={open} disabled={preview} style={{fontFamily:fontCssName(text)}} value={text} onFocus={event=>{setOpen(true);setQuery("");event.target.select();}} onChange={event=>{setText(event.target.value);setQuery(event.target.value);}} onBlur={()=>{setOpen(false);setQuery("");setText(selected);}} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();const exact=fonts.find(font=>font.toLocaleLowerCase()===text.toLocaleLowerCase());if(exact)choose(exact);}else if(event.key==="Escape"){event.preventDefault();(event.target as HTMLInputElement).blur();}}}/><button type="button" tabIndex={-1} className="word-combo-arrow" aria-label="Show font list" title="Font" disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(open)inputRef.current?.blur();else{inputRef.current?.focus();setOpen(true);setQuery("");inputRef.current?.select()}}}>▾</button>{gallery}</div>
 }
 function FontSection({title,fonts,choose}:{title:string;fonts:readonly string[];choose:(font:string)=>void}){if(!fonts.length)return null;return <section><h3>{title}</h3>{fonts.map(font=><button role="option" type="button" key={font} style={{fontFamily:fontCssName(font)}} onMouseDown={event=>event.preventDefault()} onClick={()=>choose(font)}><span>{font.replace(/ \((?:Headings|Body)\)$/u,"")}</span>{font.endsWith("(Headings)")&&<small>(Headings)</small>}{font.endsWith("(Body)")&&<small>(Body)</small>}</button>)}</section>}
 function fontCssName(font:string){return font.replace(/ \((?:Headings|Body)\)$/u,"")}
 export const SAFE_COLORS=["#000000","#7f7f7f","#a6a6a6","#d9d9d9","#ffffff","#c00000","#ff0000","#ffc000","#ffff00","#92d050","#00b050","#00b0f0","#0070c0","#002060","#7030a0","#fff2cc","#f4cccc","#d9ead3","#cfe2f3","#d9d2e9","#ed7d31","#70ad47","#4472c4","#a9d18e","#9dc3e6","#f9cb9c"];
+// Word's "Standard Colors" row (Font color and Shading) and its text-highlight set (Highlight).
+// Each swatch shows its name on hover.
+export const STANDARD_COLORS=[{name:"Dark Red",value:"#c00000"},{name:"Red",value:"#ff0000"},{name:"Orange",value:"#ffc000"},{name:"Yellow",value:"#ffff00"},{name:"Light Green",value:"#92d050"},{name:"Green",value:"#00b050"},{name:"Light Blue",value:"#00b0f0"},{name:"Blue",value:"#0070c0"},{name:"Dark Blue",value:"#002060"},{name:"Purple",value:"#7030a0"},{name:"Pink",value:"#ff00ff"}];
+export const HIGHLIGHT_COLORS=[{name:"Yellow",value:"#ffff00"},{name:"Bright Green",value:"#00ff00"},{name:"Turquoise",value:"#00ffff"},{name:"Pink",value:"#ff00ff"},{name:"Blue",value:"#0000ff"},{name:"Red",value:"#ff0000"},{name:"Dark Blue",value:"#000080"},{name:"Teal",value:"#008080"},{name:"Green",value:"#008000"},{name:"Violet",value:"#800080"},{name:"Dark Red",value:"#800000"},{name:"Dark Yellow",value:"#808000"},{name:"Gray-50%",value:"#808080"},{name:"Gray-25%",value:"#c0c0c0"},{name:"Black",value:"#000000"}];
 const CLEAR_LABEL:Record<string,string>={fontColor:"Automatic",highlightColor:"No Color",shading:"No Fill"};
 function ColorSplitButton({option,preview,swatch,setSwatch,onChange}:{option:RibbonOption;preview:boolean;swatch:string;setSwatch:(color:string)=>void;onChange?:Props["onColorChange"]}){
   const[open,setOpen]=useState(false);
   const arrowRef=useRef<HTMLButtonElement>(null);
   const{position,flyoutRef}=useClampedFlyoutPosition(open,arrowRef,"right");
+  useDismiss(open,()=>setOpen(false),[arrowRef,flyoutRef]);
   const apply=(color=swatch)=>{if(!preview)onChange?.(option.id,color)};
   const clearLabel=CLEAR_LABEL[option.id]??"No Color";
-  const palette=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} role="menu" aria-label={`${option.label} colors`} className="word-color-palette" style={{...position,gridTemplateColumns:"repeat(5,20px)",width:"auto"}}>{SAFE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`${option.label} ${color}`} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color);apply(color);setOpen(false)}}/>)}<button role="menuitem" type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{apply(option.id==="fontColor"?"automatic":"transparent");setOpen(false)}} style={{gridColumn:"1 / -1",marginTop:4,padding:"4px 2px",fontSize:10,fontWeight:700,background:"#fff",border:"1px solid #999",borderRadius:2}}>{clearLabel}</button></div>,document.body):null;
-  return <div data-ribbon-option={option.id} className="word-color-split"><button type="button" className="word-color-apply" aria-label={`Apply ${option.label}`} disabled={preview} title={option.label} onMouseDown={event=>event.preventDefault()} onClick={()=>apply()}><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></button><button ref={arrowRef} type="button" className="word-color-arrow" aria-label={`Open ${option.label} palette`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}>▾</button>{palette}</div>}
+  const colors=option.id==="highlightColor"?HIGHLIGHT_COLORS:STANDARD_COLORS,columns=option.id==="highlightColor"?5:6;
+  const palette=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} role="menu" aria-label={`${option.label} colors`} className="word-color-palette" style={{...position,gridTemplateColumns:`repeat(${columns},26px)`,width:"auto"}}><h3 className="word-color-palette-title">{option.id==="highlightColor"?"Highlight Colors":"Standard Colors"}</h3>{colors.map(color=><button role="menuitem" type="button" key={color.value} aria-label={`${color.name} (${color.value.toUpperCase()})`} title={color.name} style={{backgroundColor:color.value}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color.value);apply(color.value);setOpen(false)}}/>)}<button role="menuitem" type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{apply(option.id==="fontColor"?"automatic":"transparent");setOpen(false)}} style={{gridColumn:"1 / -1",marginTop:4,padding:"5px 4px",fontSize:12,fontWeight:600,background:"#fff",border:"1px solid #999",borderRadius:2,height:"auto",width:"auto"}}>{clearLabel}</button></div>,document.body):null;
+  return <div data-ribbon-option={option.id} className="word-color-split"><button type="button" className="word-color-apply" aria-label={`Apply ${option.label}`} disabled={preview} title={option.label} onMouseDown={event=>event.preventDefault()} onClick={()=>apply()}><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></button><button ref={arrowRef} type="button" className="word-color-arrow" aria-label={`Open ${option.label} palette`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span aria-hidden>▾</span></button>{palette}</div>}
 const UNDERLINE_STYLES=["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy"] as const;
 const UNDERLINE_COLORS=["#000000","#c00000","#ed7d31","#ffc000","#70ad47","#5b9bd5","#4472c4","#7030a0"];
 function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:boolean;onChange?:(style:string,color?:string)=>void}){
   const[open,setOpen]=useState(false),[moreOpen,setMoreOpen]=useState(false),[colorOpen,setColorOpen]=useState(false),[lastStyle,setLastStyle]=useState("single"),[thickness,setThickness]=useState("3"),[wordsOnly,setWordsOnly]=useState(false);
   const arrowRef=useRef<HTMLButtonElement>(null);
   const{position,flyoutRef:menuRef}=useClampedFlyoutPosition(open,arrowRef,"right");
+  useDismiss(open,()=>{setOpen(false);setMoreOpen(false);setColorOpen(false)},[arrowRef,menuRef]);
   useEffect(()=>{if(!open)return;requestAnimationFrame(()=>menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())},[open,menuRef]);
   const close=()=>{setOpen(false);setMoreOpen(false);setColorOpen(false);arrowRef.current?.focus()};
   const applyStyle=(style:string)=>{if(!preview){setLastStyle(style==="none"?lastStyle:style);onChange?.(style)}close()};
@@ -237,7 +273,7 @@ function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:
     <button role="menuitem" type="button" className="word-underline-text-command word-underline-color-command" aria-haspopup="menu" aria-expanded={colorOpen} onMouseDown={event=>event.preventDefault()} onClick={()=>{setColorOpen(value=>!value);setMoreOpen(false)}}><span aria-hidden>▱</span>Underline Color <i aria-hidden>›</i></button>
     {colorOpen&&<div role="menu" aria-label="Underline colors" className="word-underline-colors">{UNDERLINE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`Underline color ${color}`} title={color} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange?.("color",color);close()}}/>)}</div>}
   </div>,document.body):null;
-  return <div className="word-underline-split"><button type="button" className="word-ribbon-tool word-underline-apply" aria-label={`Apply ${underlineLabel(lastStyle)} underline`} aria-pressed={active||undefined} disabled={preview} title={`Apply ${underlineLabel(lastStyle)} underline`} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(!preview)onChange?.(lastStyle)}}><RibbonIcon id="underline"/></button><button ref={arrowRef} type="button" className="word-ribbon-tool word-underline-arrow" aria-label="Open underline gallery" aria-haspopup="menu" aria-expanded={open} disabled={preview} title="Underline styles" onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}>▾</button>{gallery}</div>;
+  return <div className="word-underline-split"><button type="button" className="word-ribbon-tool word-underline-apply" aria-label={`Apply ${underlineLabel(lastStyle)} underline`} aria-pressed={active||undefined} disabled={preview} title={`Apply ${underlineLabel(lastStyle)} underline`} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(!preview)onChange?.(lastStyle)}}><RibbonIcon id="underline"/></button><button ref={arrowRef} type="button" className="word-ribbon-tool word-underline-arrow" aria-label="Open underline gallery" aria-haspopup="menu" aria-expanded={open} disabled={preview} title="Underline styles" onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span aria-hidden>▾</span></button>{gallery}</div>;
 }
 function expandViewOptions(groupId:string,options:RibbonOption[]){if(groupId==="show"){const expanded:RibbonOption[]=[];for(const item of options){expanded.push(item);if(item.id==="gridlines")expanded.push(MESSAGE_BAR_OPTION);if(item.id==="documentMap")expanded.push(THUMBNAILS_OPTION)}return expanded}if(groupId==="zoom"){const expanded:RibbonOption[]=[];for(const item of options){if(item.id==="zoom100")expanded.push(ZOOM_OPTION);expanded.push(item);if(item.id==="twoPages")expanded.push(PAGE_WIDTH_OPTION)}return expanded}return options}
 function underlineLabel(style:string){return({none:"None",single:"Single",double:"Double",thick:"Thick",dotted:"Dotted",dashed:"Dashed","dot-dash":"Dot-dash","dot-dot-dash":"Dot-dot-dash",wavy:"Wavy","words-only":"Words only"}as Record<string,string>)[style]??style}
@@ -277,12 +313,13 @@ const BORDER_ITEMS=[{value:"bottom",label:"Bottom Border"},{value:"top",label:"T
 const BORDER_ACTIONS=[{id:"horizontal-line",label:"Horizontal Line"}];
 function GalleryMenu({option,preview,items,onPick,actions,onAction}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void}){
   const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
-  const buttonRef=useRef<HTMLButtonElement>(null);
+  const buttonRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);
+  useDismiss(open,()=>setOpen(false),[buttonRef,menuRef]);
   useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-204)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
   const note=GALLERY_NOTES[option.id];
-  const menu=open&&typeof document!=="undefined"?createPortal(<div role="menu" aria-label={option.label} className="word-gallery-menu" style={position}>{items.map(item=><button role="menuitem" type="button" key={item.value} data-list-preview={item.swatch!==undefined?"":undefined} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}>{item.swatch!==undefined&&<span className="word-gallery-swatch" aria-hidden>{item.swatch}</span>}<span>{item.label}</span></button>)}{note&&<p className="word-gallery-note">{note}</p>}{actions&&actions.length>0&&<><hr className="word-gallery-divider"/>{actions.map(action=><button role="menuitem" type="button" key={action.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onAction?.(action.id);setOpen(false)}}>{action.label}</button>)}</>}</div>,document.body):null;
+  const menu=open&&typeof document!=="undefined"?createPortal(<div ref={menuRef} role="menu" aria-label={option.label} className="word-gallery-menu" style={position}>{items.map(item=><button role="menuitem" type="button" key={item.value} data-list-preview={item.swatch!==undefined?"":undefined} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}>{item.swatch!==undefined&&<span className="word-gallery-swatch" aria-hidden>{item.swatch}</span>}<span>{item.label}</span></button>)}{note&&<p className="word-gallery-note">{note}</p>}{actions&&actions.length>0&&<><hr className="word-gallery-divider"/>{actions.map(action=><button role="menuitem" type="button" key={action.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onAction?.(action.id);setOpen(false)}}>{action.label}</button>)}</>}</div>,document.body):null;
   return <div data-ribbon-option={option.id}>
-    <button ref={buttonRef} type="button" className="word-ribbon-tool" aria-label={option.label} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><RibbonIcon id={option.id}/><span>{option.label}<i aria-hidden>▾</i></span></button>
+    <button ref={buttonRef} type="button" className="word-ribbon-tool word-gallery-trigger" aria-label={option.label} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><RibbonIcon id={option.id}/><span>{option.label}<i aria-hidden>▾</i></span></button>
     {menu}
   </div>;
 }
