@@ -15,13 +15,13 @@ test("Undo and Redo are real, reachable ribbon commands with Ctrl+Z / Ctrl+Y (an
 });
 
 test("a real Font dialog exists with small caps, all caps, and hidden alongside the existing formatting options", async () => {
-  const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
-  assert.match(editor, /function FontDialogForm/);
-  assert.match(editor, /Small caps/);
-  assert.match(editor, /All caps/);
-  assert.match(editor, />Hidden</);
-  assert.match(editor, /dialog\.kind==="font"&&<FontDialogForm dialog=\{dialog\} onSubmit=\{onFont\}\/>/);
-  assert.match(editor, /fontDialog:\(\)=>{/);
+  const [editor, dialogs] = await Promise.all([read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"), read("components/word-efficiency/word-2013-dialogs.tsx")]);
+  assert.match(dialogs, /export function FontDialog2013/);
+  assert.match(dialogs, /Small caps/);
+  assert.match(dialogs, /All caps/);
+  assert.match(dialogs, /<u>H<\/u>idden/);
+  assert.match(editor, /<FontDialog2013 values=\{dialog\}/);
+  assert.match(editor, /fontDialog:\(\)=>\{/);
 });
 
 test("the paragraph spacing dialog offers a Special indent (first line / hanging) choice with an amount field", async () => {

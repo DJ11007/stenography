@@ -26,7 +26,7 @@ test("every server-rendered schedule/timestamp display uses the shared IST-pinne
     "app/live-test/live-test-list.tsx",
     "app/tests/[slug]/page.tsx",
     "app/admin/excel-efficiency-tests/page.tsx",
-    "app/admin/word-efficiency-tests/page.tsx",
+    "app/admin/word-efficiency-tests/tests-page.tsx",
     "app/classroom/page.tsx",
     "app/typing/attempts/[attemptId]/page.tsx",
     "app/admin/students/attempts/[attemptId]/page.tsx",

@@ -22,7 +22,7 @@ export default async function ModelAnswerPage({ params }: { params: Promise<{ te
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-[1600px]">
-        <BackButton href={`/admin/word-efficiency-tests?edit=${test.id}`} label={test.title} />
+        <BackButton href={`/admin/word-efficiency-tests/design?edit=${test.id}`} label={test.title} />
         <header className="mt-4 rounded-3xl bg-gradient-to-r from-slate-950 to-blue-900 p-7 text-white">
           <p className="text-xs font-black uppercase tracking-[.18em] text-cyan-300">Administrator · Model Answer</p>
           <h1 className="mt-2 text-3xl font-black">Solve the Question Paper</h1>

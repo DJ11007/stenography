@@ -41,7 +41,7 @@ test("the exam pattern reference component filters by subject and labels sourcin
 });
 
 test("the Word admin authoring page no longer shows the exam pattern reference panel (removed at the admin's request); Excel's is unchanged", async () => {
-  const wordPage = await read("app/admin/word-efficiency-tests/page.tsx");
+  const wordPage = await read("app/admin/word-efficiency-tests/tests-page.tsx");
   assert.doesNotMatch(wordPage, /<ExamPatternReference/);
   const excelPage = await read("app/admin/excel-efficiency-tests/page.tsx");
   assert.match(excelPage, /<ExamPatternReference subject="Excel" \/>/);

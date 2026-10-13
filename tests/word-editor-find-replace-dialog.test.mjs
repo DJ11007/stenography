@@ -3,65 +3,64 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const DIALOGS = "components/word-efficiency/word-2013-dialogs.tsx";
 const EDITOR = "app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx";
 
-test("Find and Replace has three real tabs (Find, Replace, Go To) instead of the old two-mode toggle", async () => {
-  const editor = await read(EDITOR);
-  assert.match(editor, /onClick=\{\(\)=>setTab\("find"\)\}/);
-  assert.match(editor, /onClick=\{\(\)=>setTab\("replace"\)\}/);
-  assert.match(editor, /onClick=\{\(\)=>setTab\("goto"\)\}/);
-  assert.match(editor, />Go To</);
+test("Find and Replace is a Word 2013 dialog with three real tabs: Find, Replace and Go To", async () => {
+  const dialogs = await read(DIALOGS);
+  assert.match(dialogs, /<Window13 title="Find and Replace"/);
+  for (const id of ["find", "replace", "goto"]) assert.match(dialogs, new RegExp(`\\{ id: "${id}", label:`));
+  assert.match(dialogs, /<Button13 onClick=\{\(\) => setMore\(value => !value\)\}>\{more \? "<< Less" : "More >>"\}<\/Button13>/);
 });
 
-test("Search Options exposes Match case, Find whole words, Use wildcards, Match prefix/suffix, and the two Ignore options as real toggles", async () => {
-  const editor = await read(EDITOR);
-  for (const label of ["Match case", "Find whole words only", "Use wildcards", "Match prefix", "Match suffix", "Ignore punctuation characters", "Ignore white-space characters"]) {
-    assert.match(editor, new RegExp(label));
-  }
-  assert.match(editor, /checked=\{options\.matchCase\}/);
-  assert.match(editor, /checked=\{options\.wholeWord\}/);
+test("Search Options: every Word option is a real control wired into the search engine options", async () => {
+  const dialogs = await read(DIALOGS);
+  for (const label of ["Mat<u>c</u>h case", "Find whole words onl<u>y</u>", "Use wil<u>d</u>cards", "Match prefi<u>x</u>", "Match suffi<u>x</u>", "Ignore punctuation characters", "Ignore white-space characters", "Sounds li<u>k</u>e \\(English\\)", "Find all <u>w</u>ord forms \\(English\\)"]) assert.match(dialogs, new RegExp(label));
+  for (const key of ["matchCase", "wholeWord", "wildcards", "matchPrefix", "matchSuffix", "ignorePunctuation", "ignoreWhitespace", "soundsLike", "allWordForms"]) assert.match(dialogs, new RegExp(`options\\.${key}`));
+  // Word turns the incompatible options off while wildcards are on.
+  assert.match(dialogs, /disabled=\{wild\}/);
 });
 
-test("Sounds like and Find all word forms are shown but honestly disabled with a stated reason, not faked as working", async () => {
-  const editor = await read(EDITOR);
-  assert.match(editor, /Sounds like \(English\)/);
-  assert.match(editor, /Find all word forms \(English\)/);
-  assert.match(editor, /title="Phonetic matching isn't supported in this exam tool\."><input type="checkbox" disabled\/>Sounds like/);
-  assert.match(editor, /title="Word-form matching isn't supported in this exam tool\."><input type="checkbox" disabled\/>Find all word forms/);
+test("Sounds like and Find all word forms really search (engine), they are not disabled placeholders", async () => {
+  const [dialogs, engine] = await Promise.all([read(DIALOGS), read("lib/word-find-engine.ts")]);
+  assert.doesNotMatch(dialogs, /isn't supported in this exam tool/);
+  assert.match(engine, /export function soundex/);
+  assert.match(engine, /export function wordForms/);
+  assert.match(engine, /options\.soundsLike/);
+  assert.match(engine, /options\.allWordForms/);
 });
 
-test("the Special menu lists every real Word item and only enables the ones this editor can genuinely search", async () => {
-  const editor = await read(EDITOR);
-  const workingLabels = ["Tab Character", "Any Character", "Any Digit", "Any Letter", "Caret Character", "§ Section Character", "¶ Paragraph Character", "Em Dash", "En Dash", "Nonbreaking Hyphen", "Nonbreaking Space", "Optional Hyphen", "White Space"];
-  const disabledLabels = ["Paragraph Mark", "Column Break", "Endnote Mark", "Field", "Footnote Mark", "Graphic", "Manual Line Break", "Manual Page Break", "Section Break"];
-  for (const label of [...workingLabels, ...disabledLabels]) assert.match(editor, new RegExp(`label:"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
-  for (const label of disabledLabels) assert.match(editor, new RegExp(`label:"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}",disabledReason:`));
-  assert.match(editor, /const insertSpecial=\(item:typeof SPECIAL_ITEMS\[number\]\)=>\{if\(item\.disabledReason\|\|!item\.token\)return;/);
+test("the Special menu lists all 22 Word items and inserts the real ^ codes", async () => {
+  const dialogs = await read(DIALOGS);
+  const labels = ["Paragraph Mark", "Tab Character", "Any Character", "Any Digit", "Any Letter", "Caret Character", "§ Section Character", "¶ Paragraph Character", "Column Break", "Em Dash", "En Dash", "Endnote Mark", "Field", "Footnote Mark", "Graphic", "Manual Line Break", "Manual Page Break", "Nonbreaking Hyphen", "Nonbreaking Space", "Optional Hyphen", "Section Break", "White Space"];
+  for (const label of labels) assert.match(dialogs, new RegExp(`label: "${label}", code: "\\^`));
+  assert.equal((dialogs.match(/\{ id: "[^"]+", label: "[^"]+", code: "\^[^"]+" \}/g) || []).length, 22);
+  assert.match(dialogs, /const insertSpecial = \(id: string\) =>/);
 });
 
-test("the Format menu lists the real Word items, disables the ones this editor can't back, and Highlight genuinely filters search results", async () => {
-  const editor = await read(EDITOR);
-  for (const label of ["Font…", "Paragraph…", "Tabs…", "Language…", "Frame…", "Style…", "Highlight"]) assert.match(editor, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(editor, /action:"highlight"/);
-  assert.match(editor, /No Formatting/);
-  assert.match(editor, /if\(item\.action==="highlight"\)setOption\("formatHighlight",true\)/);
-  assert.match(editor, /!options\.formatHighlight\|\|hasSearchHighlight\(nodes\[index\]\.parentElement\)/);
+test("the Format menu offers Font…, Paragraph… and Highlight as real search criteria; the rest are disabled with a stated reason", async () => {
+  const [dialogs, engine] = await Promise.all([read(DIALOGS), read("lib/word-find-engine.ts")]);
+  for (const label of ["Font…", "Paragraph…", "Tabs…", "Language…", "Frame…", "Style…", "Highlight"]) assert.match(dialogs, new RegExp(label));
+  assert.match(dialogs, /No Formatting/);
+  assert.match(dialogs, /FindFormatPanel/);
+  assert.match(engine, /export function matchSatisfiesFormat/);
+  assert.match(engine, /export function formatOnlyMatches/);
+  for (const id of ["tabs", "language", "frame", "style"]) assert.match(dialogs, new RegExp(`id: "${id}"[^}]*disabled: true, title:`));
 });
 
-test("Go To supports Page, Table, and Bookmark for real, and every other real-Word item is explicitly marked not applicable", async () => {
-  const editor = await read(EDITOR);
-  assert.match(editor, /\{id:"page",label:"Page",working:true\}/);
-  assert.match(editor, /\{id:"table",label:"Table",working:true\}/);
-  assert.match(editor, /\{id:"bookmark",label:"Bookmark",working:true\}/);
-  for (const id of ["section", "line", "comment", "footnote", "endnote", "field", "graphic", "equation", "object", "heading"]) assert.match(editor, new RegExp(`\\{id:"${id}",label:"[^"]+",working:false\\}`));
+test("Go To supports Page, Table and Bookmark for real, and every other Word item is marked not applicable", async () => {
+  const [dialogs, editor] = await Promise.all([read(DIALOGS), read(EDITOR)]);
+  for (const id of ["page", "table", "bookmark"]) assert.match(dialogs, new RegExp(`\\{ id: "${id}", label: "[^"]+", working: true \\}`));
+  for (const id of ["section", "line", "comment", "footnote", "endnote", "field", "graphic", "equation", "object", "heading"]) assert.match(dialogs, new RegExp(`\\{ id: "${id}", label: "[^"]+", working: false \\}`));
   assert.match(editor, /const goToTarget=\(kind:string,value:string\)=>\{/);
-  assert.match(editor, /isn't applicable to this exam tool's document model/);
+  assert.match(dialogs, /isn&apos;t applicable to this exam tool&apos;s document model|is not applicable to this exam tool&apos;s document model|isn't applicable to this exam tool's document model/);
 });
 
-test("Find, Replace, and Go To all route through the shared FindOptions matcher instead of the old case-insensitive substring search", async () => {
-  const [editor, lib] = await Promise.all([read(EDITOR), read("lib/word-find-replace.ts")]);
-  assert.match(lib, /export function buildFindRegex/);
-  assert.match(editor, /import \{ buildFindRegex, DEFAULT_FIND_OPTIONS, type FindOptions \} from "@\/lib\/word-find-replace";/);
-  assert.match(editor, /const findNext=\(needle:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"\|"document"="document"\)=>\{/);
-  assert.match(editor, /const runReplaceAll=\(needle:string,replacement:string,options:FindOptions=DEFAULT_FIND_OPTIONS,scope:"selection"\|"document"="document"\)=>\{/);
+test("Find Next, Replace and Replace All all run through the shared Word search engine", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /from "@\/lib\/word-find-engine"/);
+  assert.match(editor, /const collectMatches=\(needle:string,options:FindEngineOptions,scope/);
+  assert.match(editor, /buildDocumentText\(root\)/);
+  assert.match(editor, /const runReplaceAll=/);
+  assert.match(editor, /expandReplacement\(replacement/);
 });

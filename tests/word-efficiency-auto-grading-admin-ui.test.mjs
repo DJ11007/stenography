@@ -20,7 +20,7 @@ test("the Auto-grading page runs the model-answer self-test, gates the ON switch
 });
 
 test("the test list links to the Auto-grading page next to Model Answer", async () => {
-  const list = await read(`${BASE}/page.tsx`);
+  const list = await read(`${BASE}/tests-page.tsx`);
   assert.match(list, /href=\{`\/admin\/word-efficiency-tests\/\$\{test\.id\}\/auto-grading`\}/);
 });
 

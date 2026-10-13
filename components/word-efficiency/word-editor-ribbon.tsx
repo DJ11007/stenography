@@ -135,6 +135,28 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
     return { ...group, options: definition.id === "View" ? expandViewOptions(group.id, options) : options, launcher };
   }).filter(group => capabilities.tabs[definition.id].groups[group.id].enabled && group.options.length > 0) ?? [];
 
+  // Fit the groups to the width that is actually available. On a small PC screen the groups used
+  // to run off the right edge behind a horizontal scrollbar, hiding some groups and the dialog
+  // launchers. Now they are measured and scaled down (to at most 62%) so everything is visible.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const groupsRef = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1);
+  useLayoutEffect(() => {
+    const panel = panelRef.current, row = groupsRef.current;
+    if (!panel || !row) return;
+    const measure = () => {
+      row.style.zoom = "1";
+      const natural = [...row.children].reduce((total, child) => total + (child as HTMLElement).offsetWidth, 0) + 12;
+      const available = panel.clientWidth;
+      const next = available > 0 && natural > available ? Math.max(0.62, Math.floor((available / natural) * 100) / 100) : 1;
+      row.style.zoom = String(next);
+      setFit(current => (current === next ? current : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  });
   return <div className="word-office-ribbon" data-preview={preview || undefined}>
     {extraTab && extraTabActive && <div className="word-ribbon-context-banner">{extraTab.contextLabel}</div>}
     <div role="tablist" aria-label={preview ? "Capability preview tabs" : "Document editor ribbon"} className="word-ribbon-tabs">
@@ -143,8 +165,8 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
     </div>
     {extraTab && extraTabActive ? <div id={`ribbon-${extraTab.id}`} role="tabpanel" aria-label={`${extraTab.label} tools`} className="word-ribbon-panel">
       <div className="word-ribbon-groups">{extraTab.groups}</div>
-    </div> : <div id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel">
-      <div className="word-ribbon-groups">
+    </div> : <div ref={panelRef} id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel" style={fit < 1 ? { height: Math.ceil(88 * fit) } : undefined}>
+      <div ref={groupsRef} className="word-ribbon-groups">
         {groups.map(group => <section key={group.id} data-ribbon-group={group.id} className="word-ribbon-group">
           <div className="word-ribbon-options">
             {group.options.map(option => <div key={option.id} data-ribbon-option={option.id} className="word-ribbon-option-slot"><RibbonControl option={option} capabilities={capabilities} preview={preview} active={activeOption?.(option.id) ?? false} onCommand={onCommand} onFontChange={onFontChange} onFontSizeChange={onFontSizeChange} onColorChange={onColorChange} onUnderlineChange={onUnderlineChange} onValueCommand={onValueCommand} currentFontFamily={currentFontFamily}/></div>) }
@@ -273,7 +295,7 @@ function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:
     <button role="menuitem" type="button" className="word-underline-text-command word-underline-color-command" aria-haspopup="menu" aria-expanded={colorOpen} onMouseDown={event=>event.preventDefault()} onClick={()=>{setColorOpen(value=>!value);setMoreOpen(false)}}><span aria-hidden>▱</span>Underline Color <i aria-hidden>›</i></button>
     {colorOpen&&<div role="menu" aria-label="Underline colors" className="word-underline-colors">{UNDERLINE_COLORS.map(color=><button role="menuitem" type="button" key={color} aria-label={`Underline color ${color}`} title={color} style={{backgroundColor:color}} onMouseDown={event=>event.preventDefault()} onClick={()=>{onChange?.("color",color);close()}}/>)}</div>}
   </div>,document.body):null;
-  return <div className="word-underline-split"><button type="button" className="word-ribbon-tool word-underline-apply" aria-label={`Apply ${underlineLabel(lastStyle)} underline`} aria-pressed={active||undefined} disabled={preview} title={`Apply ${underlineLabel(lastStyle)} underline`} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(!preview)onChange?.(lastStyle)}}><RibbonIcon id="underline"/></button><button ref={arrowRef} type="button" className="word-ribbon-tool word-underline-arrow" aria-label="Open underline gallery" aria-haspopup="menu" aria-expanded={open} disabled={preview} title="Underline styles" onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span aria-hidden>▾</span></button>{gallery}</div>;
+  return <div className="word-underline-split"><button type="button" className="word-ribbon-tool word-underline-apply" aria-label={`Apply ${underlineLabel(lastStyle)} underline`} aria-pressed={active||undefined} disabled={preview} title={`Apply ${underlineLabel(lastStyle)} underline`} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(!preview)onChange?.("toggle",lastStyle)}}><RibbonIcon id="underline"/></button><button ref={arrowRef} type="button" className="word-ribbon-tool word-underline-arrow" aria-label="Open underline gallery" aria-haspopup="menu" aria-expanded={open} disabled={preview} title="Underline styles" onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span aria-hidden>▾</span></button>{gallery}</div>;
 }
 function expandViewOptions(groupId:string,options:RibbonOption[]){if(groupId==="show"){const expanded:RibbonOption[]=[];for(const item of options){expanded.push(item);if(item.id==="gridlines")expanded.push(MESSAGE_BAR_OPTION);if(item.id==="documentMap")expanded.push(THUMBNAILS_OPTION)}return expanded}if(groupId==="zoom"){const expanded:RibbonOption[]=[];for(const item of options){if(item.id==="zoom100")expanded.push(ZOOM_OPTION);expanded.push(item);if(item.id==="twoPages")expanded.push(PAGE_WIDTH_OPTION)}return expanded}return options}
 function underlineLabel(style:string){return({none:"None",single:"Single",double:"Double",thick:"Thick",dotted:"Dotted",dashed:"Dashed","dot-dash":"Dot-dash","dot-dot-dash":"Dot-dot-dash",wavy:"Wavy","words-only":"Words only"}as Record<string,string>)[style]??style}

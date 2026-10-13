@@ -6,7 +6,7 @@ const read=path=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
 test("the student workspace puts the Submit button in the header right after the Active badge",async()=>{
  const workspace=await read(dir+"word-workspace.tsx");
  assert.match(workspace,/"Active"\}<\/span><span id="word-submit-slot"/);
- assert.match(workspace,/<RichDocumentEditor submitPortalId="word-submit-slot" [^>]*submitLabel="Submit" /);
+ assert.match(workspace,/<RichDocumentEditor autoSubmit=\{expired\} submitPortalId="word-submit-slot" [^>]*submitLabel="Submit" /);
 });
 
 test("with a portal id the editor renders Submit into the header slot and no bottom bar",async()=>{
@@ -20,7 +20,7 @@ test("with a portal id the editor renders Submit into the header slot and no bot
 
 test("student attempts are not autosaved after every edit, so undo/redo is left alone",async()=>{
  const editor=await read(dir+"rich-document-editor.tsx");
- assert.match(editor,/const ATTEMPT_AUTOSAVE_INTERVAL_MS=30_000;/);
+ assert.match(editor,/const ATTEMPT_AUTOSAVE_INTERVAL_MS=20_000;/);
  const changed=editor.slice(editor.indexOf(" const changed=()=>"),editor.indexOf(" const changed=()=>")+900);
  // the attempt path only marks the document dirty and schedules ONE save, without pushing it back on each edit
  assert.match(changed,/dirtyRef\.current=true;if\(!autosaveTimer\.current\)autosaveTimer\.current=setTimeout\(/);
@@ -33,5 +33,5 @@ test("student attempts are not autosaved after every edit, so undo/redo is left 
 test("unsaved work is flushed when the tab is hidden or the page is left, and before the final submit clears the timer",async()=>{
  const editor=await read(dir+"rich-document-editor.tsx");
  assert.match(editor,/document\.addEventListener\("visibilitychange",onVisibility\);window\.addEventListener\("pagehide",flush\)/);
- assert.match(editor,/if\(autosaveTimer\.current\)\{clearTimeout\(autosaveTimer\.current\);autosaveTimer\.current=null\}setStatus\(oneTimeSubmit/);
+ assert.match(editor,/if\(autosaveTimer\.current\)\{clearTimeout\(autosaveTimer\.current\);autosaveTimer\.current=null\}\s*setStatus\(oneTimeSubmit/);
 });

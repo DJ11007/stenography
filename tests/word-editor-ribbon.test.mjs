@@ -165,7 +165,8 @@ test("browser measurement serializer and formatting commands retain autosave tra
   ]);
   assert.match(editor, /canonicalizeBlockMeasurements\(enrichBlock\(makeStructuredBlock/);
   assert.match(editor, /const exec=.*changed\(\)/);
-  for (const command of ["bold", "italic", "underline"]) assert.match(editor, new RegExp(`${command}:\\(\\)=>exec`));
+  for (const command of ["bold", "italic"]) assert.match(editor, new RegExp(`${command}:\\(\\)=>exec`));
+  assert.match(editor, /underline:\(\)=>underline\("toggle","single"\)/);
   assert.match(editor, /setStatus\("Saving…"\)[\s\S]*setStatus\("Saved"\)/);
   assert.match(editor, /setStatus\("Unsaved changes"\)/);
   for (const unit of ["px", "pt", "in", "cm", "mm"]) assert.match(measurements, new RegExp(unit));
@@ -325,7 +326,7 @@ test("line spacing gallery exposes extra actions and Find/Replace opens a real d
   assert.match(editor,/kind:"lineSpacingOptions";before:string;after:string/);
   assert.match(editor,/kind:"findReplace";mode:"find"\|"replace"\|"goto";query:string;replacement:string/);
   assert.match(editor,/function LineSpacingOptionsForm/);
-  assert.match(editor,/function FindReplaceForm/);
+  assert.match(editor,/<FindReplaceDialog2013 dialog=\{dialog\}/);
   assert.match(editor,/const find=\(replace:boolean\)=>\{[\s\S]*?setDialog\(\{kind:"findReplace"/);
   assert.match(editor,/const runFindNext=/);
   assert.match(editor,/const runReplaceOne=/);

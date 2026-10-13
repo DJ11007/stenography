@@ -27,7 +27,7 @@ test("an autosave failure caused by a stale deploy sets a friendly, actionable s
 
 test("a submission failure caused by a stale deploy also gets a friendly, actionable status", async () => {
   const source = await read();
-  assert.match(source, /if\(isStaleServerActionError\(error\)\)\{setStaleDeploy\(true\);setStatus\("A newer version of this page was published\. Refresh, then try submitting again -- nothing was lost\."\);return\}/);
+  assert.match(source, /if\(isStaleServerActionError\(error\)\)\{setStaleDeploy\(true\);return fail\("A newer version of this page was published\. Refresh the page, then submit again -- nothing was lost\."\)\}/);
 });
 
 test("a visible Refresh page button appears in the footer once a stale deploy is detected, giving the documented retry path", async () => {

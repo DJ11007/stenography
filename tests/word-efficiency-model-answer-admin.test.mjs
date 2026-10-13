@@ -47,7 +47,7 @@ test("saveWordEfficiencyModelAnswer and generateWordEfficiencyGradingRulesFromMo
 });
 
 test("the admin test list links to the Model Answer page alongside Edit/Preview and View Attempts", async () => {
-  const page = await read("app/admin/word-efficiency-tests/page.tsx");
+  const page = await read("app/admin/word-efficiency-tests/tests-page.tsx");
   assert.match(page, /\/admin\/word-efficiency-tests\/\$\{test\.id\}\/model-answer/);
   assert.match(page, /Model Answer/);
   assert.match(page, /Edit \/ Preview/);

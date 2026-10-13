@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { columnLetters, columnIndex, computedCellValue, type SheetCells } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
+import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
 
 export type SheetCell = { value: string | number | null; formula: string | null; bold: boolean; italic: boolean; underline: boolean; fontColor: string | null; fillColor: string | null; border: string | null; numberFormat: "General" | "Number" | "Currency" | "Percentage"; align: "left" | "center" | "right" };
 export type ExcelDocument = { schemaVersion: "2"; rows: number; cols: number; cells: Record<string, SheetCell>; operations: string[]; savedAt: string };
@@ -34,7 +35,7 @@ function formatNumberDisplay(value: unknown, format: SheetCell["numberFormat"]):
   return String(value);
 }
 
-export function RichSheetEditor({ attemptId, original, initialDocument, locked }: { attemptId: string; original: ExcelDocument; initialDocument?: ExcelDocument | null; locked: boolean }) {
+export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false }: { attemptId: string; original: ExcelDocument; initialDocument?: ExcelDocument | null; locked: boolean; autoSubmit?: boolean }) {
   const router = useRouter();
   const base = initialDocument && initialDocument.schemaVersion === "2" ? initialDocument : original;
   const [rows, setRows] = useState(base.rows);
@@ -134,17 +135,48 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked }
 
   const move = (deltaRow: number, deltaCol: number) => { const at = cellRef(selected); if (!at) return; const row = Math.min(Math.max(at.row + deltaRow, 1), rows), col = Math.min(Math.max(at.col + deltaCol, 0), cols - 1); setSelected(refAt(row, col)); setRangeAnchor(null); };
 
-  const submit = async () => {
-    if (!confirm("Submit your final sheet? You cannot edit it afterward.")) return;
+  // Final submit: asks first with an in-page dialog (not the browser's confirm()), reports every
+  // failure in an in-page message, and runs by itself when the exam clock runs out (autoSubmit).
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [submitProblem, setSubmitProblem] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const submittedRef = useRef(locked);
+  const liveDocument = useRef<ExcelDocument | null>(null);
+  liveDocument.current = { schemaVersion: "2", rows, cols, cells, operations: [...operations].slice(0, 256), savedAt: new Date().toISOString() };
+  const submitNow = async (auto = false): Promise<boolean> => {
+    if (submitting.current || !liveDocument.current) return false;
+    submitting.current = true;
+    if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
     setStatus("Submitting…");
     setFinalSubmitting(true);
-    const document: ExcelDocument = { schemaVersion: "2", rows, cols, cells, operations: [...operations].slice(0, 256), savedAt: new Date().toISOString() };
-    const result = await submitExcelDocument(attemptId, document);
-    if (!result.ok) { setStatus(result.error); setFinalSubmitting(false); return; }
-    setSubmitted(true);
-    setStatus("Test submitted successfully");
-    router.push(`/typing/excel-efficiency/results/${attemptId}`);
+    const fail = (message: string) => { setStatus(message); setFinalSubmitting(false); submitting.current = false; if (!auto) setSubmitProblem(message); return false; };
+    try {
+      const result = await submitExcelDocument(attemptId, liveDocument.current);
+      if (!result.ok) {
+        if (/already submitted/i.test(result.error)) { submittedRef.current = true; setSubmitted(true); router.push(`/typing/excel-efficiency/results/${attemptId}`); return true; }
+        return fail(result.error);
+      }
+      submittedRef.current = true;
+      setSubmitted(true);
+      setStatus("Test submitted successfully");
+      router.push(`/typing/excel-efficiency/results/${attemptId}`);
+      return true;
+    } catch {
+      return fail("Submission failed. Check your internet connection and try again.");
+    }
   };
+  const submit = () => { if (!submitted) setConfirmSubmitOpen(true); };
+  useEffect(() => {
+    if (!autoSubmit || submitted) return;
+    let cancelled = false;
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    void (async () => {
+      await sleep(1200);
+      for (let attempt = 0; attempt < 6 && !cancelled; attempt++) { if ((await submitNow(true)) || submittedRef.current) return; await sleep(2500); }
+      if (!cancelled) setSubmitProblem("Time is up, but your test could not be submitted automatically. Check your internet connection, then press Submit.");
+    })();
+    return () => { cancelled = true; };
+  }, [autoSubmit]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once when the clock expires
 
   const activeCell = cells[selected] ?? EMPTY_CELL;
   const formulaBarValue = editingRef === selected ? editValue : (activeCell.formula ?? (activeCell.value == null ? "" : String(activeCell.value)));
@@ -248,9 +280,11 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked }
           </tbody>
         </table>
       </div>
+      <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message="Submit your final sheet? You cannot edit it afterward." confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
+      <ConfirmDialog open={submitProblem !== null} title="Could not submit" message={submitProblem} confirmLabel="OK" cancelLabel={null} tone="primary" onCancel={() => setSubmitProblem(null)} onConfirm={() => setSubmitProblem(null)} />
       <footer className="flex items-center justify-between gap-3 border-t bg-slate-950 px-4 py-3 text-white">
         <p aria-live="polite" className="text-sm font-bold">Autosave: {status}</p>
-        <button type="button" disabled={submitted} onClick={submit} className="rounded-xl bg-red-600 px-5 py-3 font-black text-white outline-none hover:bg-red-500 disabled:bg-slate-500">Submit Final Sheet</button>
+        <button type="button" disabled={submitted} onClick={submit} className="rounded-xl bg-red-600 px-5 py-3 font-black text-white outline-none hover:bg-red-500 disabled:bg-slate-500">Submit</button>
       </footer>
     </div>
   );

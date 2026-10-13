@@ -164,3 +164,41 @@ export function inheritedTextDecoration(textNode:Node,root:Element):{underline:b
  }
  return{underline,strike:strike&&!doubleStrike,doubleStrike};
 }
+
+// The Underline button is a toggle (like Word): when every character of the selection is already
+// underlined the click removes the underline, otherwise it applies one.
+export function selectionFullyUnderlined(root: HTMLElement, range: Range): boolean {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let any = false;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!range.intersectsNode(node)) continue;
+    const text = node.textContent ?? "";
+    const from = node === range.startContainer ? range.startOffset : 0;
+    const to = node === range.endContainer ? range.endOffset : text.length;
+    if (to <= from || !text.slice(from, to).trim()) continue;
+    any = true;
+    if (!inheritedTextDecoration(node, root).underline && !node.parentElement?.closest("[data-underline-style]")) return false;
+  }
+  return any;
+}
+
+// Removes every underline (<u> or a styled span) that touches the range. Returns whether anything changed.
+export function stripUnderline(root: HTMLElement, range: Range): boolean {
+  let touched = false;
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>("u,[data-underline-style],[style*='underline']"))) {
+    if (!range.intersectsNode(element)) continue;
+    if (element.tagName === "U") element.replaceWith(...Array.from(element.childNodes));
+    else {
+      delete element.dataset.underlineStyle;
+      delete element.dataset.underlineColor;
+      delete element.dataset.underlineThickness;
+      delete element.dataset.underlineWordsOnly;
+      element.style.textDecorationLine = element.style.textDecorationLine.replace("underline", "").trim();
+      element.style.textDecorationStyle = "";
+      element.style.textDecorationColor = "";
+      element.style.textDecorationThickness = "";
+    }
+    touched = true;
+  }
+  return touched;
+}

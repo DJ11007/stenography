@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 const targetMigration = new URL("../supabase/migrations/202609081305_fix_word_efficiency_grading_target_uses_ephemeral_id.sql", import.meta.url);
 const overhaulMigration = new URL("../supabase/migrations/202610111200_word_efficiency_auto_grading_overhaul.sql", import.meta.url);
 const blankParagraphMigration = new URL("../supabase/migrations/202610111500_word_efficiency_blank_paragraph_tolerance.sql", import.meta.url);
+const lateSubmitMigration = new URL("../supabase/migrations/202610131000_late_submit_uses_last_autosave.sql", import.meta.url);
 
 const admin = "10000000-0000-0000-0000-00000000000a", student = "20000000-0000-0000-0000-000000000002";
 const testId = "40000000-0000-0000-0000-000000000004", version = "50000000-0000-0000-0000-000000000005";
@@ -38,6 +39,7 @@ create function public.assert_word_efficiency_editor_capabilities(c jsonb) retur
 create function public.word_efficiency_initial_editor_document(m jsonb) returns jsonb language sql immutable as $$select m$$;
 create function public.assert_word_efficiency_document_schema(d jsonb, caps jsonb) returns void language plpgsql immutable as $$begin end $$;
 create function public.assert_word_efficiency_capability_changes(d jsonb, baseline jsonb, caps jsonb) returns void language plpgsql immutable as $$begin end $$;
+create table public.excel_efficiency_attempts(id uuid primary key);
 create table public.word_efficiency_tests(id uuid primary key, current_version_id uuid);
 create table public.word_efficiency_versions(id uuid primary key, test_id uuid, title text, language text, maximum_marks numeric, passing_marks numeric, editor_capabilities jsonb, model_answer_snapshot jsonb);
 create table public.word_efficiency_questions(id uuid primary key, version_id uuid, question_number int, instruction text, display_order int);
@@ -54,6 +56,7 @@ ${rule2 ? `,('${version}','${q2}','blocks.1.runs.0.bold','bold','true'::jsonb,2.
   await db.exec(await readFile(targetMigration, "utf8"));
   await db.exec(await readFile(overhaulMigration, "utf8"));
   await db.exec(await readFile(blankParagraphMigration, "utf8"));
+  await db.exec(await readFile(lateSubmitMigration, "utf8"));
   return db;
 }
 
@@ -367,4 +370,62 @@ test("the self-test still passes, and the new migration keeps the transaction wr
   assert.match(sql, /commit;\s*$/);
   assert.equal((sql.match(/\$\$/g) ?? []).length % 2, 0);
   assert.doesNotMatch(sql, /as \d{3,}|end \d{3,};/);
+});
+
+// ---- Late submissions (the countdown reached zero) ----
+const lateAttempt = async (db, id, { secondsAgo, autosave }) => {
+  await newAttempt(db, id);
+  await db.query("update public.word_efficiency_attempts set started_at=now()-make_interval(secs=>$2), document_autosave=$3::jsonb where id=$1", [id, secondsAgo, autosave ? JSON.stringify(autosave) : null]);
+};
+const finalDoc = async (db, id) => (await db.query("select status, final_document_snapshot from public.word_efficiency_attempts where id=$1", [id])).rows[0];
+
+test("on time: the submitted document is used exactly as before", async () => {
+  const db = await database();
+  await lateAttempt(db, "b1000000-0000-0000-0000-000000000001", { secondsAgo: 60, autosave: doc([para([run("old")])]) });
+  await submit(db, "b1000000-0000-0000-0000-000000000001", goodDoc());
+  const row = await finalDoc(db, "b1000000-0000-0000-0000-000000000001");
+  assert.equal(row.status, "submitted");
+  assert.equal(row.final_document_snapshot.blocks[0].runs[0].text, FULL_TEXT);
+  await db.close();
+});
+
+test("a few seconds late: the submit succeeds and finalises from the LAST AUTOSAVE, ignoring what the browser sends", async () => {
+  const db = await database();
+  await lateAttempt(db, "b2000000-0000-0000-0000-000000000002", { secondsAgo: 610, autosave: goodDoc() });
+  await submit(db, "b2000000-0000-0000-0000-000000000002", doc([para([run("typed after the deadline")])]));
+  const row = await finalDoc(db, "b2000000-0000-0000-0000-000000000002");
+  assert.equal(row.status, "submitted");
+  assert.equal(row.final_document_snapshot.blocks[0].runs[0].text, FULL_TEXT);
+  const rows = await scores(db, "b2000000-0000-0000-0000-000000000002");
+  assert.equal(Number(rows[0].awarded_marks), 2.5);
+  await db.close();
+});
+
+test("hours late (a student who reopened the page): still submits, no 'grace expired' error", async () => {
+  const db = await database();
+  await lateAttempt(db, "b3000000-0000-0000-0000-000000000003", { secondsAgo: 3 * 3600, autosave: goodDoc() });
+  await submit(db, "b3000000-0000-0000-0000-000000000003", goodDoc());
+  assert.equal((await finalDoc(db, "b3000000-0000-0000-0000-000000000003")).status, "submitted");
+  await db.close();
+});
+
+test("late with nothing ever saved: the attempt is still finalised (from the untouched original) instead of being stuck", async () => {
+  const db = await database();
+  await lateAttempt(db, "b4000000-0000-0000-0000-000000000004", { secondsAgo: 900, autosave: null });
+  await submit(db, "b4000000-0000-0000-0000-000000000004", doc([para([run("typed after the deadline")])]));
+  const row = await finalDoc(db, "b4000000-0000-0000-0000-000000000004");
+  assert.equal(row.status, "submitted");
+  assert.notEqual(JSON.stringify(row.final_document_snapshot).includes("typed after the deadline"), true);
+  await db.close();
+});
+
+test("the late-submit migration is transactional, has balanced dollar quotes and no numeric alias artefacts, and covers Excel too", async () => {
+  const sql = await readFile(lateSubmitMigration, "utf8");
+  assert.match(sql, /^begin;/);
+  assert.match(sql, /commit;\s*$/);
+  assert.equal((sql.match(/\$\$/g) || []).length % 2, 0);
+  assert.doesNotMatch(sql, /as \d{3,}/);
+  assert.match(sql, /create or replace function public\.submit_excel_efficiency_document/);
+  assert.doesNotMatch(sql, /submission grace expired/);
+  assert.doesNotMatch(sql, /post-deadline submission must match/);
 });
