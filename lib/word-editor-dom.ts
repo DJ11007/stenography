@@ -77,6 +77,28 @@ function clampRangeToStartBlock(range:Range):Range{
  clamped.setEnd(node,node.childNodes.length);
  return clamped;
 }
+// Real reported bug: choosing a font or size in the Font dialog changed
+// nothing on screen or in the saved document. Every run of a Working Matter
+// paragraph carries its own inline font-family/font-size (and Bold/Italic/
+// colour leave <b>/<i>/<font> or inline styles), and the dialog wraps the
+// selection in an OUTER span -- which loses to every inner style. After
+// wrapping, the properties the dialog actually set are cleared from
+// everything inside the new span, so the dialog's choice is what applies,
+// exactly as in Word.
+export function clearInnerRunStyles(span:HTMLElement,properties:string[],options:{unwrapBold?:boolean;unwrapItalic?:boolean}={}){
+ const kebab=(name:string)=>name.replace(/[A-Z]/g,letter=>`-${letter.toLowerCase()}`);
+ for(const element of [...span.querySelectorAll("*")]as HTMLElement[]){
+  for(const property of properties)element.style?.removeProperty(kebab(property));
+  if(element.tagName==="FONT"){
+   if(properties.includes("fontFamily"))element.removeAttribute("face");
+   if(properties.includes("fontSize"))element.removeAttribute("size");
+   if(properties.includes("color"))element.removeAttribute("color");
+  }
+  if(element.getAttribute("style")==="")element.removeAttribute("style");
+  const unwrap=(options.unwrapBold&&/^(B|STRONG)$/.test(element.tagName))||(options.unwrapItalic&&/^(I|EM)$/.test(element.tagName));
+  if(unwrap)element.replaceWith(...element.childNodes);
+ }
+}
 export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}){if(range.collapsed)return null;const document=range.startContainer.ownerDocument;if(!document)return null;const safeRange=clampRangeToStartBlock(range);const span=document.createElement("span");Object.assign(span.style,styles);for(const[name,value]of Object.entries(attributes))span.dataset[name]=value;try{safeRange.surroundContents(span)}catch{span.append(safeRange.extractContents());safeRange.insertNode(span)}const selected=document.createRange();selected.selectNodeContents(span);return{span,range:selected}}
 
 export function applyParagraphStyle(blocks:HTMLElement[],styles:Partial<Pick<CSSStyleDeclaration,"textAlign"|"marginLeft"|"marginRight"|"lineHeight"|"marginTop"|"marginBottom"|"backgroundColor"|"border">>){for(const block of blocks)Object.assign(block.style,styles);return blocks.length>0}

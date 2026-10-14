@@ -1,4 +1,4 @@
-import assert from"node:assert/strict";import test from"node:test";import{Window}from"happy-dom";import{adjustParagraphIndent,applyParagraphStyle,changeEditorRangeCase,clearEditorRangeFormatting,parseInches,replaceEditorText,selectedEditorBlocks,snapshotPaintStyle,wrapEditorRange}from"../lib/word-editor-dom.ts";
+import assert from"node:assert/strict";import test from"node:test";import{Window}from"happy-dom";import{adjustParagraphIndent,applyParagraphStyle,changeEditorRangeCase,clearEditorRangeFormatting,clearInnerRunStyles,parseInches,replaceEditorText,selectedEditorBlocks,snapshotPaintStyle,wrapEditorRange}from"../lib/word-editor-dom.ts";
 
 function documentWithMatter(){const window=new Window(),document=window.document;document.body.innerHTML='<div id="editor" contenteditable="true"><p id="p1" style="margin-right:0in">Alpha beta</p><p id="p2" style="margin-right:0in">Gamma delta</p><p id="p3">Omega</p></div>';return{window,document,editor:document.querySelector("#editor")}}
 
@@ -57,3 +57,8 @@ test("replace changes text nodes without rewriting paragraph elements or measure
 // of the NEXT paragraph, so line spacing set on paragraph 2 also landed on
 // paragraph 3 (reproduced live in the editor).
 test("a triple-click selection that ends at the very start of the next paragraph selects only the clicked paragraph",()=>{const{document,editor}=documentWithMatter(),range=document.createRange();range.setStart(document.querySelector("#p1").firstChild,0);range.setEnd(document.querySelector("#p2"),0);assert.deepEqual(selectedEditorBlocks(editor,range).map(block=>block.id),["p1"]);const fromEnd=document.createRange(),p1Text=document.querySelector("#p1").firstChild;fromEnd.setStart(p1Text,p1Text.textContent.length);fromEnd.setEnd(document.querySelector("#p2").firstChild,3);assert.deepEqual(selectedEditorBlocks(editor,fromEnd).map(block=>block.id),["p2"])});
+
+// Real reported bug: the Font dialog's font/size never applied, because every
+// Working Matter run carries its own inline font, which beats the dialog's
+// outer span.
+test("the Font dialog's choices win over the selected runs' own inline styles",()=>{const window=new Window(),document=window.document;document.body.innerHTML='<p><span id="outer" style="font-family: Bookman Old Style; font-size: 18.5pt"><span style="font-family: Segoe UI; font-size: 12pt; color: rgb(2, 6, 24)"><font color="#ff0000"><b>Hello</b></font></span></span></p>';const outer=document.querySelector("#outer");clearInnerRunStyles(outer,["fontFamily","fontSize","fontWeight","fontStyle"],{unwrapBold:true});const inner=outer.firstElementChild;assert.equal(inner.style.fontFamily,"");assert.equal(inner.style.fontSize,"");assert.equal(inner.style.color,"rgb(2, 6, 24)");assert.equal(outer.querySelector("font").getAttribute("color"),"#ff0000");assert.equal(outer.querySelector("b"),null);assert.equal(outer.textContent,"Hello")});

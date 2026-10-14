@@ -109,7 +109,7 @@ export function wordTargetValue(document: unknown, target: string): unknown {
   return value ?? null;
 }
 
-const RUN_FIELDS = ["text", "bold", "italic", "underline", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "outline", "emboss", "fontFamily", "fontSize", "color", "highlight", "field", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin"] as const;
+const RUN_FIELDS = ["text", "bold", "italic", "underline", "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "outline", "emboss", "fontFamily", "fontSize", "color", "highlight", "field", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin"] as const;
 // Newer optional boolean run fields (smallCaps/allCaps/hidden, added after
 // doubleStrike) can be absent on one side of a diff -- e.g. a document
 // captured before these fields existed, or any snapshot that simply never
@@ -118,7 +118,7 @@ const RUN_FIELDS = ["text", "bold", "italic", "underline", "strike", "doubleStri
 // validator already treats them (optional, type-checked only when
 // present), so the diff must use the same default before comparing, or it
 // reports a false "changed to undefined" for every single run.
-const BOOLEAN_RUN_FIELDS = new Set(["bold", "italic", "underline", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "outline", "emboss", "kerningEnabled"]);
+const BOOLEAN_RUN_FIELDS = new Set(["bold", "italic", "underline", "underlineWordsOnly", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "outline", "emboss", "kerningEnabled"]);
 function normalizedRunField(run: JsonRecord, field: string): unknown {
   const value = run[field];
   return BOOLEAN_RUN_FIELDS.has(field) ? Boolean(value) : (value ?? null);
@@ -129,7 +129,7 @@ const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount",
 
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
-    text: "text", bold: "bold", italic: "italic", underline: "underline", strike: "strikethrough", doubleStrike: "double strikethrough",
+    text: "text", bold: "bold", italic: "italic", underline: "underline", underlineStyle: "underline style", underlineColor: "underline color", underlineThickness: "underline thickness", underlineWordsOnly: "underline words only", strike: "strikethrough", doubleStrike: "double strikethrough",
     superscript: "superscript", subscript: "subscript", smallCaps: "small caps", allCaps: "all caps", hidden: "hidden text", outline: "outline", emboss: "emboss", fontFamily: "font", fontSize: "font size", color: "text color", highlight: "highlight color", field: "inserted field",
     charScale: "character scale", charSpacing: "character spacing", charPosition: "character position", kerningEnabled: "kerning", kerningMin: "kerning minimum size",
     marginLeft: "left indent", marginRight: "right indent", marginTop: "space before", marginBottom: "space after", lineHeight: "line spacing",
