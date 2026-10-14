@@ -215,7 +215,12 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  // reattachOrphanedListItems (lib/word-editor-dom.ts) repairs it.
  const exec=(name:string,value?:string)=>{editor.current?.focus();restoreSelection();const safeValue=name==="fontName"?value?.replace(/ \((?:Headings|Body)\)$/u,""):value;const beforeCount=name==="undo"||name==="redo"||!editor.current?null:editor.current.children.length;document.execCommand(name,false,safeValue);if(beforeCount!==null){pruneStrayEmptyBlocks(beforeCount);if(editor.current)reattachOrphanedListItems(editor.current)}changed()};
  const selectedBlocks=()=>{restoreSelection();const selection=getSelection();return editor.current&&selection?.rangeCount?selectedEditorBlocks(editor.current,selection.getRangeAt(0)):[]};
- const applyRunStyles=(styles:EditorRunStyles)=>{editor.current?.focus();restoreSelection();const selection=getSelection();if(!selection?.rangeCount)return;const wrapped=wrapEditorRange(selection.getRangeAt(0),styles);if(wrapped){savedRange.current=wrapped.range;changed()}};
+ // Real reported bug (most students lost Q8 "font size 18.5" this way): the
+ // ribbon's size box wrapped the selection in an outer span, but every Working
+ // Matter run carries its own inline font-size, which won -- the text stayed
+ // 12pt. The properties being set are cleared inside the new span, as the
+ // Font dialog does.
+ const applyRunStyles=(styles:EditorRunStyles)=>{editor.current?.focus();restoreSelection();const selection=getSelection();if(!selection?.rangeCount)return;const wrapped=wrapEditorRange(selection.getRangeAt(0),styles);if(wrapped){clearInnerRunStyles(wrapped.span,Object.keys(styles).filter(key=>styles[key as keyof EditorRunStyles]!=null));savedRange.current=wrapped.range;changed()}};
  const applyFontStep=(direction:1|-1)=>{restoreSelection();const node=getSelection()?.anchorNode,parent=node instanceof Element?node:node?.parentElement,current=Number.parseFloat(parent?getComputedStyle(parent).fontSize:"11")*.75,sizes=[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].filter(size=>size>=capabilities.fontSizeMin&&size<=capabilities.fontSizeMax),index=direction>0?sizes.findIndex(size=>size>current):sizes.findLastIndex(size=>size<current),size=index<0?(direction>0?sizes.at(-1):sizes[0]):sizes[index];if(size)applyRunStyles({fontSize:`${size}pt`})};
  // Real Word: a single click on Format Painter copies the current selection's
  // formatting and applies it exactly once to the next click/selection, then
