@@ -61,6 +61,12 @@ function textRuns(block: WordBlock): JsonRecord[] {
   return runsOf(block).filter((run) => runText(run).trim() !== "");
 }
 
+/** Headers and footers are counted apart from the body ("the 3rd body block"). */
+export function blockKind(block: unknown): "header" | "footer" | "body" {
+  const type = isObject(block) ? block.type : undefined;
+  return type === "header" ? "header" : type === "footer" ? "footer" : "body";
+}
+
 /** A paragraph or list item with no visible text. */
 export function isBlankParagraph(block: unknown): boolean {
   if (!isObject(block)) return false;
@@ -264,11 +270,22 @@ export function diffWordDocuments(before: unknown, after: unknown): WordDetected
   // or a checkpoint and a save rendered by different code paths -- used to
   // pair every later paragraph with the wrong one and report dozens of
   // unrelated "changes" (one real question carried 52 criteria).
+  //
+  // Headers and footers are paired only with headers and footers, and body
+  // blocks only with body blocks: inserting a header (Insert > Header) puts a
+  // new block at the top, which used to pair every paragraph with the one
+  // above it and report all of them as changed.
   const beforeBlocks = blocksOf(stripBlankParagraphs(before));
   const afterBlocks = blocksOf(stripBlankParagraphs(after));
   const changes: WordDetectedChange[] = [];
+  const beforeByKind = new Map<string, WordBlock[]>();
+  for (const block of beforeBlocks) beforeByKind.set(blockKind(block), [...(beforeByKind.get(blockKind(block)) ?? []), block]);
+  const seen = new Map<string, number>();
   afterBlocks.forEach((block, index) => {
-    const beforeBlock = beforeBlocks[index];
+    const kind = blockKind(block);
+    const place = seen.get(kind) ?? 0;
+    seen.set(kind, place + 1);
+    const beforeBlock = beforeByKind.get(kind)?.[place];
     const position = index + 1;
     if (!beforeBlock) {
       changes.push({ target: `blocks.${index}.runs.0.text`, expectedValue: paragraphText(block), label: `Paragraph ${position}: a new paragraph or element was added here`, blockPosition: position });
@@ -315,6 +332,19 @@ export function modelAnswerRuleCriteria(finalDocument: unknown, criteria: ModelA
     if (finalValue === undefined) return [];
     const isText = criterion.target.endsWith(".text");
     const alternatives = criterion.savedValue !== undefined && JSON.stringify(criterion.savedValue) !== JSON.stringify(finalValue) ? [criterion.savedValue] : [];
-    return [{ target: criterion.target, expectedValue: finalValue, alternatives, ignoreCase: isText && !criterion.caseOnly }];
+    // Which block this is among blocks of its own kind, so grading finds "the
+    // 3rd body paragraph" in a student's document whether or not they added a
+    // header (see the 202610151200 migration).
+    const parts = criterion.target.split(".");
+    const located = parts[0] === "blocks" && /^[0-9]+$/.test(parts[1] ?? "") ? locateBlock(finalDocument, Number(parts[1])) : null;
+    return [{ target: criterion.target, expectedValue: finalValue, alternatives, ignoreCase: isText && !criterion.caseOnly, ...(located ?? {}) }];
   });
+}
+
+function locateBlock(document: unknown, index: number): { kind: "header" | "footer" | "body"; place: number } | null {
+  const blocks = blocksOf(document);
+  const block = blocks[index];
+  if (!block) return null;
+  const kind = blockKind(block);
+  return { kind, place: blocks.slice(0, index).filter((item) => blockKind(item) === kind).length };
 }

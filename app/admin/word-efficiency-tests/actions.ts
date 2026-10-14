@@ -76,11 +76,11 @@ export async function saveWordEfficiencyModelAnswer(versionId:string,document:un
 // additionalCriteria (the primary target/value just repeat the first one, for
 // display) and each may list alternative accepted values and ask for a
 // case-insensitive text match -- see the 202610141200 migration.
-export async function generateWordEfficiencyGradingRulesFromModelAnswer(versionId:string,assignments:{questionNumber:number;allocatedMarks:number;criteria:{target:string;expectedValue:unknown;alternatives:unknown[];ignoreCase:boolean}[]}[]){
+export async function generateWordEfficiencyGradingRulesFromModelAnswer(versionId:string,assignments:{questionNumber:number;allocatedMarks:number;criteria:{target:string;expectedValue:unknown;alternatives:unknown[];ignoreCase:boolean;kind?:string;place?:number}[]}[]){
  const supabase=await createClient();
  const rules=assignments.filter(assignment=>assignment.criteria.length>0).map(assignment=>{
   const[primary]=assignment.criteria;
-  return{questionNumber:assignment.questionNumber,exactTarget:primary.target,expectedOperation:"model-answer-match-v2",expectedValue:JSON.stringify(primary.expectedValue??null),allocatedMarks:assignment.allocatedMarks,partialMarks:null,additionalCriteria:assignment.criteria.map(criterion=>({target:criterion.target,expectedValue:JSON.stringify(criterion.expectedValue??null),alternatives:criterion.alternatives,ignoreCase:criterion.ignoreCase}))};
+  return{questionNumber:assignment.questionNumber,exactTarget:primary.target,expectedOperation:"model-answer-match-v2",expectedValue:JSON.stringify(primary.expectedValue??null),allocatedMarks:assignment.allocatedMarks,partialMarks:null,additionalCriteria:assignment.criteria.map(criterion=>({target:criterion.target,expectedValue:JSON.stringify(criterion.expectedValue??null),alternatives:criterion.alternatives,ignoreCase:criterion.ignoreCase,...(criterion.kind!==undefined&&criterion.place!==undefined?{kind:criterion.kind,place:criterion.place}:{})}))};
  });
  const{error}=await supabase.rpc("save_word_efficiency_grading_rules",{p_version_id:versionId,p_rules:rules});
  if(error)return{ok:false,error:error.message};
