@@ -16,8 +16,8 @@ begin;
 
 do $$
 begin
- if not exists(select 1 from pg_proc where proname='assert_word_efficiency_document_schema_before_table_cell_formats' and pronamespace='public'::regnamespace) then
-  alter function public.assert_word_efficiency_document_schema(jsonb,jsonb) rename to assert_word_efficiency_document_schema_before_table_cell_formats;
+ if not exists(select 1 from pg_proc where proname='assert_word_efficiency_document_schema_before_cell_formats' and pronamespace='public'::regnamespace) then
+  alter function public.assert_word_efficiency_document_schema(jsonb,jsonb) rename to assert_word_efficiency_document_schema_before_cell_formats;
  end if;
 end $$;
 
@@ -44,7 +44,7 @@ returns void language plpgsql immutable set search_path=pg_catalog,public as $$
 declare block_value jsonb;formats jsonb;row_index integer;safe_document jsonb;
 begin
  if document_snapshot->>'schemaVersion'<>'2' or jsonb_typeof(document_snapshot->'blocks')<>'array' then
-  perform public.assert_word_efficiency_document_schema_before_table_cell_formats(document_snapshot,editor_capabilities);return;
+  perform public.assert_word_efficiency_document_schema_before_cell_formats(document_snapshot,editor_capabilities);return;
  end if;
  for block_value in select value from jsonb_array_elements(document_snapshot->'blocks') loop
   if block_value->>'type'='table' and block_value->'attrs'?'cellFormats' then
@@ -59,9 +59,9 @@ begin
  -- Hand the document on without cellFormats (coalesce: jsonb_agg over zero blocks is NULL, not []).
  select jsonb_set(document_snapshot,'{blocks}',coalesce(jsonb_agg(case when blocks.block_item->>'type'='table' and jsonb_typeof(blocks.block_item->'attrs')='object' then jsonb_set(blocks.block_item,'{attrs}',(blocks.block_item->'attrs')-'cellFormats') else blocks.block_item end order by blocks.block_ordinality),'[]'::jsonb))
   into safe_document from jsonb_array_elements(document_snapshot->'blocks') with ordinality as blocks(block_item,block_ordinality);
- perform public.assert_word_efficiency_document_schema_before_table_cell_formats(safe_document,editor_capabilities);
+ perform public.assert_word_efficiency_document_schema_before_cell_formats(safe_document,editor_capabilities);
 end $$;
 
-revoke all on function public.assert_word_efficiency_document_schema_before_table_cell_formats(jsonb,jsonb),public.assert_word_efficiency_document_schema(jsonb,jsonb),public.word_efficiency_valid_cell_format(jsonb) from public,anon,authenticated;
+revoke all on function public.assert_word_efficiency_document_schema_before_cell_formats(jsonb,jsonb),public.assert_word_efficiency_document_schema(jsonb,jsonb),public.word_efficiency_valid_cell_format(jsonb) from public,anon,authenticated;
 
 commit;
