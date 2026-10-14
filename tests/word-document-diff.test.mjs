@@ -69,12 +69,41 @@ test("a table with a different row count is reported as one whole-table change i
   assert.equal(changes[0].target, "blocks.0.attrs.rows");
 });
 
-test("a paragraph whose run count changed (a sentence was split into multiple runs) is reported as one block-level change, not misleading per-index diffs", () => {
+test("a paragraph whose run count changed (formatting only part of it) is compared run by run against its earlier formatting, numbered among the runs that carry text", () => {
   const before = doc([paragraph("block-2", "Hello world")]);
-  const after = doc([{ ...paragraph("block-2", "Hello world"), runs: [{ text: "Hello ", bold: false, italic: false, underline: false }, { text: "world", bold: true, italic: false, underline: false }] }]);
+  const after = doc([{ ...paragraph("block-2", "Hello world"), runs: [{ text: "", bold: false, italic: false, underline: false }, { text: "Hello ", bold: false, italic: false, underline: false }, { text: "world", bold: true, italic: false, underline: false }] }]);
   const changes = diffWordDocuments(before, after);
-  assert.equal(changes.length, 1);
-  assert.equal(changes[0].target, "blocks.0.runs");
+  assert.deepEqual(changes.map((change) => [change.target, change.expectedValue]), [["blocks.0.runs.1.bold", true]]);
+});
+
+// Real reported bug: the saved Model Answer of a live test had four stray
+// empty paragraphs, and ids are just "block-<position>", so pairing by id
+// matched every later paragraph with the wrong one (one question carried 52
+// criteria, and every rule pointed at the wrong paragraph).
+test("blank paragraphs never shift which paragraph a change belongs to, on either side", () => {
+  const blank = (id) => paragraph(id, "");
+  const before = doc([paragraph("matter-p-1", "One"), paragraph("matter-p-2", "Two")]);
+  const after = doc([blank("block-0"), paragraph("block-1", "One"), blank("block-2"), { ...paragraph("block-3", "Two"), runs: [{ text: "Two", bold: true, italic: false, underline: false }] }]);
+  assert.deepEqual(diffWordDocuments(before, after).map((change) => change.target), ["blocks.1.runs.0.bold"]);
+});
+
+test("a paragraph turned into a list item is addressed by position, never by block id", () => {
+  const before = doc([paragraph("block-10", "maths")]);
+  const after = doc([{ ...paragraph("block-10", "maths"), type: "list-item", attrs: { listStyle: "upper-roman" } }]);
+  assert.deepEqual(diffWordDocuments(before, after).map((change) => change.target).sort(), ["blocks.0.attrs.listStyle", "blocks.0.type"]);
+});
+
+test("attrs the editor merely dropped, or zero indents written as \"0pt\", are not changes", () => {
+  const before = doc([{ ...paragraph("block-0", "One"), attrs: { lineHeight: "1.15", marginLeft: "0pt" } }]);
+  const after = doc([{ ...paragraph("block-0", "One"), attrs: { marginRight: "0pt" } }]);
+  assert.deepEqual(diffWordDocuments(before, after), []);
+});
+
+test("a text change records whether it was a letter-case change only", () => {
+  const caseChange = diffWordDocuments(doc([paragraph("b", "hello world")]), doc([paragraph("b", "Hello World")]))[0];
+  const wording = diffWordDocuments(doc([paragraph("b", "hello world")]), doc([paragraph("b", "hello there")]))[0];
+  assert.equal(caseChange.caseOnly, true);
+  assert.equal(wording.caseOnly, false);
 });
 
 test("page layout changes (e.g. margins) are detected under the pageLayout namespace", () => {

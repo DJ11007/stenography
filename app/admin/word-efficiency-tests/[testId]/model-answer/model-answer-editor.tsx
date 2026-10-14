@@ -1,12 +1,12 @@
 "use client";
 import { useState } from "react";
 import { RichDocumentEditor } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor";
-import { diffWordDocuments } from "@/lib/word-document-diff";
+import { diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion } from "@/lib/word-document-diff";
 import { generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
 import type { WorkingMatterSnapshot } from "@/lib/word-docx";
 
-type Question = { id: string; number: number; instruction: string; marks: number; existingCriteria: { target: string; expectedValue: string }[] };
-type Criterion = { target: string; expectedValue: string };
+type Question = { id: string; number: number; instruction: string; marks: number; existingCriteria: ModelAnswerCriterion[] };
+type Criterion = ModelAnswerCriterion;
 
 // Redesigned per the admin's own feedback on the earlier version of this
 // page: that one showed a flat, technical list of every detected change
@@ -104,16 +104,19 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   // {ok, error} shape as saveWordEfficiencyModelAnswer/submitWordDocument,
   // so the editor needs no changes to call this instead.
   const saveActiveAnswer = async (_id: string, document: unknown): Promise<{ ok: boolean; error: string }> => {
-    const saveResult = await saveWordEfficiencyModelAnswer(versionId, document);
+    // Saved without blank paragraphs: grading counts text-bearing paragraphs
+    // only (see stripBlankParagraphs), so the stored answer must too.
+    const cleanDocument = stripBlankParagraphs(document);
+    const saveResult = await saveWordEfficiencyModelAnswer(versionId, cleanDocument);
     if (!saveResult.ok) return saveResult;
-    setLatestDocument(document);
+    setLatestDocument(cleanDocument);
     if (activeNumber === null) return { ok: true, error: "" };
-    const before = checkpoints[activeNumber] ?? document;
-    const changes = diffWordDocuments(before, document);
-    const criteria: Criterion[] = changes.map((change) => ({ target: change.target, expectedValue: JSON.stringify(change.expectedValue) }));
+    const before = checkpoints[activeNumber] ?? cleanDocument;
+    const changes = diffWordDocuments(before, cleanDocument);
+    const criteria: Criterion[] = changes.map((change) => ({ target: change.target, savedValue: change.expectedValue, caseOnly: change.caseOnly }));
     const nextAssignments = { ...assignments, [activeNumber]: criteria };
     setAssignments(nextAssignments);
-    const payload = questions.map((question) => ({ questionNumber: question.number, allocatedMarks: question.marks, criteria: nextAssignments[question.number] ?? [] }));
+    const payload = questions.map((question) => ({ questionNumber: question.number, allocatedMarks: question.marks, criteria: modelAnswerRuleCriteria(cleanDocument, nextAssignments[question.number] ?? []) }));
     const ruleResult = await generateWordEfficiencyGradingRulesFromModelAnswer(versionId, payload);
     if (!ruleResult.ok) return { ok: false, error: ruleResult.error };
     const nextAnswered = new Set(answeredNumbers);
@@ -123,7 +126,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
     else setMessage({ text: `Saved. Q${activeNumber} is now auto-graded from your answer.`, ok: true });
     const upcoming = questions.find((question) => !nextAnswered.has(question.number));
     if (upcoming) {
-      setCheckpoints((current) => (upcoming.number in current ? current : { ...current, [upcoming.number]: document }));
+      setCheckpoints((current) => (upcoming.number in current ? current : { ...current, [upcoming.number]: cleanDocument }));
       setActiveNumber(upcoming.number);
     } else {
       setActiveNumber(null);

@@ -1,4 +1,4 @@
-export type EditorRunStyles=Partial<Pick<CSSStyleDeclaration,"fontFamily"|"fontSize"|"fontWeight"|"fontStyle"|"color"|"backgroundColor"|"textDecoration"|"textDecorationLine"|"textDecorationStyle"|"textDecorationColor"|"verticalAlign"|"fontVariant"|"textTransform"|"opacity"|"letterSpacing"|"display"|"transform"|"transformOrigin"|"position"|"top"|"fontKerning"|"webkitTextStroke"|"textShadow">>;
+export type EditorRunStyles=Partial<Pick<CSSStyleDeclaration,"fontFamily"|"fontSize"|"fontWeight"|"fontStyle"|"color"|"backgroundColor"|"textDecoration"|"textDecorationLine"|"textDecorationStyle"|"textDecorationColor"|"textDecorationThickness"|"verticalAlign"|"fontVariant"|"textTransform"|"opacity"|"letterSpacing"|"display"|"transform"|"transformOrigin"|"position"|"top"|"fontKerning"|"webkitTextStroke"|"textShadow">>;
 
 // A COLLAPSED range (just a cursor, no real selection -- the common case
 // for "click into a paragraph, then open the Line Spacing/Paragraph
@@ -24,10 +24,60 @@ export function selectedEditorBlocks(editor:HTMLElement,range:Range){
   // instances of.
   return node&&node.nodeType===1?[node as HTMLElement]:[];
  }
- return[...editor.children].filter((node):node is HTMLElement=>node.nodeType===1&&range.intersectsNode(node))as HTMLElement[];
+ const blocks=[...editor.children].filter((node):node is HTMLElement=>node.nodeType===1&&range.intersectsNode(node))as HTMLElement[];
+ // Real reported bug: triple-clicking a paragraph selects it up to offset 0
+ // of the NEXT paragraph (a browser selection quirk), so line spacing,
+ // indents and every other paragraph-level setting also landed on the
+ // paragraph below -- in a real Model Answer, settings meant for one
+ // paragraph ended up on its neighbour. A first or last block the range
+ // only touches at its edge, with none of its text selected, is not part of
+ // the selection (an empty paragraph still counts once the range reaches
+ // into it), and at least one block always remains.
+ if(blocks.length>1){
+  const document=editor.ownerDocument;
+  const last=blocks[blocks.length-1];
+  const tail=document.createRange();tail.setStart(last,0);tail.setEnd(range.endContainer,range.endOffset);
+  if(!tail.toString()&&(tail.collapsed||last.textContent!==""))blocks.pop();
+ }
+ if(blocks.length>1){
+  const document=editor.ownerDocument;
+  const first=blocks[0];
+  const head=document.createRange();head.setStart(range.startContainer,range.startOffset);head.setEnd(first,first.childNodes.length);
+  if(!head.toString()&&(head.collapsed||first.textContent!==""))blocks.shift();
+ }
+ return blocks;
 }
 
-export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}){if(range.collapsed)return null;const document=range.startContainer.ownerDocument;if(!document)return null;const span=document.createElement("span");Object.assign(span.style,styles);for(const[name,value]of Object.entries(attributes))span.dataset[name]=value;try{range.surroundContents(span)}catch{span.append(range.extractContents());range.insertNode(span)}const selected=document.createRange();selected.selectNodeContents(span);return{span,range:selected}}
+// Real reported bug, reproduced via a genuinely graded Word Efficiency
+// attempt: triple-clicking a whole paragraph (the natural way to answer
+// "Apply this effect to paragraph N") then applying underline/color/
+// Format Painter produced a range whose end boundary sat at the very
+// START of the NEXT top-level block (a browser triple-click selection
+// commonly ends there, not at the last character of the clicked
+// paragraph). range.surroundContents() doesn't reject that as
+// out-of-bounds -- it happily swallows the next block (or a boundary-
+// adjacent clone of it, sometimes emptied) INSIDE the new wrapper span
+// instead of leaving it as a sibling. Confirmed live: an "Apply Underline
+// to paragraph 6" answer produced a duplicate, emptied clone of the very
+// next list item, nested inside the new span -- invisible on screen, but
+// it corrupts the block structure every downstream auto-grading rule
+// (and every later question targeting a later paragraph) depends on.
+// Clamping the range's end boundary to the end of whichever block-level
+// element (p/li/table/figure/hr -- the same tag set makeBlock() itself
+// treats as a block) the SELECTION STARTED in keeps surroundContents/
+// extractContents operating on a range guaranteed to stay within that one
+// block, since every caller of this function only ever means "the one
+// block the user selected", never a run spilling into the next one.
+const BLOCK_TAGS=new Set(["P","LI","TABLE","FIGURE","HR"]);
+function clampRangeToStartBlock(range:Range):Range{
+ let node:Node|null=range.startContainer;
+ while(node&&!(node.nodeType===1&&BLOCK_TAGS.has((node as Element).tagName)))node=node.parentNode;
+ if(!node||(node as Element).contains(range.endContainer))return range;
+ const clamped=range.cloneRange();
+ clamped.setEnd(node,node.childNodes.length);
+ return clamped;
+}
+export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}){if(range.collapsed)return null;const document=range.startContainer.ownerDocument;if(!document)return null;const safeRange=clampRangeToStartBlock(range);const span=document.createElement("span");Object.assign(span.style,styles);for(const[name,value]of Object.entries(attributes))span.dataset[name]=value;try{safeRange.surroundContents(span)}catch{span.append(safeRange.extractContents());safeRange.insertNode(span)}const selected=document.createRange();selected.selectNodeContents(span);return{span,range:selected}}
 
 export function applyParagraphStyle(blocks:HTMLElement[],styles:Partial<Pick<CSSStyleDeclaration,"textAlign"|"marginLeft"|"marginRight"|"lineHeight"|"marginTop"|"marginBottom"|"backgroundColor"|"border">>){for(const block of blocks)Object.assign(block.style,styles);return blocks.length>0}
 

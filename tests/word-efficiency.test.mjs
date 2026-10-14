@@ -81,6 +81,62 @@ test("the admin Word Efficiency page wraps both the Managed tests list and the A
  assert.match(navigator,/router\.push\(`\?edit=\$\{tests\[nextIndex\]\.id\}`\)/);
 });
 
+// Real reported bug, caught live via a genuinely graded attempt: a
+// student answered "Use Bold, Italic and Underline effect in the given
+// paragraph no. six" by triple-click-selecting the whole paragraph and
+// clicking Bold/Italic/Underline -- exactly the documented pattern that
+// applying an underline STYLE (not exec("underline")) to a whole-block
+// selection can split via range.surroundContents() throwing and falling
+// back to extractContents()+insertNode(), leaving an empty original
+// block plus a new orphaned sibling holding the real text. A first fix
+// added a pruneStrayEmptyBlocks repair directly inside underline(), which
+// fixed THAT reproduction (13 top-level blocks where the model answer had
+// 12) but a second, real fresh attempt showed a DIFFERENT corruption from
+// the exact same root cause: surroundContents() succeeding (not throwing)
+// while still swallowing the entire next block as a NESTED child of the
+// new span (a duplicate, emptied clone of the following list item),
+// which never changes the top-level block count and so was invisible to
+// pruneStrayEmptyBlocks. Since the same unguarded surroundContents/
+// extractContents pattern was shared by wrapEditorRange (used by Bold-
+// color, Format Painter, font-color and highlight), the permanent fix
+// moved to lib/word-editor-dom.ts: wrapEditorRange now clamps the range's
+// end boundary to the block-level element the selection started in
+// before ever calling surroundContents/extractContents, and underline()
+// was rewritten to delegate to wrapEditorRange instead of carrying its
+// own copy of the vulnerable span-wrapping logic.
+test("the underline() function delegates to the shared, block-clamped wrapEditorRange instead of its own surroundContents/extractContents fallback",async()=>{
+  const source=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(source,/const wrapped=wrapEditorRange\(range,\{textDecorationLine:"underline",textDecorationStyle:underlineCssStyle\(action\),textDecorationThickness:action==="thick"\?"3px":"auto"\},\{underlineStyle:action,underlineWordsOnly:String\(action==="words-only"\),underlineThickness:action==="thick"\?"3":""\}\);if\(wrapped\)\{savedRange\.current=wrapped\.range;changed\(\)\}/);
+  assert.doesNotMatch(source,/const underline=[\s\S]{0,2000}?range\.surroundContents\(span\)/);
+});
+
+// Same bug class, a second caller that was never migrated when the fix
+// above landed: applyDoubleStrike() (the Font dialog's "Double
+// strikethrough" checkbox has its own path via applyFontDialog/
+// wrapEditorRange, but the ribbon's direct Double Strikethrough command
+// called this hand-rolled function) still had the raw, unguarded
+// surroundContents()/extractContents() fallback with no block clamp.
+// Migrated to wrapEditorRange for the same block-swallowing protection.
+test("applyDoubleStrike delegates to wrapEditorRange instead of its own unguarded surroundContents/extractContents fallback",async()=>{
+  const source=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(source,/const applyDoubleStrike=\(\)=>\{[\s\S]{0,400}?wrapEditorRange\(range,\{textDecorationLine:"line-through",textDecorationStyle:"double"\},\{doubleStrike:"true"\}\)/);
+  assert.doesNotMatch(source,/const applyDoubleStrike=[\s\S]{0,600}?range\.surroundContents\(span\)/);
+});
+
+// The actual permanent fix: wrapEditorRange (shared by underline, Bold-
+// color, Format Painter, font-color and highlight) now clamps a range to
+// the block-level ancestor (p/li/table/figure/hr) its selection started
+// in before calling surroundContents/extractContents, so a triple-click
+// selection whose end boundary lands at the start of the NEXT block can
+// no longer swallow or duplicate that block into the new wrapper span.
+test("wrapEditorRange clamps the range to its starting block before surroundContents/extractContents",async()=>{
+  const source=await read("lib/word-editor-dom.ts");
+  assert.match(source,/const BLOCK_TAGS=new Set\(\["P","LI","TABLE","FIGURE","HR"\]\);/);
+  assert.match(source,/function clampRangeToStartBlock\(range:Range\):Range\{/);
+  assert.match(source,/const safeRange=clampRangeToStartBlock\(range\);/);
+  assert.match(source,/try\{safeRange\.surroundContents\(span\)\}catch\{span\.append\(safeRange\.extractContents\(\)\);safeRange\.insertNode\(span\)\}/);
+});
+
 test("English and Hindi catalogues are isolated and exclude non-published states",async()=>{const[data,en,hi]=await Promise.all([read("lib/word-efficiency-server.ts"),read("app/typing/word-efficiency/english/page.tsx"),read("app/typing/word-efficiency/hindi/page.tsx")]);assert.match(data,/\.eq\("language",language\)\.eq\("status","published"\)/);assert.match(en,/language="English"/);assert.match(hi,/language="Hindi"/);assert.doesNotMatch(data,/draft|archived|unpublished/);});
 // Real reported bug: the catalogue's "1"/"2" sequence badge (word-test-
 // catalogue.tsx's `number`) is just the row's position in the query
