@@ -432,12 +432,13 @@ const GOTO_KINDS: { id: string; label: string; working: boolean }[] = [
 export type FindDialogInput = { mode: "find" | "replace" | "goto"; query: string; replacement: string; hadSelection: boolean; bookmarks: string[] };
 type Scope = "selection" | "document";
 
-export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onReplaceAll, onHighlightAll, onClearHighlight, onGoTo }: {
+export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onReplaceAll, onHighlightAll, onSelectAll, onClearHighlight, onGoTo }: {
   dialog: FindDialogInput;
   onFindNext: (needle: string, options: FindEngineOptions, scope: Scope) => string;
   onReplaceOne: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope) => string;
   onReplaceAll: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope) => string;
   onHighlightAll: (needle: string, options: FindEngineOptions, scope: Scope) => string;
+  onSelectAll: (needle: string, options: FindEngineOptions, scope: Scope) => string;
   onClearHighlight: () => void;
   onGoTo: (kind: string, value: string) => void;
 }) {
@@ -449,6 +450,8 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   const [options, setOptions] = useState<FindEngineOptions>(DEFAULT_ENGINE_OPTIONS);
   const [highlightOn, setHighlightOn] = useState(false);
   const [message, setMessage] = useState("");
+  // Word turns Cancel into Close once a search has run.
+  const [searched, setSearched] = useState(false);
   const [fontPanel, setFontPanel] = useState<"font" | "paragraph" | null>(null);
   const [gotoKind, setGotoKind] = useState("page"), [gotoValue, setGotoValue] = useState("");
   const findRef = useRef<HTMLInputElement>(null), replaceRef = useRef<HTMLInputElement>(null);
@@ -460,6 +463,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   const wild = options.wildcards;
   const run = (action: "next" | "replace" | "all" | "highlight") => {
     if (!canRun) return;
+    setSearched(true);
     if (action === "next") setMessage(onFindNext(query, options, scope));
     else if (action === "replace") setMessage(onReplaceOne(query, replacement, options, scope));
     else if (action === "all") setMessage(onReplaceAll(query, replacement, options, scope));
@@ -474,6 +478,8 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   };
   const pickFormat = (id: string) => { if (id === "font") setFontPanel("font"); else if (id === "paragraph") setFontPanel("paragraph"); else if (id === "highlight") set("format", { ...(options.format ?? {}), highlight: true }); };
   const formatText = describeFormat(options.format);
+  // Word lists the search options in effect under Find what ("Search Down, Match Case, Whole Words").
+  const optionsText = [options.direction === "down" ? "Search Down" : options.direction === "up" ? "Search Up" : "", options.matchCase ? "Match Case" : "", options.wholeWord ? "Whole Words" : "", options.wildcards ? "Use Wildcards" : "", options.soundsLike ? "Sounds Like" : "", options.allWordForms ? "All Word Forms" : "", options.matchPrefix ? "Match Prefix" : "", options.matchSuffix ? "Match Suffix" : "", options.ignorePunctuation ? "Ignore Punctuation" : "", options.ignoreWhitespace ? "Ignore White-space" : ""].filter(Boolean).join(", ");
   const gotoDefinition = GOTO_KINDS.find(item => item.id === gotoKind);
   const runGoTo = (direction: 1 | -1 | 0) => { if (!gotoDefinition?.working) return; const next = gotoKind === "bookmark" ? gotoValue : String(Math.max(1, (Number(gotoValue) || 1) + direction)); if (direction !== 0) setGotoValue(next); onGoTo(gotoKind, next); };
   const row = (labelText: ReactNode, field: ReactNode) => <div className="w13-row" style={{ alignItems: "flex-start" }}><span className="w13-label" style={{ width: 80, paddingTop: 3 }}>{labelText}</span><div style={{ flex: 1 }}>{field}</div></div>;
@@ -484,6 +490,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
         {tab !== "goto" && <>
           {row(<span>Fi<u>n</u>d what:</span>, <>
             <input ref={findRef} className="w13-field" aria-label="Find what" style={{ width: "100%" }} value={query} onFocus={() => { focused.current = "find"; }} onChange={event => { setQuery(event.target.value); setMessage(""); }} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); run("next"); } }} />
+            {optionsText && <div style={{ marginTop: 3, display: "flex", gap: 8 }}><span className="w13-label" style={{ width: 70, marginLeft: -88 }}>Options:</span><span>{optionsText}</span></div>}
             {formatText && <div className="w13-note" style={{ marginTop: 3 }}>Format: {formatText}</div>}
             {options.wildcards && <div className="w13-note" style={{ marginTop: 3 }}>Wildcards: ? * [ ] [!x] &lt; &gt; {"{n,m}"} @ ( ) \n</div>}
           </>)}
@@ -497,14 +504,14 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
               {/* Word 2013: Find In becomes available as soon as Find what has text. Picking Main Document (or
                   Current Selection, when there was one) marks every match in it at once; the scope then carries
                   over to the Replace tab. */}
-              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const picked = id as Scope; setScope(picked); onClearHighlight(); setMessage(onHighlightAll(query, options, picked)); setHighlightOn(true); }} />
+              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const picked = id as Scope; setScope(picked); setHighlightOn(false); setSearched(true); setMessage(onSelectAll(query, options, picked)); }} />
               <Button13 isDefault disabled={!canRun} onClick={() => run("next")}>Find Next</Button13>
             </> : <>
               <Button13 disabled={!canRun} onClick={() => run("replace")}>Replace</Button13>
               <Button13 disabled={!canRun} onClick={() => run("all")}>Replace All</Button13>
               <Button13 isDefault disabled={!canRun} onClick={() => run("next")}>Find Next</Button13>
             </>}
-            <Button13 onClick={chrome?.onClose}>Cancel</Button13>
+            <Button13 onClick={chrome?.onClose}>{searched ? "Close" : "Cancel"}</Button13>
           </div>
           {more && <>
             <Group13>Search Options</Group13>

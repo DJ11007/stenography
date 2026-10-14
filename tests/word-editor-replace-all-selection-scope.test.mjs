@@ -50,7 +50,11 @@ test("Find In is available as soon as Find what has text (as in Word 2013); Curr
   assert.match(dialogs, /useState<Scope>\(dialog\.hadSelection \? "selection" : "document"\)/);
   assert.match(dialogs, /<MenuButton13 label="Find In" disabled=\{!canRun\}/);
   assert.match(dialogs, /\{ id: "selection", label: "Current Selection", disabled: !dialog\.hadSelection \}/);
-  assert.match(dialogs, /setMessage\(onHighlightAll\(query, options, picked\)\)/);
+  // As in Word 2013: Find In selects every match, reports the count, turns Cancel into Close,
+  // and an "Options:" line lists the search options in effect.
+  assert.match(dialogs, /setMessage\(onSelectAll\(query, options, picked\)\)/);
+  assert.match(dialogs, /\{searched \? "Close" : "Cancel"\}/);
+  assert.match(dialogs, /options\.matchCase \? "Match Case"/);
   assert.match(dialogs, /Main Document/);
   assert.match(dialogs, /Current Selection/);
   // The choice is actually threaded into every action, not just displayed.

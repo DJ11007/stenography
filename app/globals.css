@@ -811,6 +811,8 @@ ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-ite
 /* Find and Replace: Reading Highlight (all matches) and the current match, painted without touching the document. */
 ::highlight(word-find-all) { background-color: #ffe58f; color: #000; }
 ::highlight(word-find-current) { background-color: #ff9d2e; color: #000; }
+/* Find In: every match "selected", grey like Word's selection. */
+::highlight(word-find-selected) { background-color: #c8c8c8; color: #000; }
 
 /* Admin document designer: an empty paragraph must still be tall enough to click into. */
 .matter-designer .word-document-page p, .matter-designer .word-document-page li { min-height: 1.4em; }
