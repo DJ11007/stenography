@@ -27,7 +27,7 @@ test("=rand(paragraphs,lines) is wired into the designer only, on Enter in an ot
  assert.match(editor,/const handleRandKey=\(event:KeyboardEvent<HTMLDivElement>\)=>\{/);
  assert.match(editor,/if\(!randomText\|\|event\.key!=="Enter"\|\|event\.shiftKey\|\|submitted\|\|!editor\.current\)return;/);
  assert.match(editor,/parseRandCommand\(block\.textContent\?\?""\)/);
- assert.match(editor,/onKeyDown=\{handleRandKey\}/);
+ assert.match(editor,/handleRandKey\(event\)\}\} onMouseDown=/);
  assert.match(designer,/randomText=\{\{ language: \(\) => language \}\}/);
  // not enabled anywhere else
  const others=[await read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx"),await read(ADMIN+"[testId]/model-answer/model-answer-editor.tsx")];

@@ -813,6 +813,8 @@ ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-ite
 ::highlight(word-find-current) { background-color: #ff9d2e; color: #000; }
 /* Find In: every match "selected", grey like Word's selection. */
 ::highlight(word-find-selected) { background-color: #c8c8c8; color: #000; }
+/* Table Tools: cells chosen with Select Row / Column / Table. */
+.word-cell-selected { background-color: #d4d4d4 !important; }
 
 /* Admin document designer: an empty paragraph must still be tall enough to click into. */
 .matter-designer .word-document-page p, .matter-designer .word-document-page li { min-height: 1.4em; }

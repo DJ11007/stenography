@@ -99,7 +99,36 @@ export function clearInnerRunStyles(span:HTMLElement,properties:string[],options
   if(unwrap)element.replaceWith(...element.childNodes);
  }
 }
-export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}){if(range.collapsed)return null;const document=range.startContainer.ownerDocument;if(!document)return null;const safeRange=clampRangeToStartBlock(range);const span=document.createElement("span");Object.assign(span.style,styles);for(const[name,value]of Object.entries(attributes))span.dataset[name]=value;try{safeRange.surroundContents(span)}catch{span.append(safeRange.extractContents());safeRange.insertNode(span)}const selected=document.createRange();selected.selectNodeContents(span);return{span,range:selected}}
+// A selection that runs across table cells (a whole row, say) must never be
+// wrapped in ONE span: surroundContents/extractContents would pull the cells'
+// text out of the table and into the first cell, destroying it. Each cell's
+// part of the selection is wrapped on its own instead, exactly as Word applies
+// formatting cell by cell. `spans` lists every span created; `span` is the first.
+export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}):{span:HTMLElement;spans:HTMLElement[];range:Range}|null{
+ if(range.collapsed)return null;
+ const document=range.startContainer.ownerDocument;if(!document)return null;
+ const cellOf=(node:Node)=>(node.nodeType===1?node as Element:node.parentElement)?.closest("td,th")??null;
+ const startCell=cellOf(range.startContainer),endCell=cellOf(range.endContainer);
+ if(startCell!==endCell||(startCell===null&&rangeTouchesCells(range))){
+  const root=range.commonAncestorContainer.nodeType===1?range.commonAncestorContainer as Element:range.commonAncestorContainer.parentElement;
+  const cells=root?[...root.querySelectorAll("td,th")].filter(cell=>range.intersectsNode(cell)):[];
+  const spans:HTMLElement[]=[];
+  for(const cell of cells){
+   const part=document.createRange();part.selectNodeContents(cell);
+   if(cell.contains(range.startContainer))part.setStart(range.startContainer,range.startOffset);
+   if(cell.contains(range.endContainer))part.setEnd(range.endContainer,range.endOffset);
+   if(part.collapsed||!part.toString())continue;
+   const wrapped=wrapSingleEditorRange(part,styles,attributes);if(wrapped)spans.push(wrapped.span);
+  }
+  if(!spans.length)return null;
+  const selected=document.createRange();selected.setStartBefore(spans[0]);selected.setEndAfter(spans[spans.length-1]);
+  return{span:spans[0],spans,range:selected};
+ }
+ const wrapped=wrapSingleEditorRange(range,styles,attributes);
+ return wrapped?{...wrapped,spans:[wrapped.span]}:null;
+}
+function rangeTouchesCells(range:Range){const root=range.commonAncestorContainer;return root.nodeType===1&&[...(root as Element).querySelectorAll("td,th")].some(cell=>range.intersectsNode(cell))}
+function wrapSingleEditorRange(range:Range,styles:EditorRunStyles,attributes:Record<string,string>={}){if(range.collapsed)return null;const document=range.startContainer.ownerDocument;if(!document)return null;const safeRange=clampRangeToStartBlock(range);const span=document.createElement("span");Object.assign(span.style,styles);for(const[name,value]of Object.entries(attributes))span.dataset[name]=value;try{safeRange.surroundContents(span)}catch{span.append(safeRange.extractContents());safeRange.insertNode(span)}const selected=document.createRange();selected.selectNodeContents(span);return{span,range:selected}}
 
 export function applyParagraphStyle(blocks:HTMLElement[],styles:Partial<Pick<CSSStyleDeclaration,"textAlign"|"marginLeft"|"marginRight"|"lineHeight"|"marginTop"|"marginBottom"|"backgroundColor"|"border">>){for(const block of blocks)Object.assign(block.style,styles);return blocks.length>0}
 

@@ -134,7 +134,7 @@ function fieldLabel(field: string): string {
     charScale: "character scale", charSpacing: "character spacing", charPosition: "character position", kerningEnabled: "kerning", kerningMin: "kerning minimum size",
     marginLeft: "left indent", marginRight: "right indent", marginTop: "space before", marginBottom: "space after", lineHeight: "line spacing",
     backgroundColor: "shading", border: "border", hyphens: "hyphenation", lineNumbers: "line numbers", dropCap: "drop cap", listStyle: "list style",
-    specialIndentMode: "special indent", specialIndentAmount: "special indent amount", tableLayout: "table AutoFit behavior",
+    specialIndentMode: "special indent", specialIndentAmount: "special indent amount", tableLayout: "table AutoFit behavior", align: "alignment", valign: "vertical alignment",
     dropCapLines: "drop cap lines to drop", dropCapDistance: "drop cap distance from text", dropCapMargin: "drop cap in margin",
   };
   return labels[field] ?? field;
@@ -168,6 +168,25 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
       if (!(field in beforeAttrs) && !(field in afterAttrs)) continue;
       if (!equalValue(beforeAttrs[field], afterAttrs[field])) changes.push({ target: `blocks.${index}.attrs.${field}`, expectedValue: afterAttrs[field] ?? null, label: `Paragraph ${position} (table): ${fieldLabel(field)} changed to ${String(afterAttrs[field])}`, blockPosition: position });
     }
+    // Cell formatting (see lib/word-table-format.ts): each changed field of each
+    // cell is its own criterion, so "font size 10 in the first column" is graded
+    // on exactly those cells and nothing else. A field that is absent means off.
+    const beforeFormats = Array.isArray(beforeAttrs.cellFormats) ? beforeAttrs.cellFormats as unknown[][] : [];
+    const afterFormats = Array.isArray(afterAttrs.cellFormats) ? afterAttrs.cellFormats as unknown[][] : [];
+    afterFormats.forEach((row, rowIndex) => {
+      if (!Array.isArray(row)) return;
+      row.forEach((cell, colIndex) => {
+        const after = isObject(cell) ? cell : {};
+        const beforeRow = beforeFormats[rowIndex];
+        const before = Array.isArray(beforeRow) && isObject(beforeRow[colIndex]) ? beforeRow[colIndex] as JsonRecord : {};
+        for (const field of new Set([...Object.keys(before), ...Object.keys(after)])) {
+          const beforeValue = before[field] ?? (typeof after[field] === "boolean" ? false : null);
+          const afterValue = after[field] ?? (typeof before[field] === "boolean" ? false : null);
+          if (afterValue === null || equalValue(beforeValue, afterValue)) continue;
+          changes.push({ target: `blocks.${index}.attrs.cellFormats.${rowIndex}.${colIndex}.${field}`, expectedValue: afterValue, label: `Paragraph ${position} (table), row ${rowIndex + 1} column ${colIndex + 1}: ${fieldLabel(field)} changed to ${String(afterValue)}`, blockPosition: position });
+        }
+      });
+    });
     const beforeRows = beforeAttrs.rows as unknown[][];
     const afterRows = afterAttrs.rows as unknown[][];
     if (beforeRows.length === afterRows.length && beforeRows.every((row, rowIdx) => Array.isArray(row) && Array.isArray(afterRows[rowIdx]) && row.length === (afterRows[rowIdx] as unknown[]).length)) {
