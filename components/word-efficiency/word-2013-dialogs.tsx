@@ -121,7 +121,11 @@ function MenuButton13({ label, items, onPick, caret = true, disabled }: { label:
   );
 }
 
-// ---- Colour drop-down with names ----
+// ---- Colour drop-down: a palette, like Word 2013 ----
+// Reported: the Font dialog's colour drop-downs were a long list of names.
+// Word shows a palette of swatches (Automatic, then Standard Colors), each
+// swatch naming its colour only in a tooltip, and the closed drop-down shows
+// a bar of the chosen colour.
 const COLOR_CHOICES = [
   { name: "Dark Red", value: "#c00000" }, { name: "Red", value: "#ff0000" }, { name: "Orange", value: "#ffc000" }, { name: "Yellow", value: "#ffff00" },
   { name: "Light Green", value: "#92d050" }, { name: "Green", value: "#00b050" }, { name: "Light Blue", value: "#00b0f0" }, { name: "Blue", value: "#0070c0" },
@@ -130,20 +134,61 @@ const COLOR_CHOICES = [
 function ColorSelect13({ value, onChange, autoLabel = "Automatic", width = 112, disabled, label }: { value: string; onChange: (value: string) => void; autoLabel?: string; width?: number; disabled?: boolean; label: string }) {
   const menu = useMenu();
   const current = COLOR_CHOICES.find(item => item.value.toLowerCase() === value.toLowerCase());
-  const swatch = (color: string) => <span aria-hidden style={{ display: "inline-block", width: 12, height: 12, marginRight: 6, border: "1px solid #666", verticalAlign: "-2px", background: color || "transparent" }} />;
+  const pick = (next: string) => { menu.setOpen(false); onChange(next); };
   return (
     <>
-      <button ref={element => { menu.buttonRef.current = element; }} type="button" aria-label={label} aria-haspopup="menu" disabled={disabled} className="w13-select" style={{ width, textAlign: "left", cursor: "default" }}
-        onMouseDown={event => event.preventDefault()} onClick={() => menu.setOpen(open => !open)}>{value ? <>{swatch(value)}{current?.name ?? value}</> : autoLabel}</button>
-      {menu.open && createPortal(<div ref={menu.menuRef} role="menu" className="w13-menu" style={menu.style}>
-        <button type="button" role="menuitem" onMouseDown={event => event.preventDefault()} onClick={() => { menu.setOpen(false); onChange(""); }}>{autoLabel}</button>
-        {COLOR_CHOICES.map(item => <button key={item.value} type="button" role="menuitem" title={item.name} onMouseDown={event => event.preventDefault()} onClick={() => { menu.setOpen(false); onChange(item.value); }}>{swatch(item.value)}{item.name}</button>)}
+      <button ref={element => { menu.buttonRef.current = element; }} type="button" aria-label={label} aria-haspopup="menu" disabled={disabled} className="w13-select" title={value ? current?.name ?? value : autoLabel} style={{ width, textAlign: "left", cursor: "default" }}
+        onMouseDown={event => event.preventDefault()} onClick={() => menu.setOpen(open => !open)}>{value ? <span aria-hidden style={{ display: "inline-block", width: width - 34, height: 12, border: "1px solid #666", verticalAlign: "-2px", background: value }} /> : autoLabel}</button>
+      {menu.open && createPortal(<div ref={menu.menuRef} role="menu" aria-label={`${label} palette`} className="w13-menu" style={{ ...menu.style, padding: 4, width: 186 }}>
+        <button type="button" role="menuitem" onMouseDown={event => event.preventDefault()} onClick={() => pick("")} style={{ padding: "3px 6px", width: "100%" }}>
+          <span aria-hidden style={{ display: "inline-block", width: 14, height: 14, marginRight: 8, border: "1px solid #666", background: "#000", verticalAlign: "-3px" }} />{autoLabel}</button>
+        <div className="w13-note" style={{ margin: "6px 4px 4px", fontWeight: 600, color: "#333" }}>Standard Colors</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 16px)", gap: 2, padding: "0 4px 2px" }}>
+          {COLOR_CHOICES.map(item => <button key={item.value} type="button" role="menuitemradio" title={item.name} aria-label={item.name} aria-checked={item.value.toLowerCase() === value.toLowerCase()}
+            onMouseDown={event => event.preventDefault()} onClick={() => pick(item.value)}
+            style={{ width: 16, height: 16, padding: 0, background: item.value, border: item.value.toLowerCase() === value.toLowerCase() ? "2px solid #e37300" : "1px solid #a0a0a0" }} />)}
+        </div>
       </div>, document.body)}
     </>
   );
 }
 
 const UNDERLINE_CHOICES: [string, string][] = [["none", "(none)"], ["single", "Single"], ["words-only", "Words only"], ["double", "Double"], ["thick", "Thick"], ["dotted", "Dotted"], ["dashed", "Dashed"], ["dot-dash", "Dot-dash"], ["dot-dot-dash", "Dot-dot-dash"], ["wavy", "Wavy"]];
+
+// Word 2013's Underline style drop-down draws each line rather than naming it
+// ("(none)" and "Words only" are the only text entries). Names stay as tooltips
+// and accessible labels.
+function UnderlineSample13({ id }: { id: string }) {
+  if (id === "none" || id === "words-only") return <span>{UNDERLINE_CHOICES.find(([key]) => key === id)?.[1]}</span>;
+  const line = (y: number, extra: Record<string, string | number> = {}) => <line x1="2" x2="88" y1={y} y2={y} stroke="#000" strokeWidth={1} {...extra} />;
+  return (
+    <svg aria-hidden width="90" height="10" viewBox="0 0 90 10" style={{ display: "block" }}>
+      {id === "single" && line(5)}
+      {id === "double" && <>{line(3.5)}{line(6.5)}</>}
+      {id === "thick" && line(5, { strokeWidth: 2.5 })}
+      {id === "dotted" && line(5, { strokeDasharray: "1 2" })}
+      {id === "dashed" && line(5, { strokeDasharray: "5 3" })}
+      {id === "dot-dash" && line(5, { strokeDasharray: "1 2 6 2" })}
+      {id === "dot-dot-dash" && line(5, { strokeDasharray: "1 2 1 2 6 2" })}
+      {id === "wavy" && <path d="M2 5 q2 -3 4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0 t4 0" fill="none" stroke="#000" strokeWidth={1} />}
+    </svg>
+  );
+}
+function UnderlineSelect13({ value, onChange, width = 125 }: { value: string; onChange: (value: string) => void; width?: number }) {
+  const menu = useMenu();
+  const name = UNDERLINE_CHOICES.find(([key]) => key === value)?.[1] ?? "(none)";
+  return (
+    <>
+      <button ref={element => { menu.buttonRef.current = element; }} type="button" aria-label="Underline style" aria-haspopup="listbox" title={name} className="w13-select" style={{ width, textAlign: "left", cursor: "default", display: "flex", alignItems: "center", overflow: "hidden" }}
+        onMouseDown={event => event.preventDefault()} onClick={() => menu.setOpen(open => !open)}><UnderlineSample13 id={value} /></button>
+      {menu.open && createPortal(<div ref={menu.menuRef} role="listbox" aria-label="Underline styles" className="w13-menu" style={{ ...menu.style, width: width + 10 }}>
+        {UNDERLINE_CHOICES.map(([id, label]) => <button key={id} type="button" role="option" aria-label={label} title={label} aria-selected={id === value}
+          onMouseDown={event => event.preventDefault()} onClick={() => { menu.setOpen(false); onChange(id); }}
+          style={{ padding: "4px 8px", display: "flex", alignItems: "center", minHeight: 20, background: id === value ? "#c9dcf0" : undefined }}><UnderlineSample13 id={id} /></button>)}
+      </div>, document.body)}
+    </>
+  );
+}
 
 // =====================================================================
 // Paragraph
@@ -284,8 +329,13 @@ export function FontDialog2013({ values: initial, onSubmit }: { values: FontValu
     fontFamily: values.fontFamily ? values.fontFamily.replace(/ \((Headings|Body)\)$/u, "") : "Calibri", fontSize: Math.min(22, Math.max(10, Number(values.fontSize) || 11)), fontWeight: values.bold ? 700 : 400, fontStyle: values.italic ? "italic" : "normal",
     fontVariant: values.smallCaps ? "small-caps" : "normal", textTransform: values.allCaps ? "uppercase" : "none", color: values.outline ? "transparent" : values.color || "#000", WebkitTextStroke: values.outline ? `1px ${values.color || "#000"}` : undefined,
     textShadow: values.emboss ? "1px 1px 0 rgba(255,255,255,.85),-1px -1px 0 rgba(0,0,0,.55)" : undefined, opacity: values.hidden ? 0.4 : 1,
-    textDecorationLine: [underlined ? "underline" : "", values.strike || values.doubleStrike ? "line-through" : ""].filter(Boolean).join(" ") || "none",
-    textDecorationStyle: values.doubleStrike ? "double" : values.underlineStyle === "double" ? "double" : values.underlineStyle === "dotted" ? "dotted" : values.underlineStyle === "dashed" || values.underlineStyle.startsWith("dot-") ? "dashed" : values.underlineStyle === "wavy" ? "wavy" : "solid",
+    // Underline only here: its style and colour belong to the underline alone.
+    // The strikethrough is drawn by the inner span below in the font colour --
+    // one shared text-decoration made a double strikethrough take the
+    // underline's colour (red) and the underline take the strikethrough's style.
+    textDecorationLine: underlined ? "underline" : "none",
+    textDecorationStyle: values.underlineStyle === "double" ? "double" : values.underlineStyle === "dotted" ? "dotted" : values.underlineStyle === "dashed" || values.underlineStyle.startsWith("dot-") ? "dashed" : values.underlineStyle === "wavy" ? "wavy" : "solid",
+    textDecorationThickness: values.underlineStyle === "thick" ? 2 : undefined,
     textDecorationColor: values.underlineColor || undefined, letterSpacing: `${spacingNumber}pt`, display: "inline-block", transform: `scaleX(${(Number(values.charScale) || 100) / 100})`, position: "relative", top: `${-positionNumber}pt`,
     verticalAlign: values.superscript ? "super" : values.subscript ? "sub" : "baseline",
   };
@@ -302,7 +352,7 @@ export function FontDialog2013({ values: initial, onSubmit }: { values: FontValu
           <div style={{ display: "grid", gridTemplateColumns: "125px 125px 1fr", gap: 14, marginTop: 14, alignItems: "end" }}>
             <div><div style={{ marginBottom: 2 }}>Font <u>c</u>olor:</div><ColorSelect13 label="Font color" value={/^#(000000|020618)$/i.test(values.color) ? "" : values.color} onChange={value => set("color", value || "#000000")} width={125} /></div>
             <div><div style={{ marginBottom: 2 }}><u>U</u>nderline style:</div>
-              <select className="w13-select" aria-label="Underline style" style={{ width: 125 }} value={values.underlineStyle} onChange={event => set("underlineStyle", event.target.value)}>{UNDERLINE_CHOICES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></div>
+              <UnderlineSelect13 value={values.underlineStyle} onChange={value => set("underlineStyle", value)} /></div>
             <div><div style={{ marginBottom: 2, color: underlined ? undefined : "#8a8a8a" }}>Underline c<u>o</u>lor:</div><ColorSelect13 label="Underline color" value={values.underlineColor} onChange={value => set("underlineColor", value)} width={125} disabled={!underlined} /></div>
           </div>
           <Group13>Effects</Group13>
@@ -316,7 +366,7 @@ export function FontDialog2013({ values: initial, onSubmit }: { values: FontValu
             <Check13 checked={values.subscript} onChange={checked => setValues(current => ({ ...current, subscript: checked, superscript: checked ? false : current.superscript }))}>Sub<u>s</u>cript</Check13>
           </div>
           <Group13>Preview</Group13>
-          <div className="w13-preview" style={{ display: "flex", height: 62, alignItems: "center", justifyContent: "center", overflow: "hidden" }}><span style={previewStyle}>{previewName}</span></div>
+          <div className="w13-preview" style={{ display: "flex", height: 62, alignItems: "center", justifyContent: "center", overflow: "hidden" }}><span style={previewStyle}>{values.strike || values.doubleStrike ? <span style={{ textDecorationLine: "line-through", textDecorationStyle: values.doubleStrike ? "double" : "solid", textDecorationColor: "currentColor" }}>{previewName}</span> : previewName}</span></div>
           <p className="w13-note" style={{ margin: "6px 0 0" }}>{theme ? `This is the ${values.fontFamily === "Calibri Light (Headings)" ? "headings" : "body"} theme font. The current document theme defines which font will be used.` : "This is a TrueType font. This font will be used on both printer and screen."}</p>
         </>}
         {tab === "advanced" && <>
@@ -335,7 +385,7 @@ export function FontDialog2013({ values: initial, onSubmit }: { values: FontValu
             <Number13 label="Kerning points and above" value={Number(values.kerningMin) || 0} unit="" step={1} min={0} max={72} decimals={0} width={64} disabled={!values.kerningEnabled} onChange={n => set("kerningMin", String(n ?? 0))} /><span>Points and above</span>
           </div>
           <Group13>Preview</Group13>
-          <div className="w13-preview" style={{ display: "flex", height: 62, alignItems: "center", justifyContent: "center", overflow: "hidden" }}><span style={previewStyle}>{previewName}</span></div>
+          <div className="w13-preview" style={{ display: "flex", height: 62, alignItems: "center", justifyContent: "center", overflow: "hidden" }}><span style={previewStyle}>{values.strike || values.doubleStrike ? <span style={{ textDecorationLine: "line-through", textDecorationStyle: values.doubleStrike ? "double" : "solid", textDecorationColor: "currentColor" }}>{previewName}</span> : previewName}</span></div>
         </>}
         {effectsOpen && <div className="w13" style={{ position: "absolute", right: 12, bottom: 12, width: 210, zIndex: 5 }}>
           <div className="w13-title"><span>Text Effects</span></div>
@@ -444,7 +494,10 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
             <span style={{ flex: 1 }} />
             {tab === "find" ? <>
               <Button13 disabled={!canRun} onClick={() => run("highlight")}>{highlightOn ? "Clear Highlighting" : "Reading Highlight ▾"}</Button13>
-              <MenuButton13 label="Find In" disabled={!dialog.hadSelection} items={[{ id: "document", label: "Main Document" }, { id: "selection", label: "Current Selection" }]} onPick={id => setScope(id as Scope)} />
+              {/* Word 2013: Find In becomes available as soon as Find what has text. Picking Main Document (or
+                  Current Selection, when there was one) marks every match in it at once; the scope then carries
+                  over to the Replace tab. */}
+              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const picked = id as Scope; setScope(picked); onClearHighlight(); setMessage(onHighlightAll(query, options, picked)); setHighlightOn(true); }} />
               <Button13 isDefault disabled={!canRun} onClick={() => run("next")}>Find Next</Button13>
             </> : <>
               <Button13 disabled={!canRun} onClick={() => run("replace")}>Replace</Button13>

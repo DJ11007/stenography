@@ -45,10 +45,12 @@ test("the selection scope is captured once when Find and Replace opens, not re-r
   assert.match(editor, /Replaced \$\{count\} occurrence\$\{count===1\?"":"s"\}\$\{scope==="selection"\?" in the selection":""\}\./);
 });
 
-test("the dialog offers an explicit \"Find In: Main Document / Current Selection\" choice, only when something was actually selected", async () => {
+test("Find In is available as soon as Find what has text (as in Word 2013); Current Selection only when something was selected, and picking a scope marks every match in it", async () => {
   const dialogs = await readFile(new URL("../components/word-efficiency/word-2013-dialogs.tsx", import.meta.url), "utf8");
   assert.match(dialogs, /useState<Scope>\(dialog\.hadSelection \? "selection" : "document"\)/);
-  assert.match(dialogs, /<MenuButton13 label="Find In" disabled=\{!dialog\.hadSelection\}/);
+  assert.match(dialogs, /<MenuButton13 label="Find In" disabled=\{!canRun\}/);
+  assert.match(dialogs, /\{ id: "selection", label: "Current Selection", disabled: !dialog\.hadSelection \}/);
+  assert.match(dialogs, /setMessage\(onHighlightAll\(query, options, picked\)\)/);
   assert.match(dialogs, /Main Document/);
   assert.match(dialogs, /Current Selection/);
   // The choice is actually threaded into every action, not just displayed.
