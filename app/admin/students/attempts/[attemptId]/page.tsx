@@ -9,6 +9,7 @@ import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/l
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories } from "@/lib/typing-test";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { AttemptReviewClient } from "./attempt-review-client";
+import { PracticeAttemptReview } from "@/app/typing/attempts/practice-attempt-review";
 import { formatIST } from "@/lib/format-datetime";
 
 export const metadata: Metadata = { title: "Attempt Review | Admin" };
@@ -25,7 +26,13 @@ export default async function AdminAttemptReviewPage({ params }: { params: Promi
   const supabase = await createClient();
 
   const { data: attempt } = await supabase.from("test_attempts").select("id,test_id,snapshot,result,started_at,submitted_at,student_id,is_live_attempt").eq("id", attemptId).maybeSingle();
-  if (!attempt) notFound();
+  if (!attempt) {
+    // A built-in test (Official Pattern, own matter, ...) is saved in practice_attempts.
+    const { data: practice } = await supabase.from("practice_attempts").select("id,title,mode,snapshot,result,submitted_at,student_id").eq("id", attemptId).maybeSingle();
+    if (!practice) notFound();
+    const { data: owner } = await supabase.from("profiles").select("full_name,email,phone").eq("id", practice.student_id).maybeSingle();
+    return <PracticeAttemptReview attempt={practice} backHref={`/admin/track/${practice.student_id}`} backLabel="Student results" subtitle={[owner?.full_name, owner?.email].filter(Boolean).join(" · ")} showPracticeLink={false} student={{ name: owner?.full_name?.trim() || "Student", email: owner?.email || "", phone: owner?.phone || null }} />;
+  }
   const { data: test } = await supabase.from("tests").select("id,title,slug").eq("id", attempt.test_id).maybeSingle();
   const { data: student } = await supabase.from("profiles").select("id,full_name,email,phone").eq("id", attempt.student_id).maybeSingle();
 

@@ -28,7 +28,7 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
   if (!test) notFound();
   const { data: version } = test.current_version_id ? await supabase.from("test_versions").select("required_wpm,required_accuracy").eq("id", test.current_version_id).maybeSingle() : { data: null };
 
-  const { data: attempts } = await supabase.from("test_attempts").select("id,student_id,result,started_at,submitted_at").eq("test_id", testId).order("submitted_at", { ascending: false }).limit(500);
+  const { data: attempts } = await supabase.from("test_attempts").select("id,student_id,result,started_at,submitted_at").eq("test_id", testId).order("submitted_at", { ascending: false }).limit(1000);
   const rows = attempts ?? [];
   const studentIds = [...new Set(rows.map((row) => row.student_id))];
   const { data: students } = studentIds.length ? await supabase.from("profiles").select("id,full_name,email").in("id", studentIds) : { data: [] };

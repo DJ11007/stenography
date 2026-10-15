@@ -22,17 +22,28 @@ export default async function AdminTrackStudentPage({ params }: { params: Promis
   const { data: student } = await supabase.from("profiles").select("id,full_name,email").eq("id", id).maybeSingle();
   if (!student) notFound();
 
-  const { data: typingAttempts } = await supabase.from("test_attempts").select("id,test_id,result,started_at,submitted_at,is_live_attempt").eq("student_id", id).order("started_at", { ascending: false }).limit(100);
-  const typingTestIds = [...new Set((typingAttempts ?? []).map((a) => a.test_id))];
+  // Every attempt is listed (this used to stop at the latest 100, hiding most
+  // of an active student's record), read in pages of 1000 -- the most one
+  // request returns. Built-in tests (Official Pattern, own matters) come from
+  // practice_attempts and are listed with the rest.
+  const managedAttempts: { id: string; test_id: string | null; result: unknown; started_at: string; submitted_at: string | null; is_live_attempt: boolean; title?: string; builtIn?: boolean }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data: page } = await supabase.from("test_attempts").select("id,test_id,result,started_at,submitted_at,is_live_attempt").eq("student_id", id).order("started_at", { ascending: false }).range(from, from + 999);
+    managedAttempts.push(...(page ?? []));
+    if (!page || page.length < 1000) break;
+  }
+  const { data: practiceAttempts } = await supabase.from("practice_attempts").select("id,title,mode,result,started_at,submitted_at").eq("student_id", id).order("started_at", { ascending: false });
+  const typingAttempts = [...managedAttempts, ...(practiceAttempts ?? []).map((row) => ({ id: row.id, test_id: null, result: row.result, started_at: row.started_at, submitted_at: row.submitted_at, is_live_attempt: false, title: row.title, builtIn: true, mode: row.mode }))].sort((a, b) => b.started_at.localeCompare(a.started_at));
+  const typingTestIds = [...new Set(managedAttempts.flatMap((a) => a.test_id ? [a.test_id] : []))];
   const { data: typingTests } = typingTestIds.length ? await supabase.from("tests").select("id,title,mode").in("id", typingTestIds) : { data: [] };
   const typingTitleById = new Map((typingTests ?? []).map((t) => [t.id, t]));
 
-  const { data: wordAttempts } = await supabase.from("word_efficiency_attempts").select("id,version_id,status,result,started_at,submitted_at,evaluation_status,result_published_at").eq("student_id", id).order("started_at", { ascending: false }).limit(100);
+  const { data: wordAttempts } = await supabase.from("word_efficiency_attempts").select("id,version_id,status,result,started_at,submitted_at,evaluation_status,result_published_at").eq("student_id", id).order("started_at", { ascending: false }).limit(1000);
   const wordVersionIds = [...new Set((wordAttempts ?? []).map((a) => a.version_id))];
   const { data: wordVersions } = wordVersionIds.length ? await supabase.from("word_efficiency_versions").select("id,title,maximum_marks").in("id", wordVersionIds) : { data: [] };
   const wordTitleById = new Map((wordVersions ?? []).map((v) => [v.id, v]));
 
-  const { data: excelAttempts } = await supabase.from("excel_efficiency_attempts").select("id,version_id,status,result,started_at,submitted_at,evaluation_status,result_published_at").eq("student_id", id).order("started_at", { ascending: false }).limit(100);
+  const { data: excelAttempts } = await supabase.from("excel_efficiency_attempts").select("id,version_id,status,result,started_at,submitted_at,evaluation_status,result_published_at").eq("student_id", id).order("started_at", { ascending: false }).limit(1000);
   const excelVersionIds = [...new Set((excelAttempts ?? []).map((a) => a.version_id))];
   const { data: excelVersions } = excelVersionIds.length ? await supabase.from("excel_efficiency_versions").select("id,title,maximum_marks").in("id", excelVersionIds) : { data: [] };
   const excelTitleById = new Map((excelVersions ?? []).map((v) => [v.id, v]));
@@ -56,8 +67,8 @@ export default async function AdminTrackStudentPage({ params }: { params: Promis
         <section className="mt-6 rounded-2xl bg-white p-6 shadow">
           <h2 className="text-xl font-black">Typing / Practice / Exam / Stenography results</h2>
           <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">Test</th><th className="p-3">Mode</th><th className="p-3">Net WPM</th><th className="p-3">Accuracy</th><th className="p-3">Submitted</th><th className="p-3">View</th></tr></thead><tbody>
-            {(typingAttempts ?? []).map((attempt) => { const test = typingTitleById.get(attempt.test_id); const result = attempt.result as Record<string, unknown> | null; const netWpm = result?.marksNetWpm ?? result?.netWpm; return <tr key={attempt.id} className="border-b"><td className="p-3">{test?.title ?? "Unknown test"}</td><td className="p-3">{test?.mode ?? "—"}</td><td className="p-3">{netWpm != null ? String(netWpm) : "—"}</td><td className="p-3">{result?.accuracy != null ? `${result.accuracy}%` : "—"}</td><td className="p-3">{attempt.submitted_at ? date(attempt.submitted_at) : "In progress"}</td><td className="p-3">{attempt.submitted_at && <EyeLink href={`/admin/students/attempts/${attempt.id}`} label="View this attempt's full result"/>}</td></tr>; })}
-            {!typingAttempts?.length && <tr><td colSpan={6} className="p-6 text-center text-slate-500">No typing attempts yet.</td></tr>}
+            {typingAttempts.map((attempt) => { const test = attempt.test_id ? typingTitleById.get(attempt.test_id) : { title: `${attempt.title} (built-in test)`, mode: "mode" in attempt ? attempt.mode : "—" }; const result = attempt.result as Record<string, unknown> | null; const netWpm = result?.marksNetWpm ?? result?.netWpm; return <tr key={attempt.id} className="border-b"><td className="p-3">{test?.title ?? "Unknown test"}</td><td className="p-3">{test?.mode ?? "—"}</td><td className="p-3">{netWpm != null ? String(netWpm) : "—"}</td><td className="p-3">{result?.accuracy != null ? `${result.accuracy}%` : "—"}</td><td className="p-3">{attempt.submitted_at ? date(attempt.submitted_at) : "In progress"}</td><td className="p-3">{attempt.submitted_at && <EyeLink href={`/admin/students/attempts/${attempt.id}`} label="View this attempt's full result"/>}</td></tr>; })}
+            {!typingAttempts.length && <tr><td colSpan={6} className="p-6 text-center text-slate-500">No typing attempts yet.</td></tr>}
           </tbody></table></div>
         </section>
 

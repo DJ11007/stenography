@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Noto_Serif } from "next/font/google";
 import { recordManagedAttempt } from "@/app/tests/actions";
+import { recordPracticeAttempt, type PracticeAttemptPayload } from "@/app/typing/practice-attempt-actions";
+import { calculateConfiguredRssbMarks } from "@/lib/typing-results";
 import { clearPendingAttempt, isStaleServerActionError, readPendingAttempt, savePendingAttempt } from "@/lib/pending-attempts";
 import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, scoringProfileWithSelectedCategories, ALL_HALF_ERROR_CATEGORIES, PRACTICE_DURATION_MINUTES, type BackspaceMode, type HalfErrorCategory, type TypingSettings } from "@/lib/typing-test";
 import { repeatPassageToExactWordCount, type ExamPreset } from "@/lib/typing-curriculum";
@@ -221,7 +223,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   useEffect(() => { if (!timerStarted || finished) return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [finished, timerStarted]);
   useEffect(() => { sessionStorage.setItem("practice-attempt-active", String(timerStarted && !finished)); return () => sessionStorage.setItem("practice-attempt-active", "false"); }, [finished, timerStarted]);
 
-  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"]; if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode; if (manualUnlock) resolved.wordMethod = preferences.wordMethod; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
+  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"]; if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode; if (manualUnlock) resolved.wordMethod = preferences.wordMethod; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); setSaveState("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
   const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
   // Duration is only actually changeable through this same set of
   // conditions that stop activeDurationSeconds from being forced (now
@@ -261,23 +263,29 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // browser until the server confirms it; the result screen says plainly
   // when it was not saved (it used to look saved either way).
   const [saveState,setSaveState]=useState<"idle"|"saving"|"saved"|"failed"|"stale"|"locked">("idle");
-  const lastPayload=useRef<AttemptPayload|null>(null);
-  const saveAttempt=async(payload:AttemptPayload)=>{
-   lastPayload.current=payload;savePendingAttempt(payload);setSaveState("saving");
+  const lastJob=useRef<SaveJob|null>(null);
+  // Admin-managed tests save to test_attempts; built-in tests (Official Pattern,
+  // stenography sample, own matters) to practice_attempts -- both go through
+  // the same keep-retry-warn path, so no attempt is ever silently lost.
+  const pendingKey=managedTest?managedTest.testId:`practice:${preset.id}`;
+  const sendJob=(job:SaveJob)=>job.kind==="managed"?recordManagedAttempt(job.payload):recordPracticeAttempt(job.payload);
+  const saveAttempt=async(job:SaveJob)=>{
+   lastJob.current=job;savePendingAttempt(pendingKey,job);setSaveState("saving");
    for(let attempt=0;attempt<3;attempt++){
     try{
-     const result=await recordManagedAttempt(payload);
-     if(result){clearPendingAttempt(payload.testId);setSaveState(result.status==="locked"?"locked":"saved");return result}
+     const result=await sendJob(job);
+     if(result){clearPendingAttempt(pendingKey);setSaveState(result.status==="locked"?"locked":"saved");return result}
      setSaveState("failed");return null
     }catch(error){if(isStaleServerActionError(error)){setSaveState("stale");return null}await new Promise(resolve=>setTimeout(resolve,1500*(attempt+1)))}
    }
    setSaveState("failed");return null
   };
-  const applySaveResult=(result:Awaited<ReturnType<typeof recordManagedAttempt>>)=>{if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest?.isLive){setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed");if(result?.status==="submitted")setLiveSubmittedAt(result.submittedAt??null);}};
-  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void saveAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable?preferences.passageWordCount:null,examCategorySlug:preset.examCategorySlug}).then(applySaveResult);},[backspaces,finalScore,finished,managedTest,preset.examCategorySlug,selectedCategories,typedText,wordCountEditable,preferences.passageWordCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  const applySaveResult=(result:Awaited<ReturnType<typeof sendJob>>)=>{if(result?.status==="scored"&&"score" in result&&result.score)setVerifiedScore(result.score);if(managedTest?.isLive){setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed");if(result&&result.status==="submitted"&&"submittedAt" in result)setLiveSubmittedAt(result.submittedAt??null);}};
+  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void saveAttempt({kind:"managed",payload:{testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable?preferences.passageWordCount:null,examCategorySlug:preset.examCategorySlug}}).then(applySaveResult);},[backspaces,finalScore,finished,managedTest,preset.examCategorySlug,selectedCategories,typedText,wordCountEditable,preferences.passageWordCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(!finished||!finalScore||managedTest||adminPreview||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;const marks=scoredPreset.marksMethod?calculateConfiguredRssbMarks(finalScore,scoredPreset.marksMethod):null;void saveAttempt({kind:"practice",payload:{presetId:preset.id,title:preset.title,mode,preset:scoredPreset,inputSystemId,startedAt:startedAt.current,typedText,comparisonText:normalizedInput.comparisonText,passage:effectivePassage,elapsedSeconds:finalScore.elapsedSeconds,backspaces,score:finalScore,marksObtained:marks?.marksObtained??null,marksQualified:marks?.qualified??null,marksNetWpm:marks?Math.round(finalScore.correctWords/Math.max(finalScore.elapsedSeconds/60,1/60)):null,examCategorySlug:preset.examCategorySlug??null}});},[finished,finalScore,managedTest,adminPreview]); // eslint-disable-line react-hooks/exhaustive-deps
   // An attempt kept from an earlier visit (not saved then) is sent again when this test opens.
   const [recoveredAttempt,setRecoveredAttempt]=useState(false);
-  useEffect(()=>{if(!managedTest)return;const pending=readPendingAttempt<AttemptPayload>(managedTest.testId);if(!pending||pending.versionId!==managedTest.versionId)return;void recordManagedAttempt(pending).then(result=>{if(result){clearPendingAttempt(managedTest.testId);setRecoveredAttempt(true)}}).catch(()=>{});},[managedTest]);
+  useEffect(()=>{if(adminPreview)return;const pending=readPendingAttempt<SaveJob>(pendingKey);if(!pending||(pending.kind==="managed"&&pending.payload.versionId!==managedTest?.versionId))return;void sendJob(pending).then(result=>{if(result){clearPendingAttempt(pendingKey);setRecoveredAttempt(true)}}).catch(()=>{});},[pendingKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const saveSettings = (next: TypingSettings) => { setSettings(next); updatePreferences(attemptVariant === "custom" ? { backspaceMode: next.backspaceMode, highlightMode: next.highlightMode, wordMethod: next.wordMethod } : { highlightMode: next.highlightMode }); };
   const changeScroll = (value: boolean) => { setAutoScroll(value); updatePreferences({ autoScroll: value }); };
   const changeScrollbar = (value: boolean) => { setShowScrollbar(value); updatePreferences({ showScrollbar: value }); };
@@ -305,7 +313,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     : managedTest.mode === "exam" && preset.examCategorySlug ? "Return to Exercises"
     : "Return to Tests"
     : "Return to Tests";
-  if (finished && finalScore) return <>{saveState!=="idle"&&saveState!=="saved"&&<SaveStatusBanner state={saveState} onRetry={()=>{if(lastPayload.current)void saveAttempt(lastPayload.current).then(applySaveResult)}}/>}<AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={effectivePassage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel} mode={mode}/></>;
+  if (finished && finalScore) return <>{saveState!=="idle"&&saveState!=="saved"&&<SaveStatusBanner state={saveState} onRetry={()=>{if(lastJob.current)void saveAttempt(lastJob.current).then(applySaveResult)}}/>}<AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={effectivePassage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel} mode={mode}/></>;
   return <ExamWorkspace preset={scoredPreset} passage={effectivePassage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} wordMethodLocked={wordMethodLocked} manualUnlock={manualUnlock} onManualUnlockChange={!timerStarted ? setManualUnlock : undefined} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCountLocked ? naturalWordCount : (preferences.passageWordCount ?? naturalWordCount)} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={changePassageWordCount} backHref={backHref} adminPreview={adminPreview}/>;
 }
 
@@ -615,7 +623,7 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
 }
 
 
-type AttemptPayload=Parameters<typeof recordManagedAttempt>[0];
+type SaveJob={kind:"managed";payload:Parameters<typeof recordManagedAttempt>[0]}|{kind:"practice";payload:PracticeAttemptPayload};
 function SaveStatusBanner({state,onRetry}:{state:"saving"|"failed"|"stale"|"locked";onRetry:()=>void}){
  if(state==="saving")return <p role="status" className="sticky top-0 z-50 bg-blue-700 px-4 py-2 text-center text-sm font-bold text-white print:hidden">Saving your result…</p>;
  return <div role="alert" className="sticky top-0 z-50 flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-3 text-center text-sm font-bold text-white print:hidden">

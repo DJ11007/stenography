@@ -22,7 +22,7 @@ test("the student attempt-review page requires a student, scopes the query to th
   const page = await read("app/typing/attempts/[attemptId]/page.tsx");
   assert.match(page, /const \{ user \} = await requireStudent\(\);/);
   assert.match(page, /\.eq\("id", attemptId\)\.eq\("student_id", user\.id\)\.maybeSingle\(\);/);
-  assert.match(page, /if \(!attempt\) notFound\(\);/);
+  assert.match(page, /if \(!practice\) notFound\(\);/);
 });
 
 test("the student attempt-review page reuses the exact same AttemptReviewClient/snapshot-rebuild the admin page uses, linking back to /student/results", async () => {

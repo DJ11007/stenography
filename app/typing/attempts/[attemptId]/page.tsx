@@ -10,6 +10,7 @@ import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/l
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories } from "@/lib/typing-test";
 import { AttemptReviewClient } from "@/app/admin/students/attempts/[attemptId]/attempt-review-client";
 import { formatIST } from "@/lib/format-datetime";
+import { PracticeAttemptReview } from "../practice-attempt-review";
 
 export const metadata: Metadata = { title: "My Result | Samradhi Classes" };
 
@@ -28,7 +29,12 @@ export default async function StudentAttemptReviewPage({ params }: { params: Pro
   const supabase = await createClient();
 
   const { data: attempt } = await supabase.from("test_attempts").select("id,test_id,snapshot,result,started_at,submitted_at,student_id,is_live_attempt").eq("id", attemptId).eq("student_id", user.id).maybeSingle();
-  if (!attempt) notFound();
+  if (!attempt) {
+    // A built-in test (Official Pattern, own matter, ...) is saved in practice_attempts.
+    const { data: practice } = await supabase.from("practice_attempts").select("id,title,mode,snapshot,result,submitted_at").eq("id", attemptId).eq("student_id", user.id).maybeSingle();
+    if (!practice) notFound();
+    return <PracticeAttemptReview attempt={practice} backHref="/student/results" backLabel="My Results" />;
+  }
   const { data: test } = await supabase.from("tests").select("id,title,slug").eq("id", attempt.test_id).maybeSingle();
 
   const v = attempt.snapshot as Record<string, unknown>;

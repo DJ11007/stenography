@@ -8,22 +8,22 @@
 const KEY_PREFIX = "pending-typing-attempt:";
 const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
-export function savePendingAttempt<T extends { testId: string }>(payload: T) {
-  try { localStorage.setItem(KEY_PREFIX + payload.testId, JSON.stringify({ savedAt: Date.now(), payload })); } catch { /* storage unavailable: nothing to keep */ }
+export function savePendingAttempt(key: string, payload: unknown) {
+  try { localStorage.setItem(KEY_PREFIX + key, JSON.stringify({ savedAt: Date.now(), payload })); } catch { /* storage unavailable: nothing to keep */ }
 }
 
-export function readPendingAttempt<T>(testId: string): T | null {
+export function readPendingAttempt<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(KEY_PREFIX + testId);
+    const raw = localStorage.getItem(KEY_PREFIX + key);
     if (!raw) return null;
     const stored = JSON.parse(raw) as { savedAt?: number; payload?: T };
-    if (!stored.payload || typeof stored.savedAt !== "number" || Date.now() - stored.savedAt > MAX_AGE_MS) { clearPendingAttempt(testId); return null; }
+    if (!stored.payload || typeof stored.savedAt !== "number" || Date.now() - stored.savedAt > MAX_AGE_MS) { clearPendingAttempt(key); return null; }
     return stored.payload;
   } catch { return null; }
 }
 
-export function clearPendingAttempt(testId: string) {
-  try { localStorage.removeItem(KEY_PREFIX + testId); } catch { /* storage unavailable */ }
+export function clearPendingAttempt(key: string) {
+  try { localStorage.removeItem(KEY_PREFIX + key); } catch { /* storage unavailable */ }
 }
 
 // Next.js gives every Server Action a new id at each deploy; a page loaded
