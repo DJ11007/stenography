@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Noto_Serif } from "next/font/google";
 import { recordManagedAttempt } from "@/app/tests/actions";
+import { clearPendingAttempt, isStaleServerActionError, readPendingAttempt, savePendingAttempt } from "@/lib/pending-attempts";
 import { calculateTypingScore, DEFAULT_TYPING_SETTINGS, isAllowedTypingEdit, scoringProfileWithSelectedCategories, ALL_HALF_ERROR_CATEGORIES, PRACTICE_DURATION_MINUTES, type BackspaceMode, type HalfErrorCategory, type TypingSettings } from "@/lib/typing-test";
 import { repeatPassageToExactWordCount, type ExamPreset } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, getScoringText, normalizeTypingInput, segmentGraphemes, type InputSystem } from "@/lib/typing-language";
@@ -256,14 +257,34 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // Rajasthan LDC exercise as -- threading it through here is what lets
   // recordManagedAttempt's own authoritative rescoring apply that same
   // category's rules instead of silently falling back to Rajasthan LDC's.
-  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void recordManagedAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable?preferences.passageWordCount:null,examCategorySlug:preset.examCategorySlug}).then((result) => { if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest.isLive){setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed");if(result?.status==="submitted")setLiveSubmittedAt(result.submittedAt??null);} });},[backspaces,finalScore,finished,managedTest,preset.examCategorySlug,selectedCategories,typedText,wordCountEditable,preferences.passageWordCount]);
+  // Saving is retried on a network failure and the attempt is kept in the
+  // browser until the server confirms it; the result screen says plainly
+  // when it was not saved (it used to look saved either way).
+  const [saveState,setSaveState]=useState<"idle"|"saving"|"saved"|"failed"|"stale"|"locked">("idle");
+  const lastPayload=useRef<AttemptPayload|null>(null);
+  const saveAttempt=async(payload:AttemptPayload)=>{
+   lastPayload.current=payload;savePendingAttempt(payload);setSaveState("saving");
+   for(let attempt=0;attempt<3;attempt++){
+    try{
+     const result=await recordManagedAttempt(payload);
+     if(result){clearPendingAttempt(payload.testId);setSaveState(result.status==="locked"?"locked":"saved");return result}
+     setSaveState("failed");return null
+    }catch(error){if(isStaleServerActionError(error)){setSaveState("stale");return null}await new Promise(resolve=>setTimeout(resolve,1500*(attempt+1)))}
+   }
+   setSaveState("failed");return null
+  };
+  const applySaveResult=(result:Awaited<ReturnType<typeof recordManagedAttempt>>)=>{if(result?.status==="scored"&&result.score)setVerifiedScore(result.score);if(managedTest?.isLive){setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed");if(result?.status==="submitted")setLiveSubmittedAt(result.submittedAt??null);}};
+  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void saveAttempt({testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable?preferences.passageWordCount:null,examCategorySlug:preset.examCategorySlug}).then(applySaveResult);},[backspaces,finalScore,finished,managedTest,preset.examCategorySlug,selectedCategories,typedText,wordCountEditable,preferences.passageWordCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  // An attempt kept from an earlier visit (not saved then) is sent again when this test opens.
+  const [recoveredAttempt,setRecoveredAttempt]=useState(false);
+  useEffect(()=>{if(!managedTest)return;const pending=readPendingAttempt<AttemptPayload>(managedTest.testId);if(!pending||pending.versionId!==managedTest.versionId)return;void recordManagedAttempt(pending).then(result=>{if(result){clearPendingAttempt(managedTest.testId);setRecoveredAttempt(true)}}).catch(()=>{});},[managedTest]);
   const saveSettings = (next: TypingSettings) => { setSettings(next); updatePreferences(attemptVariant === "custom" ? { backspaceMode: next.backspaceMode, highlightMode: next.highlightMode, wordMethod: next.wordMethod } : { highlightMode: next.highlightMode }); };
   const changeScroll = (value: boolean) => { setAutoScroll(value); updatePreferences({ autoScroll: value }); };
   const changeScrollbar = (value: boolean) => { setShowScrollbar(value); updatePreferences({ showScrollbar: value }); };
   const changeFontPreferences = (next: TypingFontPreferences) => updatePreferences({ fonts: { ...preferences.fonts, [fontContext]: next } });
 
   const changeInputSystem = (id: string) => { if (id === inputSystemId) return; if (typedText && !window.confirm("Changing the language or input system will restart this attempt and clear the typed text. Continue?")) return; setInputSystemId(id); updatePreferences({ inputSystemId: id }); if (typedText) { setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); startedAt.current=null; } };
-  if (!started) return <ExamStart preset={preset} mode={mode} inputSystem={inputSystem} inputSystemId={inputSystemId} onInputSystemChange={(id) => { setInputSystemId(id); updatePreferences({ inputSystemId: id }); }} fontAvailable={fontAvailable} attemptVariant={attemptVariant} customPreset={customPreset} durationSeconds={activeDurationSeconds} durationLocked={durationLocked} onDurationChange={changeDuration} onStart={start} backHref={backHref}/>;
+  if (!started) return <>{recoveredAttempt&&<p role="status" className="sticky top-0 z-50 bg-green-700 px-4 py-2 text-center text-sm font-bold text-white">Your previous attempt of this test, which had not been saved, has now been saved to your results.</p>}<ExamStart preset={preset} mode={mode} inputSystem={inputSystem} inputSystemId={inputSystemId} onInputSystemChange={(id) => { setInputSystemId(id); updatePreferences({ inputSystemId: id }); }} fontAvailable={fontAvailable} attemptVariant={attemptVariant} customPreset={customPreset} durationSeconds={activeDurationSeconds} durationLocked={durationLocked} onDurationChange={changeDuration} onStart={start} backHref={backHref}/></>;
   if (started && preset.audioUrl && !dictationReady) return <DictationGate preset={preset} url={preset.audioUrl} selectedCategories={selectedCategories} onCategoriesChange={setSelectedCategories} onStartTyping={() => { beginTiming(); setDictationReady(true); }} durationSeconds={activeDurationSeconds} durationLocked={durationLocked} onDurationChange={changeDuration} backHref={backHref} adminPreview={adminPreview} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest}/>;
   if (finished && finalScore && managedTest?.isLive) return <LiveSubmissionReceipt status={liveSubmission} resultsPublishAt={managedTest.resultsPublishAt} resultsDelayMinutes={managedTest.resultsDelayMinutes} submittedAt={liveSubmittedAt}/>;
   // "Return to Tests" used to always point at /typing/exams (Exam
@@ -284,7 +305,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     : managedTest.mode === "exam" && preset.examCategorySlug ? "Return to Exercises"
     : "Return to Tests"
     : "Return to Tests";
-  if (finished && finalScore) return <AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={effectivePassage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel} mode={mode}/>;
+  if (finished && finalScore) return <>{saveState!=="idle"&&saveState!=="saved"&&<SaveStatusBanner state={saveState} onRetry={()=>{if(lastPayload.current)void saveAttempt(lastPayload.current).then(applySaveResult)}}/>}<AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={effectivePassage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel} mode={mode}/></>;
   return <ExamWorkspace preset={scoredPreset} passage={effectivePassage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} wordMethodLocked={wordMethodLocked} manualUnlock={manualUnlock} onManualUnlockChange={!timerStarted ? setManualUnlock : undefined} typedText={typedText} setTypedText={setTypedText} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={togglePause} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCountLocked ? naturalWordCount : (preferences.passageWordCount ?? naturalWordCount)} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={changePassageWordCount} backHref={backHref} adminPreview={adminPreview}/>;
 }
 
@@ -593,3 +614,13 @@ function ExamWorkspace({ preset, passage, inputSystem, fontAvailable, fontPrefer
   </main>;
 }
 
+
+type AttemptPayload=Parameters<typeof recordManagedAttempt>[0];
+function SaveStatusBanner({state,onRetry}:{state:"saving"|"failed"|"stale"|"locked";onRetry:()=>void}){
+ if(state==="saving")return <p role="status" className="sticky top-0 z-50 bg-blue-700 px-4 py-2 text-center text-sm font-bold text-white print:hidden">Saving your result…</p>;
+ return <div role="alert" className="sticky top-0 z-50 flex flex-wrap items-center justify-center gap-3 bg-red-700 px-4 py-3 text-center text-sm font-bold text-white print:hidden">
+  {state==="locked"?<span>Your result is NOT saved: your account access is locked or your free test limit is used up. Contact your institute.</span>:state==="stale"
+   ?<><span>Your result is NOT saved yet: the website was updated while this test was open. Refresh the page and it will be saved automatically.</span><button type="button" onClick={()=>window.location.reload()} className="rounded-lg bg-white px-3 py-1.5 font-black text-red-800">Refresh page</button></>
+   :<><span>Your result is NOT saved. Check your internet connection (or sign in again in another tab), then try again.</span><button type="button" onClick={onRetry} className="rounded-lg bg-white px-3 py-1.5 font-black text-red-800">Try again</button></>}
+ </div>;
+}
