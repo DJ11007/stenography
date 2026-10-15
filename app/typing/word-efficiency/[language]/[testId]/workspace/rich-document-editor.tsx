@@ -701,15 +701,24 @@ savedRange.current=wrapped.range;changed();
   const blocks=selectedBlocks();
   if(!blocks.length){setDialog(null);return}
   const left=bounded(values.marginLeft,0,10),right=bounded(values.marginRight,0,10),before=bounded(values.spaceBefore,0,500),after=bounded(values.spaceAfter,0,500),indentAmount=bounded(values.specialIndentAmount,0,10);
+  // Like Word, only what was changed in the dialog is applied. Re-applying
+  // every box set settings nobody touched (a bulleted paragraph picked up
+  // 1.5 line spacing just from setting its spacing after).
+  const initial=dialog?.kind==="paragraph"?dialog:null;
+  const changedField=(key:keyof typeof values)=>!initial||values[key]!==initial[key];
   for(const block of blocks){
-   block.style.textAlign=values.alignment;
-   block.style.marginLeft=`${left}in`;block.style.marginRight=`${right}in`;
-   block.style.marginTop=`${before}pt`;block.style.marginBottom=`${after}pt`;
-   block.style.lineHeight=values.lineSpacing;
-   if(values.specialIndentMode==="none"){delete block.dataset.specialIndentMode;delete block.dataset.specialIndentAmount;block.style.textIndent=""}
-   else{block.dataset.specialIndentMode=values.specialIndentMode;block.dataset.specialIndentAmount=`${indentAmount}in`;block.style.textIndent=values.specialIndentMode==="hanging"?`-${indentAmount}in`:`${indentAmount}in`}
-   block.style.hyphens=values.hyphens?"auto":"";
-   block.classList.toggle("editor-line-numbers",values.lineNumbers);
+   if(changedField("alignment"))block.style.textAlign=values.alignment;
+   if(changedField("marginLeft"))block.style.marginLeft=`${left}in`;
+   if(changedField("marginRight"))block.style.marginRight=`${right}in`;
+   if(changedField("spaceBefore"))block.style.marginTop=`${before}pt`;
+   if(changedField("spaceAfter"))block.style.marginBottom=`${after}pt`;
+   if(changedField("lineSpacing"))block.style.lineHeight=values.lineSpacing;
+   if(changedField("specialIndentMode")||changedField("specialIndentAmount")){
+    if(values.specialIndentMode==="none"){delete block.dataset.specialIndentMode;delete block.dataset.specialIndentAmount;block.style.textIndent=""}
+    else{block.dataset.specialIndentMode=values.specialIndentMode;block.dataset.specialIndentAmount=`${indentAmount}in`;block.style.textIndent=values.specialIndentMode==="hanging"?`-${indentAmount}in`:`${indentAmount}in`}
+   }
+   if(changedField("hyphens"))block.style.hyphens=values.hyphens?"auto":"";
+   if(changedField("lineNumbers"))block.classList.toggle("editor-line-numbers",values.lineNumbers);
   }
   setDialog(null);
   changed();
