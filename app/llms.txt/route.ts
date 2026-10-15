@@ -1,4 +1,5 @@
-import { BUSINESS, EXAM_GROUPS, FULL_ADDRESS, HOME_FAQS, SAME_AS, SERVICES, SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "@/lib/seo";
+import { examsByGroup } from "@/lib/seo-exams";
+import { BUSINESS, FULL_ADDRESS, HOME_FAQS, SAME_AS, SERVICES, SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "@/lib/seo";
 
 // llms.txt (https://llmstxt.org): a plain summary of the site for AI answer
 // engines, built from the same facts as the pages and the JSON-LD.
@@ -15,8 +16,13 @@ ${SITE_NAME} (also known as SC Typing, website sctyping.com) prepares students a
 ${SERVICES.map((service) => `- ${service.name}: ${service.description}`).join("\n")}
 
 ## Exams covered
-${EXAM_GROUPS.map((group) => `- ${group.level}: ${group.exams.join(", ")}`).join("\n")}
-- And other central and state-level exams with a typing, stenography or efficiency test
+Each exam has its own page with the speed, time, accuracy and backspace rules. All exams: ${absoluteUrl("/exams")}
+
+### Typing tests
+${examsByGroup("typing").map(({ group, exams }) => `#### ${group}\n${exams.map((exam) => `- [${exam.name} typing test](${absoluteUrl(exam.path)}): ${exam.fullName}; ${exam.speedLabel}`).join("\n")}`).join("\n\n")}
+
+### Stenography skill tests
+${examsByGroup("stenography").map(({ group, exams }) => `#### ${group}\n${exams.map((exam) => `- [${exam.name}](${absoluteUrl(exam.path)}): ${exam.fullName}; ${exam.speedLabel}`).join("\n")}`).join("\n\n")}
 
 ## Contact
 - Address: ${FULL_ADDRESS}
@@ -26,6 +32,7 @@ ${SAME_AS.map((url) => `- ${url}`).join("\n")}
 
 ## Key pages
 - [Home](${absoluteUrl("/")}): overview, latest results, vacancies and courses
+- [All exams](${absoluteUrl("/exams")}): typing and stenography test pattern for every central and state government exam
 - [Buy a Course](${absoluteUrl("/courses")}): course plans and fees
 - [Live Test](${absoluteUrl("/live-test")}): scheduled live typing, stenography and efficiency tests with results
 - [Vacancies](${absoluteUrl("/vacancies")}): government job notices, admit cards and results

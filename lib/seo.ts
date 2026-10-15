@@ -1,3 +1,5 @@
+import { ALL_EXAMS } from "./seo-exams.ts";
+
 // Search (SEO), answer-engine (AEO) and generative-engine (GEO) data for the
 // public site. One source for the business facts so the page text, the
 // JSON-LD structured data, llms.txt and the sitemap never disagree.
@@ -48,17 +50,9 @@ export const SEO_KEYWORDS = [
   "सरकारी परीक्षा टाइपिंग टेस्ट", "हिंदी टाइपिंग टेस्ट", "कृतिदेव टाइपिंग टेस्ट", "स्टेनोग्राफी", "एसएससी टाइपिंग टेस्ट", "रेलवे टाइपिंग टेस्ट", "हाईकोर्ट टाइपिंग टेस्ट", "टाइपिंग कोचिंग जयपुर",
 ];
 
-// Grouped the way students search: by recruiting body / level.
-export const EXAM_GROUPS = [
-  { level: "SSC (central)", exams: ["SSC CHSL (LDC/JSA, DEO)", "SSC CGL (DEST)", "SSC Stenographer Grade C & D", "SSC CPO/GD ministerial posts"] },
-  { level: "Railway", exams: ["RRB NTPC (Junior Clerk cum Typist, Accounts Clerk cum Typist, Senior Clerk cum Typist)", "RRB Ministerial & Isolated (Stenographer)"] },
-  { level: "High Courts & Supreme Court", exams: ["Rajasthan High Court LDC, JJA & Stenographer", "MP High Court", "Allahabad High Court", "Delhi High Court", "Supreme Court JCA", "District & Session Courts"] },
-  { level: "Rajasthan", exams: ["RSSB LDC", "RSSB IA (Informatics Assistant)", "RSSB Stenographer", "RHC SA", "RVVUNL"] },
-  { level: "Other states", exams: ["DSSSB (Delhi)", "UPSSSC, UPPSC, UPPCL & UP Police (UP)", "MP-CPCT & MPESB (MP)", "BELTRON & BSSC (Bihar)", "HSSC (Haryana)"] },
-  { level: "Central forces & others", exams: ["CRPF/CISF/BSF Head Constable Ministerial", "Assam Rifles", "Army clerk", "KVS/NVS", "EPFO SSA"] },
-] as const;
-
-export const EXAMS_COVERED: string[] = EXAM_GROUPS.flatMap((group) => [...group.exams]);
+// Every exam named anywhere in SEO comes from the Exam Simulator's own
+// categories (lib/seo-exams.ts), never a hand-written list.
+export const EXAMS_COVERED: string[] = [...new Set(ALL_EXAMS.map((exam) => exam.name))];
 
 export const SERVICES = [
   {
@@ -89,7 +83,7 @@ export const HOME_FAQS: Faq[] = [
   },
   {
     question: "Which government exams can I prepare for here?",
-    answer: "SSC CHSL and SSC CGL (DEST), SSC Stenographer Grade C & D, Railway RRB NTPC clerk-cum-typist posts and railway stenographer, Rajasthan High Court, MP, Allahabad and Delhi High Courts, Supreme Court JCA, RSSB LDC, IA and Stenographer, DSSSB, UP (UPSSSC, UPPCL, UP Police), MP-CPCT, BELTRON, HSSC and central forces ministerial posts, along with other state-level typing tests.",
+    answer: "Typing tests of SSC CHSL, SSC CGL, RRB NTPC, Supreme Court JCA, Delhi, Allahabad, Rajasthan, Patna, Bombay and Jharkhand High Courts, CRPF, BSF, SSB and Delhi Police HCM, DSSSB, KVS, EMRS and CSIR JSA, NCERT and AIIMS LDC, Rajasthan LDC, DEO, Tax Assistant and Informatics Assistant, UPSSSC, UP Police, Bihar Civil Court and MP CPCT; and stenography skill tests of SSC Steno C & D, Supreme Court PA, 11 High Courts, Central Secretariat, Income Tax, CBI, IB, RBI, EPFO, DSSSB, RSMSSB, Rajasthan District Courts and Parliament Reporter. The full list with each exam's pattern is at sctyping.com/exams.",
   },
   {
     question: "Is SC Typing (sctyping.com) the official website of Samradhi Classes?",

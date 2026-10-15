@@ -2,6 +2,7 @@ import Link from "next/link";
 import { OFFICIAL_LINKS, OfficialLinkIcon } from "./official-links";
 
 const COMPANY_LINKS = [
+  { href: "/exams", label: "All Exam Typing Tests" },
   { href: "/about", label: "About Us" },
   { href: "/contact", label: "Contact" },
 ] as const;

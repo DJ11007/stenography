@@ -3,7 +3,9 @@ import { SITE_URL } from "@/lib/seo";
 
 // Login-only and account areas: crawlers would only be redirected to /login.
 const PRIVATE_PATHS = [
-  "/admin", "/typing", "/tests", "/student", "/account", "/auth", "/classroom", "/dev-model-answer-harness",
+  // "/typing/" with the slash: a bare "/typing" prefix would also block the
+  // public /typing-test/* exam pages.
+  "/admin", "/typing/", "/tests/", "/student", "/account", "/auth", "/classroom", "/dev-model-answer-harness",
   "/forgot-password", "/update-password", "/verify-recovery-otp", "/recover-account", "/signup/pending-approval",
 ];
 

@@ -16,6 +16,7 @@ import { BuyNowButton } from "./_components/buy-now-button";
 import type { Metadata } from "next";
 import { JsonLd } from "./_components/json-ld";
 import { BASE_OPEN_GRAPH, HOME_FAQS, SITE_DESCRIPTION, SITE_TAGLINE, SITE_TITLE_BRAND, coursesJsonLd, faqJsonLd } from "@/lib/seo";
+import { ALL_EXAMS, examsByGroup } from "@/lib/seo-exams";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
@@ -354,6 +355,37 @@ export default async function Home() {
       </section>
 
       {/* Courses */}
+      <section aria-labelledby="exams-heading" className="border-b border-blue-100 bg-white px-4 py-14">
+        <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-xs font-black uppercase tracking-widest text-blue-700">Central &amp; state level</p>
+            <h2 id="exams-heading" className="mt-1 text-3xl font-black text-slate-950 sm:text-4xl">Typing &amp; Steno Tests for Every Government Exam</h2>
+            <p className="mt-2 text-sm text-slate-600 sm:text-base">Exam pattern and online practice for {ALL_EXAMS.length} exams: SSC, Railway, Supreme Court &amp; High Courts, police &amp; central forces and state exams.</p>
+          </div>
+          <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {examsByGroup().map(({ group, exams }) => (
+              <div key={group} className="rounded-2xl border border-blue-100 bg-slate-50/60 p-5">
+                <h3 className="font-black text-blue-800">{group}</h3>
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {exams.map((exam) => (
+                    <li key={exam.path}>
+                      <Link href={exam.path} className="inline-block rounded-full border border-blue-100 bg-white px-3 py-1 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-800">
+                        {exam.name}{exam.kind === "stenography" && !/steno|reporter|PA/i.test(exam.name) ? " Steno" : ""}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 text-center">
+            <Link href="/exams" className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-6 py-3 font-black text-white transition hover:bg-blue-800">
+              See all exam typing tests <span aria-hidden>→</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <section className="bg-white px-6 py-16">
         <div className="mx-auto max-w-7xl">
           <Reveal className="mx-auto max-w-2xl text-center">

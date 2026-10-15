@@ -36,3 +36,17 @@ test("the root layout never sets a canonical or share title every page would inh
   assert.match(layout, /template: `%s \| \$\{SITE_NAME\}`/);
   assert.match(layout, /openGraph: BASE_OPEN_GRAPH,/);
 });
+
+test("every exam in the system gets a public SEO page, listed in the sitemap and allowed by robots", async () => {
+  const { ALL_EXAMS, typingExamFaqs, getTypingExam } = await import("../lib/seo-exams.ts");
+  const { EXAM_CATEGORIES } = await import("../lib/exam-categories.ts");
+  const { STENOGRAPHY_CATEGORIES } = await import("../lib/stenography-categories.ts");
+  assert.equal(ALL_EXAMS.length, EXAM_CATEGORIES.length + STENOGRAPHY_CATEGORIES.length);
+  assert.equal(new Set(ALL_EXAMS.map((exam) => exam.path)).size, ALL_EXAMS.length, "exam paths are unique");
+  assert.match(read("app/sitemap.ts"), /ALL_EXAMS\.map/);
+  const robots = read("app/robots.ts");
+  assert.ok(robots.includes('"/typing/"') && !robots.includes('"/typing",'), "a bare /typing rule would block /typing-test pages");
+  // FAQ facts come from the simulator's own pattern, so they can't drift.
+  const ldc = getTypingExam("rajasthan-ldc");
+  assert.match(typingExamFaqs(ldc)[0].answer, new RegExp(`${ldc.speedEnglish} words per minute in English`));
+});

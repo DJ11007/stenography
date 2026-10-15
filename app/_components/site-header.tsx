@@ -39,6 +39,9 @@ export async function SiteHeader() {
           <span className="hidden sm:block">SAMRADHI CLASSES</span>
         </Link>
         <div className="flex items-center gap-2">
+          <Link href="/exams" className="hidden rounded-lg px-3 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50 lg:block">
+            All Exams
+          </Link>
           <Link href="/typing" className="hidden rounded-lg px-3 py-2 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50 md:block">
             Typing Hub
           </Link>
