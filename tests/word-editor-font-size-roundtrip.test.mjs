@@ -28,11 +28,13 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("approvedSize() converts getComputedStyle's px font-size to pt before it's stored, matching fontDialog()/applyFontStep()'s own conversion", async () => {
   const editor = await read(EDITOR);
   const body = editor.slice(editor.indexOf("function approvedSize"));
-  assert.match(body, /function approvedSize\(value:string\)\{const size=Math\.round\(Number\.parseFloat\(value\)\*\.75\);return Number\.isFinite\(size\)&&size>=8&&size<=72\?size:null\}/);
+  assert.match(body, /function approvedSize\(value:string\)\{const size=Math\.round\(Number\.parseFloat\(value\)\*\.75\*2\)\/2;return Number\.isFinite\(size\)&&size>=8&&size<=72\?size:null\}/);
 
   // Confirm the two known-correct px->pt conversions elsewhere in this
   // file use the exact same *.75 factor, so approvedSize is now
   // consistent with them rather than introducing a second, different one.
-  assert.match(editor, /fontSize:style\?String\(Math\.round\(Number\.parseFloat\(style\.fontSize\)\*\.75\)\):"11"/);
+  assert.match(editor, /fontSize:style\?String\(Math\.round\(Number\.parseFloat\(style\.fontSize\)\*\.75\*2\)\/2\):"11"/);
+  // Half points survive the round trip (18.5 pt stays 18.5, not 19).
+  assert.equal(Math.round(Number.parseFloat("24.6667px") * .75 * 2) / 2, 18.5);
   assert.match(editor, /current=Number\.parseFloat\(parent\?getComputedStyle\(parent\)\.fontSize:"11"\)\*\.75/);
 });
