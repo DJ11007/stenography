@@ -150,6 +150,28 @@ export function deleteColumn(table: HTMLTableElement, c: number) {
   if (widths.length > c) { widths.splice(c, 1); setColumnWidths(table, widths); }
 }
 
+/** Delete Cells… > Shift cells left / up: the cell's contents go, the cells after it move over, and an empty cell fills the end. */
+export function deleteCellShift(table: HTMLTableElement, cell: HTMLTableCellElement, direction: "left" | "up"): string | null {
+  const grid = tableGrid(table);
+  const slot = slotOf(grid, cell);
+  if (!slot) return "Place the cursor in a table cell.";
+  if (slot.rowSpan > 1 || slot.colSpan > 1) return "Merged cells can't be shifted; split them first.";
+  if (direction === "left") {
+    const row = grid.at[slot.row];
+    if (row.some(other => other && (other.rowSpan > 1 || other.colSpan > 1))) return "This row has merged cells; split them first.";
+    const tr = table.rows[slot.row];
+    cell.remove();
+    tr.append(emptyCell(table.ownerDocument));
+    return null;
+  }
+  const column = grid.at.map(row => row[slot.col]);
+  if (column.some(other => other && (other.rowSpan > 1 || other.colSpan > 1))) return "This column has merged cells; split them first.";
+  const cells = column.slice(slot.row).map(other => other!.cell);
+  for (let i = 0; i < cells.length - 1; i++) cells[i].replaceChildren(...[...cells[i + 1].childNodes]);
+  cells[cells.length - 1].replaceChildren(table.ownerDocument.createElement("br"));
+  return null;
+}
+
 // ---------- merge / split ----------
 
 export function selectionRect(grid: TableGrid, cells: HTMLTableCellElement[]) {

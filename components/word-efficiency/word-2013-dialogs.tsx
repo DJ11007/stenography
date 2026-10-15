@@ -731,3 +731,209 @@ export function SymbolDialog2013({ subsets, symbolsIn, specials, recent, onInser
     </Window13>
   );
 }
+
+// ---- Table Tools dialogs (Table Properties, Split Cells, Table Options, Sort, Convert, Formula, Delete Cells, Borders and Shading) ----
+
+const Radio13 = ({ name, checked, onChange, children }: { name: string; checked: boolean; onChange: () => void; children: ReactNode }) => <label className="w13-check"><input type="radio" name={name} checked={checked} onChange={onChange} /><span>{children}</span></label>;
+const OkCancel13 = ({ onOk, okLabel = "OK" }: { onOk: () => void; okLabel?: string }) => { const chrome = useContext(Word13Chrome); return <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={onOk}>{okLabel}</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>; };
+
+export type TablePropertiesValues = { tableAlign: "left" | "center" | "right"; rowHeight: number | null; colWidth: number | null; cellVAlign: "top" | "middle" | "bottom" };
+export function TablePropertiesDialog2013({ values: initial, onSubmit, onOptions }: { values: TablePropertiesValues; onSubmit: (values: TablePropertiesValues) => void; onOptions: () => void }) {
+  const [values, setValues] = useState(initial);
+  const [tab, setTab] = useState("table");
+  const [specifyHeight, setSpecifyHeight] = useState(initial.rowHeight !== null);
+  const [specifyWidth, setSpecifyWidth] = useState(initial.colWidth !== null);
+  const set = (patch: Partial<TablePropertiesValues>) => setValues(current => ({ ...current, ...patch }));
+  const tile = (selected: boolean, onClick: () => void, label: string, drawing: ReactNode) => <button type="button" aria-pressed={selected} onMouseDown={event => event.preventDefault()} onClick={onClick} style={{ display: "grid", justifyItems: "center", gap: 3, border: selected ? "2px solid #0078d7" : "2px solid transparent", background: "transparent", padding: 3, font: "inherit", cursor: "default" }}><svg width="44" height="34" viewBox="0 0 44 34" aria-hidden><rect x="0.5" y="0.5" width="43" height="33" fill="#fff" stroke="#999" />{drawing}</svg><span>{label}</span></button>;
+  const block = (x: number) => <rect x={x} y="9" width="20" height="16" fill="#b4c6e7" stroke="#2b579a" />;
+  return (
+    <Window13 title="Table Properties" width={440}>
+      <Tabs13 tabs={[{ id: "table", label: <><u>T</u>able</> }, { id: "row", label: <><u>R</u>ow</> }, { id: "column", label: <>Col<u>u</u>mn</> }, { id: "cell", label: <>C<u>e</u>ll</> }]} value={tab} onChange={setTab} />
+      <div className="w13-panel" style={{ minHeight: 180 }}>
+        {tab === "table" && <>
+          <Group13>Alignment</Group13>
+          <div className="w13-row" style={{ gap: 18, marginLeft: 12 }}>
+            {tile(values.tableAlign === "left", () => set({ tableAlign: "left" }), "Left", block(4))}
+            {tile(values.tableAlign === "center", () => set({ tableAlign: "center" }), "Center", block(12))}
+            {tile(values.tableAlign === "right", () => set({ tableAlign: "right" }), "Right", block(20))}
+          </div>
+          <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 18 }}><Button13 onClick={onOptions}><u>O</u>ptions…</Button13></div>
+        </>}
+        {tab === "row" && <>
+          <Group13>Size</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}><Check13 checked={specifyHeight} onChange={setSpecifyHeight}><u>S</u>pecify height:</Check13><Number13 label="Row height" value={values.rowHeight ?? 0.6} onChange={value => set({ rowHeight: value })} unit="cm" dimension="length" step={0.1} min={0.1} max={50} decimals={2} width={80} disabled={!specifyHeight} /><span>Row height is: At least</span></div>
+        </>}
+        {tab === "column" && <>
+          <Group13>Size</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}><Check13 checked={specifyWidth} onChange={setSpecifyWidth}><u>P</u>referred width:</Check13><Number13 label="Column width" value={values.colWidth ?? 2.5} onChange={value => set({ colWidth: value })} unit="cm" dimension="length" step={0.1} min={0.1} max={60} decimals={2} width={80} disabled={!specifyWidth} /><span>Measure in: Centimeters</span></div>
+        </>}
+        {tab === "cell" && <>
+          <Group13>Vertical alignment</Group13>
+          <div className="w13-row" style={{ gap: 18, marginLeft: 12 }}>
+            {(["top", "middle", "bottom"] as const).map(vertical => tile(values.cellVAlign === vertical, () => set({ cellVAlign: vertical }), vertical === "top" ? "Top" : vertical === "middle" ? "Center" : "Bottom", <path d={`M10 ${vertical === "top" ? 6 : vertical === "middle" ? 15 : 24}h24`} stroke="#2b579a" strokeWidth="3" />))}
+          </div>
+        </>}
+      </div>
+      <OkCancel13 onOk={() => onSubmit({ ...values, rowHeight: specifyHeight ? values.rowHeight ?? 0.6 : null, colWidth: specifyWidth ? values.colWidth ?? 2.5 : null })} />
+    </Window13>
+  );
+}
+
+export function SplitCellsDialog2013({ onSubmit }: { onSubmit: (columns: number, rows: number) => void }) {
+  const [columns, setColumns] = useState<number | null>(2), [rows, setRows] = useState<number | null>(1);
+  return (
+    <Window13 title="Split Cells" width={260}>
+      <div className="w13-row" style={{ marginTop: 8 }}><span className="w13-label" style={{ width: 130 }}>Number of <u>c</u>olumns:</span><Number13 label="Number of columns" value={columns} onChange={setColumns} min={1} max={20} decimals={0} width={64} /></div>
+      <div className="w13-row"><span className="w13-label" style={{ width: 130 }}>Number of <u>r</u>ows:</span><Number13 label="Number of rows" value={rows} onChange={setRows} min={1} max={50} decimals={0} width={64} /></div>
+      <OkCancel13 onOk={() => onSubmit(Math.round(columns ?? 2), Math.round(rows ?? 1))} />
+    </Window13>
+  );
+}
+
+export type CellMarginValues = { top: number; bottom: number; left: number; right: number };
+export function TableOptionsDialog2013({ values: initial, onSubmit }: { values: CellMarginValues; onSubmit: (values: CellMarginValues) => void }) {
+  const [values, setValues] = useState(initial);
+  const field = (key: keyof CellMarginValues, label: ReactNode) => <div className="w13-row"><span className="w13-label" style={{ width: 52 }}>{label}</span><Number13 label={`${key} cell margin`} value={values[key]} onChange={value => setValues(current => ({ ...current, [key]: Math.max(0, value ?? 0) }))} unit="cm" dimension="length" step={0.05} min={0} max={10} decimals={2} width={80} /></div>;
+  return (
+    <Window13 title="Table Options" width={320}>
+      <Group13>Default cell margins</Group13>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginLeft: 12 }}>{field("top", <><u>T</u>op:</>)}{field("left", <><u>L</u>eft:</>)}{field("bottom", <><u>B</u>ottom:</>)}{field("right", <><u>R</u>ight:</>)}</div>
+      <OkCancel13 onOk={() => onSubmit(values)} />
+    </Window13>
+  );
+}
+
+export type SortValues = { column: number; type: "text" | "number" | "date"; order: "ascending" | "descending"; hasHeader: boolean };
+export function SortDialog2013({ columns, headerNames, onSubmit }: { columns: number; headerNames: string[]; onSubmit: (values: SortValues) => void }) {
+  const [values, setValues] = useState<SortValues>({ column: 0, type: "text", order: "ascending", hasHeader: true });
+  const set = (patch: Partial<SortValues>) => setValues(current => ({ ...current, ...patch }));
+  const names = Array.from({ length: columns }, (_, c) => (values.hasHeader && headerNames[c]?.trim() ? headerNames[c].trim() : `Column ${c + 1}`));
+  return (
+    <Window13 title="Sort" width={460}>
+      <Group13><u>S</u>ort by</Group13>
+      <div className="w13-row" style={{ marginLeft: 12, gap: 10 }}>
+        <select className="w13-select" aria-label="Sort by" style={{ width: 150 }} value={values.column} onChange={event => set({ column: Number(event.target.value) })}>{names.map((name, c) => <option key={c} value={c}>{name}</option>)}</select>
+        <span>Type:</span><select className="w13-select" aria-label="Sort type" style={{ width: 90 }} value={values.type} onChange={event => set({ type: event.target.value as SortValues["type"] })}><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option></select>
+        <div style={{ display: "grid", gap: 3 }}><Radio13 name="w13-sort-order" checked={values.order === "ascending"} onChange={() => set({ order: "ascending" })}><u>A</u>scending</Radio13><Radio13 name="w13-sort-order" checked={values.order === "descending"} onChange={() => set({ order: "descending" })}><u>D</u>escending</Radio13></div>
+      </div>
+      <Group13>My list has</Group13>
+      <div className="w13-row" style={{ marginLeft: 12, gap: 18 }}><Radio13 name="w13-sort-header" checked={values.hasHeader} onChange={() => set({ hasHeader: true })}>Hea<u>d</u>er row</Radio13><Radio13 name="w13-sort-header" checked={!values.hasHeader} onChange={() => set({ hasHeader: false })}>No header ro<u>w</u></Radio13></div>
+      <OkCancel13 onOk={() => onSubmit(values)} />
+    </Window13>
+  );
+}
+
+const SEPARATOR_CHOICES: [string, ReactNode][] = [["paragraph", <><u>P</u>aragraph marks</>], ["tab", <><u>T</u>abs</>], ["comma", <><u>C</u>ommas</>], ["other", <><u>O</u>ther:</>]];
+const separatorValue = (kind: string, other: string) => (kind === "paragraph" ? "\n" : kind === "tab" ? "\t" : kind === "comma" ? "," : other || "-");
+
+export function ConvertToTextDialog2013({ onSubmit }: { onSubmit: (separator: string) => void }) {
+  const [kind, setKind] = useState("tab"), [other, setOther] = useState("-");
+  return (
+    <Window13 title="Convert Table To Text" width={280}>
+      <Group13>Separate text with</Group13>
+      <div style={{ display: "grid", gap: 4, marginLeft: 12 }}>{SEPARATOR_CHOICES.map(([id, label]) => <div key={id} className="w13-row" style={{ margin: 0 }}><Radio13 name="w13-convert-text" checked={kind === id} onChange={() => setKind(id)}>{label}</Radio13>{id === "other" && <input className="w13-field" style={{ width: 30 }} maxLength={1} value={other} aria-label="Other separator" onChange={event => { setOther(event.target.value); setKind("other"); }} />}</div>)}</div>
+      <OkCancel13 onOk={() => onSubmit(separatorValue(kind, other))} />
+    </Window13>
+  );
+}
+
+export function ConvertTextToTableDialog2013({ guessColumns, rows, onSubmit }: { guessColumns: (separator: string) => number; rows: number; onSubmit: (separator: string, columns: number, layout: string) => void }) {
+  const [kind, setKind] = useState("tab"), [other, setOther] = useState("-");
+  const [columns, setColumns] = useState<number | null>(() => guessColumns("\t"));
+  const [layout, setLayout] = useState("fixed");
+  const pick = (id: string) => { setKind(id); setColumns(guessColumns(separatorValue(id, other))); };
+  return (
+    <Window13 title="Convert Text to Table" width={320}>
+      <Group13>Table size</Group13>
+      <div className="w13-row" style={{ marginLeft: 12 }}><span className="w13-label" style={{ width: 130 }}>Number of <u>c</u>olumns:</span><Number13 label="Number of columns" value={columns} onChange={setColumns} min={1} max={20} decimals={0} width={64} /></div>
+      <div className="w13-row" style={{ marginLeft: 12 }}><span className="w13-label" style={{ width: 130, color: "#8a8a8a" }}>Number of rows:</span><input className="w13-field" style={{ width: 64 }} disabled readOnly value={rows} aria-label="Number of rows" /></div>
+      <Group13>AutoFit behavior</Group13>
+      <div style={{ display: "grid", gap: 4, marginLeft: 12 }}>
+        <Radio13 name="w13-ttt-fit" checked={layout === "fixed"} onChange={() => setLayout("fixed")}>Fi<u>x</u>ed column width</Radio13>
+        <Radio13 name="w13-ttt-fit" checked={layout === "auto"} onChange={() => setLayout("auto")}>Auto<u>F</u>it to contents</Radio13>
+        <Radio13 name="w13-ttt-fit" checked={layout === "window"} onChange={() => setLayout("window")}>AutoFit to win<u>d</u>ow</Radio13>
+      </div>
+      <Group13>Separate text at</Group13>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginLeft: 12 }}>{SEPARATOR_CHOICES.map(([id, label]) => <div key={id} className="w13-row" style={{ margin: 0 }}><Radio13 name="w13-ttt-sep" checked={kind === id} onChange={() => pick(id)}>{id === "paragraph" ? <><u>P</u>aragraphs</> : label}</Radio13>{id === "other" && <input className="w13-field" style={{ width: 30 }} maxLength={1} value={other} aria-label="Other separator" onChange={event => { setOther(event.target.value); setKind("other"); setColumns(guessColumns(event.target.value || "-")); }} />}</div>)}</div>
+      <OkCancel13 onOk={() => onSubmit(separatorValue(kind, other), Math.round(columns ?? 1), layout)} />
+    </Window13>
+  );
+}
+
+const NUMBER_FORMATS = ["", "0", "0.00", "#,##0", "#,##0.00", "0%"];
+export function formatFormulaResult(value: number, format: string) {
+  if (format === "0") return String(Math.round(value));
+  if (format === "0.00") return value.toFixed(2);
+  if (format === "#,##0") return Math.round(value).toLocaleString("en-US");
+  if (format === "#,##0.00") return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (format === "0%") return `${Math.round(value)}%`;
+  return String(value);
+}
+export function FormulaDialog2013({ initial, onSubmit }: { initial: string; onSubmit: (formula: string, format: string) => void }) {
+  const [formula, setFormula] = useState(initial), [format, setFormat] = useState("");
+  return (
+    <Window13 title="Formula" width={340}>
+      <div style={{ marginTop: 6 }}><u>F</u>ormula:</div>
+      <input className="w13-field" style={{ width: "100%", marginTop: 2 }} aria-label="Formula" value={formula} onChange={event => setFormula(event.target.value)} />
+      <div style={{ marginTop: 8 }}><u>N</u>umber format:</div>
+      <select className="w13-select" style={{ width: "100%", marginTop: 2 }} aria-label="Number format" value={format} onChange={event => setFormat(event.target.value)}>{NUMBER_FORMATS.map(item => <option key={item} value={item}>{item || "(none)"}</option>)}</select>
+      <div className="w13-row" style={{ marginTop: 8 }}>
+        <span>Paste f<u>u</u>nction:</span>
+        <select className="w13-select" style={{ width: 130 }} aria-label="Paste function" value="" onChange={event => { if (event.target.value) setFormula(`=${event.target.value}(ABOVE)`); }}><option value="" /><option>SUM</option><option>AVERAGE</option><option>COUNT</option><option>MAX</option><option>MIN</option><option>PRODUCT</option></select>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(formula, format)} />
+    </Window13>
+  );
+}
+
+export function DeleteCellsDialog2013({ onSubmit }: { onSubmit: (choice: "left" | "up" | "row" | "column") => void }) {
+  const [choice, setChoice] = useState<"left" | "up" | "row" | "column">("left");
+  return (
+    <Window13 title="Delete Cells" width={240}>
+      <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
+        <Radio13 name="w13-del" checked={choice === "left"} onChange={() => setChoice("left")}>Shift cells l<u>e</u>ft</Radio13>
+        <Radio13 name="w13-del" checked={choice === "up"} onChange={() => setChoice("up")}>Shift cells <u>u</u>p</Radio13>
+        <Radio13 name="w13-del" checked={choice === "row"} onChange={() => setChoice("row")}>Delete entire <u>r</u>ow</Radio13>
+        <Radio13 name="w13-del" checked={choice === "column"} onChange={() => setChoice("column")}>Delete entire <u>c</u>olumn</Radio13>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(choice)} />
+    </Window13>
+  );
+}
+
+export type BordersShadingValues = { setting: "none" | "box" | "all" | "grid" | "custom"; style: "solid" | "double" | "dotted" | "dashed"; color: string; width: number; fill: string | null; applyTo: "cell" | "table" };
+export function BordersShadingDialog2013({ initial, colors, widths, onSubmit }: { initial: BordersShadingValues; colors: { name: string; hex: string }[]; widths: number[]; onSubmit: (values: BordersShadingValues) => void }) {
+  const [values, setValues] = useState(initial);
+  const [tab, setTab] = useState("borders");
+  const set = (patch: Partial<BordersShadingValues>) => setValues(current => ({ ...current, ...patch }));
+  const settingTile = (id: BordersShadingValues["setting"], label: string, drawing: ReactNode) => <button type="button" aria-pressed={values.setting === id} onMouseDown={event => event.preventDefault()} onClick={() => set({ setting: id })} style={{ display: "flex", alignItems: "center", gap: 8, border: values.setting === id ? "2px solid #0078d7" : "2px solid transparent", background: "transparent", padding: 3, font: "inherit", cursor: "default", width: "100%" }}><svg width="34" height="28" viewBox="0 0 34 28" aria-hidden><rect x="1" y="1" width="32" height="26" fill="#fff" stroke="#ddd" />{drawing}</svg><span><u>{label[0]}</u>{label.slice(1)}</span></button>;
+  const box = <rect x="4" y="4" width="26" height="20" fill="none" stroke="#000" strokeWidth="1.5" />;
+  const inside = <path d="M17 4v20M4 14h26" stroke="#000" strokeWidth="0.7" />;
+  return (
+    <Window13 title="Borders and Shading" width={480}>
+      <Tabs13 tabs={[{ id: "borders", label: <><u>B</u>orders</> }, { id: "shading", label: <><u>S</u>hading</> }]} value={tab} onChange={setTab} />
+      <div className="w13-panel" style={{ minHeight: 210 }}>
+        {tab === "borders" ? <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 14 }}>
+          <div><div>Setting:</div>
+            {settingTile("none", "None", null)}{settingTile("box", "Box", box)}{settingTile("all", "All", <>{box}{inside}</>)}{settingTile("grid", "Grid", <><rect x="4" y="4" width="26" height="20" fill="none" stroke="#000" strokeWidth="2.5" />{inside}</>)}
+          </div>
+          <div>
+            <div>St<u>y</u>le:</div>
+            <div className="w13-list" role="listbox" aria-label="Border style" style={{ height: 76 }}>{(["solid", "double", "dotted", "dashed"] as const).map(style => <button key={style} type="button" role="option" aria-selected={values.style === style} onMouseDown={event => event.preventDefault()} onClick={() => set({ style, setting: values.setting === "none" ? "box" : values.setting })}><span style={{ display: "block", margin: "6px 4px", borderTop: `${style === "double" ? 3 : 1}px ${style} currentColor` }} /></button>)}</div>
+            <div style={{ marginTop: 6 }}><u>C</u>olor:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Border color" value={values.color} onChange={event => set({ color: event.target.value })}>{colors.map(color => <option key={color.name} value={color.hex}>{color.name}</option>)}</select>
+            <div style={{ marginTop: 6 }}><u>W</u>idth:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Border width" value={values.width} onChange={event => set({ width: Number(event.target.value) })}>{widths.map(width => <option key={width} value={width}>{width} pt</option>)}</select>
+          </div>
+        </div> : <div>
+          <div>Fi<u>l</u>l:</div>
+          <div className="wt-palette" style={{ padding: "4px 0" }}>{colors.map(color => <button key={color.name} type="button" aria-label={`${color.name} (#${color.hex})`} title={color.name} aria-pressed={values.fill === color.hex} style={{ background: `#${color.hex}`, outline: values.fill === color.hex ? "2px solid #0078d7" : undefined }} onMouseDown={event => event.preventDefault()} onClick={() => set({ fill: color.hex })} />)}</div>
+          <Button13 onClick={() => set({ fill: null })}>No Color</Button13>
+          <div className="w13-preview" style={{ marginTop: 10, height: 50, background: values.fill ? `#${values.fill}` : "#fff" }} />
+        </div>}
+        <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 100 }} aria-label="Apply to" value={values.applyTo} onChange={event => set({ applyTo: event.target.value as BordersShadingValues["applyTo"] })}><option value="cell">Cell</option><option value="table">Table</option></select></div>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(values)} />
+    </Window13>
+  );
+}

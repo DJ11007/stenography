@@ -284,9 +284,11 @@ export function reattachOrphanedListItems(root:HTMLElement){
 // inner element, and the saved run read the background of the text's
 // immediate parent only (backgrounds are not inherited). The nearest
 // highlighted ancestor below the paragraph counts; the paragraph's own
-// background is paragraph shading, not a highlight.
+// background is paragraph shading, not a highlight; likewise a table cell's
+// background (Shading or the table style) is cell shading.
 export function inheritedHighlight(textNode:Node,root:Element):string|null{
  for(let element=textNode.parentElement;element&&element!==root;element=element.parentElement){
+  if(element.tagName==="TD"||element.tagName==="TH")break; // a cell background is shading, not highlight
   const background=(element as HTMLElement).style?.backgroundColor;
   if(background&&background!=="transparent"&&background!=="rgba(0, 0, 0, 0)")return background;
  }

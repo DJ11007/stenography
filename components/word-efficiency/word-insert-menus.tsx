@@ -52,9 +52,9 @@ function TableMenu({ pick, close, sub, setSub, subRef }: MenuBody) {
     </div>
     <div className="wi-sep" />
     <Item icon="▦" onHover={() => setSub(null)} onClick={() => { pick("insertTable", "dialog"); close(); }}>Insert Table…</Item>
-    <Item icon="✎" disabled title="Drawing a table freehand is not available in this exam editor; use the grid or Insert Table…">Draw Table</Item>
-    <Item icon="⇄" disabled title="Select text separated by tabs or commas first">Convert Text to Table…</Item>
-    <Item icon="▤" disabled title="Excel Spreadsheet is not available in this exam editor">Excel Spreadsheet</Item>
+    <Item icon="✎" onHover={() => setSub(null)} onClick={() => { pick("insertTable", "draw"); close(); }}>Draw Table</Item>
+    <Item icon="⇄" onHover={() => setSub(null)} title="Select the paragraphs (text separated by tabs or commas) first" onClick={() => { pick("insertTable", "convert"); close(); }}>Convert Text to Table…</Item>
+    <Item icon="▤" onHover={() => setSub(null)} onClick={() => { pick("insertTable", "excel"); close(); }}>Excel Spreadsheet</Item>
     <Item icon="▥" submenu expanded={sub === "quick"} itemRef={quickRef} onHover={() => setSub("quick")} onClick={() => setSub("quick")}>Quick Tables</Item>
     {sub === "quick" && createPortal(<div ref={subRef as RefObject<HTMLDivElement>} role="menu" aria-label="Quick Tables" className="wi-menu" style={{ ...side, width: 300 }}>
       <div className="wi-heading">Built-In</div>

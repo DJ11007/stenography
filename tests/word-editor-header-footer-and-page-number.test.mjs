@@ -32,8 +32,8 @@ test("the gallery offers Edit/Remove/Save Selection to Gallery, matching the rea
 
 test("a real Header & Footer Tools > Design contextual ribbon tab appears and auto-selects while editing a header or footer, matching real Word instead of a flat toolbar bar", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /extraTab=\{hfKind\?\{id:"hf-design",label:"Design",contextLabel:"Header & Footer Tools",groups:headerFooterToolsGroups\}:undefined\}/);
-  assert.match(editor, /extraTabActive=\{headerFooterToolsSelected\}/);
+  assert.match(editor, /extraTabs=\{\[\.\.\.\(hfKind\?\[\{id:"hf-design",label:"Design",contextLabel:"Header & Footer Tools",groups:headerFooterToolsGroups\}\]:\[\]\)/);
+  assert.match(editor, /activeExtraTab=\{headerFooterToolsSelected\?"hf-design":/);
   assert.match(editor, /if\(nowInside&&!wasInsideHeaderFooter\.current\)setHeaderFooterToolsSelected\(true\)/);
   assert.match(editor, /if\(!nowInside&&wasInsideHeaderFooter\.current\)setHeaderFooterToolsSelected\(false\)/);
   assert.match(editor, /Go to \{hfKind==="header"\?"Footer":"Header"\}/);
@@ -41,7 +41,7 @@ test("a real Header & Footer Tools > Design contextual ribbon tab appears and au
   assert.match(editor, /Close Header and Footer/);
   assert.match(editor, /const closeHeaderFooter=\(\)=>\{/);
   const ribbon = await read("components/word-efficiency/word-editor-ribbon.tsx");
-  assert.match(ribbon, /extraTab\?: \{ id: string; label: string; contextLabel: string; groups: ReactNode \}/);
+  assert.match(ribbon, /extraTabs\?: \{ id: string; label: string; contextLabel: string; groups: ReactNode \}\[\]/);
   assert.match(ribbon, /word-ribbon-context-banner/);
 });
 

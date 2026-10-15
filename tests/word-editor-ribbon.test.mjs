@@ -242,8 +242,10 @@ test("Insert Table offers a grid picker with a numeric dialog fallback, and a Ta
   assert.match(editor,/onOpenCustomTable=\{\(\)=>setDialog\(\{kind:"insertTableCustom"\}\)\}/);
   assert.match(editor,/const tableActionAtCursor=\(action:string\)=>/);
   assert.match(editor,/TABLE_TOOL_ACTIONS:\[string,string\]\[\]=\[\["add-row-above","Insert Above"\],\["add-row-below","Insert Below"\],\["add-column-left","Insert Left"\],\["add-column-right","Insert Right"\],\["remove-row","Delete Row"\],\["remove-column","Delete Column"\],\["remove-table","Delete Table"\]\]/);
-  assert.match(editor,/insideTable&&!submitted&&<div role="toolbar" aria-label="Table Tools"/);
-  assert.match(editor,/TABLE_TOOL_ACTIONS\.map\(\(\[action,label\]\)=><button key=\{action\} type="button" onMouseDown=\{event=>event\.preventDefault\(\)\} onClick=\{\(\)=>tableActionAtCursor\(action\)\}/);
+  // Table Tools are Word 2013's contextual DESIGN and LAYOUT ribbon tabs now.
+  assert.match(editor,/\{id:"table-design",label:"Design",contextLabel:"Table Tools"/);
+  assert.match(editor,/\{id:"table-layout",label:"Layout",contextLabel:"Table Tools"/);
+  assert.doesNotMatch(editor,/aria-label="Table Tools" className="flex/);
   assert.match(editor,/setInsideTable\(Boolean\(parent\.closest\("table"\)\)\)/);
   assert.match(editor,/else if\(action==="remove-table"\)\{table\.remove\(\);setInsideTable\(false\)\}/);
 });
