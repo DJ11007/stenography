@@ -1,0 +1,5 @@
+// Shown the moment a student submits, while the marked result is fetched --
+// without it the exam page just sat there after Submit and felt stuck.
+export default function Loading() {
+  return <main className="min-h-screen bg-slate-100 px-4 py-10"><section className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl" aria-busy="true"><header className="bg-gradient-to-r from-slate-950 to-blue-900 p-7 text-white"><p className="text-xs font-black uppercase tracking-[.2em] text-cyan-300">Word Efficiency evaluation</p><h1 className="mt-2 text-3xl font-black">Test submitted successfully</h1><p className="mt-2 flex items-center gap-3 text-sm font-bold text-blue-100"><span aria-hidden className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent"/>Calculating your result…</p></header><div className="grid gap-3 p-7">{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-12 animate-pulse rounded-xl bg-slate-100"/>)}</div></section></main>;
+}
