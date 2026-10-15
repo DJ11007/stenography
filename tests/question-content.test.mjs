@@ -93,7 +93,7 @@ test("the shared authoring toolbar exposes bold, both list types, a table insert
 
 test("student-facing question surfaces (workspace panels, results tables, grading views) render rich question content rather than raw instruction strings", async () => {
   const sources = await Promise.all([
-    "app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx",
+    "components/efficiency/question-bar.tsx",
     "app/typing/excel-efficiency/[language]/[testId]/workspace/excel-workspace.tsx",
     "app/typing/word-efficiency/results/[attemptId]/page.tsx",
     "app/typing/excel-efficiency/results/[attemptId]/page.tsx",
