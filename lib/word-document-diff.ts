@@ -288,7 +288,13 @@ export function diffWordDocuments(before: unknown, after: unknown): WordDetected
     const beforeBlock = beforeByKind.get(kind)?.[place];
     const position = index + 1;
     if (!beforeBlock) {
-      changes.push({ target: `blocks.${index}.runs.0.text`, expectedValue: paragraphText(block), label: `Paragraph ${position}: a new paragraph or element was added here`, blockPosition: position });
+      // A block that did not exist before (a header from Insert > Header, a
+      // new paragraph): compared with an empty block of the same type, so its
+      // text AND its formatting -- bold, alignment, underline style and colour
+      // -- become criteria. Only the text used to be checked, so a header
+      // question awarded marks for typing the words alone.
+      const empty: WordBlock = { type: block.type, alignment: "left", runs: [{ text: "" }], attrs: {} };
+      diffBlock(empty, block, position, changes);
       return;
     }
     if (beforeBlock.type !== block.type) {

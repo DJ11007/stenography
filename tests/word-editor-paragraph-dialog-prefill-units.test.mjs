@@ -17,7 +17,7 @@ const EDITOR = "app/typing/word-efficiency/[language]/[testId]/workspace/rich-do
 // bug class already fixed once for font size (px taken literally as pt).
 test("the Paragraph dialog's Left/Right indent and special-indent prefill use parseInches, not a bare parseFloat that ignores the stored unit", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /import \{ adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, clearInnerRunStyles, inheritedTextDecoration, parseInches, reattachOrphanedListItems, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles \} from "@\/lib\/word-editor-dom";/);
+  assert.match(editor, /import \{ adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, clearInnerRunStyles, expandListBlocks, inheritedHighlight, inheritedTextDecoration, parseInches, reattachOrphanedListItems, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles \} from "@\/lib\/word-editor-dom";/);
   const body = editor.slice(editor.indexOf('paragraphDialog:()=>{'), editor.indexOf('};map[id]?.();'));
   assert.match(body, /marginLeft:String\(block\?Math\.abs\(parseInches\(block\.style\.marginLeft\)\):0\)/);
   assert.match(body, /marginRight:String\(block\?Math\.abs\(parseInches\(block\.style\.marginRight\)\):0\)/);
@@ -28,5 +28,6 @@ test("the Paragraph dialog's Left/Right indent and special-indent prefill use pa
   // in points, not inches -- these must keep using a plain parseFloat,
   // not parseInches, or they'd be silently divided by 72.
   assert.match(body, /spaceBefore:String\(block\?Math\.abs\(Number\.parseFloat\(block\.style\.marginTop\)\)\|\|0:0\)/);
-  assert.match(body, /spaceAfter:String\(block\?Math\.abs\(Number\.parseFloat\(block\.style\.marginBottom\)\)\|\|0:8\)/);
+  assert.match(body, /spaceAfter:String\(block\?\(block\.style\.marginBottom\?Math\.abs\(Number\.parseFloat\(block\.style\.marginBottom\)\)\|\|0:shownSpacing\(block\)\.after\):8\)/);
+  assert.match(editor, /lineSpacing:block\?\.style\.lineHeight\|\|\(block\?shownSpacing\(block\)\.line:"1\.15"\)/);
 });

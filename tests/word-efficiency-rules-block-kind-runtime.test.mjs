@@ -35,7 +35,8 @@ function rules() {
 
 test("adding a header does not make every paragraph look changed, and each criterion knows its block's kind and place", () => {
   const { q1, q2, criteria } = rules();
-  assert.deepEqual(q1.map((change) => change.target), ["blocks.0.runs.0.text", "blocks.0.runs.0.bold"].filter((target) => q1.some((change) => change.target === target)));
+  // The added header is checked on its text AND its formatting (bold, centred), not text alone.
+  assert.deepEqual(q1.map((change) => change.target).sort(), ["blocks.0.alignment", "blocks.0.runs.0.bold", "blocks.0.runs.0.text"]);
   assert.ok(q1.every((change) => change.target.startsWith("blocks.0.")), JSON.stringify(q1));
   assert.deepEqual(q2.map((change) => change.target), ["blocks.3.runs.0.bold"]);
   assert.deepEqual(criteria[1].map(({ kind, place }) => [kind, place]), [["body", 2]]);

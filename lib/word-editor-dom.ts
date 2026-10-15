@@ -14,6 +14,34 @@ export type EditorRunStyles=Partial<Pick<CSSStyleDeclaration,"fontFamily"|"fontS
 // one such block. A real (non-collapsed) selection still uses
 // intersectsNode, which is the correct check for "every block this
 // selection actually spans".
+// Real reported bug (EFFICIENCY TEST 2): a border, shading, indent or spacing
+// set on a bulleted/numbered paragraph was applied to the whole <ul>/<ol> --
+// every item in the list got it on screen, and since a saved document stores
+// each list item as its own block, the setting then vanished on save. Word
+// formats list paragraphs one by one; so do these tools now: a list among the
+// selected blocks is replaced by the items of it that the selection covers
+// (an item only touched at its very edge does not count, as for paragraphs).
+export function expandListBlocks(blocks:HTMLElement[],range:Range|null):HTMLElement[]{
+ return blocks.flatMap(block=>{
+  if(block.tagName!=="UL"&&block.tagName!=="OL")return[block];
+  const items=[...block.querySelectorAll(":scope > li")]as HTMLElement[];
+  if(!range)return items;
+  // compareBoundaryPoints how: 0 START_TO_START, 1 START_TO_END, 2 END_TO_END, 3 END_TO_START.
+ const document=block.ownerDocument;
+  const touched=items.filter(item=>{
+   if(range.collapsed)return item.contains(range.startContainer);
+   if(!range.intersectsNode(item))return false;
+   const inside=document.createRange();inside.selectNodeContents(item);
+   if(range.compareBoundaryPoints(1,inside)<=0)return false;
+   if(range.compareBoundaryPoints(3,inside)>=0)return false;
+   const overlap=document.createRange();
+   overlap.setStart(...(range.compareBoundaryPoints(0,inside)>0?[range.startContainer,range.startOffset]as const:[item,0]as const));
+   overlap.setEnd(...(range.compareBoundaryPoints(2,inside)<0?[range.endContainer,range.endOffset]as const:[item,item.childNodes.length]as const));
+   return overlap.toString().length>0||items.length===1;
+  });
+  return touched.length?touched:items;
+ });
+}
 export function selectedEditorBlocks(editor:HTMLElement,range:Range){
  if(range.collapsed){
   let node:Node|null=range.startContainer;
@@ -250,6 +278,19 @@ export function reattachOrphanedListItems(root:HTMLElement){
 // strikethrough via <s>/<strike>. This walks every ancestor up to the block and
 // reports whether an underline or strikethrough is painted over the text, by tag
 // (u, ins, s, strike, del) or by an inline text-decoration on any ancestor.
+// Real reported bug (EFFICIENCY TEST 2): text highlighted and then given a
+// font colour lost its highlight on save -- the colour wraps the text in an
+// inner element, and the saved run read the background of the text's
+// immediate parent only (backgrounds are not inherited). The nearest
+// highlighted ancestor below the paragraph counts; the paragraph's own
+// background is paragraph shading, not a highlight.
+export function inheritedHighlight(textNode:Node,root:Element):string|null{
+ for(let element=textNode.parentElement;element&&element!==root;element=element.parentElement){
+  const background=(element as HTMLElement).style?.backgroundColor;
+  if(background&&background!=="transparent"&&background!=="rgba(0, 0, 0, 0)")return background;
+ }
+ return null;
+}
 export function inheritedTextDecoration(textNode:Node,root:Element):{underline:boolean;strike:boolean;doubleStrike:boolean}{
  let underline=false,strike=false,doubleStrike=false;
  for(let element=textNode.parentElement;element;element=element.parentElement){

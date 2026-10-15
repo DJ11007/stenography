@@ -69,6 +69,6 @@ test("an orphaned run directly adjacent to an existing list merges into it inste
 
 test("rich-document-editor.tsx calls reattachOrphanedListItems right after pruneStrayEmptyBlocks inside exec, for the same guard that excludes undo/redo",async()=>{
  const source=await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx",import.meta.url),"utf8");
- assert.match(source,/import \{ adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, clearInnerRunStyles, inheritedTextDecoration, parseInches, reattachOrphanedListItems, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles \} from "@\/lib\/word-editor-dom";/);
+ assert.match(source,/import \{ adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, clearInnerRunStyles, expandListBlocks, inheritedHighlight, inheritedTextDecoration, parseInches, reattachOrphanedListItems, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles \} from "@\/lib\/word-editor-dom";/);
  assert.match(source,/if\(beforeCount!==null\)\{pruneStrayEmptyBlocks\(beforeCount\);if\(editor\.current\)reattachOrphanedListItems\(editor\.current\)\}/);
 });
