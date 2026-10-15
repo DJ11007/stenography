@@ -167,14 +167,15 @@ test("requiredWpmForMarksMethod derives the real qualifying pace from the marks 
 test("comparison display pairs substitutions and half mistakes with originals only", () => {
   const entry = (status, original, typed, halfErrorCategories = []) => ({ id: status, status, original, typed, halfErrorCategories, separatorAfter: " " });
   const show = (value) => { const { text, expected } = comparisonWordDisplay(value); return { text, expected }; };
-  assert.deepEqual(comparisonWordDisplay(entry("substituted", "young", "Yong")), { text: "Yong", expected: "young" });
+  assert.deepEqual(show(entry("substituted", "young", "Yong")), { text: "Yong", expected: "young" });
   for (const category of ["capitalization", "minorSpelling", "spacing", "punctuation"]) {
-    assert.deepEqual(comparisonWordDisplay(entry("half-error", "their", "THEIR", [category])), { text: "THEIR", expected: "their" });
+    assert.deepEqual(show(entry("half-error", "their", "THEIR", [category])), { text: "THEIR", expected: "their" });
+    assert.equal(comparisonWordDisplay(entry("half-error", "their", "THEIR", [category])).spacing?.marks ?? null, category === "spacing" ? "+space" : null);
   }
-  assert.deepEqual(comparisonWordDisplay(entry("missing", "skipped", undefined)), { text: "", expected: "skipped" });
-  assert.deepEqual(comparisonWordDisplay(entry("extra", undefined, "bonus")), { text: "bonus", expected: undefined });
-  assert.deepEqual(comparisonWordDisplay(entry("repeated", undefined, "again")), { text: "again", expected: undefined });
-  assert.deepEqual(comparisonWordDisplay(entry("remaining", "later", undefined)), { text: "later", expected: undefined });
+  assert.deepEqual(show(entry("missing", "skipped", undefined)), { text: "", expected: "skipped" });
+  assert.deepEqual(show(entry("extra", undefined, "bonus")), { text: "bonus", expected: undefined });
+  assert.deepEqual(show(entry("repeated", undefined, "again")), { text: "again", expected: undefined });
+  assert.deepEqual(show(entry("remaining", "later", undefined)), { text: "later", expected: undefined });
 });
 
 test("result summary percentages and totals reconcile with the scoring engine", () => {
