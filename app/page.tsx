@@ -15,7 +15,7 @@ import { HomepageTypingDemo } from "./_components/homepage-typing-demo";
 import { BuyNowButton } from "./_components/buy-now-button";
 import type { Metadata } from "next";
 import { JsonLd } from "./_components/json-ld";
-import { BASE_OPEN_GRAPH, HOME_FAQS, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, coursesJsonLd, faqJsonLd } from "@/lib/seo";
+import { BASE_OPEN_GRAPH, HOME_FAQS, SITE_DESCRIPTION, SITE_TAGLINE, SITE_TITLE_BRAND, coursesJsonLd, faqJsonLd } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
@@ -123,7 +123,7 @@ function Icon({ name, className }: { name: IconName; className: string }) {
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
-  openGraph: { ...BASE_OPEN_GRAPH, title: `${SITE_NAME} – ${SITE_TAGLINE}`, description: SITE_DESCRIPTION, url: "/" },
+  openGraph: { ...BASE_OPEN_GRAPH, title: `${SITE_TITLE_BRAND} – ${SITE_TAGLINE}`, description: SITE_DESCRIPTION, url: "/" },
 };
 
 export default async function Home() {

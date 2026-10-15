@@ -21,7 +21,7 @@ export default async function Image() {
         <div style={{ marginTop: 30, display: "flex", gap: 18, fontSize: 26, color: "#e0e7ff" }}>
           <span>Hindi & English Typing</span><span>•</span><span>MS Word / Excel Efficiency</span><span>•</span><span>Stenography</span>
         </div>
-        <div style={{ marginTop: 30, fontSize: 28, fontWeight: 700, color: "#fde68a" }}>{`Sanganer, Jaipur · Call ${BUSINESS.phoneDisplay}`}</div>
+        <div style={{ marginTop: 30, fontSize: 28, fontWeight: 700, color: "#fde68a" }}>{`sctyping.com · Sanganer, Jaipur · Call ${BUSINESS.phoneDisplay}`}</div>
       </div>
     ),
     size,

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TypingPlatformProvider } from "./typing/_components/typing-platform-provider";
 import { JsonLd } from "./_components/json-ld";
-import { BASE_OPEN_GRAPH, BUSINESS, SEO_KEYWORDS, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL, organizationJsonLd } from "@/lib/seo";
+import { BASE_OPEN_GRAPH, BUSINESS, SEO_KEYWORDS, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_TITLE_BRAND, SITE_URL, organizationJsonLd } from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: `${SITE_NAME} – ${SITE_TAGLINE}`, template: `%s | ${SITE_NAME}` },
+  title: { default: `${SITE_TITLE_BRAND} – ${SITE_TAGLINE}`, template: `%s | ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
   keywords: SEO_KEYWORDS,
   applicationName: SITE_NAME,

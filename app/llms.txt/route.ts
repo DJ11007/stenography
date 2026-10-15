@@ -9,7 +9,7 @@ export function GET() {
 
 > ${SITE_DESCRIPTION}
 
-${SITE_NAME} is a coaching institute in Sanganer, Jaipur (Rajasthan, India) that trains students for the typing, computer efficiency and stenography tests of government job exams. The website ${absoluteUrl("/")} also gives students online typing tests, efficiency tests, stenography dictation practice, live tests with published rankings, and government vacancy updates.
+${SITE_NAME} (also known as SC Typing, website sctyping.com) is a coaching institute in Sanganer, Jaipur (Rajasthan, India) that trains students for the typing, computer efficiency and stenography tests of government job exams. The website ${absoluteUrl("/")} also gives students online typing tests, efficiency tests, stenography dictation practice, live tests with published rankings, and government vacancy updates.
 
 ## Courses
 ${SERVICES.map((service) => `- ${service.name}: ${service.description}`).join("\n")}

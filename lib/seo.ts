@@ -6,6 +6,9 @@
 // copies, and a wrong canonical/sitemap host would de-index the real site.
 export const SITE_URL = "https://sctyping.com";
 export const SITE_NAME = "Samradhi Classes";
+// Other names people search for: the site is sctyping.com, "SC Typing".
+export const SITE_ALIASES = ["SC Typing", "SCTyping", "sctyping.com", "Samradhi Classes Jaipur", "समृद्धि क्लासेस"];
+export const SITE_TITLE_BRAND = `${SITE_NAME} (SC Typing)`;
 export const SITE_TAGLINE = "Typing, Computer Efficiency & Stenography Coaching in Jaipur";
 export const SITE_DESCRIPTION =
   "Samradhi Classes, Sanganer, Jaipur: Hindi & English typing (Kruti Dev, Mangal, InScript), computer efficiency (MS Word & Excel) and stenography coaching for RSSB LDC, RHC LDC, SSC CHSL, SSC Steno and High Court exams, with free online typing tests.";
@@ -34,7 +37,7 @@ export const SAME_AS = [
 ];
 
 export const SEO_KEYWORDS = [
-  "typing classes in Jaipur", "typing coaching Jaipur", "Samradhi Classes", "Samradhi Classes Sanganer",
+  "SC Typing", "sctyping", "sctyping.com", "SC typing test", "SC Typing Samradhi Classes", "typing classes in Jaipur", "typing coaching Jaipur", "Samradhi Classes", "Samradhi Classes Sanganer",
   "Hindi typing test", "English typing test", "Kruti Dev typing", "Mangal typing", "InScript typing", "Remington Gail typing",
   "online typing test", "RSSB LDC typing test", "RHC LDC typing test", "SSC CHSL typing test", "computer efficiency test",
   "RSSB LDC efficiency test", "MS Word efficiency test", "stenography coaching Jaipur", "Hindi stenography", "English stenography",
@@ -73,6 +76,10 @@ export const HOME_FAQS: Faq[] = [
   {
     question: "What does Samradhi Classes teach?",
     answer: "Samradhi Classes teaches Hindi and English typing (Kruti Dev 010, Mangal, DevLys, Remington Gail and InScript), computer efficiency (MS Word and Excel) and Hindi and English stenography for government job exams.",
+  },
+  {
+    question: "Is SC Typing (sctyping.com) the official website of Samradhi Classes?",
+    answer: "Yes. SC Typing at sctyping.com is the official website of Samradhi Classes, Sanganer, Jaipur, for online typing tests, efficiency tests, stenography practice, live tests and results.",
   },
   {
     question: "Where is Samradhi Classes located?",
@@ -118,7 +125,7 @@ export function organizationJsonLd() {
         "@type": ["EducationalOrganization", "LocalBusiness"],
         "@id": ORG_ID,
         name: SITE_NAME,
-        alternateName: ["Samradhi Classes Jaipur", "समृद्धि क्लासेस"],
+        alternateName: SITE_ALIASES,
         description: SITE_DESCRIPTION,
         url: SITE_URL,
         logo: absoluteUrl(BUSINESS.logo),
@@ -147,6 +154,7 @@ export function organizationJsonLd() {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
         name: SITE_NAME,
+        alternateName: ["SC Typing", "sctyping.com"],
         url: SITE_URL,
         description: SITE_DESCRIPTION,
         inLanguage: ["en-IN", "hi-IN"],
