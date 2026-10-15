@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BackButton } from "../../../../_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
 
-export const metadata: Metadata = { title: "Excel Efficiency Result | Samradhi Classes" };
+export const metadata: Metadata = { title: "Excel Efficiency Result" };
 type ResultQuestion = { number: number; instruction: string | null; section: string | null; maximumMarks: number; awardedMarks: number | null; feedback: string | null; gradingStatus: string };
 type AttemptResult = { title: string; language: string; status: "pending" | "published"; submittedAt: string | null; evaluatedAt: string | null; maximumMarks: number; marksObtained: number | null; percentage: number | null; passingMarks: number | null; passed: boolean | null; overallFeedback: string | null; questions: ResultQuestion[] };
 

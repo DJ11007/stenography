@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getCharacterPool } from "@/lib/character-pool-server";
 import { KeyHunterGame } from "./key-hunter-game";
 
-export const metadata: Metadata = { title: "Key Hunter | Samradhi Classes" };
+export const metadata: Metadata = { title: "Key Hunter" };
 
 // requireStudent()/TypingStudentProvider already applied by
 // app/typing/layout.tsx. Key Hunter needs no word bank, just the

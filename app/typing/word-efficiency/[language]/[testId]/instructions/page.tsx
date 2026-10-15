@@ -6,7 +6,7 @@ import{formatWordDuration,type WordLanguage}from"@/lib/word-efficiency";
 import{getPublishedWordTest}from"@/lib/word-efficiency-server";
 import{StudentTestLaunch}from"./student-test-launch";
 
-export const metadata:Metadata={title:"Word Efficiency Instructions | Samradhi Classes",description:"Review Word Efficiency test instructions and download its private question paper before starting."};
+export const metadata:Metadata={title:"Word Efficiency Instructions",description:"Review Word Efficiency test instructions and download its private question paper before starting."};
 
 export default async function WordInstructionsPage({params,searchParams}:{params:Promise<{language:string;testId:string}>;searchParams:Promise<Record<string,string|undefined>>}){
  const route=await params;const query=await searchParams;const language:WordLanguage=route.language==="hindi"?"Hindi":route.language==="english"?"English":notFound();const item=await getPublishedWordTest(language,route.testId);if(!item)notFound();const{test,version}=item;const selected=Number(query.duration);const duration=version.duration_options.includes(selected)?selected:version.duration_options[0];const hasPdf=version.delivery_pdf&&Boolean(version.pdf_path);

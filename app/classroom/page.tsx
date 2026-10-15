@@ -4,7 +4,7 @@ import { getPublishedClassroomUpdates, getLiveClassLink } from "@/lib/classroom-
 import { TypingBrandHeader } from "../typing/_components/typing-brand";
 import { formatIST } from "@/lib/format-datetime";
 
-export const metadata: Metadata = { title: "Classroom | Samradhi Classes" };
+export const metadata: Metadata = { title: "Classroom" };
 
 export default async function ClassroomPage() {
   await requireStudent();

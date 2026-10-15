@@ -5,8 +5,9 @@ import { getPublishedCoursePackages } from "@/lib/homepage-content-server";
 import { COURSE_PACKAGE_CATEGORIES, type CoursePackage } from "@/lib/homepage-content";
 
 export const metadata: Metadata = {
-  title: "Buy a Course | Samradhi Classes",
-  description: "Typing, Efficiency, Stenography and more, grouped by subject — compare plans and enroll by call or WhatsApp.",
+  title: "Typing, Efficiency & Stenography Courses – Fees & Plans",
+  description: "Compare Samradhi Classes course plans for Hindi & English typing, MS Word/Excel efficiency and stenography, and enroll by call or WhatsApp.",
+  alternates: { canonical: "/courses" },
 };
 
 const SUPPORT_PHONE = "917014371324";

@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { LiveResultsByLanguage } from "@/app/_components/live-results-by-language";
 import { BackButton } from "@/app/_components/back-button";
 import { LiveTestList, type LiveTest } from "./live-test-list";
 import { LiveResultDateTabs } from "./live-result-date-tabs";
 import { getPublishedLiveResultDates, getPublishedLiveResultsByDate, getLiveEfficiencyTests } from "@/lib/live-test-results-server";
+
+export const metadata: Metadata = {
+  title: "Live Typing, Stenography & Efficiency Tests with Results",
+  description: "Join scheduled live Hindi & English typing, stenography and MS Word/Excel efficiency tests from Samradhi Classes, and see published results and top rankers by date.",
+  alternates: { canonical: "/live-test" },
+};
 
 export default async function LiveTestCentre({ searchParams }: { searchParams: Promise<{ date?: string }> }){
   const supabase=await createClient();

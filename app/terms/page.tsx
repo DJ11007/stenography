@@ -1,8 +1,9 @@
 import { LegalLayout } from "../_components/legal-layout";
 
 export const metadata = {
-  title: "Terms & Conditions | Samradhi Classes",
+  title: "Terms & Conditions",
   description: "Terms and conditions for using the Samradhi Classes website and coaching services.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

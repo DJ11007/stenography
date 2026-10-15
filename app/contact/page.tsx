@@ -3,8 +3,9 @@ import { SiteFooter } from "../_components/site-footer";
 import { SiteHeader } from "../_components/site-header";
 
 export const metadata = {
-  title: "Contact Us | Samradhi Classes",
-  description: "Call, visit or message Samradhi Classes in Sanganer, Jaipur for typing, efficiency and stenography coaching.",
+  title: "Contact Us – Typing Classes in Sanganer, Jaipur",
+  description: "Call or WhatsApp 7014371324, or visit Samradhi Classes at 26, Bairwa Colony, near Sanganer Airport, Jaipur 302029 for typing, efficiency and stenography coaching.",
+  alternates: { canonical: "/contact" },
 };
 
 const MAPS_URL =

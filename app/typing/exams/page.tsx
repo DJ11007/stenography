@@ -4,7 +4,7 @@ import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { TypingBrandHeader } from "../_components/typing-brand";
 import { ExamCategoryIcon } from "./_components/exam-category-icon";
 
-export const metadata:Metadata={title:"Typing Exam Simulator | Samradhi Classes",description:"Independent exam-pattern typing simulations with transparent configuration and no examination-authority affiliation claim."};
+export const metadata:Metadata={title:"Typing Exam Simulator",description:"Independent exam-pattern typing simulations with transparent configuration and no examination-authority affiliation claim."};
 
 export default function ExamCataloguePage() {
   return <main className="min-h-screen bg-slate-100"><TypingBrandHeader backHref="/typing" backLabel="Typing Hub"/><section className="mx-auto max-w-7xl px-4 py-10">

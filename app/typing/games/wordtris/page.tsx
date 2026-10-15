@@ -3,7 +3,7 @@ import { getWordtrisWords } from "@/lib/wordtris-server";
 import { getCharacterPool } from "@/lib/character-pool-server";
 import { WordtrisGame } from "./wordtris-game";
 
-export const metadata: Metadata = { title: "WordTris | Samradhi Classes" };
+export const metadata: Metadata = { title: "WordTris" };
 
 // requireStudent()/TypingStudentProvider already applied by
 // app/typing/layout.tsx -- this file only needs to fetch the word banks

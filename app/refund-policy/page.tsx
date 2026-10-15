@@ -1,8 +1,9 @@
 import { LegalLayout } from "../_components/legal-layout";
 
 export const metadata = {
-  title: "Refund Policy | Samradhi Classes",
+  title: "Refund Policy",
   description: "Refund and cancellation policy for Samradhi Classes courses.",
+  alternates: { canonical: "/refund-policy" },
 };
 
 export default function RefundPolicyPage() {

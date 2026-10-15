@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { BackButton } from "@/app/_components/back-button";
 import { ErrorDrillPractice } from "./error-drill-practice";
 
-export const metadata: Metadata = { title: "Practice My Errors | Samradhi Classes" };
+export const metadata: Metadata = { title: "Practice My Errors" };
 
 export default function ErrorDrillPage() {
   return (

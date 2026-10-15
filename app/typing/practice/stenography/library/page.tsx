@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TypingBrandHeader } from "../../../_components/typing-brand";
 
-export const metadata: Metadata = { title: "Stenography Task Library | Samradhi Classes" };
+export const metadata: Metadata = { title: "Stenography Task Library" };
 
 export default function StenographyTaskLibraryLanguagePage() {
   return (

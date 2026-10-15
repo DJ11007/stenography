@@ -3,7 +3,7 @@ import { TypingBrandHeader } from "../../../../_components/typing-brand";
 import { getPublishedStenographyTasks } from "@/lib/stenography-task-library-server";
 import { StenographyTaskLibraryView } from "../_components/task-library-view";
 
-export const metadata: Metadata = { title: "English Stenography Task Library | Samradhi Classes" };
+export const metadata: Metadata = { title: "English Stenography Task Library" };
 
 export default async function EnglishStenographyLibraryPage() {
   const tasks = await getPublishedStenographyTasks("English");

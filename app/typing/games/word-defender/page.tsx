@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getWordtrisWords } from "@/lib/wordtris-server";
 import { WordDefenderGame } from "./word-defender-game";
 
-export const metadata: Metadata = { title: "Word Defender | Samradhi Classes" };
+export const metadata: Metadata = { title: "Word Defender" };
 
 // requireStudent()/TypingStudentProvider already applied by
 // app/typing/layout.tsx -- this file only needs to fetch the word banks.

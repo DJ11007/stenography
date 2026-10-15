@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TypingBrandHeader } from "../_components/typing-brand";
 
-export const metadata: Metadata = { title: "Practice Categories | Samradhi Classes", description: "English and Hindi typing practice categories." };
+export const metadata: Metadata = { title: "Practice Categories", description: "English and Hindi typing practice categories." };
 
 const CATEGORIES = [
   { title:"English Typing", href:"/typing/practice/english", description:"Build English speed and accuracy with published QWERTY practice tests.", action:"Browse English Tests", tone:"from-blue-700 to-cyan-500", icon:"keyboard" },

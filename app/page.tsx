@@ -13,6 +13,9 @@ import { FeedbackSection } from "./_components/feedback-section";
 import { WhatsAppButton } from "./_components/whatsapp-button";
 import { HomepageTypingDemo } from "./_components/homepage-typing-demo";
 import { BuyNowButton } from "./_components/buy-now-button";
+import type { Metadata } from "next";
+import { JsonLd } from "./_components/json-ld";
+import { BASE_OPEN_GRAPH, HOME_FAQS, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, coursesJsonLd, faqJsonLd } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
@@ -118,6 +121,11 @@ function Icon({ name, className }: { name: IconName; className: string }) {
   return <svg {...common}><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>;
 }
 
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { ...BASE_OPEN_GRAPH, title: `${SITE_NAME} – ${SITE_TAGLINE}`, description: SITE_DESCRIPTION, url: "/" },
+};
+
 export default async function Home() {
   const supabase = await createClient();
   const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user] = await Promise.all([
@@ -213,6 +221,9 @@ export default async function Home() {
             style={{ animationDelay: "80ms" }}
           >
             SAMRADHI CLASSES
+            <span className="mt-2 block text-base font-bold tracking-normal text-blue-100 sm:text-xl">
+              {SITE_TAGLINE}
+            </span>
           </h1>
 
           <div
@@ -385,6 +396,27 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      <section aria-labelledby="faq-heading" className="border-t border-blue-100 bg-slate-50 px-6 py-16">
+        <div className="mx-auto max-w-4xl">
+          <Reveal className="text-center">
+            <p className="text-xs font-black uppercase tracking-widest text-blue-700">Questions students ask</p>
+            <h2 id="faq-heading" className="mt-1 text-3xl font-black text-slate-950 sm:text-4xl">Frequently Asked Questions</h2>
+          </Reveal>
+          <div className="mt-8 space-y-3">
+            {HOME_FAQS.map((faq) => (
+              <details key={faq.question} className="group rounded-2xl border border-blue-100 bg-white p-5 shadow-sm open:shadow-md">
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-4 font-black text-slate-950">
+                  <h3 className="text-base">{faq.question}</h3>
+                  <span aria-hidden className="mt-0.5 shrink-0 text-blue-700 transition-transform group-open:rotate-45">+</span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">{faq.answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+      <JsonLd data={faqJsonLd(HOME_FAQS)} />
+      <JsonLd data={coursesJsonLd()} />
       <SiteFooter />
       <WhatsAppButton />
     </main>

@@ -6,7 +6,7 @@ import { getPublishedManagedTests } from "@/lib/managed-test-catalogue-server";
 import { ManagedTestCards } from "../../_components/managed-test-cards";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 
-export const practiceMetadata = (title:string, description:string):Metadata => ({ title:`${title} | Samradhi Classes`, description });
+export const practiceMetadata = (title:string, description:string):Metadata => ({ title:`${title}`, description });
 
 // Every distinct Hindi input system this mode could possibly show: the
 // configured set (lib/typing-curriculum.ts) plus any input_system_id a

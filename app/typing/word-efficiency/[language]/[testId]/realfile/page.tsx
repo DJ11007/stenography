@@ -4,7 +4,7 @@ import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { RealFileWorkspace } from "./realfile-workspace";
 
-export const metadata: Metadata = { title: "Word Efficiency — Real File | Samradhi Classes", description: "Download the Working Matter, edit it in MS Word, and upload your finished document." };
+export const metadata: Metadata = { title: "Word Efficiency — Real File", description: "Download the Working Matter, edit it in MS Word, and upload your finished document." };
 
 export default async function WordRealFilePage({ params, searchParams }: { params: Promise<{ language: string; testId: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { user } = await requireStudent();

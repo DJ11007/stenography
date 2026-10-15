@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import { VacancyCarousel } from "@/app/_components/vacancy-carousel";
 import { VacancySections } from "@/app/_components/vacancy-sections";
 import { BackButton } from "@/app/_components/back-button";
 import { getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
+
+export const metadata: Metadata = {
+  title: "Government Job Vacancies, Admit Cards & Results",
+  description: "Latest government job notifications, admit cards and results for typing, LDC, stenographer and other exams, maintained by Samradhi Classes, Jaipur.",
+  alternates: { canonical: "/vacancies" },
+};
 
 export default async function VacanciesPage() {
   const [vacancies, officialWebsites] = await Promise.all([getPublishedVacancies(), getPublishedOfficialWebsites()]);

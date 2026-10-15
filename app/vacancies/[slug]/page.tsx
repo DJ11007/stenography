@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/app/_components/back-button";
 import { VACANCY_CATEGORY_LABELS } from "@/lib/homepage-content";
 import { getPublishedVacancyBySlug } from "@/lib/homepage-content-server";
+import { BASE_OPEN_GRAPH } from "@/lib/seo";
 
 function DetailPanel({ title, items }: { title: string; items: string[] }) {
   return <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm"><h2 className="text-lg font-black text-blue-900">{title}</h2><ul className="mt-3 space-y-2 text-sm leading-6 text-slate-700">{items.map((item) => <li key={item} className="flex gap-2"><span aria-hidden className="text-blue-600">●</span><span>{item}</span></li>)}</ul></section>;
@@ -21,6 +23,15 @@ function UsefulLinksTable({ links }: { links: { label: string; url: string }[] }
 function NoticeDocumentsList({ documents }: { documents: { label: string; url: string }[] }) {
   if (!documents.length) return null;
   return <section className="mt-8 rounded-2xl border border-green-100 bg-white p-5 shadow-sm"><h2 className="text-lg font-black text-green-900">Documents &amp; Downloads</h2><ul className="mt-3 grid gap-2">{documents.map((doc) => <li key={doc.url}><a href={doc.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-xl border border-green-100 bg-green-50/60 px-4 py-3 font-bold text-green-900 hover:bg-green-100"><span>{doc.label}</span><span className="text-sm">Click here to download ↓</span></a></li>)}</ul></section>;
+}
+
+export async function generateMetadata({ params }: PageProps<"/vacancies/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const vacancy = await getPublishedVacancyBySlug(slug);
+  if (!vacancy) return { title: "Vacancy not found", robots: { index: false } };
+  const title = vacancy.organization && !vacancy.title.includes(vacancy.organization) ? `${vacancy.title} – ${vacancy.organization}` : vacancy.title;
+  const description = (vacancy.summary || `${vacancy.title}: important dates, fees, eligibility, age limit and official links.`).slice(0, 300);
+  return { title, description, alternates: { canonical: `/vacancies/${encodeURIComponent(vacancy.slug)}` }, openGraph: { ...BASE_OPEN_GRAPH, title, description, type: "article" } };
 }
 
 export default async function VacancyDetailPage({ params }: PageProps<"/vacancies/[slug]">) {

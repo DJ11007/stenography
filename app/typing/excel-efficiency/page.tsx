@@ -4,7 +4,7 @@ import { TypingBrandHeader } from "../_components/typing-brand";
 import { EfficiencySubjectTabs } from "../_components/efficiency-subject-tabs";
 
 export const metadata: Metadata = {
-  title: "Choose Excel Efficiency Language | Samradhi Classes",
+  title: "Choose Excel Efficiency Language",
   description: "Choose English or Hindi Excel Efficiency training for spreadsheet data entry, formulas, formatting, and sorting.",
 };
 

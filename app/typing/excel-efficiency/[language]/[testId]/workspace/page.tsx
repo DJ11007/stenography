@@ -4,7 +4,7 @@ import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ExcelWorkspace } from "./excel-workspace";
 
-export const metadata: Metadata = { title: "Excel Efficiency Workspace | Samradhi Classes", description: "Secure Excel Efficiency question-delivery and timed workspace." };
+export const metadata: Metadata = { title: "Excel Efficiency Workspace", description: "Secure Excel Efficiency question-delivery and timed workspace." };
 
 export default async function ExcelWorkspacePage({ params, searchParams }: { params: Promise<{ language: string; testId: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { user } = await requireStudent();

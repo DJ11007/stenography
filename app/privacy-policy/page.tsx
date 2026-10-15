@@ -1,8 +1,9 @@
 import { LegalLayout } from "../_components/legal-layout";
 
 export const metadata = {
-  title: "Privacy Policy | Samradhi Classes",
+  title: "Privacy Policy",
   description: "How Samradhi Classes collects, uses and protects your personal information.",
+  alternates: { canonical: "/privacy-policy" },
 };
 
 export default function PrivacyPolicyPage() {

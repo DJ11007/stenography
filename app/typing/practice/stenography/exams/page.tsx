@@ -4,7 +4,7 @@ import { STENOGRAPHY_CATEGORIES } from "@/lib/stenography-categories";
 import { TypingBrandHeader } from "../../../_components/typing-brand";
 import { ExamCategoryIcon } from "../../../exams/_components/exam-category-icon";
 
-export const metadata: Metadata = { title: "Stenography Exam Simulators | Samradhi Classes", description: "Independent court and government stenographer exam-pattern simulations, in English and Hindi." };
+export const metadata: Metadata = { title: "Stenography Exam Simulators", description: "Independent court and government stenographer exam-pattern simulations, in English and Hindi." };
 
 export default function StenographyExamCataloguePage() {
   return (

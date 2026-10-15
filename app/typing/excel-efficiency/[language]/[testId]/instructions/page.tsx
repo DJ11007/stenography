@@ -6,7 +6,7 @@ import { formatExcelDuration, type ExcelLanguage } from "@/lib/excel-efficiency"
 import { getPublishedExcelTest } from "@/lib/excel-efficiency-server";
 import { StudentTestLaunch } from "./student-test-launch";
 
-export const metadata: Metadata = { title: "Excel Efficiency Instructions | Samradhi Classes", description: "Review Excel Efficiency test instructions before starting." };
+export const metadata: Metadata = { title: "Excel Efficiency Instructions", description: "Review Excel Efficiency test instructions before starting." };
 
 export default async function ExcelInstructionsPage({ params, searchParams }: { params: Promise<{ language: string; testId: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const route = await params;

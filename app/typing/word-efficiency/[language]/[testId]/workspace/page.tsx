@@ -4,7 +4,7 @@ import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { WordWorkspace } from "./word-workspace";
 
-export const metadata:Metadata={title:"Word Efficiency Workspace | Samradhi Classes",description:"Secure Word Efficiency question-delivery and timed workspace."};
+export const metadata:Metadata={title:"Word Efficiency Workspace",description:"Secure Word Efficiency question-delivery and timed workspace."};
 
 export default async function WordWorkspacePage({params,searchParams}:{params:Promise<{language:string;testId:string}>;searchParams:Promise<Record<string,string|undefined>>}){
  const{user}=await requireStudent();const route=await params;const query=await searchParams;const attemptId=query.attempt;

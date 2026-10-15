@@ -4,7 +4,7 @@ import { TypingBrandHeader } from "../../_components/typing-brand";
 import { STENOGRAPHY_TASK_CATEGORIES } from "@/lib/stenography-task-library";
 
 export const metadata: Metadata = {
-  title: "Stenography Practice | Samradhi Classes",
+  title: "Stenography Practice",
   description: "Independent court and government stenography exam simulations, and a full task/topic-wise test library, in English and Hindi.",
 };
 

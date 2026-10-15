@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug, language } = await params;
   const category = getStenographyCategory(slug);
   const lang = languageFromSegment(language);
-  return { title: category && lang ? `${category.name} — ${lang} Tests | Stenography Exam Simulator | Samradhi Classes` : "Stenography Exam Simulator" };
+  return { title: category && lang ? `${category.name} — ${lang} Tests | Stenography Exam Simulator` : "Stenography Exam Simulator" };
 }
 
 export default async function StenographyCategoryTestsPage({ params, searchParams }: { params: Promise<{ slug: string; language: string }>; searchParams: Promise<Record<string, string | undefined>> }) {

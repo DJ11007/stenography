@@ -4,8 +4,9 @@ import { SiteFooter } from "../_components/site-footer";
 import { SiteHeader } from "../_components/site-header";
 
 export const metadata = {
-  title: "Connect With Us | Samradhi Classes",
-  description: "Every official Samradhi Classes channel in one place -- YouTube, Instagram, Telegram, our mobile app, website and phone support.",
+  title: "Connect With Us",
+  description: "Every official Samradhi Classes channel in one place: YouTube, Instagram, Telegram, our mobile app, website and phone support.",
+  alternates: { canonical: "/connect" },
 };
 
 const SUPPORT_NUMBER = "7014371324";

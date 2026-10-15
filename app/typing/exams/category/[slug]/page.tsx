@@ -7,7 +7,7 @@ import { ExamCategoryIcon } from "../../_components/exam-category-icon";
 
 export async function generateMetadata({ params }: PageProps<"/typing/exams/category/[slug]">): Promise<Metadata> {
   const category = getExamCategory((await params).slug);
-  return { title: category ? `${category.name} | Exam Simulator | Samradhi Classes` : "Exam Simulator" };
+  return { title: category ? `${category.name} | Exam Simulator` : "Exam Simulator" };
 }
 
 export default async function ExamCategoryRulesPage({ params }: PageProps<"/typing/exams/category/[slug]">) {

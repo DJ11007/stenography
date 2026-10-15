@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug, language } = await params;
   const category = getExamCategory(slug);
   const lang = languageFromSegment(language);
-  return { title: category && lang ? `${category.name} — ${lang} Exercises | Exam Simulator | Samradhi Classes` : "Exam Simulator" };
+  return { title: category && lang ? `${category.name} — ${lang} Exercises | Exam Simulator` : "Exam Simulator" };
 }
 
 export default async function ExamCategoryExercisesPage({ params, searchParams }: { params: Promise<{ slug: string; language: string }>; searchParams: Promise<Record<string, string | undefined>> }) {

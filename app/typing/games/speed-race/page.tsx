@@ -3,7 +3,7 @@ import { getWordtrisWords } from "@/lib/wordtris-server";
 import { getSpeedRacePassages } from "@/lib/speedrace-passages-server";
 import { SpeedRaceGame } from "./speed-race-game";
 
-export const metadata: Metadata = { title: "Speed Race | Samradhi Classes" };
+export const metadata: Metadata = { title: "Speed Race" };
 
 // requireStudent()/TypingStudentProvider already applied by
 // app/typing/layout.tsx -- this file only needs to fetch the word banks.

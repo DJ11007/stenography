@@ -7,7 +7,7 @@ import { ExamCategoryIcon } from "../../../../exams/_components/exam-category-ic
 
 export async function generateMetadata({ params }: PageProps<"/typing/practice/stenography/exams/[slug]">): Promise<Metadata> {
   const category = getStenographyCategory((await params).slug);
-  return { title: category ? `${category.name} | Stenography Exam Simulator | Samradhi Classes` : "Stenography Exam Simulator" };
+  return { title: category ? `${category.name} | Stenography Exam Simulator` : "Stenography Exam Simulator" };
 }
 
 // Rules + Start only. The category's tests are listed on the next page

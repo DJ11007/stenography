@@ -12,7 +12,7 @@ import { AttemptReviewClient } from "@/app/admin/students/attempts/[attemptId]/a
 import { formatIST } from "@/lib/format-datetime";
 import { PracticeAttemptReview } from "../practice-attempt-review";
 
-export const metadata: Metadata = { title: "My Result | Samradhi Classes" };
+export const metadata: Metadata = { title: "My Result" };
 
 // Student-facing counterpart to app/admin/students/attempts/[attemptId] --
 // mirrors its snapshot-rebuild logic exactly, but scoped to the current
