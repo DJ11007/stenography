@@ -130,7 +130,8 @@ function normalizedRunField(run: JsonRecord, field: string): unknown {
   return BOOLEAN_RUN_FIELDS.has(field) ? Boolean(value) : (value ?? null);
 }
 const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "dropCapLines", "dropCapDistance", "dropCapMargin", "listStyle", "specialIndentMode", "specialIndentAmount"] as const;
-const TABLE_ATTR_FIELDS = ["tableLayout"] as const;
+// Table Tools settings (lib/word-table-model.ts), each its own gradable field.
+const TABLE_ATTR_FIELDS = ["tableLayout", "tableStyle", "headerRow", "totalRow", "bandedRows", "firstColumn", "lastColumn", "bandedColumns", "repeatHeader", "tableAlign", "cellMarginTop", "cellMarginBottom", "cellMarginLeft", "cellMarginRight", "rowHeights", "colWidths"] as const;
 const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"] as const;
 
 function fieldLabel(field: string): string {

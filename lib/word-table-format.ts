@@ -25,9 +25,25 @@ export type CellFormat = {
   highlight?: string;
   align?: CellAlign;
   valign?: CellVerticalAlign;
+  // Table Tools (lib/word-table-model.ts): a merged cell covers rowspan x colspan
+  // grid positions; the positions it covers are saved as { merged: true }.
+  rowspan?: number;
+  colspan?: number;
+  merged?: boolean;
+  shading?: string;
+  // "solid 0.5 000000" (style, width in pt, colour) or "none".
+  borderTop?: string;
+  borderRight?: string;
+  borderBottom?: string;
+  borderLeft?: string;
+  // "down solid 0.5 000000" / "up ...": Word's diagonal borders.
+  borderDiagonal?: string;
+  textDirection?: "down" | "up";
 };
 
-export const CELL_FORMAT_KEYS = ["fontSize", "fontFamily", "bold", "italic", "underline", "strike", "doubleStrike", "color", "highlight", "align", "valign"] as const;
+export const CELL_FORMAT_KEYS = ["fontSize", "fontFamily", "bold", "italic", "underline", "strike", "doubleStrike", "color", "highlight", "align", "valign", "rowspan", "colspan", "merged", "shading", "borderTop", "borderRight", "borderBottom", "borderLeft", "borderDiagonal", "textDirection"] as const;
+export const BORDER_VALUE = /^(none|(solid|double|dotted|dashed) (0\.25|0\.5|0\.75|1|1\.5|2\.25|3|4\.5|6) [0-9A-F]{6})$/i;
+export const DIAGONAL_VALUE = /^(down|up) (solid|double|dotted|dashed) (0\.25|0\.5|0\.75|1|1\.5|2\.25|3|4\.5|6) [0-9A-F]{6}$/i;
 const ALIGNS = new Set(["left", "center", "right", "justify"]);
 const VALIGNS = new Set(["top", "middle", "bottom"]);
 
@@ -122,7 +138,12 @@ export function validCellFormats(value: unknown, rows: unknown[][]): boolean {
       if (!(CELL_FORMAT_KEYS as readonly string[]).includes(key)) return false;
       if (key === "fontSize") return typeof item === "number" && item >= 1 && item <= 1638;
       if (key === "fontFamily") return typeof item === "string" && item.length <= 100;
-      if (key === "color" || key === "highlight") return typeof item === "string" && /^[0-9A-F]{6}$/i.test(item);
+      if (key === "color" || key === "highlight" || key === "shading") return typeof item === "string" && /^[0-9A-F]{6}$/i.test(item);
+      if (key === "rowspan") return Number.isInteger(item) && (item as number) >= 1 && (item as number) <= 50;
+      if (key === "colspan") return Number.isInteger(item) && (item as number) >= 1 && (item as number) <= 20;
+      if (key === "borderTop" || key === "borderRight" || key === "borderBottom" || key === "borderLeft") return typeof item === "string" && BORDER_VALUE.test(item);
+      if (key === "borderDiagonal") return typeof item === "string" && DIAGONAL_VALUE.test(item);
+      if (key === "textDirection") return item === "down" || item === "up";
       if (key === "align") return typeof item === "string" && ALIGNS.has(item);
       if (key === "valign") return typeof item === "string" && VALIGNS.has(item);
       return typeof item === "boolean";

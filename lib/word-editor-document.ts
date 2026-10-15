@@ -1,5 +1,20 @@
 import { APPROVED_WORD_FONTS, SUPPORTED_WORD_COMMANDS, isWordCommandEnabled, normalizeWordEditorCapabilities } from "./word-editor-capabilities.ts";
 import { validCellFormats } from "./word-table-format.ts";
+import { TABLE_STYLES } from "./word-table-model.ts";
+
+// Table Tools settings saved on a table (see lib/word-table-model.ts).
+const TABLE_SETTING_KEYS = ["tableStyle", "headerRow", "totalRow", "bandedRows", "firstColumn", "lastColumn", "bandedColumns", "repeatHeader", "tableAlign", "cellMarginTop", "cellMarginBottom", "cellMarginLeft", "cellMarginRight", "rowHeights", "colWidths"] as const;
+const TABLE_STYLE_IDS = new Set(TABLE_STYLES.map(style => style.id));
+function validTableSettings(value: Record<string, unknown>, rows: unknown[][]) {
+  if ("tableStyle" in value && !TABLE_STYLE_IDS.has(String(value.tableStyle))) return false;
+  for (const key of ["headerRow", "totalRow", "bandedRows", "firstColumn", "lastColumn", "bandedColumns", "repeatHeader"]) if (key in value && typeof value[key] !== "boolean") return false;
+  if ("tableAlign" in value && !["left", "center", "right"].includes(String(value.tableAlign))) return false;
+  for (const key of ["cellMarginTop", "cellMarginBottom", "cellMarginLeft", "cellMarginRight"]) if (key in value && (typeof value[key] !== "number" || (value[key] as number) < 0 || (value[key] as number) > 10)) return false;
+  const sizes = (list: unknown, length: number, max: number) => Array.isArray(list) && list.length <= length && list.every(item => item === null || (typeof item === "number" && item >= 0.1 && item <= max));
+  if ("rowHeights" in value && !sizes(value.rowHeights, rows.length, 50)) return false;
+  if ("colWidths" in value && !sizes(value.colWidths, Math.max(...rows.map(row => row.length)), 60)) return false;
+  return true;
+}
 
 type JsonObject = Record<string, unknown>;
 const V1_BLOCK_TYPES = new Set(["paragraph", "list-item", "table-cell", "page-break"]);
@@ -19,7 +34,7 @@ export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle
 const ATTRS: Record<string, Set<string>> = {
   paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap", "specialIndentMode", "specialIndentAmount", "dropCapLines", "dropCapDistance", "dropCapMargin"]),
   "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle", "specialIndentMode", "specialIndentAmount"]),
-  table: new Set(["rows", "tableLayout", "cellFormats"]), image: new Set(["src", "alt", "width", "height", "localAsset"]),
+  table: new Set(["rows", "tableLayout", "cellFormats", ...TABLE_SETTING_KEYS]), image: new Set(["src", "alt", "width", "height", "localAsset"]),
   "page-break": new Set(["kind"]), "section-break": new Set(["kind"]),
   "cover-page": new Set(COMMON_BLOCK_ATTRS), header: new Set(COMMON_BLOCK_ATTRS), footer: new Set(COMMON_BLOCK_ATTRS),
   shape: new Set(COMMON_BLOCK_ATTRS),
@@ -99,6 +114,7 @@ function validateAttrs(value: unknown, type: string) {
     if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 50 || value.rows.some(row => !Array.isArray(row) || row.length < 1 || row.length > 20 || row.some(cell => typeof cell !== "string" || cell.length > 10000))) throw new Error("Invalid table structure.");
     if ("tableLayout" in value && !["auto", "fixed", "window"].includes(String(value.tableLayout))) throw new Error("Invalid table layout.");
     if ("cellFormats" in value && !validCellFormats(value.cellFormats, value.rows as unknown[][])) throw new Error("Invalid table cell formatting.");
+    if (!validTableSettings(value, value.rows as unknown[][])) throw new Error("Invalid table settings.");
   } else if (type === "image") {
     if (typeof value.src !== "string" || !(/^(?:data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}|asset:samradhi-mark)$/.test(value.src))) throw new Error("Unsafe embedded image.");
     if (typeof value.alt !== "string" || value.alt.length > 200 || typeof value.width !== "number" || typeof value.height !== "number" || !Number.isInteger(value.width) || !Number.isInteger(value.height) || value.width < 1 || value.height < 1 || value.width > 6000 || value.height > 6000 || typeof value.localAsset !== "boolean") throw new Error("Invalid embedded image metadata.");

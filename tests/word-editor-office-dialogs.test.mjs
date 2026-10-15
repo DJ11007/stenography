@@ -50,5 +50,5 @@ test("the font dialog, paragraph special indent, table AutoFit, and page-number 
   const diff = await read("lib/word-document-diff.ts");
   assert.match(diff, /"smallCaps", "allCaps", "hidden"/);
   assert.match(diff, /"specialIndentMode", "specialIndentAmount"/);
-  assert.match(diff, /TABLE_ATTR_FIELDS = \["tableLayout"\]/);
+  assert.match(diff, /TABLE_ATTR_FIELDS = \["tableLayout", "tableStyle"/);
 });
