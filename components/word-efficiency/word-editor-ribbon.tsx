@@ -11,6 +11,7 @@ import {
 } from "@/lib/word-editor-capabilities";
 
 import { useClampedFlyoutPosition, useDismiss } from "./word-flyout";
+import { WORD_FONT_SIZE_LIST } from "@/lib/word-font-sizes";
 import { InsertMenu, INSERT_MENU_IDS } from "./word-insert-menus";
 
 type Props = {
@@ -153,7 +154,7 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
 // is selected so you can type over it, or open the dropdown for a preset.
 // Typed values are rounded to the nearest half point (2.5, 18.5, 75.5, ...)
 // per the admin's own examples, then clamped to [min,max].
-const FONT_SIZE_PRESETS = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+const FONT_SIZE_PRESETS = WORD_FONT_SIZE_LIST;
 function FontSizeBox({ label, preview, min, max, onChange }: { label: string; preview: boolean; min: number; max: number; onChange: (size: number) => void }) {
   const [text, setText] = useState("11");
   const [open, setOpen] = useState(false);

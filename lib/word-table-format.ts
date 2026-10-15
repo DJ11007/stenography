@@ -120,7 +120,7 @@ export function validCellFormats(value: unknown, rows: unknown[][]): boolean {
     if (!cell || typeof cell !== "object" || Array.isArray(cell)) return false;
     return Object.entries(cell as Record<string, unknown>).every(([key, item]) => {
       if (!(CELL_FORMAT_KEYS as readonly string[]).includes(key)) return false;
-      if (key === "fontSize") return typeof item === "number" && item >= 1 && item <= 400;
+      if (key === "fontSize") return typeof item === "number" && item >= 1 && item <= 1638;
       if (key === "fontFamily") return typeof item === "string" && item.length <= 100;
       if (key === "color" || key === "highlight") return typeof item === "string" && /^[0-9A-F]{6}$/i.test(item);
       if (key === "align") return typeof item === "string" && ALIGNS.has(item);

@@ -2,6 +2,7 @@
 import { createPortal } from "react-dom";
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { APPROVED_WORD_FONTS, WORD_THEME_FONTS } from "@/lib/word-editor-capabilities";
+import { WORD_FONT_SIZE_LIST, wordFontSize } from "@/lib/word-font-sizes";
 import { DEFAULT_ENGINE_OPTIONS, describeFormat, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
 
 // Word 2013-style dialogs: Find and Replace (with Special / Format / search options),
@@ -282,7 +283,7 @@ export type FontValues = {
   strike: boolean; doubleStrike: boolean; superscript: boolean; subscript: boolean; smallCaps: boolean; allCaps: boolean; hidden: boolean;
   outline: boolean; emboss: boolean; charScale: string; charSpacing: string; charPosition: string; kerningEnabled: boolean; kerningMin: string;
 };
-const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+const FONT_SIZES = WORD_FONT_SIZE_LIST;
 const themeLabel = (font: string) => (font === "Calibri Light (Headings)" ? "+Headings" : font === "Calibri (Body)" ? "+Body" : font);
 
 function ListBox13({ items, value, onPick, label }: { items: { id: string; label: string }[]; value: string; onPick: (id: string) => void; label: string }) {
@@ -319,7 +320,8 @@ export function FontDialog2013({ values: initial, onSubmit }: { values: FontValu
     if (found) set("fontFamily", found);
   };
   const pickSize = (size: string) => { setSizeText(size); set("fontSize", size); };
-  const typedSize = (text: string) => { setSizeText(text); const number = Number(text); if (Number.isFinite(number) && number >= 8 && number <= 72) set("fontSize", String(number)); };
+  // Word accepts any size from 1 to 1638 pt in half points (1.5, 18.5, 1000.5 ...).
+  const typedSize = (text: string) => { setSizeText(text); const number = wordFontSize(text); if (number !== null) set("fontSize", String(number)); };
   const spacingNumber = Number(values.charSpacing) || 0, spacingMode = spacingNumber > 0 ? "expanded" : spacingNumber < 0 ? "condensed" : "normal";
   const positionNumber = Number(values.charPosition) || 0, positionMode = positionNumber > 0 ? "raised" : positionNumber < 0 ? "lowered" : "normal";
   const underlined = values.underlineStyle !== "none";

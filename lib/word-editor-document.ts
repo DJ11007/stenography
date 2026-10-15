@@ -56,7 +56,7 @@ export function validateWordEditorDocument(value: unknown) {
       if (version === "2" && "kerningMin" in run && run.kerningMin !== null && (typeof run.kerningMin !== "number" || !Number.isFinite(run.kerningMin) || run.kerningMin < 0 || run.kerningMin > 72)) throw new Error("Invalid kerning minimum size.");
       if(version==="2"&&("underlineStyle"in run||"underlineColor"in run||"underlineThickness"in run||"underlineWordsOnly"in run)&&(run.underlineStyle!==null&&(typeof run.underlineStyle!=="string"||!UNDERLINE_STYLES.has(run.underlineStyle))||!color(run.underlineColor)||(run.underlineThickness!==null&&(typeof run.underlineThickness!=="number"||run.underlineThickness<1||run.underlineThickness>5))||typeof run.underlineWordsOnly!=="boolean"))throw new Error("Invalid structured underline style.");
       if (run.fontFamily !== null && (typeof run.fontFamily !== "string" || !FONTS.has(run.fontFamily))) throw new Error("Invalid structured document font.");
-      if (run.fontSize !== null && (typeof run.fontSize !== "number" || !Number.isFinite(run.fontSize) || run.fontSize < 1 || run.fontSize > 72)) throw new Error("Invalid structured document font size.");
+      if (run.fontSize !== null && (typeof run.fontSize !== "number" || !Number.isFinite(run.fontSize) || run.fontSize < 1 || run.fontSize > 1638)) throw new Error("Invalid structured document font size.");
       if (!color(run.color) || !color(run.highlight)) throw new Error("Invalid structured document color.");
       if (version === "2") validateRunLinkFields(run);
     }

@@ -17,6 +17,7 @@ import { adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormattin
 import { createEditorBlock, editorBlockAttrs, editorBlockType, expandListElements, regroupListElements } from "@/lib/word-editor-structure";
 import { buildDocumentText, expandReplacement, findMatches, formatOnlyMatches, matchSatisfiesFormat, rangeForMatch, type FindEngineOptions, type Segment, type TextMatch } from "@/lib/word-find-engine";
 import { DateTimeDialog2013, DropCapDialog2013, FindReplaceDialog2013, FontDialog2013, InsertTableDialog2013, PageNumberFormatDialog2013, ParagraphDialog2013, SymbolDialog2013, Word13Chrome, type PageNumberFormatValues } from "@/components/word-efficiency/word-2013-dialogs";
+import { nextWordFontSize } from "@/lib/word-font-sizes";
 import { DATE_LANGUAGES, FOOTER_STYLES, HEADER_STYLES, PAGE_NUMBER_FORMATS as WORD_PAGE_NUMBER_FORMATS, PAGE_NUMBER_GALLERIES, QUICK_TABLES, SPECIAL_CHARACTERS, SYMBOL_SUBSETS, CUSTOM_HEADER_FOOTER_KEY, dateTimeFormats, formatPageNumber, loadCustomHeaderFooterStyles, pageNumberLabel, recentSymbols, rememberSymbol, symbolsInSubset } from "@/lib/word-insert-gallery";
 
 type ViewState = { zoom:number; ruler:boolean; gridlines:boolean; documentMap:boolean; thumbnails:boolean; formattingMarks:boolean; statusBar:boolean; mode:"print"|"reading"|"web"|"outline"|"draft" };
@@ -221,7 +222,9 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  // 12pt. The properties being set are cleared inside the new span, as the
  // Font dialog does.
  const applyRunStyles=(styles:EditorRunStyles)=>{editor.current?.focus();restoreSelection();const selection=getSelection();if(!selection?.rangeCount)return;const wrapped=wrapEditorRange(selection.getRangeAt(0),styles);if(wrapped){for(const span of wrapped.spans)clearInnerRunStyles(span,Object.keys(styles).filter(key=>styles[key as keyof EditorRunStyles]!=null));savedRange.current=wrapped.range;changed()}};
- const applyFontStep=(direction:1|-1)=>{restoreSelection();const node=getSelection()?.anchorNode,parent=node instanceof Element?node:node?.parentElement,current=Number.parseFloat(parent?getComputedStyle(parent).fontSize:"11")*.75,sizes=[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].filter(size=>size>=capabilities.fontSizeMin&&size<=capabilities.fontSizeMax),index=direction>0?sizes.findIndex(size=>size>current):sizes.findLastIndex(size=>size<current),size=index<0?(direction>0?sizes.at(-1):sizes[0]):sizes[index];if(size)applyRunStyles({fontSize:`${size}pt`})};
+ // Grow/Shrink start from the size of the first selected character (as Word does), not the
+ // paragraph a whole-paragraph selection is anchored on.
+ const applyFontStep=(direction:1|-1)=>{restoreSelection();const selection=getSelection(),node=selection?.rangeCount?firstSelectedText(selection.getRangeAt(0))??selection.anchorNode:null,parent=node instanceof Element?node:node?.parentElement,current=Number.parseFloat(parent?getComputedStyle(parent).fontSize:"11")*.75,size=nextWordFontSize(current,direction,capabilities.fontSizeMin,capabilities.fontSizeMax);if(size)applyRunStyles({fontSize:`${size}pt`})};
  // Real Word: a single click on Format Painter copies the current selection's
  // formatting and applies it exactly once to the next click/selection, then
  // turns itself off. A double click keeps it active indefinitely -- apply as
@@ -1119,7 +1122,7 @@ function approvedFont(value:string){const font=value.replace(/["']/g,"").split("
 // real cause of a reported bug: paragraphs visibly growing/shrinking
 // while working on the Model Answer page.
 // Half points are kept (Word allows 18.5 pt); whole-number rounding saved 18.5 as 19.
-function approvedSize(value:string){const size=Math.round(Number.parseFloat(value)*.75*2)/2;return Number.isFinite(size)&&size>=1&&size<=72?size:null}
+function approvedSize(value:string){const size=Math.round(Number.parseFloat(value)*.75*2)/2;return Number.isFinite(size)&&size>=1&&size<=1638?size:null}
 // getComputedStyle().backgroundColor for any element with no background set
 // at all -- which is every run that was never highlighted -- resolves to
 // "rgba(0, 0, 0, 0)" (fully transparent black) in every browser. The old
