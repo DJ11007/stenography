@@ -22,11 +22,12 @@ test("Edit Header/Footer creates a truly empty element (no placeholder text bake
 });
 
 test("Drop Cap is a real gallery (None/Dropped/In margin) plus a Drop Cap Options dialog (font, lines to drop, distance), and applies to the paragraph the cursor is in without requiring an explicit text selection", async () => {
-  const ribbon = await read("components/word-efficiency/word-editor-ribbon.tsx");
-  assert.match(ribbon, /const DROP_CAP_ITEMS=\[\{value:"none",label:"None"\},\{value:"dropped",label:"Dropped"\},\{value:"margin",label:"In margin"\}\]/);
-  assert.match(ribbon, /const DROP_CAP_ACTIONS=\[\{id:"options",label:"Drop Cap Options…"\}\]/);
+  const menus = await read("components/word-efficiency/word-insert-menus.tsx");
+  assert.match(menus, /\[\["none", "None"\], \["dropped", "Dropped"\], \["margin", "In margin"\]\]/);
+  assert.match(menus, /pick\("dropCapAction", "options"\)/);
+  assert.match(menus, />Drop Cap Options…</);
   const editor = await read(EDITOR);
-  assert.match(editor, /function DropCapOptionsForm/);
+  assert.match(editor, /dialog\.kind==="dropCapOptions"&&<DropCapDialog2013/);
   assert.match(editor, /const dropCapParagraph=\(\)=>selectedBlocks\(\)\.find\(block=>block\.tagName==="P"\)\?\?null/);
   assert.match(editor, /const applyDropCap=\(mode:string,fontFamily:string,lines:string,distance:string\)=>\{/);
   assert.match(editor, /Place the cursor in a paragraph with text to apply Drop Cap\./);

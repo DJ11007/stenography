@@ -586,3 +586,146 @@ function FindFormatPanel({ kind, initial, onOk, onCancel }: { kind: "font" | "pa
     </div>
   );
 }
+
+// ---- Insert tab dialogs (Insert Table, Page Number Format, Drop Cap, Date and Time, Symbol) ----
+
+export function InsertTableDialog2013({ onSubmit }: { onSubmit: (rows: number, cols: number, layout: string) => void }) {
+  const chrome = useContext(Word13Chrome);
+  const [cols, setCols] = useState<number | null>(5), [rows, setRows] = useState<number | null>(2);
+  const [layout, setLayout] = useState("fixed"), [remember, setRemember] = useState(false);
+  return (
+    <Window13 title="Insert Table" width={300}>
+      <Group13>Table size</Group13>
+      <div className="w13-row" style={{ marginLeft: 12 }}><span className="w13-label" style={{ width: 130 }}>Number of <u>c</u>olumns:</span><Number13 label="Number of columns" value={cols} onChange={setCols} min={1} max={20} decimals={0} width={64} /></div>
+      <div className="w13-row" style={{ marginLeft: 12 }}><span className="w13-label" style={{ width: 130 }}>Number of <u>r</u>ows:</span><Number13 label="Number of rows" value={rows} onChange={setRows} min={1} max={50} decimals={0} width={64} /></div>
+      <Group13>AutoFit behavior</Group13>
+      {([["fixed", "Fixed column width:"], ["auto", "AutoFit to contents"], ["window", "AutoFit to window"]] as const).map(([id, label]) => (
+        <div key={id} className="w13-row" style={{ marginLeft: 12 }}>
+          <label className="w13-check"><input type="radio" name="w13-table-autofit" checked={layout === id} onChange={() => setLayout(id)} /><span>{label}</span></label>
+          {id === "fixed" && <input className="w13-field" style={{ width: 64, marginLeft: "auto" }} value="Auto" disabled readOnly aria-label="Fixed column width" />}
+        </div>
+      ))}
+      <div className="w13-row" style={{ marginTop: 10 }}><Check13 checked={remember} onChange={setRemember}>Re<u>m</u>ember dimensions for new tables</Check13></div>
+      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={() => onSubmit(Math.round(rows ?? 2), Math.round(cols ?? 5), layout)}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+    </Window13>
+  );
+}
+
+export type PageNumberFormatValues = { format: string; includeChapter: boolean; continueNumbering: boolean; startAt: number };
+export function PageNumberFormatDialog2013({ values: initial, formats, onSubmit }: { values: PageNumberFormatValues; formats: { id: string; label: string }[]; onSubmit: (values: PageNumberFormatValues) => void }) {
+  const chrome = useContext(Word13Chrome);
+  const [values, setValues] = useState(initial);
+  const set = (patch: Partial<PageNumberFormatValues>) => setValues(current => ({ ...current, ...patch }));
+  const off = !values.includeChapter;
+  const dim = off ? { color: "#8a8a8a" } : undefined;
+  return (
+    <Window13 title="Page Number Format" width={330}>
+      <div className="w13-row" style={{ marginTop: 6 }}><span className="w13-label" style={{ width: 100 }}>Number <u>f</u>ormat:</span>
+        <select className="w13-select" style={{ flex: 1 }} aria-label="Number format" value={values.format} onChange={event => set({ format: event.target.value })}>{formats.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
+      <div className="w13-row"><Check13 checked={values.includeChapter} onChange={includeChapter => set({ includeChapter })}>Include chapter <u>n</u>umber</Check13></div>
+      <div className="w13-row" style={{ marginLeft: 20 }}><span className="w13-label" style={{ width: 140, ...dim }}>Chapter starts with style:</span><select className="w13-select" style={{ flex: 1 }} disabled={off} aria-label="Chapter starts with style"><option>Heading 1</option><option>Heading 2</option><option>Heading 3</option></select></div>
+      <div className="w13-row" style={{ marginLeft: 20 }}><span className="w13-label" style={{ width: 140, ...dim }}>Use separator:</span><select className="w13-select" style={{ flex: 1 }} disabled={off} aria-label="Use separator"><option>- (hyphen)</option><option>. (period)</option><option>: (colon)</option><option>— (em dash)</option><option>– (en dash)</option></select></div>
+      <div className="w13-row" style={{ marginLeft: 20, ...dim }}><span className="w13-label" style={{ width: 140 }}>Examples:</span><span>1-1, 1-A</span></div>
+      <Group13>Page numbering</Group13>
+      <div className="w13-row" style={{ marginLeft: 12 }}><label className="w13-check"><input type="radio" name="w13-page-numbering" checked={values.continueNumbering} onChange={() => set({ continueNumbering: true })} /><span><u>C</u>ontinue from previous section</span></label></div>
+      <div className="w13-row" style={{ marginLeft: 12 }}><label className="w13-check" style={{ width: 90 }}><input type="radio" name="w13-page-numbering" checked={!values.continueNumbering} onChange={() => set({ continueNumbering: false })} /><span>St<u>a</u>rt at:</span></label>
+        <Number13 label="Start at" value={values.startAt} onChange={value => set({ startAt: Math.max(1, Math.round(value ?? 1)) })} min={1} max={9999} decimals={0} width={70} disabled={values.continueNumbering} /></div>
+      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={() => onSubmit(values)}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+    </Window13>
+  );
+}
+
+export function DropCapIcon({ mode, size = 56 }: { mode: string; size?: number }) {
+  const line = (index: number, from: number) => <path key={index} d={`M${from} ${10 + index * 7}H58`} stroke="#666" strokeWidth="1.4" />;
+  return (
+    <svg viewBox="0 0 64 54" width={size} height={size * 54 / 64} aria-hidden>
+      <rect x="0.5" y="0.5" width="63" height="53" fill="#fff" stroke="#b0b0b0" />
+      {mode === "none" && Array.from({ length: 6 }, (_, index) => line(index, 6))}
+      {mode === "dropped" && <><text x="6" y="27" fontFamily="Times New Roman,serif" fontSize="24" fill="#2b579a">W</text>{Array.from({ length: 6 }, (_, index) => line(index, index < 3 ? 30 : 6))}</>}
+      {mode === "margin" && <><text x="1" y="27" fontFamily="Times New Roman,serif" fontSize="24" fill="#2b579a">W</text><path d="M22 4V50" stroke="#aaa" strokeDasharray="2 2" />{Array.from({ length: 6 }, (_, index) => line(index, 26))}</>}
+    </svg>
+  );
+}
+export type DropCapValues = { position: string; fontFamily: string; lines: string; distance: string };
+export function DropCapDialog2013({ values: initial, onSubmit }: { values: DropCapValues; onSubmit: (values: DropCapValues) => void }) {
+  const chrome = useContext(Word13Chrome);
+  const [values, setValues] = useState(initial);
+  const set = (patch: Partial<DropCapValues>) => setValues(current => ({ ...current, ...patch }));
+  const off = values.position === "none";
+  const dim = off ? { color: "#8a8a8a" } : undefined;
+  return (
+    <Window13 title="Drop Cap" width={310}>
+      <Group13>Position</Group13>
+      <div className="w13-row" style={{ gap: 14, justifyContent: "center" }}>
+        {([["none", "None"], ["dropped", "Dropped"], ["margin", "In margin"]] as const).map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={values.position === id} onMouseDown={event => event.preventDefault()} onClick={() => set({ position: id })}
+            style={{ display: "grid", justifyItems: "center", gap: 3, border: values.position === id ? "2px solid #0078d7" : "2px solid transparent", background: "transparent", padding: 2, font: "inherit", cursor: "default" }}>
+            <DropCapIcon mode={id} /><span>{label}</span>
+          </button>
+        ))}
+      </div>
+      <Group13>Options</Group13>
+      <div style={{ marginLeft: 12 }}>
+        <div style={dim}><u>F</u>ont:</div>
+        <select className="w13-select" style={{ width: "100%", marginTop: 2 }} disabled={off} aria-label="Drop cap font" value={values.fontFamily} onChange={event => set({ fontFamily: event.target.value })}>
+          <option value="">+Body</option>{APPROVED_WORD_FONTS.map(font => <option key={font} value={font}>{font}</option>)}
+        </select>
+        <div className="w13-row"><span className="w13-label" style={{ width: 140, ...dim }}><u>L</u>ines to drop:</span><Number13 label="Lines to drop" value={Number(values.lines) || 3} onChange={value => set({ lines: String(Math.round(value ?? 3)) })} min={1} max={10} decimals={0} width={80} disabled={off} /></div>
+        <div className="w13-row"><span className="w13-label" style={{ width: 140, ...dim }}>Distance from te<u>x</u>t:</span><Number13 label="Distance from text" value={(Number(values.distance) || 0) * 2.54} unit="cm" dimension="length" step={0.1} min={0} max={5} decimals={2} onChange={value => set({ distance: String((value ?? 0) / 2.54) })} width={80} disabled={off} /></div>
+      </div>
+      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={() => onSubmit(values)}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+    </Window13>
+  );
+}
+
+export function DateTimeDialog2013({ formats, languages, onSubmit }: { formats: (language: string) => string[]; languages: readonly string[]; onSubmit: (text: string) => void }) {
+  const chrome = useContext(Word13Chrome);
+  const [language, setLanguage] = useState(languages[0]);
+  const [index, setIndex] = useState(0), [auto, setAuto] = useState(false);
+  const list = formats(language);
+  const items = list.map((label, position) => ({ id: String(position), label }));
+  return (
+    <Window13 title="Date and Time" width={430}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 12, marginTop: 6 }}>
+        <div><div><u>A</u>vailable formats:</div>
+          <div className="w13-datetime-list"><ListBox13 label="Available formats" items={items} value={String(index)} onPick={id => setIndex(Number(id))} /></div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column" }}><div><u>L</u>anguage:</div>
+          <select className="w13-select" style={{ width: "100%", marginTop: 2 }} aria-label="Language" value={language} onChange={event => setLanguage(event.target.value)}>{languages.map(item => <option key={item}>{item}</option>)}</select>
+          <div style={{ marginTop: "auto" }}><Check13 checked={auto} onChange={setAuto}>Update a<u>u</u>tomatically</Check13></div>
+        </div>
+      </div>
+      <div className="w13-footer"><Button13 onClick={() => onSubmit(list[index] ?? list[0])}>Set As <u>D</u>efault</Button13><div className="w13-footer-right"><Button13 isDefault onClick={() => onSubmit(list[index] ?? list[0])}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+    </Window13>
+  );
+}
+
+export function SymbolDialog2013({ subsets, symbolsIn, specials, recent, onInsert }: { subsets: { name: string }[]; symbolsIn: (subset: string) => string[]; specials: { name: string; char: string; shortcut: string }[]; recent: string[]; onInsert: (char: string) => void }) {
+  const chrome = useContext(Word13Chrome);
+  const [tab, setTab] = useState("symbols");
+  const [subset, setSubset] = useState(subsets[0].name);
+  const [chosen, setChosen] = useState(() => symbolsIn(subsets[0].name)[0] ?? "");
+  const [special, setSpecial] = useState(specials[0].name);
+  const symbols = symbolsIn(subset);
+  const code = chosen ? chosen.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0") : "";
+  const insert = () => { const char = tab === "symbols" ? chosen : specials.find(item => item.name === special)?.char; if (char) onInsert(char); };
+  const cell = (char: string) => <button key={char} type="button" aria-label={char} aria-pressed={char === chosen} onMouseDown={event => event.preventDefault()} onClick={() => setChosen(char)} onDoubleClick={() => onInsert(char)}>{char}</button>;
+  return (
+    <Window13 title="Symbol" width={540}>
+      <Tabs13 tabs={[{ id: "symbols", label: <><u>S</u>ymbols</> }, { id: "special", label: <>S<u>p</u>ecial Characters</> }]} value={tab} onChange={setTab} />
+      <div className="w13-panel">
+        {tab === "symbols" ? <>
+          <div className="w13-row"><span className="w13-label"><u>F</u>ont:</span><select className="w13-select" style={{ width: 150 }} aria-label="Symbol font" defaultValue="(normal text)"><option>(normal text)</option></select>
+            <span className="w13-label" style={{ marginLeft: "auto" }}>S<u>u</u>bset:</span><select className="w13-select" style={{ width: 180 }} aria-label="Subset" value={subset} onChange={event => { setSubset(event.target.value); setChosen(symbolsIn(event.target.value)[0] ?? ""); }}>{subsets.map(item => <option key={item.name}>{item.name}</option>)}</select></div>
+          <div className="w13-symbol-grid" aria-label="Symbols">{symbols.map(cell)}</div>
+          <div style={{ marginTop: 6 }}><u>R</u>ecently used symbols:</div>
+          <div className="w13-symbol-grid w13-symbol-recent">{recent.slice(0, 16).map(cell)}</div>
+          <div className="w13-row"><span>Selected: <b style={{ fontSize: 14 }}>{chosen}</b></span><span style={{ marginLeft: "auto" }}><u>C</u>haracter code: <input className="w13-field" style={{ width: 54 }} readOnly value={code} aria-label="Character code" /> from: Unicode (hex)</span></div>
+        </> : <div className="w13-list" role="listbox" aria-label="Special characters" style={{ height: 250 }}>
+          {specials.map(item => <button key={item.name} type="button" role="option" aria-selected={item.name === special} onMouseDown={event => event.preventDefault()} onClick={() => setSpecial(item.name)} onDoubleClick={() => onInsert(item.char)} style={{ display: "grid", gridTemplateColumns: "40px 1fr 140px" }}><span>{item.char.trim() ? item.char : ""}</span><span>{item.name}</span><span>{item.shortcut}</span></button>)}
+        </div>}
+      </div>
+      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={insert}><u>I</u>nsert</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+    </Window13>
+  );
+}

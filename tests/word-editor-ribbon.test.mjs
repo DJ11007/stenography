@@ -236,9 +236,9 @@ test("table row/column edits target the cursor position and delete/spacing handl
 test("Insert Table offers a grid picker with a numeric dialog fallback, and a Table Tools bar exposes row/column/table commands at the cursor",async()=>{
   const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   assert.match(editor,/function TableSizePicker\(\{onPick,onCustom\}:\{onPick:\(rows:number,cols:number\)=>void;onCustom:\(\)=>void\}\)/);
-  assert.match(editor,/function InsertTableCustomForm\(\{onSubmit\}:\{onSubmit:\(rows:number,cols:number,layout\?:string\)=>void\}\)/);
-  assert.match(editor,/AutoFit behavior/);
-  assert.match(editor,/dialog\.kind==="insertTableCustom"&&<InsertTableCustomForm onSubmit=\{onInsertTable\}\/>/);
+  assert.match(await read("components/word-efficiency/word-2013-dialogs.tsx"),/AutoFit behavior/);
+  assert.match(editor,/dialog\.kind==="insertTableCustom"&&<InsertTableDialog2013 onSubmit=\{onInsertTable\}\/>/);
+  assert.match(editor,/if\(id==="insertTable"\)\{const grid=\/\^grid:/);
   assert.match(editor,/onOpenCustomTable=\{\(\)=>setDialog\(\{kind:"insertTableCustom"\}\)\}/);
   assert.match(editor,/const tableActionAtCursor=\(action:string\)=>/);
   assert.match(editor,/TABLE_TOOL_ACTIONS:\[string,string\]\[\]=\[\["add-row-above","Insert Above"\],\["add-row-below","Insert Below"\],\["add-column-left","Insert Left"\],\["add-column-right","Insert Right"\],\["remove-row","Delete Row"\],\["remove-column","Delete Column"\],\["remove-table","Delete Table"\]\]/);
@@ -277,7 +277,7 @@ test("margins, watermark, page color, columns, page size, symbol, and table inse
   assert.match(editor,/tableRowsColumns:\(\)=>openTableEditDialog\(\)/);
   assert.match(editor,/function CommandDialog/);
   assert.match(editor,/function TableSizePicker/);
-  assert.match(editor,/function SymbolPicker/);
+  assert.match(editor,/dialog\.kind==="symbol"&&<SymbolDialog2013/);
   assert.doesNotMatch(editor,/promptValue\("Watermark text/);
   assert.doesNotMatch(editor,/promptValue\("Enter a Unicode symbol/);
 });

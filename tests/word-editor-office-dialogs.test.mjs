@@ -32,7 +32,7 @@ test("the paragraph spacing dialog offers a Special indent (first line / hanging
 });
 
 test("inserting a table offers an AutoFit behavior choice (fixed / to contents / to window)", async () => {
-  const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  const editor = await read("components/word-efficiency/word-2013-dialogs.tsx");
   assert.match(editor, /AutoFit behavior/);
   assert.match(editor, /Fixed column width/);
   assert.match(editor, /AutoFit to contents/);

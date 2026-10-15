@@ -10,69 +10,8 @@ import {
   type WordEditorTab,
 } from "@/lib/word-editor-capabilities";
 
-// Font/color/underline flyouts were each positioned with a hardcoded
-// guess at their own rendered width (e.g. "window.innerWidth-158" for a
-// palette that's actually ~132px wide) to clamp them onto the screen.
-// Reported live: on a narrow viewport the guess and the real size didn't
-// agree, so the clamp let the palette sit past the right edge -- mostly
-// off-screen, just a sliver of color swatches visible, the rest
-// unreachable. A hardcoded guess can never really track "how wide is
-// this popup", since that depends on the option list, font names, and
-// the viewport's own font rendering. This measures the actual portaled
-// element after it mounts (first effect: initial guess near the trigger
-// so there's something to measure; second effect, no dependency array so
-// it re-checks every render while open: nudge it back inside the
-// viewport if the real box overflows) instead of asserting a size.
-function useClampedFlyoutPosition(open: boolean, anchorRef: RefObject<HTMLElement | null>, align: "left" | "right" = "left") {
-  const [position, setPosition] = useState<CSSProperties>({});
-  const flyoutRef = useRef<HTMLDivElement>(null);
-  // Place the flyout under its trigger, and re-place it if the page scrolls or resizes
-  // while it is open (the flyout is position:fixed, so it would otherwise stay behind).
-  useLayoutEffect(() => {
-    if (!open) { setPosition({}); return; }
-    const place = () => {
-      const rect = anchorRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setPosition({ position: "fixed", left: align === "left" ? rect.left : undefined, right: align === "right" ? Math.max(4, window.innerWidth - rect.right) : undefined, top: rect.bottom + 2 });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
-  }, [open, align, anchorRef]);
-  // Only clamp once the flyout has actually been positioned under its trigger. Measuring it
-  // before that (while it still sits unpositioned at the top-left of the page) used to
-  // "clamp" it to the top-left corner of the screen instead of under the control.
-  useLayoutEffect(() => {
-    if (!open || position.position !== "fixed") return;
-    const flyout = flyoutRef.current;
-    if (!flyout) return;
-    const rect = flyout.getBoundingClientRect();
-    const margin = 4;
-    let left = rect.left, top = rect.top;
-    if (rect.right > window.innerWidth - margin) left -= rect.right - (window.innerWidth - margin);
-    if (left < margin) left = margin;
-    if (rect.bottom > window.innerHeight - margin) top -= rect.bottom - (window.innerHeight - margin);
-    if (top < margin) top = margin;
-    if (Math.abs(left - rect.left) > 0.5 || Math.abs(top - rect.top) > 0.5) setPosition(current => ({ ...current, left, top, right: "auto" }));
-  });
-  return { position, flyoutRef };
-}
-
-// Close an open flyout when the user clicks anywhere outside it (and its trigger) or presses
-// Escape. Without this, galleries stayed open on screen until their trigger was clicked again.
-function useDismiss(open: boolean, close: () => void, refs: RefObject<HTMLElement | null>[]) {
-  const closeRef = useRef(close);
-  closeRef.current = close;
-  useEffect(() => {
-    if (!open) return;
-    const down = (event: MouseEvent) => { const target = event.target as Node; if (refs.some(ref => ref.current?.contains(target))) return; closeRef.current(); };
-    const key = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") closeRef.current(); };
-    document.addEventListener("mousedown", down, true);
-    document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("mousedown", down, true); document.removeEventListener("keydown", key); };
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps -- refs are stable ref objects
-}
+import { useClampedFlyoutPosition, useDismiss } from "./word-flyout";
+import { InsertMenu, INSERT_MENU_IDS } from "./word-insert-menus";
 
 type Props = {
   capabilities: HierarchicalEditorCapabilities;
@@ -192,13 +131,13 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   // double-click (browsers set this for any click listener, not just
   // dblclick), so no separate dblclick listener is needed here.
   if(option.id==="formatPainter"){const disabled=preview||Boolean(option.unsupported);return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-pressed={active||undefined} disabled={disabled} title={option.unsupported??option.label} onMouseDown={event=>{if(!disabled)event.preventDefault()}} onClick={event=>{if(!disabled)onCommand?.(event.detail>=2?"formatPainterSticky":"formatPainter")}}><RibbonIcon id={option.id}/><span>{option.label}</span></button>}
+  if(INSERT_MENU_IDS.has(option.id))return <InsertMenu option={option} preview={preview} icon={<RibbonIcon id={option.id}/>} onValueCommand={onValueCommand}/>;
   if(option.id==="changeCase")return <GalleryMenu option={option} preview={preview} items={CASE_ITEMS} onPick={value=>onValueCommand?.("changeCase",value)}/>;
   if(option.id==="bullets")return <GalleryMenu option={option} preview={preview} items={BULLET_ITEMS} onPick={value=>onValueCommand?.("bullets",value)}/>;
   if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} onPick={value=>onValueCommand?.("numbering",value)}/>;
   if(option.id==="multilevelList")return <GalleryMenu option={option} preview={preview} items={MULTILEVEL_ITEMS} onPick={value=>onValueCommand?.("multilevelList",value)}/>;
   if(option.id==="lineSpacing")return <GalleryMenu option={option} preview={preview} items={SPACING_ITEMS} onPick={value=>onValueCommand?.("lineSpacing",value)} actions={SPACING_ACTIONS} onAction={id=>onValueCommand?.("lineSpacingAction",id)}/>;
   if(option.id==="borders")return <GalleryMenu option={option} preview={preview} items={BORDER_ITEMS} onPick={value=>onValueCommand?.("borders",value)} actions={BORDER_ACTIONS} onAction={id=>onValueCommand?.("borders",id)}/>;
-  if(option.id==="dropCap")return <GalleryMenu option={option} preview={preview} items={DROP_CAP_ITEMS} onPick={value=>onValueCommand?.("dropCap",value)} actions={DROP_CAP_ACTIONS} onAction={id=>onValueCommand?.("dropCapAction",id)}/>;
   if(option.id==="margins")return <GalleryMenu option={option} preview={preview} items={MARGIN_PRESETS} onPick={value=>onValueCommand?.("margins",value)} actions={MARGIN_ACTIONS} onAction={id=>onValueCommand?.("marginsAction",id)}/>;
   if(option.id==="orientation")return <GalleryMenu option={option} preview={preview} items={ORIENTATION_ITEMS} onPick={value=>onValueCommand?.("orientation",value)}/>;
   if(option.id==="pageSize")return <GalleryMenu option={option} preview={preview} items={PAGE_SIZE_ITEMS} onPick={value=>onValueCommand?.("pageSize",value)} actions={PAGE_SIZE_ACTIONS} onAction={id=>onValueCommand?.("pageSizeAction",id)}/>;
@@ -305,8 +244,6 @@ const BULLET_ITEMS=[{value:"none",label:"None",swatch:""},{value:"bullet-disc",l
 const NUMBER_ITEMS=[{value:"none",label:"None",swatch:""},{value:"decimal",label:"1.  2.  3.",swatch:"1."},{value:"decimal-paren",label:"1)  2)  3)",swatch:"1)"},{value:"upper-roman",label:"I.  II.  III.",swatch:"I."},{value:"upper-alpha",label:"A.  B.  C.",swatch:"A."},{value:"lower-alpha-paren",label:"a)  b)  c)",swatch:"a)"},{value:"lower-alpha",label:"a.  b.  c.",swatch:"a."},{value:"lower-roman",label:"i.  ii.  iii.",swatch:"i."}];
 const MULTILEVEL_ITEMS=NUMBER_ITEMS;
 const GALLERY_NOTES:Record<string,string>={multilevelList:"This editor supports one numbering level per list, not nested outline levels.",columns:"Left/Right unequal columns aren't supported in this exam tool — only equal-width columns."};
-const DROP_CAP_ITEMS=[{value:"none",label:"None"},{value:"dropped",label:"Dropped"},{value:"margin",label:"In margin"}];
-const DROP_CAP_ACTIONS=[{id:"options",label:"Drop Cap Options…"}];
 const MARGIN_PRESETS=[
  {value:"normal",label:"Normal — Top/Bottom 2.54 cm, Left/Right 2.54 cm"},
  {value:"narrow",label:"Narrow — all sides 1.27 cm"},
