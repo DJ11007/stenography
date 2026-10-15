@@ -5,8 +5,8 @@ import { getPublishedCoursePackages } from "@/lib/homepage-content-server";
 import { COURSE_PACKAGE_CATEGORIES, type CoursePackage } from "@/lib/homepage-content";
 
 export const metadata: Metadata = {
-  title: "Typing, Efficiency & Stenography Courses – Fees & Plans",
-  description: "Compare Samradhi Classes course plans for Hindi & English typing, MS Word/Excel efficiency and stenography, and enroll by call or WhatsApp.",
+  title: "Govt Exam Typing, Stenography & Efficiency Courses – Fees & Plans",
+  description: "Compare Samradhi Classes course plans for SSC, Railway, High Court and state exam typing (Hindi & English), stenography and MS Word/Excel efficiency, and enroll by call or WhatsApp.",
   alternates: { canonical: "/courses" },
 };
 

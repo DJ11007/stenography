@@ -1,4 +1,4 @@
-import { BUSINESS, EXAMS_COVERED, FULL_ADDRESS, HOME_FAQS, SAME_AS, SERVICES, SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "@/lib/seo";
+import { BUSINESS, EXAM_GROUPS, FULL_ADDRESS, HOME_FAQS, SAME_AS, SERVICES, SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "@/lib/seo";
 
 // llms.txt (https://llmstxt.org): a plain summary of the site for AI answer
 // engines, built from the same facts as the pages and the JSON-LD.
@@ -9,13 +9,14 @@ export function GET() {
 
 > ${SITE_DESCRIPTION}
 
-${SITE_NAME} (also known as SC Typing, website sctyping.com) is a coaching institute in Sanganer, Jaipur (Rajasthan, India) that trains students for the typing, computer efficiency and stenography tests of government job exams. The website ${absoluteUrl("/")} also gives students online typing tests, efficiency tests, stenography dictation practice, live tests with published rankings, and government vacancy updates.
+${SITE_NAME} (also known as SC Typing, website sctyping.com) prepares students across India for the typing, stenography and computer efficiency tests of government exams: SSC, Railway, High Courts, Supreme Court and all state-level exams. Its coaching centre is in Sanganer, Jaipur (Rajasthan). The website ${absoluteUrl("/")} also gives students online typing tests, efficiency tests, stenography dictation practice, live tests with published rankings, and government vacancy updates.
 
 ## Courses
 ${SERVICES.map((service) => `- ${service.name}: ${service.description}`).join("\n")}
 
 ## Exams covered
-${EXAMS_COVERED.join(", ")}.
+${EXAM_GROUPS.map((group) => `- ${group.level}: ${group.exams.join(", ")}`).join("\n")}
+- And other central and state-level exams with a typing, stenography or efficiency test
 
 ## Contact
 - Address: ${FULL_ADDRESS}

@@ -19,7 +19,7 @@ export default async function Image() {
         <div style={{ marginTop: 28, fontSize: 76, fontWeight: 900, letterSpacing: -1 }}>SAMRADHI CLASSES</div>
         <div style={{ marginTop: 12, fontSize: 36, color: "#dbeafe", textAlign: "center" }}>{SITE_TAGLINE}</div>
         <div style={{ marginTop: 30, display: "flex", gap: 18, fontSize: 26, color: "#e0e7ff" }}>
-          <span>Hindi & English Typing</span><span>•</span><span>MS Word / Excel Efficiency</span><span>•</span><span>Stenography</span>
+          <span>SSC</span><span>•</span><span>Railway</span><span>•</span><span>High Court</span><span>•</span><span>State Exams</span><span>•</span><span>Hindi & English</span>
         </div>
         <div style={{ marginTop: 30, fontSize: 28, fontWeight: 700, color: "#fde68a" }}>{`sctyping.com · Sanganer, Jaipur · Call ${BUSINESS.phoneDisplay}`}</div>
       </div>

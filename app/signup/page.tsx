@@ -3,8 +3,8 @@ import { AuthShell } from "../_components/auth-shell";
 import SignupForm from "./signup-form";
 
 export const metadata: Metadata = {
-  title: "Sign Up – Free Online Typing Tests",
-  description: "Create a free Samradhi Classes account to take Hindi (Kruti Dev, Mangal) and English typing tests, efficiency tests and stenography practice online.",
+  title: "Sign Up – Free Government Exam Typing Tests",
+  description: "Create a free SC Typing account to practise SSC, Railway, High Court and state exam typing tests in Hindi (Kruti Dev, Mangal) and English, plus stenography and efficiency tests.",
   alternates: { canonical: "/signup" },
 };
 

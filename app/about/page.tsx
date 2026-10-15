@@ -4,7 +4,7 @@ import { SiteHeader } from "../_components/site-header";
 
 export const metadata = {
   title: "About Us – Typing & Stenography Institute in Jaipur",
-  description: "Samradhi Classes is a typing, computer efficiency and stenography coaching institute in Sanganer, Jaipur, preparing students for RSSB, Rajasthan High Court, SSC and other government exams.",
+  description: "Samradhi Classes is a typing, computer efficiency and stenography coaching institute in Sanganer, Jaipur, preparing students for the typing tests of SSC, Railway, High Court, RSSB and all state-level government exams.",
   alternates: { canonical: "/about" },
 };
 

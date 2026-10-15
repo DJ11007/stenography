@@ -9,9 +9,9 @@ export const SITE_NAME = "Samradhi Classes";
 // Other names people search for: the site is sctyping.com, "SC Typing".
 export const SITE_ALIASES = ["SC Typing", "SCTyping", "sctyping.com", "Samradhi Classes Jaipur", "समृद्धि क्लासेस"];
 export const SITE_TITLE_BRAND = `${SITE_NAME} (SC Typing)`;
-export const SITE_TAGLINE = "Typing, Computer Efficiency & Stenography Coaching in Jaipur";
+export const SITE_TAGLINE = "Govt Exam Typing, Stenography & Efficiency Test Preparation";
 export const SITE_DESCRIPTION =
-  "Samradhi Classes, Sanganer, Jaipur: Hindi & English typing (Kruti Dev, Mangal, InScript), computer efficiency (MS Word & Excel) and stenography coaching for RSSB LDC, RHC LDC, SSC CHSL, SSC Steno and High Court exams, with free online typing tests.";
+  "Prepare for every government exam typing test with Samradhi Classes (SC Typing): SSC CHSL/CGL, SSC Stenographer, Railway RRB NTPC, Rajasthan High Court, RSSB LDC and all state-level exams. Hindi (Kruti Dev, Mangal) & English typing tests, stenography dictation and MS Word/Excel efficiency tests online, plus coaching in Sanganer, Jaipur.";
 
 export const BUSINESS = {
   phone: "+91-7014371324",
@@ -37,33 +37,43 @@ export const SAME_AS = [
 ];
 
 export const SEO_KEYWORDS = [
-  "SC Typing", "sctyping", "sctyping.com", "SC typing test", "SC Typing Samradhi Classes", "typing classes in Jaipur", "typing coaching Jaipur", "Samradhi Classes", "Samradhi Classes Sanganer",
-  "Hindi typing test", "English typing test", "Kruti Dev typing", "Mangal typing", "InScript typing", "Remington Gail typing",
-  "online typing test", "RSSB LDC typing test", "RHC LDC typing test", "SSC CHSL typing test", "computer efficiency test",
-  "RSSB LDC efficiency test", "MS Word efficiency test", "stenography coaching Jaipur", "Hindi stenography", "English stenography",
-  "SSC stenographer", "High Court stenographer", "टाइपिंग कोचिंग जयपुर", "हिंदी टाइपिंग टेस्ट", "कृतिदेव टाइपिंग", "स्टेनोग्राफी कोचिंग",
+  "SC Typing", "sctyping", "sctyping.com", "SC typing test", "Samradhi Classes", "Samradhi Classes Jaipur",
+  "government exam typing test", "govt exam typing test preparation", "online typing test for government exams", "typing test practice",
+  "SSC typing test", "SSC CHSL typing test", "SSC CGL typing test", "SSC DEST", "SSC stenographer", "SSC steno skill test",
+  "railway typing test", "RRB NTPC typing test", "railway clerk typing test", "high court typing test", "Rajasthan High Court LDC typing test",
+  "high court stenographer", "RSSB LDC typing test", "RSSB LDC efficiency test", "state level typing test", "DSSSB typing test",
+  "UP Police typing test", "MP CPCT", "BELTRON typing test", "Hindi typing test", "English typing test", "Kruti Dev typing test",
+  "Mangal typing test", "InScript typing", "Remington Gail typing", "stenography dictation", "Hindi stenography", "English stenography",
+  "computer efficiency test", "MS Word efficiency test", "typing classes in Jaipur", "stenography coaching Jaipur",
+  "सरकारी परीक्षा टाइपिंग टेस्ट", "हिंदी टाइपिंग टेस्ट", "कृतिदेव टाइपिंग टेस्ट", "स्टेनोग्राफी", "एसएससी टाइपिंग टेस्ट", "रेलवे टाइपिंग टेस्ट", "हाईकोर्ट टाइपिंग टेस्ट", "टाइपिंग कोचिंग जयपुर",
 ];
 
-export const EXAMS_COVERED = [
-  "SSC CGL", "SSC CHSL", "SSC Stenographer", "RRB NTPC", "DSSSB", "KVS/NVS", "RSSB LDC", "RSSB IA", "RSSB Stenographer",
-  "Rajasthan High Court LDC", "Rajasthan High Court SA", "RVVUNL", "MP High Court", "Allahabad High Court", "Supreme Court JCA",
-  "MP-CPCT", "UPPSC", "UPPCL", "UP Police", "BELTRON",
-];
+// Grouped the way students search: by recruiting body / level.
+export const EXAM_GROUPS = [
+  { level: "SSC (central)", exams: ["SSC CHSL (LDC/JSA, DEO)", "SSC CGL (DEST)", "SSC Stenographer Grade C & D", "SSC CPO/GD ministerial posts"] },
+  { level: "Railway", exams: ["RRB NTPC (Junior Clerk cum Typist, Accounts Clerk cum Typist, Senior Clerk cum Typist)", "RRB Ministerial & Isolated (Stenographer)"] },
+  { level: "High Courts & Supreme Court", exams: ["Rajasthan High Court LDC, JJA & Stenographer", "MP High Court", "Allahabad High Court", "Delhi High Court", "Supreme Court JCA", "District & Session Courts"] },
+  { level: "Rajasthan", exams: ["RSSB LDC", "RSSB IA (Informatics Assistant)", "RSSB Stenographer", "RHC SA", "RVVUNL"] },
+  { level: "Other states", exams: ["DSSSB (Delhi)", "UPSSSC, UPPSC, UPPCL & UP Police (UP)", "MP-CPCT & MPESB (MP)", "BELTRON & BSSC (Bihar)", "HSSC (Haryana)"] },
+  { level: "Central forces & others", exams: ["CRPF/CISF/BSF Head Constable Ministerial", "Assam Rifles", "Army clerk", "KVS/NVS", "EPFO SSA"] },
+] as const;
+
+export const EXAMS_COVERED: string[] = EXAM_GROUPS.flatMap((group) => [...group.exams]);
 
 export const SERVICES = [
   {
-    name: "Hindi & English Typing",
-    description: "English typing and Hindi typing in Kruti Dev 010, Mangal (Unicode), DevLys, Remington Gail and InScript layouts, trained to the speed and accuracy each government exam requires.",
-    path: "/courses",
-  },
-  {
-    name: "Computer Efficiency (MS Word & Excel)",
-    description: "Practical MS Word and Excel efficiency tests in the exact format of RSSB LDC, RHC LDC and RHC SA exams, with automatic marking.",
+    name: "Government Exam Typing Test Preparation (Hindi & English)",
+    description: "Typing test practice for SSC, Railway, High Court and all state-level exams: English typing and Hindi typing in Kruti Dev 010, Mangal (Unicode), DevLys, Remington Gail and InScript, marked the way each exam calculates speed and mistakes.",
     path: "/courses",
   },
   {
     name: "Stenography (Hindi & English)",
-    description: "Shorthand dictation at exam speeds and transcription practice for SSC, RSSB, High Court, Supreme Court and Judicial Assistant stenographer exams.",
+    description: "Shorthand dictation at exam speeds and transcription practice for SSC Stenographer Grade C & D, Railway, High Court, Supreme Court, Rajasthan and other state stenographer exams.",
+    path: "/courses",
+  },
+  {
+    name: "Computer Efficiency Test (MS Word & Excel)",
+    description: "Practical MS Word and Excel efficiency tests in the exact format of RSSB LDC, Rajasthan High Court LDC and RHC SA exams, with automatic marking.",
     path: "/courses",
   },
 ] as const;
@@ -74,40 +84,40 @@ export type Faq = { question: string; answer: string };
 // structured answers to be visible on the page, so keep them identical.
 export const HOME_FAQS: Faq[] = [
   {
-    question: "What does Samradhi Classes teach?",
-    answer: "Samradhi Classes teaches Hindi and English typing (Kruti Dev 010, Mangal, DevLys, Remington Gail and InScript), computer efficiency (MS Word and Excel) and Hindi and English stenography for government job exams.",
+    question: "What does Samradhi Classes (SC Typing) offer?",
+    answer: "Samradhi Classes prepares students for the typing, stenography and computer efficiency tests of government exams: SSC, Railway, High Courts, Supreme Court and all state-level exams. Students practise Hindi (Kruti Dev, Mangal) and English typing tests, stenography dictation and MS Word/Excel efficiency tests online at sctyping.com, and can also join coaching in Sanganer, Jaipur.",
+  },
+  {
+    question: "Which government exams can I prepare for here?",
+    answer: "SSC CHSL and SSC CGL (DEST), SSC Stenographer Grade C & D, Railway RRB NTPC clerk-cum-typist posts and railway stenographer, Rajasthan High Court, MP, Allahabad and Delhi High Courts, Supreme Court JCA, RSSB LDC, IA and Stenographer, DSSSB, UP (UPSSSC, UPPCL, UP Police), MP-CPCT, BELTRON, HSSC and central forces ministerial posts, along with other state-level typing tests.",
   },
   {
     question: "Is SC Typing (sctyping.com) the official website of Samradhi Classes?",
-    answer: "Yes. SC Typing at sctyping.com is the official website of Samradhi Classes, Sanganer, Jaipur, for online typing tests, efficiency tests, stenography practice, live tests and results.",
+    answer: "Yes. SC Typing at sctyping.com is the official website of Samradhi Classes for online government exam typing tests, stenography practice, efficiency tests, live tests and results.",
   },
   {
-    question: "Where is Samradhi Classes located?",
-    answer: `Samradhi Classes is at ${FULL_ADDRESS}. You can call ${BUSINESS.phoneDisplay} before visiting.`,
+    question: "Can I take a government exam typing test online for free?",
+    answer: "Yes. Create a free account on sctyping.com to take online typing tests in English and Hindi (Kruti Dev and Mangal) in exam pattern, with speed, accuracy and mistake reports. Full course access is available with a paid plan.",
   },
   {
-    question: "Which exams does Samradhi Classes prepare students for?",
-    answer: "Typing, efficiency and stenography tests of SSC CGL/CHSL, SSC Stenographer, RRB NTPC, DSSSB, RSSB LDC, RSSB IA, Rajasthan High Court LDC and SA, MP High Court, Allahabad High Court, Supreme Court, MP-CPCT, UPPSC, UPPCL, UP Police and BELTRON, among others.",
+    question: "Do you have SSC and High Court stenography dictation practice?",
+    answer: "Yes. Students practise Hindi and English shorthand dictation at exam speeds and transcribe it in an exam-style typing screen, following SSC Stenographer, Railway, High Court and state stenographer exam patterns.",
   },
   {
-    question: "Can I take a Hindi or English typing test online for free?",
-    answer: "Yes. Create a free account on sctyping.com to take online typing tests in English and Hindi (Kruti Dev and Mangal) with exam-style speed, accuracy and mistake reports. Full course access is available with a paid plan.",
-  },
-  {
-    question: "What is the computer efficiency test in RSSB LDC and RHC LDC exams?",
+    question: "What is the computer efficiency test in RSSB LDC and Rajasthan High Court exams?",
     answer: "It is a practical test where candidates format and edit a document in MS Word (and work on a spreadsheet in Excel) within a time limit. Samradhi Classes provides exam-format efficiency tests with automatic marking question by question.",
   },
   {
-    question: "Does Samradhi Classes offer stenography dictation practice?",
-    answer: "Yes. Students practise Hindi and English shorthand dictation at exam speeds and transcribe it in an exam-style typing screen, following SSC, RSSB and High Court stenographer patterns.",
+    question: "Where is Samradhi Classes located?",
+    answer: `The coaching centre is at ${FULL_ADDRESS}. Online tests on sctyping.com can be taken from anywhere in India. Call ${BUSINESS.phoneDisplay} for details.`,
   },
   {
-    question: "How can I join Samradhi Classes and what are the fees?",
+    question: "How can I join and what are the fees?",
     answer: `Course plans and fees are listed on the Buy a Course page (sctyping.com/courses). To enroll, call or WhatsApp ${BUSINESS.phoneDisplay}.`,
   },
   {
-    question: "क्या समृद्धि क्लासेस में हिंदी टाइपिंग (कृतिदेव और मंगल) सिखाई जाती है?",
-    answer: "हाँ। समृद्धि क्लासेस, सांगानेर, जयपुर में कृतिदेव 010, मंगल (यूनिकोड), रेमिंग्टन गेल और इनस्क्रिप्ट में हिंदी टाइपिंग, MS Word/Excel एफिशिएंसी और हिंदी-अंग्रेज़ी स्टेनोग्राफी की तैयारी कराई जाती है। ऑनलाइन टाइपिंग टेस्ट sctyping.com पर उपलब्ध हैं।",
+    question: "क्या यहाँ SSC, रेलवे, हाईकोर्ट और राज्य स्तरीय परीक्षाओं के टाइपिंग टेस्ट की तैयारी होती है?",
+    answer: "हाँ। समृद्धि क्लासेस (SC Typing) पर SSC, रेलवे, हाईकोर्ट, सुप्रीम कोर्ट और सभी राज्य स्तरीय सरकारी परीक्षाओं के हिंदी (कृतिदेव, मंगल) व अंग्रेज़ी टाइपिंग टेस्ट, स्टेनोग्राफी डिक्टेशन और MS Word/Excel एफिशिएंसी टेस्ट की ऑनलाइन तैयारी sctyping.com पर होती है। कोचिंग सेंटर सांगानेर, जयपुर में है।",
   },
 ];
 
@@ -140,10 +150,10 @@ export function organizationJsonLd() {
           addressCountry: BUSINESS.country,
         },
         hasMap: BUSINESS.mapUrl,
-        areaServed: [{ "@type": "City", name: "Jaipur" }, { "@type": "State", name: "Rajasthan" }, { "@type": "Country", name: "India" }],
+        areaServed: [{ "@type": "Country", name: "India" }, { "@type": "State", name: "Rajasthan" }, { "@type": "City", name: "Jaipur" }],
         sameAs: SAME_AS,
         contactPoint: { "@type": "ContactPoint", telephone: BUSINESS.phone, contactType: "admissions", availableLanguage: ["Hindi", "English"], areaServed: "IN" },
-        knowsAbout: ["Hindi typing", "English typing", "Kruti Dev", "Mangal Unicode typing", "InScript", "Remington Gail", "MS Word efficiency test", "MS Excel efficiency test", "Stenography", "Shorthand", ...EXAMS_COVERED],
+        knowsAbout: ["Government exam typing test", "Hindi typing", "English typing", "Kruti Dev", "Mangal Unicode typing", "InScript", "Remington Gail", "MS Word efficiency test", "MS Excel efficiency test", "Stenography", "Shorthand", ...EXAMS_COVERED],
         hasOfferCatalog: {
           "@type": "OfferCatalog",
           name: "Courses",
