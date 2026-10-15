@@ -115,6 +115,10 @@ export type WordAnalysisEntry = {
   typedIndex?: number;
   halfErrorCategories: HalfErrorCategory[];
   separatorAfter?: string;
+  // What the student actually typed after this word, kept only when it differs
+  // from the passage (a spacing mistake), so the result can show exactly where
+  // an extra space or Enter was typed. Absent on attempts saved before this.
+  typedSeparatorAfter?: string;
 };
 
 export type ScoringProfile = {
@@ -704,6 +708,7 @@ export function alignWords(
       profile.spacingErrors !== false
     ) {
       entry.halfErrorCategories = [...entry.halfErrorCategories, "spacing"];
+      entry.typedSeparatorAfter = typedWords[entry.typedIndex].separatorAfter;
       if (entry.status === "correct") entry.status = "half-error";
     }
   }

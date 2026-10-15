@@ -30,10 +30,29 @@ export function requiredWpmForMarksMethod(method: MarksMethod) {
   return method.minimumPassingMarks / method.marksPerCorrectWord / (method.requiredDurationSeconds / 60);
 }
 
+// A spacing mistake is shown where it happened, as a short tag after the word:
+// "+1 space" / "+2 spaces", or "↵ Enter" for an Enter pressed mid-line. Attempts saved before
+// the typed gap was recorded only know that the gap was wrong, which on one
+// line means extra spaces, so they show a generic extra-space mark.
+export type SpacingMark = { marks: string; title: string };
+export function spacingMark(entry: WordAnalysisEntry): SpacingMark | null {
+  if (!entry.halfErrorCategories.includes("spacing")) return null;
+  const typed = entry.typedSeparatorAfter, expected = entry.separatorAfter ?? " ";
+  if (typed === undefined) return { marks: "+space", title: "Extra space typed after this word" };
+  if (/\n/.test(typed) && !/\n/.test(expected)) return { marks: "↵ Enter", title: "Enter pressed after this word (the passage continues on the same line)" };
+  if (/\n/.test(expected) && !/\n/.test(typed)) return { marks: "¶ new para", title: "A new paragraph starts after this word, but Enter was not pressed" };
+  const extra = Math.max(1, typed.replace(/[^ \t]/g, "").length - expected.replace(/[^ \t]/g, "").length);
+  return { marks: extra === 1 ? "+1 space" : `+${extra} spaces`, title: extra === 1 ? "1 extra space typed after this word" : `${extra} extra spaces typed after this word` };
+}
+
 export function comparisonWordDisplay(entry: WordAnalysisEntry) {
+  // A word typed right with only a wrong gap after it needs no "[expected]"
+  // copy of itself -- that made correctly typed words look wrong.
+  const onlySpacing = entry.status === "half-error" && entry.typed === entry.original && entry.halfErrorCategories.every(category => category === "spacing");
   return {
     text: entry.status === "missing" ? "" : entry.status === "remaining" ? entry.original ?? "" : entry.typed ?? entry.original ?? "",
-    expected: entry.status === "missing" || entry.status === "substituted" || entry.status === "half-error" ? entry.original : undefined,
+    expected: onlySpacing ? undefined : entry.status === "missing" || entry.status === "substituted" || entry.status === "half-error" ? entry.original : undefined,
+    spacing: spacingMark(entry),
   };
 }
 

@@ -166,6 +166,7 @@ test("requiredWpmForMarksMethod derives the real qualifying pace from the marks 
 
 test("comparison display pairs substitutions and half mistakes with originals only", () => {
   const entry = (status, original, typed, halfErrorCategories = []) => ({ id: status, status, original, typed, halfErrorCategories, separatorAfter: " " });
+  const show = (value) => { const { text, expected } = comparisonWordDisplay(value); return { text, expected }; };
   assert.deepEqual(comparisonWordDisplay(entry("substituted", "young", "Yong")), { text: "Yong", expected: "young" });
   for (const category of ["capitalization", "minorSpelling", "spacing", "punctuation"]) {
     assert.deepEqual(comparisonWordDisplay(entry("half-error", "their", "THEIR", [category])), { text: "THEIR", expected: "their" });
