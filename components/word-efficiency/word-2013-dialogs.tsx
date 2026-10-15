@@ -282,7 +282,7 @@ export type FontValues = {
   strike: boolean; doubleStrike: boolean; superscript: boolean; subscript: boolean; smallCaps: boolean; allCaps: boolean; hidden: boolean;
   outline: boolean; emboss: boolean; charScale: string; charSpacing: string; charPosition: string; kerningEnabled: boolean; kerningMin: string;
 };
-const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
 const themeLabel = (font: string) => (font === "Calibri Light (Headings)" ? "+Headings" : font === "Calibri (Body)" ? "+Body" : font);
 
 function ListBox13({ items, value, onPick, label }: { items: { id: string; label: string }[]; value: string; onPick: (id: string) => void; label: string }) {

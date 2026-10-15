@@ -1119,7 +1119,7 @@ function approvedFont(value:string){const font=value.replace(/["']/g,"").split("
 // real cause of a reported bug: paragraphs visibly growing/shrinking
 // while working on the Model Answer page.
 // Half points are kept (Word allows 18.5 pt); whole-number rounding saved 18.5 as 19.
-function approvedSize(value:string){const size=Math.round(Number.parseFloat(value)*.75*2)/2;return Number.isFinite(size)&&size>=8&&size<=72?size:null}
+function approvedSize(value:string){const size=Math.round(Number.parseFloat(value)*.75*2)/2;return Number.isFinite(size)&&size>=1&&size<=72?size:null}
 // getComputedStyle().backgroundColor for any element with no background set
 // at all -- which is every run that was never highlighted -- resolves to
 // "rgba(0, 0, 0, 0)" (fully transparent black) in every browser. The old

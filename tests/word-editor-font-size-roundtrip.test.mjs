@@ -28,7 +28,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("approvedSize() converts getComputedStyle's px font-size to pt before it's stored, matching fontDialog()/applyFontStep()'s own conversion", async () => {
   const editor = await read(EDITOR);
   const body = editor.slice(editor.indexOf("function approvedSize"));
-  assert.match(body, /function approvedSize\(value:string\)\{const size=Math\.round\(Number\.parseFloat\(value\)\*\.75\*2\)\/2;return Number\.isFinite\(size\)&&size>=8&&size<=72\?size:null\}/);
+  assert.match(body, /function approvedSize\(value:string\)\{const size=Math\.round\(Number\.parseFloat\(value\)\*\.75\*2\)\/2;return Number\.isFinite\(size\)&&size>=1&&size<=72\?size:null\}/);
 
   // Confirm the two known-correct px->pt conversions elsewhere in this
   // file use the exact same *.75 factor, so approvedSize is now
