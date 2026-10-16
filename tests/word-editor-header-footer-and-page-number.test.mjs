@@ -67,7 +67,7 @@ test("double-clicking the top or bottom of the page enters the header or footer,
 
 test("insideHeaderFooter is tracked via the same selectionchange listener that already tracks insideTable", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const headerFooter=parent\.closest\("header,footer"\);setInsideHeaderFooter\(headerFooter\?headerFooter\.tagName\.toLowerCase\(\)as"header"\|"footer":null\)/);
+  assert.match(editor, /const headerFooter=parent\.closest\("header,footer"\);const kind=headerFooter\?headerFooter\.tagName\.toLowerCase\(\)as"header"\|"footer":null;.*?setInsideHeaderFooter\(kind\)/);
 });
 
 test("Page Number gains a real Style gallery (Plain Number / Page X / Accent Bar) and a Format Page Numbers section (number format + start at), still using the same page-number field encoding (no schema change)", async () => {
@@ -88,4 +88,12 @@ test("Page Number and Header/Footer gallery features touch no new document schem
   const validator = await read("lib/word-editor-document.ts");
   assert.match(validator, /header: new Set\(COMMON_BLOCK_ATTRS\), footer: new Set\(COMMON_BLOCK_ATTRS\)/);
   assert.match(validator, /page-number\\\|\(top\|bottom\|current\)\\\|\(left\|center\|right\)/);
+});
+
+test("a single click (or arrow key) never enters the header/footer -- only a double-click, the Header menu or Go to Header does, as in Word", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /hfMode=useRef<"header"\|"footer"\|null>\(null\)/);
+  assert.match(editor, /if\(kind&&hfMode\.current!==kind\)\{/);
+  assert.match(editor, /event\.detail<2\)\{const area=\(event\.target as Element\)\.closest\("header,footer"\);if\(area\?hfMode\.current!==area\.tagName\.toLowerCase\(\):hfMode\.current\)\{event\.preventDefault\(\);return\}\}/);
+  assert.match(editor, /hfMode\.current=which;\n  setInsideHeaderFooter\(which\);/);
 });
