@@ -19,5 +19,7 @@ export default async function WordRealFilePage({ params, searchParams }: { param
   if (attempt.status === "submitted" || attempt.status === "completed") redirect(`/typing/word-efficiency/results/${attempt.id}`);
   const snapshot = attempt.snapshot as Parameters<typeof RealFileWorkspace>[0]["snapshot"];
   if (snapshot.language.toLowerCase() !== route.language) notFound();
-  return <RealFileWorkspace attemptId={attempt.id} language={route.language} testId={route.testId} snapshot={snapshot} startedAt={attempt.started_at} />;
+  // Time left is worked out here, on the server's clock: a student PC with a wrong clock can't shorten it.
+  const elapsedSeconds = attempt.started_at ? Math.floor((Date.now() - new Date(attempt.started_at).getTime()) / 1000) : 0;
+  return <RealFileWorkspace attemptId={attempt.id} language={route.language} testId={route.testId} snapshot={snapshot} remainingAtLoadSeconds={Math.max(0, snapshot.duration_seconds - elapsedSeconds + 300)} />;
 }

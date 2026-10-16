@@ -4,20 +4,20 @@ import { useRouter } from "next/navigation";
 import { submitWordEfficiencyRealFile } from "../../../actions";
 import { BackButton } from "@/app/_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
+import { useExamCountdown } from "@/components/efficiency/exam-chrome";
 
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
 type Snapshot = { title: string; language: string; instructions_markdown: string; duration_seconds: number; question_count: number; maximum_marks: number; questions: Question[] };
 
-export function RealFileWorkspace({ attemptId, language, testId, snapshot, startedAt }: { attemptId: string; language: string; testId: string; snapshot: Snapshot; startedAt: string | null }) {
+export function RealFileWorkspace({ attemptId, language, testId, snapshot, remainingAtLoadSeconds }: { attemptId: string; language: string; testId: string; snapshot: Snapshot; remainingAtLoadSeconds: number }) {
   const router = useRouter();
-  const startTime = startedAt ? new Date(startedAt).getTime() : Date.now();
-  const [remaining, setRemaining] = useState(snapshot.duration_seconds);
+  // Counted down with the browser's steady clock from the server's figure (incl. the 5-minute upload window).
+  const { remaining } = useExamCountdown(remainingAtLoadSeconds, 0);
   const [downloaded, setDownloaded] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { const tick = () => setRemaining(Math.max(0, snapshot.duration_seconds - Math.floor((Date.now() - startTime) / 1000) + 300)); tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer); }, [snapshot.duration_seconds, startTime]);
   const expired = remaining <= 0;
   const catalogueHref = `/typing/word-efficiency/${language}`;
 

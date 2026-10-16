@@ -18,6 +18,7 @@ import { useTypingPlatformSettings } from "./typing-platform-provider";
 import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { BackButton } from "../../_components/back-button";
+import { ExamClock } from "@/lib/exam-clock";
 
 // Formal serif face used only for the exam-mode ("Simulation") pre-start
 // screen -- an "admit card" look, distinct from the plain sans-serif UI used
@@ -30,7 +31,6 @@ function InputSystemOptions({ systems, value, onChange }: { systems: InputSystem
 type ExamMode = "practice" | "exam";
 export type PracticeNavigation={currentIndex:number;total:number;items:{title:string;href:string;label:string}[];previousHref:string|null;nextHref:string|null};
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-const remainingSeconds = (end: number) => Math.max(0, Math.ceil((end - Date.now()) / 1000));
 const backspaceLabel = (mode: BackspaceMode) => mode === "full" ? "Full backspace" : mode === "word" ? "One-word backspace" : "Backspace disabled";
 const escapeHtmlForPrint = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 // Devanagari has no case, so capitalization is never a meaningful category
@@ -85,6 +85,13 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   const [dictationReady, setDictationReady] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<HalfErrorCategory[]>(() => defaultCategoriesFor(preset));
   const startedAt = useRef<string | null>(null); const recordedAttempt = useRef(false);
+  // The countdown (lib/exam-clock.ts): a wrong or jumping PC clock can no longer end the test early.
+  const clock = useRef<ExamClock | null>(null); const confirmingEnd = useRef(false);
+  const clockRemaining = (fallback: number) => (clock.current ? clock.current.remainingSeconds() : fallback);
+  const startClock = (seconds: number) => { clock.current?.stop(); clock.current = new ExamClock(seconds * 1000); setEndTimestamp(Date.now() + seconds * 1000); };
+  const stopClock = () => { clock.current?.stop(); clock.current = null; };
+  useEffect(() => () => stopClock(), []);
+  useEffect(() => { if (finished) stopClock(); }, [finished]);
   const directSettingsInitialized = useRef(false);
   const [verifiedScore, setVerifiedScore] = useState<ReturnType<typeof calculateTypingScore> | null>(null);
   const [liveSubmission, setLiveSubmission] = useState<"idle"|"saving"|"submitted"|"already-submitted"|"closed"|"failed">("idle");
@@ -213,7 +220,8 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
 
   useEffect(() => {
     if (!started || finished || paused || !endTimestamp) return;
-    const sync = () => { const next = remainingSeconds(endTimestamp); setTimeLeft(next); if (!next) setFinished(true); };
+    // At 0 the end is confirmed with the server first; if it says time is left, keep counting.
+    const sync = () => { const next = clockRemaining(0); setTimeLeft(next); if (next || confirmingEnd.current) return; const running = clock.current; if (!running) { setFinished(true); return; } confirmingEnd.current = true; void running.confirmEnded().then(done => { confirmingEnd.current = false; if (done && clock.current === running) setFinished(true); }); };
     const initial = window.setTimeout(sync, 0);
     const interval = window.setInterval(sync, 500);
     window.addEventListener("focus", sync);
@@ -223,8 +231,8 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   useEffect(() => { if (!timerStarted || finished) return; const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; }; window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn); }, [finished, timerStarted]);
   useEffect(() => { sessionStorage.setItem("practice-attempt-active", String(timerStarted && !finished)); return () => sessionStorage.setItem("practice-attempt-active", "false"); }, [finished, timerStarted]);
 
-  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"]; if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode; if (manualUnlock) resolved.wordMethod = preferences.wordMethod; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); setSaveState("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
-  const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); setEndTimestamp(Date.now() + activeDurationSeconds * 1000); startedAt.current = new Date().toISOString(); };
+  const start = () => { if (inputSystem.requiredFontAsset && fontAvailable !== true) return; const resolved = resolveAttemptSettings(preferences, officialSettings, resolvedAttemptVariant); if (highlightLocked) resolved.highlightMode = preset.highlightMode as TypingSettings["highlightMode"]; if (manualUnlock) resolved.backspaceMode = preferences.backspaceMode; if (manualUnlock) resolved.wordMethod = preferences.wordMethod; setSettings(resolved); setAutoScroll(resolved.autoScroll); setPaused(false); setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); stopClock(); setEndTimestamp(null); setTimerStarted(false); setFinished(false); setVerifiedScore(null); setLiveSubmission("idle"); setSaveState("idle"); recordedAttempt.current=false; startedAt.current=null; setDictationReady(false); setSelectedCategories(defaultCategoriesFor(preset)); setStarted(true); };
+  const beginTiming = () => { if (timerStarted) return; setTimerStarted(true); startClock(activeDurationSeconds); startedAt.current = new Date().toISOString(); };
   // Duration is only actually changeable through this same set of
   // conditions that stop activeDurationSeconds from being forced (now
   // including manualUnlock, so "Unlock official rules for this attempt"
@@ -240,8 +248,8 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   // The student can submit at any point, at whatever length -- the only
   // thing blocked outright is a genuinely empty attempt, which would score
   // as a meaningless 0/0 result and likely just be a misclick.
-  const submit = () => { if (!typedText.trim()) { window.alert("Please write at least one word before submitting."); return; } if (window.confirm("Submit this test now? You cannot continue typing after submission.")) { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setFinished(true); } };
-  const togglePause = () => { if (!timerStarted) return; if (paused) { setEndTimestamp(Date.now() + timeLeft * 1000); setPaused(false); } else { setTimeLeft(endTimestamp ? remainingSeconds(endTimestamp) : timeLeft); setEndTimestamp(null); setPaused(true); } };
+  const submit = () => { if (!typedText.trim()) { window.alert("Please write at least one word before submitting."); return; } if (window.confirm("Submit this test now? You cannot continue typing after submission.")) { setTimeLeft(clockRemaining(timeLeft)); setFinished(true); } };
+  const togglePause = () => { if (!timerStarted) return; if (paused) { startClock(timeLeft); setPaused(false); } else { setTimeLeft(clockRemaining(timeLeft)); stopClock(); setEndTimestamp(null); setPaused(true); } };
   const navigatePracticeTest=(href:string)=>{if(timerStarted&&!finished&&!window.confirm("Changing tests will discard the active attempt. Continue?"))return;window.location.href=href;};
   useEffect(() => { const shortcut=(event:KeyboardEvent)=>{if(event.altKey&&event.key==="ArrowLeft"&&practiceNavigation?.previousHref){event.preventDefault();navigatePracticeTest(practiceNavigation.previousHref);}if(event.altKey&&event.key==="ArrowRight"&&practiceNavigation?.nextHref){event.preventDefault();navigatePracticeTest(practiceNavigation.nextHref);}if(event.key==="Escape"&&started&&!finished&&!paused){event.preventDefault();togglePause();}if(event.ctrlKey&&event.key==="Enter"){event.preventDefault();if(!started)start();else if(!finished&&(!preset.audioUrl||dictationReady))submit();}};window.addEventListener("keydown",shortcut);return()=>window.removeEventListener("keydown",shortcut); });
   // Folding the student's dictation-phase category selection into the
@@ -291,7 +299,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   const changeScrollbar = (value: boolean) => { setShowScrollbar(value); updatePreferences({ showScrollbar: value }); };
   const changeFontPreferences = (next: TypingFontPreferences) => updatePreferences({ fonts: { ...preferences.fonts, [fontContext]: next } });
 
-  const changeInputSystem = (id: string) => { if (id === inputSystemId) return; if (typedText && !window.confirm("Changing the language or input system will restart this attempt and clear the typed text. Continue?")) return; setInputSystemId(id); updatePreferences({ inputSystemId: id }); if (typedText) { setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); setEndTimestamp(null); setTimerStarted(false); startedAt.current=null; } };
+  const changeInputSystem = (id: string) => { if (id === inputSystemId) return; if (typedText && !window.confirm("Changing the language or input system will restart this attempt and clear the typed text. Continue?")) return; setInputSystemId(id); updatePreferences({ inputSystemId: id }); if (typedText) { setTypedText(""); setBackspaces(0); setTimeLeft(activeDurationSeconds); stopClock(); setEndTimestamp(null); setTimerStarted(false); startedAt.current=null; } };
   if (!started) return <>{recoveredAttempt&&<p role="status" className="sticky top-0 z-50 bg-green-700 px-4 py-2 text-center text-sm font-bold text-white">Your previous attempt of this test, which had not been saved, has now been saved to your results.</p>}<ExamStart preset={preset} mode={mode} inputSystem={inputSystem} inputSystemId={inputSystemId} onInputSystemChange={(id) => { setInputSystemId(id); updatePreferences({ inputSystemId: id }); }} fontAvailable={fontAvailable} attemptVariant={attemptVariant} customPreset={customPreset} durationSeconds={activeDurationSeconds} durationLocked={durationLocked} onDurationChange={changeDuration} onStart={start} backHref={backHref}/></>;
   if (started && preset.audioUrl && !dictationReady) return <DictationGate preset={preset} url={preset.audioUrl} selectedCategories={selectedCategories} onCategoriesChange={setSelectedCategories} onStartTyping={() => { beginTiming(); setDictationReady(true); }} durationSeconds={activeDurationSeconds} durationLocked={durationLocked} onDurationChange={changeDuration} backHref={backHref} adminPreview={adminPreview} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest}/>;
   if (finished && finalScore && managedTest?.isLive) return <LiveSubmissionReceipt status={liveSubmission} resultsPublishAt={managedTest.resultsPublishAt} resultsDelayMinutes={managedTest.resultsDelayMinutes} submittedAt={liveSubmittedAt}/>;

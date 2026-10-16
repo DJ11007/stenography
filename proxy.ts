@@ -57,6 +57,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login(?:/|$)|admin/login(?:/|$)|signup(?:/|$)|forgot-password(?:/|$)|recover-account(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!server-time(?:/|$)|login(?:/|$)|admin/login(?:/|$)|signup(?:/|$)|forgot-password(?:/|$)|recover-account(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

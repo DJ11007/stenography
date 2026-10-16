@@ -65,7 +65,7 @@ test("locked passage scrolling restores manual movement and cleans up every list
 test("pause stops movement and input while resume restores the active position", () => {
   assert.match(workspace, /if \(!started \|\| finished \|\| paused \|\| !endTimestamp\) return/);
   assert.match(workspace, /disabled=\{fontAvailable !== true \|\| paused\}/);
-  assert.match(workspace, /setEndTimestamp\(Date\.now\(\) \+ timeLeft \* 1000\); setPaused\(false\)/);
+  assert.match(workspace, /startClock\(timeLeft\); setPaused\(false\)/); // resume restarts the clock-proof countdown (lib/exam-clock.ts)
   assert.match(workspace, /if \(!autoScroll \|\| paused\) \{ lastActiveLine\.current = null; return; \}/);
 });
 
