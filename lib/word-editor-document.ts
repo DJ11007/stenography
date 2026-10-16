@@ -3,7 +3,7 @@ import { validCellFormats } from "./word-table-format.ts";
 import { TABLE_STYLES } from "./word-table-model.ts";
 
 // Table Tools settings saved on a table (see lib/word-table-model.ts).
-const TABLE_SETTING_KEYS = ["tableStyle", "headerRow", "totalRow", "bandedRows", "firstColumn", "lastColumn", "bandedColumns", "repeatHeader", "tableAlign", "cellMarginTop", "cellMarginBottom", "cellMarginLeft", "cellMarginRight", "rowHeights", "colWidths"] as const;
+const TABLE_SETTING_KEYS = ["tableStyle", "headerRow", "totalRow", "bandedRows", "firstColumn", "lastColumn", "bandedColumns", "repeatHeader", "tableAlign", "cellMarginTop", "cellMarginBottom", "cellMarginLeft", "cellMarginRight", "rowHeights", "colWidths", "tableWidth", "tableWidthUnit", "tableIndent", "tableWrap", "cellSpacing", "rowHeightRules", "rowCantSplit", "tableTitle", "tableDescription"] as const;
 const TABLE_STYLE_IDS = new Set(TABLE_STYLES.map(style => style.id));
 function validTableSettings(value: Record<string, unknown>, rows: unknown[][]) {
   if ("tableStyle" in value && !TABLE_STYLE_IDS.has(String(value.tableStyle))) return false;
@@ -13,6 +13,16 @@ function validTableSettings(value: Record<string, unknown>, rows: unknown[][]) {
   const sizes = (list: unknown, length: number, max: number) => Array.isArray(list) && list.length <= length && list.every(item => item === null || (typeof item === "number" && item >= 0.1 && item <= max));
   if ("rowHeights" in value && !sizes(value.rowHeights, rows.length, 50)) return false;
   if ("colWidths" in value && !sizes(value.colWidths, Math.max(...rows.map(row => row.length)), 60)) return false;
+  if ("tableWidthUnit" in value && !["cm", "pct"].includes(String(value.tableWidthUnit))) return false;
+  if ("tableWidth" in value && (typeof value.tableWidth !== "number" || value.tableWidth < 0.1 || value.tableWidth > (value.tableWidthUnit === "pct" ? 100 : 60))) return false;
+  if ("tableIndent" in value && (typeof value.tableIndent !== "number" || value.tableIndent < -20 || value.tableIndent > 20)) return false;
+  if ("tableWrap" in value && value.tableWrap !== "around") return false;
+  if ("cellSpacing" in value && (typeof value.cellSpacing !== "number" || value.cellSpacing < 0 || value.cellSpacing > 5)) return false;
+  const perRow = (list: unknown, allowed: unknown) => Array.isArray(list) && list.length <= rows.length && list.every(item => item === null || item === allowed);
+  if ("rowHeightRules" in value && !perRow(value.rowHeightRules, "exactly")) return false;
+  if ("rowCantSplit" in value && !perRow(value.rowCantSplit, true)) return false;
+  if ("tableTitle" in value && (typeof value.tableTitle !== "string" || value.tableTitle.length > 255)) return false;
+  if ("tableDescription" in value && (typeof value.tableDescription !== "string" || value.tableDescription.length > 2000)) return false;
   return true;
 }
 

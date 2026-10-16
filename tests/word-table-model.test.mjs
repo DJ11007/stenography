@@ -143,3 +143,57 @@ test("AutoFit window / contents / fixed set the saved layout", () => {
   autoFit(t, "auto");
   assert.equal(readTableAttrs(t).colWidths, undefined);
 });
+
+test("Insert Cells shifts cells right / down and keeps the table a grid", async () => {
+  const { insertCellShift } = await import("../lib/word-table-model.ts");
+  const { table: t } = table([["A", "B"], ["C", "D"]]);
+  assert.equal(insertCellShift(t, cell(t, 0, 0), "right"), null);
+  assert.deepEqual(texts(t), [["", "A", "B"], ["C", "D", ""]]);
+  const { table: u } = table([["A", "B"], ["C", "D"]]);
+  assert.equal(insertCellShift(u, cell(u, 0, 1), "down"), null);
+  assert.deepEqual(texts(u), [["A", ""], ["C", "B"], ["", "D"]]);
+});
+
+test("Sort with Then by, case sensitivity and Sort column only", async () => {
+  const { sortTableBy } = await import("../lib/word-table-model.ts");
+  const { table: t } = table([["City", "Amount"], ["Jaipur", "10"], ["Alwar", "5"], ["Jaipur", "30"]]);
+  assert.equal(sortTableBy(t, [{ column: 0, type: "text", order: "ascending" }, { column: 1, type: "number", order: "descending" }], { hasHeader: true }), null);
+  assert.deepEqual(texts(t), [["City", "Amount"], ["Alwar", "5"], ["Jaipur", "30"], ["Jaipur", "10"]]);
+  const { table: u } = table([["b", "1"], ["a", "2"], ["c", "3"]]);
+  sortTableBy(u, [{ column: 0, type: "text", order: "ascending" }], { hasHeader: false, columnOnly: true });
+  assert.deepEqual(texts(u), [["a", "1"], ["b", "2"], ["c", "3"]], "only the sorted column moves");
+});
+
+test("Table Properties / Table Options / Cell Options / Alt Text save and load", async () => {
+  const model = await import("../lib/word-table-model.ts");
+  const { document, table: t } = table([["A", "B"], ["C", "D"]]);
+  model.setTableWidth(t, 80, "pct");
+  model.setTableIndent(t, 1.27);
+  model.setTableWrap(t, "around");
+  model.setCellSpacing(t, 0.1);
+  model.setRowHeight(t, [1], 1.5);
+  model.setRowHeightRule(t, [1], "exactly");
+  model.setRowCanSplit(t, [0], false);
+  model.setCellOptions(cell(t, 0, 1), { margins: { top: 0.1, bottom: 0.1, left: 0.5, right: 0.5 }, wrapText: false, fitText: true });
+  model.setTableAltText(t, "Fees", "Fees by city");
+  const attrs = model.readTableAttrs(t);
+  assert.equal(attrs.tableWidth, 80); assert.equal(attrs.tableWidthUnit, "pct"); assert.equal(attrs.tableIndent, 1.27); assert.equal(attrs.tableWrap, "around"); assert.equal(attrs.cellSpacing, 0.1);
+  assert.deepEqual(attrs.rowHeightRules, [null, "exactly"]); assert.deepEqual(attrs.rowCantSplit, [true, null]);
+  const { padTop, padBottom, padLeft, padRight, noWrap, fitText } = attrs.cellFormats[0][1];
+  assert.deepEqual({ padTop, padBottom, padLeft, padRight, noWrap, fitText }, { padTop: 0.1, padBottom: 0.1, padLeft: 0.5, padRight: 0.5, noWrap: true, fitText: true });
+  assert.equal(attrs.tableTitle, "Fees"); assert.equal(attrs.tableDescription, "Fees by city");
+  assert.ok(validCellFormats(attrs.cellFormats, attrs.rows));
+  const copy = document.createElement("table");
+  model.renderTableAttrs(copy, attrs);
+  const again = model.readTableAttrs(copy);
+  for (const key of ["tableWidth", "tableWidthUnit", "tableIndent", "tableWrap", "cellSpacing", "rowHeightRules", "rowCantSplit", "tableTitle", "tableDescription"]) assert.deepEqual(again[key], attrs[key], key);
+  assert.deepEqual(again.cellFormats[0][1].padLeft, 0.5);
+  assert.equal(again.cellFormats[0][1].noWrap, true);
+});
+
+test("a saved table never carries the paragraph-only attrs (marginLeft etc.) that its own alignment/indent styles create", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
+  // Centered/indented tables set style.marginLeft; tables don't allow that attr, so the save would be refused.
+  assert.match(source, /if\(block\.type==="table"\)\{for\(const \[key,value\] of Object\.entries\(source\)\)if\(value!=null&&!common\.includes\(key\)\)attrs\[key\]=value\}/);
+});

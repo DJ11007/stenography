@@ -172,6 +172,30 @@ export function deleteCellShift(table: HTMLTableElement, cell: HTMLTableCellElem
   return null;
 }
 
+/** Insert Cells… > Shift cells right / down: an empty cell goes in at the cursor and the cells after it move over
+ *  (the table gains a column / row at the end to hold the last one, so it stays a grid). */
+export function insertCellShift(table: HTMLTableElement, cell: HTMLTableCellElement, direction: "right" | "down"): string | null {
+  const grid = tableGrid(table);
+  const slot = slotOf(grid, cell);
+  if (!slot) return "Place the cursor in a table cell.";
+  if (direction === "right") {
+    if (grid.at[slot.row].some(other => other && (other.rowSpan > 1 || other.colSpan > 1))) return "This row has merged cells; split them first.";
+    if (grid.cols >= MAX_TABLE_COLUMNS) return `A table can have at most ${MAX_TABLE_COLUMNS} columns.`;
+    insertColumn(table, grid.cols - 1, "right");
+    const cells = tableGrid(table).at[slot.row].map(other => other!.cell);
+    for (let i = cells.length - 1; i > slot.col; i--) cells[i].replaceChildren(...[...cells[i - 1].childNodes]);
+    cells[slot.col].replaceChildren(table.ownerDocument.createElement("br"));
+    return null;
+  }
+  if (grid.at.some(row => { const other = row[slot.col]; return other && (other.rowSpan > 1 || other.colSpan > 1); })) return "This column has merged cells; split them first.";
+  if (grid.rows >= MAX_TABLE_ROWS) return `A table can have at most ${MAX_TABLE_ROWS} rows.`;
+  insertRow(table, grid.rows - 1, "below");
+  const cells = tableGrid(table).at.map(row => row[slot.col]!.cell);
+  for (let i = cells.length - 1; i > slot.row; i--) cells[i].replaceChildren(...[...cells[i - 1].childNodes]);
+  cells[slot.row].replaceChildren(table.ownerDocument.createElement("br"));
+  return null;
+}
+
 // ---------- merge / split ----------
 
 export function selectionRect(grid: TableGrid, cells: HTMLTableCellElement[]) {
@@ -341,22 +365,42 @@ export function autoFit(table: HTMLTableElement, mode: "auto" | "window" | "fixe
 // ---------- sort ----------
 
 /** Sort (Word's Sort dialog for a table): by one column, ascending or descending, as text, number or date. */
+export type SortKey = { column: number; type: "text" | "number" | "date"; order: "ascending" | "descending" };
 export function sortTable(table: HTMLTableElement, column: number, order: "ascending" | "descending", type: "text" | "number" | "date", hasHeader: boolean): string | null {
+  return sortTableBy(table, [{ column, type, order }], { hasHeader });
+}
+/** Sort with Word's Sort by / Then by / Then by keys. Options: header row kept, case sensitive,
+ *  and "Sort column only" (only the first key's column is reordered; other cells stay). */
+export function sortTableBy(table: HTMLTableElement, keys: SortKey[], options: { hasHeader: boolean; caseSensitive?: boolean; columnOnly?: boolean }): string | null {
   const grid = tableGrid(table);
+  if (!keys.length) return null;
   if ([...table.querySelectorAll("td,th")].some(cell => (cell as HTMLTableCellElement).rowSpan > 1)) return "Rows with vertically merged cells cannot be sorted.";
-  const start = hasHeader ? 1 : 0;
+  const start = options.hasHeader ? 1 : 0;
   const rows = [...table.rows].slice(start);
-  const key = (tr: HTMLTableRowElement) => {
-    const r = tr.rowIndex;
-    const text = (grid.at[r]?.[column]?.cell.textContent ?? "").trim();
-    if (type === "number") { const value = Number.parseFloat(text.replace(/[^0-9.+-]/g, "")); return Number.isFinite(value) ? value : -Infinity; }
-    if (type === "date") { const value = Date.parse(text); return Number.isFinite(value) ? value : -Infinity; }
-    return text.toLowerCase();
+  const value = (r: number, key: SortKey): number | string => {
+    const text = (grid.at[r]?.[key.column]?.cell.textContent ?? "").trim();
+    if (key.type === "number") { const number = Number.parseFloat(text.replace(/[^0-9.+-]/g, "")); return Number.isFinite(number) ? number : -Infinity; }
+    if (key.type === "date") { const date = Date.parse(text); return Number.isFinite(date) ? date : -Infinity; }
+    return options.caseSensitive ? text : text.toLowerCase();
   };
-  const keyed = rows.map(tr => ({ tr, key: key(tr) }));
-  keyed.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0) * (order === "ascending" ? 1 : -1));
+  const compare = (a: number, b: number) => {
+    for (const key of keys) {
+      const x = value(a, key), y = value(b, key);
+      const result = typeof x === "string" && typeof y === "string" ? x.localeCompare(y, undefined, { sensitivity: options.caseSensitive ? "case" : "base", caseFirst: "upper" }) : x < y ? -1 : x > y ? 1 : 0;
+      if (result) return result * (key.order === "ascending" ? 1 : -1);
+    }
+    return 0;
+  };
+  const order = rows.map(tr => tr.rowIndex).sort(compare);
+  if (options.columnOnly) {
+    const column = keys[0].column;
+    const contents = order.map(r => [...(grid.at[r]?.[column]?.cell.childNodes ?? [])]);
+    rows.forEach((tr, i) => grid.at[tr.rowIndex]?.[column]?.cell.replaceChildren(...contents[i]));
+    return null;
+  }
+  const all = [...table.rows], sorted = order.map(r => all[r]);
   const parent = rows[0]?.parentElement;
-  if (parent) for (const { tr } of keyed) parent.append(tr);
+  if (parent) for (const tr of sorted) parent.append(tr);
   return null;
 }
 
@@ -555,6 +599,14 @@ export type TableAttrs = {
   cellMarginTop?: number; cellMarginBottom?: number; cellMarginLeft?: number; cellMarginRight?: number;
   rowHeights?: (number | null)[];
   colWidths?: (number | null)[];
+  // Table Properties / Table Options (setTableWidth ... setRowCanSplit below).
+  tableWidth?: number; tableWidthUnit?: "cm" | "pct";
+  tableIndent?: number;
+  tableWrap?: "around";
+  cellSpacing?: number;
+  rowHeightRules?: ("exactly" | null)[];
+  rowCantSplit?: (true | null)[];
+  tableTitle?: string; tableDescription?: string;
 };
 
 /** Reads a table from the editor into the saved form (one grid position per cell). */
@@ -576,6 +628,9 @@ export function readTableAttrs(table: HTMLTableElement): TableAttrs {
       for (const side of ["borderTop", "borderRight", "borderBottom", "borderLeft"] as const) if (data[side]) format[side] = data[side];
       if (data.borderDiagonal) format.borderDiagonal = data.borderDiagonal;
       if (data.textDirection === "down" || data.textDirection === "up") format.textDirection = data.textDirection;
+      if (PAD_KEYS.every(([, key]) => data[key] !== undefined)) for (const [, key] of PAD_KEYS) format[key] = Number(data[key]);
+      if (data.noWrap === "true") format.noWrap = true;
+      if (data.fitText === "true") format.fitText = true;
       cellFormats[r].push(format);
     }
   }
@@ -593,6 +648,17 @@ export function readTableAttrs(table: HTMLTableElement): TableAttrs {
   if (heights.some(height => height !== null)) attrs.rowHeights = heights;
   const widths = columnWidths(table).slice(0, rows[0]?.length ?? 0);
   if (widths.some(width => width !== null)) attrs.colWidths = widths;
+  const width = tableWidth(table);
+  if (width) { attrs.tableWidth = width.width; attrs.tableWidthUnit = width.unit; }
+  if (tableIndent(table)) attrs.tableIndent = tableIndent(table);
+  if (data.tableWrap === "around") attrs.tableWrap = "around";
+  const spacing = cellSpacing(table);
+  if (spacing !== null) attrs.cellSpacing = spacing;
+  const trs = [...table.rows].slice(0, rows.length);
+  if (trs.some(tr => tr.dataset.heightRule === "exactly")) attrs.rowHeightRules = trs.map(tr => (tr.dataset.heightRule === "exactly" ? "exactly" : null));
+  if (trs.some(tr => tr.dataset.cantSplit === "true")) attrs.rowCantSplit = trs.map(tr => (tr.dataset.cantSplit === "true" ? true : null));
+  if (data.altTitle) attrs.tableTitle = data.altTitle.slice(0, 255);
+  if (data.altDescription) attrs.tableDescription = data.altDescription.slice(0, 2000);
   return attrs;
 }
 
@@ -614,11 +680,18 @@ export function renderTableAttrs(table: HTMLTableElement, attrs: Record<string, 
   if (attrs.tableAlign === "center" || attrs.tableAlign === "right") setTableAlign(table, attrs.tableAlign);
   if (typeof attrs.cellMarginTop === "number") setCellMargins(table, { top: attrs.cellMarginTop, bottom: Number(attrs.cellMarginBottom ?? 0), left: Number(attrs.cellMarginLeft ?? 0), right: Number(attrs.cellMarginRight ?? 0) });
   if (Array.isArray(attrs.colWidths)) { table.style.tableLayout = "fixed"; setColumnWidths(table, attrs.colWidths as (number | null)[]); }
+  if (typeof attrs.tableWidth === "number") setTableWidth(table, attrs.tableWidth, attrs.tableWidthUnit === "pct" ? "pct" : "cm");
+  if (typeof attrs.tableIndent === "number") setTableIndent(table, attrs.tableIndent);
+  if (attrs.tableWrap === "around") setTableWrap(table, "around");
+  if (typeof attrs.cellSpacing === "number") setCellSpacing(table, attrs.cellSpacing);
+  setTableAltText(table, typeof attrs.tableTitle === "string" ? attrs.tableTitle : "", typeof attrs.tableDescription === "string" ? attrs.tableDescription : "");
   const body = table.appendChild(document.createElement("tbody"));
   rows.forEach((row, r) => {
     const tr = body.appendChild(document.createElement("tr"));
     const height = Array.isArray(attrs.rowHeights) ? (attrs.rowHeights as (number | null)[])[r] : null;
     if (typeof height === "number") tr.style.height = `${height}cm`;
+    if (Array.isArray(attrs.rowHeightRules) && attrs.rowHeightRules[r] === "exactly") tr.dataset.heightRule = "exactly";
+    if (Array.isArray(attrs.rowCantSplit) && attrs.rowCantSplit[r] === true) { tr.dataset.cantSplit = "true"; tr.style.breakInside = "avoid"; }
     row.forEach((text, c) => {
       const format = formats?.[r]?.[c] ?? null;
       if (format?.merged) return;
@@ -631,6 +704,7 @@ export function renderTableAttrs(table: HTMLTableElement, attrs: Record<string, 
       for (const side of ["top", "right", "bottom", "left"] as BorderSide[]) { const value = format?.[SIDE_DATA[side] as "borderTop"]; if (value) setCellBorder(td, side, value); }
       if (format?.borderDiagonal) { td.dataset.borderDiagonal = format.borderDiagonal; td.style.backgroundImage = diagonalCss(format.borderDiagonal); }
       if (format?.textDirection) setTextDirection(td, format.textDirection);
+      if (format && (typeof format.padTop === "number" || format.noWrap || format.fitText)) setCellOptions(td, { margins: typeof format.padTop === "number" ? { top: format.padTop, bottom: format.padBottom ?? 0, left: format.padLeft ?? 0, right: format.padRight ?? 0 } : null, wrapText: !format.noWrap, fitText: Boolean(format.fitText) });
       applyCellFormat(td, format);
     });
   });
@@ -638,7 +712,7 @@ export function renderTableAttrs(table: HTMLTableElement, attrs: Record<string, 
 
 export function setTableAlign(table: HTMLTableElement, align: "left" | "center" | "right") {
   if (align === "left") delete table.dataset.tableAlign; else table.dataset.tableAlign = align;
-  table.style.marginLeft = align === "left" ? "" : "auto";
+  table.style.marginLeft = align === "left" ? (table.dataset.tableIndent ? `${table.dataset.tableIndent}cm` : "") : "auto";
   table.style.marginRight = align === "right" ? "" : align === "center" ? "auto" : "";
 }
 
@@ -651,4 +725,76 @@ export function setTableStyle(table: HTMLTableElement, styleId: string | null) {
 export function setStyleOption(table: HTMLTableElement, key: TableStyleOptionKey, on: boolean) {
   if (!table.dataset.tableStyle) setTableStyle(table, "table-grid");
   table.dataset[key] = String(on);
+}
+
+// ---------- Table Properties / Table Options / Cell Options ----------
+
+/** Table Properties > Table > Preferred width (cm, or % of the page width). null = not set. */
+export function setTableWidth(table: HTMLTableElement, width: number | null, unit: "cm" | "pct" = "cm") {
+  if (width === null) { delete table.dataset.tableWidth; delete table.dataset.tableWidthUnit; table.style.width = table.dataset.tableLayout === "fixed" ? "auto" : ""; return; }
+  table.dataset.tableWidth = String(round2(width));
+  table.dataset.tableWidthUnit = unit;
+  table.style.width = unit === "pct" ? `${round2(width)}%` : `${round2(width)}cm`;
+}
+export function tableWidth(table: HTMLTableElement): { width: number; unit: "cm" | "pct" } | null {
+  const width = Number(table.dataset.tableWidth);
+  return table.dataset.tableWidth !== undefined && Number.isFinite(width) ? { width, unit: table.dataset.tableWidthUnit === "pct" ? "pct" : "cm" } : null;
+}
+
+/** Table Properties > Table > Indent from left (cm; Word applies it to left-aligned tables only). */
+export function setTableIndent(table: HTMLTableElement, cm: number) {
+  if (!cm) { delete table.dataset.tableIndent; if (!table.dataset.tableAlign) table.style.marginLeft = ""; return; }
+  table.dataset.tableIndent = String(round2(cm));
+  if (!table.dataset.tableAlign) table.style.marginLeft = `${round2(cm)}cm`;
+}
+export const tableIndent = (table: HTMLTableElement) => Number(table.dataset.tableIndent) || 0;
+
+/** Table Properties > Table > Text wrapping: None, or Around (text flows beside the table). */
+export function setTableWrap(table: HTMLTableElement, wrap: "none" | "around") {
+  if (wrap === "none") delete table.dataset.tableWrap; else table.dataset.tableWrap = "around";
+}
+
+/** Table Options > Allow spacing between cells (cm). null = off. */
+export function setCellSpacing(table: HTMLTableElement, cm: number | null) {
+  if (cm === null || cm <= 0) { delete table.dataset.cellSpacing; table.style.borderCollapse = ""; table.style.borderSpacing = ""; return; }
+  table.dataset.cellSpacing = String(round2(cm));
+  table.style.borderCollapse = "separate";
+  table.style.borderSpacing = `${round2(cm)}cm`;
+}
+export const cellSpacing = (table: HTMLTableElement) => (table.dataset.cellSpacing !== undefined ? Number(table.dataset.cellSpacing) : null);
+
+/** Table Properties > Row > Row height is: At least (default) or Exactly. */
+export function setRowHeightRule(table: HTMLTableElement, rows: number[], rule: "atLeast" | "exactly") {
+  for (const r of rows) { const tr = table.rows[r]; if (!tr) continue; if (rule === "exactly") tr.dataset.heightRule = "exactly"; else delete tr.dataset.heightRule; }
+}
+/** Table Properties > Row > Allow row to break across pages (on by default). */
+export function setRowCanSplit(table: HTMLTableElement, rows: number[], allow: boolean) {
+  for (const r of rows) { const tr = table.rows[r]; if (!tr) continue; if (allow) { delete tr.dataset.cantSplit; tr.style.breakInside = ""; } else { tr.dataset.cantSplit = "true"; tr.style.breakInside = "avoid"; } }
+}
+
+export type CellOptions = { margins: CellMargins | null; wrapText: boolean; fitText: boolean };
+const PAD_KEYS = [["top", "padTop"], ["bottom", "padBottom"], ["left", "padLeft"], ["right", "padRight"]] as const;
+/** Cell Options: own cell margins (null = "Same as the whole table"), Wrap text, Fit text. */
+export function setCellOptions(cell: HTMLTableCellElement, options: CellOptions) {
+  for (const [side, key] of PAD_KEYS) {
+    if (options.margins) { cell.dataset[key] = String(round2(options.margins[side])); cell.style.setProperty(`padding-${side}`, `${round2(options.margins[side])}cm`); }
+    else { delete cell.dataset[key]; cell.style.removeProperty(`padding-${side}`); }
+  }
+  if (options.wrapText) { delete cell.dataset.noWrap; cell.style.whiteSpace = ""; } else { cell.dataset.noWrap = "true"; cell.style.whiteSpace = "nowrap"; }
+  if (options.fitText) cell.dataset.fitText = "true"; else delete cell.dataset.fitText;
+}
+export function cellOptions(cell: HTMLTableCellElement): CellOptions {
+  const own = PAD_KEYS.every(([, key]) => cell.dataset[key] !== undefined);
+  return {
+    margins: own ? { top: Number(cell.dataset.padTop), bottom: Number(cell.dataset.padBottom), left: Number(cell.dataset.padLeft), right: Number(cell.dataset.padRight) } : null,
+    wrapText: cell.dataset.noWrap !== "true",
+    fitText: cell.dataset.fitText === "true",
+  };
+}
+
+/** Table Properties > Alt Text: title and description. */
+export function setTableAltText(table: HTMLTableElement, title: string, description: string) {
+  if (title.trim()) table.dataset.altTitle = title.slice(0, 255); else delete table.dataset.altTitle;
+  if (description.trim()) table.dataset.altDescription = description.slice(0, 2000); else delete table.dataset.altDescription;
+  if (title.trim()) table.setAttribute("aria-label", title.slice(0, 255)); else table.removeAttribute("aria-label");
 }

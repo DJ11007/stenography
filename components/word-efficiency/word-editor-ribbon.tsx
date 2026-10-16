@@ -101,14 +101,37 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
     observer.observe(panel);
     return () => observer.disconnect();
   });
-  return <div className="word-office-ribbon" data-preview={preview || undefined}>
-    {activeExtra && <div className="word-ribbon-context-banner">{activeExtra.contextLabel}</div>}
-    <div role="tablist" aria-label={preview ? "Capability preview tabs" : "Document editor ribbon"} className="word-ribbon-tabs">
+  // Word 2013 shows the contextual label ("TABLE TOOLS") in the title bar, directly over its own
+  // tabs only. It is positioned from the tab buttons themselves, so it follows them when the tab
+  // row scrolls or the window resizes.
+  const ribbonRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [banner, setBanner] = useState<CSSProperties | null>(null);
+  const bannerLabel = extraTabs[0]?.contextLabel ?? null;
+  useLayoutEffect(() => {
+    const ribbon = ribbonRef.current, tabs = tabsRef.current;
+    if (!ribbon || !tabs || !bannerLabel) { setBanner(null); return; }
+    const place = () => {
+      const buttons = [...tabs.querySelectorAll<HTMLElement>(".word-ribbon-extra-tab")];
+      if (!buttons.length) return;
+      const base = ribbon.getBoundingClientRect(), first = buttons[0].getBoundingClientRect(), last = buttons[buttons.length - 1].getBoundingClientRect();
+      const next = { left: Math.round(first.left - base.left), width: Math.round(last.right - first.left) };
+      setBanner(current => (current && current.left === next.left && current.width === next.width ? current : next));
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(tabs);
+    tabs.addEventListener("scroll", place);
+    return () => { observer.disconnect(); tabs.removeEventListener("scroll", place); };
+  }, [bannerLabel, extraTabs.length]);
+  return <div ref={ribbonRef} className="word-office-ribbon" data-preview={preview || undefined}>
+    {bannerLabel && banner && <div className="word-ribbon-context-banner" style={banner}>{bannerLabel}</div>}
+    <div ref={tabsRef} role="tablist" aria-label={preview ? "Capability preview tabs" : "Document editor ribbon"} className="word-ribbon-tabs">
       {visibleTabs.map(tab => <button key={tab.id} type="button" role="tab" data-tab-id={tab.id} aria-selected={!extraTabActive && selectedTab === tab.id} aria-controls={`ribbon-${tab.id.replaceAll(" ", "-")}`} onClick={() => onTabChange(tab.id)} onKeyDown={event => navigateTabs(event, tab.id, visibleTabs.map(item => item.id), onTabChange)}>{tab.id.toUpperCase()}</button>)}
       {extraTabs.map(tab => <button key={tab.id} type="button" role="tab" data-tab-id={tab.id} aria-selected={activeExtraTab === tab.id} aria-controls={`ribbon-${tab.id}`} title={`${tab.contextLabel}: ${tab.label}`} className="word-ribbon-extra-tab" onClick={() => onExtraTabSelect?.(tab.id)}>{tab.label.toUpperCase()}</button>)}
     </div>
-    {activeExtra ? <div id={`ribbon-${activeExtra.id}`} role="tabpanel" aria-label={`${activeExtra.contextLabel} ${activeExtra.label} tools`} className="word-ribbon-panel">
-      <div className="word-ribbon-groups">{activeExtra.groups}</div>
+    {activeExtra ? <div ref={panelRef} id={`ribbon-${activeExtra.id}`} role="tabpanel" aria-label={`${activeExtra.contextLabel} ${activeExtra.label} tools`} className="word-ribbon-panel" style={fit < 1 ? { height: Math.ceil(88 * fit) } : undefined}>
+      <div ref={groupsRef} className="word-ribbon-groups">{activeExtra.groups}</div>
     </div> : <div ref={panelRef} id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel" style={fit < 1 ? { height: Math.ceil(88 * fit) } : undefined}>
       <div ref={groupsRef} className="word-ribbon-groups">
         {groups.map(group => <section key={group.id} data-ribbon-group={group.id} className="word-ribbon-group">

@@ -39,9 +39,17 @@ export type CellFormat = {
   // "down solid 0.5 000000" / "up ...": Word's diagonal borders.
   borderDiagonal?: string;
   textDirection?: "down" | "up";
+  // Cell Options: own cell margins in cm (all four, or none = "Same as the
+  // whole table"), Wrap text off, Fit text on.
+  padTop?: number;
+  padBottom?: number;
+  padLeft?: number;
+  padRight?: number;
+  noWrap?: boolean;
+  fitText?: boolean;
 };
 
-export const CELL_FORMAT_KEYS = ["fontSize", "fontFamily", "bold", "italic", "underline", "strike", "doubleStrike", "color", "highlight", "align", "valign", "rowspan", "colspan", "merged", "shading", "borderTop", "borderRight", "borderBottom", "borderLeft", "borderDiagonal", "textDirection"] as const;
+export const CELL_FORMAT_KEYS = ["fontSize", "fontFamily", "bold", "italic", "underline", "strike", "doubleStrike", "color", "highlight", "align", "valign", "rowspan", "colspan", "merged", "shading", "borderTop", "borderRight", "borderBottom", "borderLeft", "borderDiagonal", "textDirection", "padTop", "padBottom", "padLeft", "padRight", "noWrap", "fitText"] as const;
 export const BORDER_VALUE = /^(none|(solid|double|dotted|dashed) (0\.25|0\.5|0\.75|1|1\.5|2\.25|3|4\.5|6) [0-9A-F]{6})$/i;
 export const DIAGONAL_VALUE = /^(down|up) (solid|double|dotted|dashed) (0\.25|0\.5|0\.75|1|1\.5|2\.25|3|4\.5|6) [0-9A-F]{6}$/i;
 const ALIGNS = new Set(["left", "center", "right", "justify"]);
@@ -144,6 +152,7 @@ export function validCellFormats(value: unknown, rows: unknown[][]): boolean {
       if (key === "borderTop" || key === "borderRight" || key === "borderBottom" || key === "borderLeft") return typeof item === "string" && BORDER_VALUE.test(item);
       if (key === "borderDiagonal") return typeof item === "string" && DIAGONAL_VALUE.test(item);
       if (key === "textDirection") return item === "down" || item === "up";
+      if (key === "padTop" || key === "padBottom" || key === "padLeft" || key === "padRight") return typeof item === "number" && item >= 0 && item <= 10;
       if (key === "align") return typeof item === "string" && ALIGNS.has(item);
       if (key === "valign") return typeof item === "string" && VALIGNS.has(item);
       return typeof item === "boolean";

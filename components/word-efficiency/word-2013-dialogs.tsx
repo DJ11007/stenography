@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { APPROVED_WORD_FONTS, WORD_THEME_FONTS } from "@/lib/word-editor-capabilities";
 import { WORD_FONT_SIZE_LIST, wordFontSize } from "@/lib/word-font-sizes";
 import { DEFAULT_ENGINE_OPTIONS, describeFormat, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
+import { mixColors } from "@/lib/word-colors";
+import { TABLE_COLORS, WordPalette } from "./word-table-tools";
 
 // Word 2013-style dialogs: Find and Replace (with Special / Format / search options),
 // Font (Font + Advanced tabs) and Paragraph (Indents and Spacing + Line and Page Breaks).
@@ -732,92 +734,281 @@ export function SymbolDialog2013({ subsets, symbolsIn, specials, recent, onInser
   );
 }
 
-// ---- Table Tools dialogs (Table Properties, Split Cells, Table Options, Sort, Convert, Formula, Delete Cells, Borders and Shading) ----
+// ---- Table Tools dialogs, laid out like Word 2013's: Table Properties (Table, Row, Column,
+// Cell, Alt Text), Table Options, Cell Options, Insert Cells, Delete Cells, Split Cells, Sort
+// (+ Sort Options), Convert Table To Text, Convert Text to Table, Formula, and Borders and
+// Shading (Borders, Page Border, Shading). Presentational: values in, values out. ----
 
-const Radio13 = ({ name, checked, onChange, children }: { name: string; checked: boolean; onChange: () => void; children: ReactNode }) => <label className="w13-check"><input type="radio" name={name} checked={checked} onChange={onChange} /><span>{children}</span></label>;
-const OkCancel13 = ({ onOk, okLabel = "OK" }: { onOk: () => void; okLabel?: string }) => { const chrome = useContext(Word13Chrome); return <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={onOk}>{okLabel}</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>; };
+const Radio13 = ({ name, checked, onChange, children, disabled }: { name: string; checked: boolean; onChange: () => void; children: ReactNode; disabled?: boolean }) => <label className="w13-check" aria-disabled={disabled}><input type="radio" name={name} checked={checked} disabled={disabled} onChange={onChange} /><span>{children}</span></label>;
+const OkCancel13 = ({ onOk, okLabel = "OK", left }: { onOk: () => void; okLabel?: string; left?: ReactNode }) => { const chrome = useContext(Word13Chrome); return <div className="w13-footer">{left ?? <span />}<div className="w13-footer-right"><Button13 isDefault onClick={onOk}>{okLabel}</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>; };
 
-export type TablePropertiesValues = { tableAlign: "left" | "center" | "right"; rowHeight: number | null; colWidth: number | null; cellVAlign: "top" | "middle" | "bottom" };
-export function TablePropertiesDialog2013({ values: initial, onSubmit, onOptions }: { values: TablePropertiesValues; onSubmit: (values: TablePropertiesValues) => void; onOptions: () => void }) {
-  const [values, setValues] = useState(initial);
-  const [tab, setTab] = useState("table");
-  const [specifyHeight, setSpecifyHeight] = useState(initial.rowHeight !== null);
-  const [specifyWidth, setSpecifyWidth] = useState(initial.colWidth !== null);
-  const set = (patch: Partial<TablePropertiesValues>) => setValues(current => ({ ...current, ...patch }));
-  const tile = (selected: boolean, onClick: () => void, label: string, drawing: ReactNode) => <button type="button" aria-pressed={selected} onMouseDown={event => event.preventDefault()} onClick={onClick} style={{ display: "grid", justifyItems: "center", gap: 3, border: selected ? "2px solid #0078d7" : "2px solid transparent", background: "transparent", padding: 3, font: "inherit", cursor: "default" }}><svg width="44" height="34" viewBox="0 0 44 34" aria-hidden><rect x="0.5" y="0.5" width="43" height="33" fill="#fff" stroke="#999" />{drawing}</svg><span>{label}</span></button>;
-  const block = (x: number) => <rect x={x} y="9" width="20" height="16" fill="#b4c6e7" stroke="#2b579a" />;
-  return (
-    <Window13 title="Table Properties" width={440}>
-      <Tabs13 tabs={[{ id: "table", label: <><u>T</u>able</> }, { id: "row", label: <><u>R</u>ow</> }, { id: "column", label: <>Col<u>u</u>mn</> }, { id: "cell", label: <>C<u>e</u>ll</> }]} value={tab} onChange={setTab} />
-      <div className="w13-panel" style={{ minHeight: 180 }}>
-        {tab === "table" && <>
-          <Group13>Alignment</Group13>
-          <div className="w13-row" style={{ gap: 18, marginLeft: 12 }}>
-            {tile(values.tableAlign === "left", () => set({ tableAlign: "left" }), "Left", block(4))}
-            {tile(values.tableAlign === "center", () => set({ tableAlign: "center" }), "Center", block(12))}
-            {tile(values.tableAlign === "right", () => set({ tableAlign: "right" }), "Right", block(20))}
-          </div>
-          <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 18 }}><Button13 onClick={onOptions}><u>O</u>ptions…</Button13></div>
-        </>}
-        {tab === "row" && <>
-          <Group13>Size</Group13>
-          <div className="w13-row" style={{ marginLeft: 12 }}><Check13 checked={specifyHeight} onChange={setSpecifyHeight}><u>S</u>pecify height:</Check13><Number13 label="Row height" value={values.rowHeight ?? 0.6} onChange={value => set({ rowHeight: value })} unit="cm" dimension="length" step={0.1} min={0.1} max={50} decimals={2} width={80} disabled={!specifyHeight} /><span>Row height is: At least</span></div>
-        </>}
-        {tab === "column" && <>
-          <Group13>Size</Group13>
-          <div className="w13-row" style={{ marginLeft: 12 }}><Check13 checked={specifyWidth} onChange={setSpecifyWidth}><u>P</u>referred width:</Check13><Number13 label="Column width" value={values.colWidth ?? 2.5} onChange={value => set({ colWidth: value })} unit="cm" dimension="length" step={0.1} min={0.1} max={60} decimals={2} width={80} disabled={!specifyWidth} /><span>Measure in: Centimeters</span></div>
-        </>}
-        {tab === "cell" && <>
-          <Group13>Vertical alignment</Group13>
-          <div className="w13-row" style={{ gap: 18, marginLeft: 12 }}>
-            {(["top", "middle", "bottom"] as const).map(vertical => tile(values.cellVAlign === vertical, () => set({ cellVAlign: vertical }), vertical === "top" ? "Top" : vertical === "middle" ? "Center" : "Bottom", <path d={`M10 ${vertical === "top" ? 6 : vertical === "middle" ? 15 : 24}h24`} stroke="#2b579a" strokeWidth="3" />))}
-          </div>
-        </>}
-      </div>
-      <OkCancel13 onOk={() => onSubmit({ ...values, rowHeight: specifyHeight ? values.rowHeight ?? 0.6 : null, colWidth: specifyWidth ? values.colWidth ?? 2.5 : null })} />
-    </Window13>
-  );
+// A second dialog opened from inside a dialog (Table Properties > Options…), drawn over it.
+function SubDialog13({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const startDrag = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const start = { x: event.clientX - offset.x, y: event.clientY - offset.y };
+    const move = (moveEvent: MouseEvent) => setOffset({ x: moveEvent.clientX - start.x, y: moveEvent.clientY - start.y });
+    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+  };
+  if (typeof document === "undefined") return null;
+  return createPortal(<div className="w13-sub-overlay" role="dialog" aria-modal="true"><div style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}><Word13Chrome.Provider value={{ onClose, startDrag }}>{children}</Word13Chrome.Provider></div></div>, document.body);
 }
 
-export function SplitCellsDialog2013({ onSubmit }: { onSubmit: (columns: number, rows: number) => void }) {
-  const [columns, setColumns] = useState<number | null>(2), [rows, setRows] = useState<number | null>(1);
+const UNIT_SELECT = (value: "cm" | "pct", onChange: (unit: "cm" | "pct") => void, disabled: boolean, label: string) =>
+  <select className="w13-select" aria-label={label} disabled={disabled} style={{ width: 104 }} value={value} onChange={event => onChange(event.target.value as "cm" | "pct")}><option value="cm">Centimeters</option><option value="pct">Percent</option></select>;
+
+function Tile13({ selected, onClick, label, children, width = 52, height = 40 }: { selected: boolean; onClick: () => void; label: ReactNode; children: ReactNode; width?: number; height?: number }) {
+  return <button type="button" className="w13-tile" aria-pressed={selected} onMouseDown={event => event.preventDefault()} onClick={onClick}>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden><rect x="0.5" y="0.5" width={width - 1} height={height - 1} fill="#fff" stroke="#a0a0a0" />{children}</svg><span>{label}</span>
+  </button>;
+}
+const textLines = (x: number, y: number, width: number, count: number) => Array.from({ length: count }, (_, i) => <rect key={i} x={x} y={y + i * 4} width={width} height="1.6" fill="#8c8c8c" />);
+const miniTable = (x: number, y: number, w: number, h: number) => <><rect x={x} y={y} width={w} height={h} fill="#dfe8f5" stroke="#2b579a" /><path d={`M${x} ${y + h / 2}h${w}M${x + w / 2} ${y}v${h}`} stroke="#2b579a" strokeWidth=".8" /></>;
+
+export type TableRowProps = { heightOn: boolean; height: number; rule: "atLeast" | "exactly"; canSplit: boolean };
+export type TableColumnProps = { widthOn: boolean; width: number; unit: "cm" | "pct" };
+export type TablePropertiesValues = {
+  widthOn: boolean; width: number; widthUnit: "cm" | "pct";
+  tableAlign: "left" | "center" | "right"; indent: number; wrap: "none" | "around";
+  rows: TableRowProps[]; rowIndex: number; repeatHeader: boolean;
+  columns: TableColumnProps[]; columnIndex: number;
+  cellWidthOn: boolean; cellWidth: number; cellUnit: "cm" | "pct"; cellVAlign: "top" | "middle" | "bottom";
+  title: string; description: string;
+};
+export function TablePropertiesDialog2013({ values: initial, initialTab = "table", onSubmit, renderOptions, renderBordersShading, renderCellOptions }: {
+  values: TablePropertiesValues; initialTab?: "table" | "row" | "column" | "cell" | "alt"; onSubmit: (values: TablePropertiesValues) => void;
+  renderOptions: (close: () => void) => ReactNode; renderBordersShading: (close: () => void) => ReactNode; renderCellOptions: (close: () => void) => ReactNode;
+}) {
+  const [values, setValues] = useState(initial);
+  const [tab, setTab] = useState<string>(initialTab);
+  const [sub, setSub] = useState<"options" | "borders" | "cell" | null>(null);
+  const set = (patch: Partial<TablePropertiesValues>) => setValues(current => ({ ...current, ...patch }));
+  const row = values.rows[values.rowIndex] ?? { heightOn: false, height: 0.6, rule: "atLeast", canSplit: true };
+  const setRow = (patch: Partial<TableRowProps>) => setValues(current => ({ ...current, rows: current.rows.map((item, i) => (i === current.rowIndex ? { ...item, ...patch } : item)) }));
+  const column = values.columns[values.columnIndex] ?? { widthOn: false, width: 2.5, unit: "cm" };
+  const setColumn = (patch: Partial<TableColumnProps>) => setValues(current => ({ ...current, columns: current.columns.map((item, i) => (i === current.columnIndex ? { ...item, ...patch } : item)) }));
+  const close = () => setSub(null);
   return (
-    <Window13 title="Split Cells" width={260}>
-      <div className="w13-row" style={{ marginTop: 8 }}><span className="w13-label" style={{ width: 130 }}>Number of <u>c</u>olumns:</span><Number13 label="Number of columns" value={columns} onChange={setColumns} min={1} max={20} decimals={0} width={64} /></div>
-      <div className="w13-row"><span className="w13-label" style={{ width: 130 }}>Number of <u>r</u>ows:</span><Number13 label="Number of rows" value={rows} onChange={setRows} min={1} max={50} decimals={0} width={64} /></div>
-      <OkCancel13 onOk={() => onSubmit(Math.round(columns ?? 2), Math.round(rows ?? 1))} />
+    <Window13 title="Table Properties" width={470}>
+      <Tabs13 tabs={[{ id: "table", label: <><u>T</u>able</> }, { id: "row", label: <><u>R</u>ow</> }, { id: "column", label: <>Col<u>u</u>mn</> }, { id: "cell", label: <>C<u>e</u>ll</> }, { id: "alt", label: <>Alt Te<u>x</u>t</> }]} value={tab} onChange={setTab} />
+      <div className="w13-panel" style={{ minHeight: 268 }}>
+        {tab === "table" && <>
+          <Group13>Size</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}>
+            <Check13 checked={values.widthOn} onChange={on => set({ widthOn: on })}><u>P</u>referred width:</Check13>
+            <Number13 label="Preferred table width" value={values.width} onChange={value => set({ width: value ?? 0 })} unit={values.widthUnit === "pct" ? "%" : "cm"} dimension={values.widthUnit === "pct" ? "plain" : "length"} step={values.widthUnit === "pct" ? 5 : 0.1} min={0.1} max={values.widthUnit === "pct" ? 100 : 60} decimals={values.widthUnit === "pct" ? 0 : 2} width={78} disabled={!values.widthOn} />
+            <span>Measure in:</span>{UNIT_SELECT(values.widthUnit, unit => set({ widthUnit: unit, width: unit === "pct" ? 100 : 15 }), !values.widthOn, "Table width measure in")}
+          </div>
+          <Group13>Alignment</Group13>
+          <div className="w13-row" style={{ marginLeft: 12, alignItems: "flex-start", gap: 14 }}>
+            <Tile13 selected={values.tableAlign === "left"} onClick={() => set({ tableAlign: "left" })} label={<><u>L</u>eft</>}>{miniTable(5, 12, 22, 16)}{textLines(30, 12, 16, 5)}</Tile13>
+            <Tile13 selected={values.tableAlign === "center"} onClick={() => set({ tableAlign: "center" })} label={<><u>C</u>enter</>}>{miniTable(15, 12, 22, 16)}</Tile13>
+            <Tile13 selected={values.tableAlign === "right"} onClick={() => set({ tableAlign: "right" })} label={<>Rig<u>h</u>t</>}>{textLines(5, 12, 16, 5)}{miniTable(25, 12, 22, 16)}</Tile13>
+            <div style={{ display: "grid", gap: 3, marginLeft: "auto" }}><span style={{ color: values.tableAlign === "left" ? undefined : "#8a8a8a" }}>I<u>n</u>dent from left:</span><Number13 label="Indent from left" value={values.indent} onChange={value => set({ indent: value ?? 0 })} unit="cm" dimension="length" step={0.1} min={-20} max={20} decimals={2} width={84} disabled={values.tableAlign !== "left"} /></div>
+          </div>
+          <Group13>Text wrapping</Group13>
+          <div className="w13-row" style={{ marginLeft: 12, gap: 14 }}>
+            <Tile13 selected={values.wrap === "none"} onClick={() => set({ wrap: "none" })} label={<><u>N</u>one</>}>{textLines(5, 5, 42, 2)}{miniTable(14, 14, 24, 12)}{textLines(5, 30, 42, 2)}</Tile13>
+            <Tile13 selected={values.wrap === "around"} onClick={() => set({ wrap: "around" })} label={<><u>A</u>round</>}>{textLines(5, 5, 42, 2)}{miniTable(5, 14, 22, 14)}{textLines(30, 14, 17, 4)}{textLines(5, 32, 42, 1)}</Tile13>
+            <div style={{ marginLeft: "auto" }}><Button13 disabled title="Table positioning is not used in this exam editor; Around wraps text beside the table at its alignment.">P<u>o</u>sitioning…</Button13></div>
+          </div>
+          <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 14, gap: 8 }}><Button13 onClick={() => setSub("borders")}><u>B</u>orders and Shading…</Button13><Button13 onClick={() => setSub("options")}><u>O</u>ptions…</Button13></div>
+        </>}
+        {tab === "row" && <>
+          <div style={{ fontWeight: 600 }}>Row {values.rowIndex + 1}:</div>
+          <Group13>Size</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}>
+            <Check13 checked={row.heightOn} onChange={on => setRow({ heightOn: on })}><u>S</u>pecify height:</Check13>
+            <Number13 label="Row height" value={row.height} onChange={value => setRow({ height: value ?? 0.6 })} unit="cm" dimension="length" step={0.1} min={0.1} max={50} decimals={2} width={80} disabled={!row.heightOn} />
+            <span style={{ color: row.heightOn ? undefined : "#8a8a8a" }}>Row height <u>i</u>s:</span>
+            <select className="w13-select" aria-label="Row height is" disabled={!row.heightOn} style={{ width: 92 }} value={row.rule} onChange={event => setRow({ rule: event.target.value as TableRowProps["rule"] })}><option value="atLeast">At least</option><option value="exactly">Exactly</option></select>
+          </div>
+          <Group13>Options</Group13>
+          <div style={{ display: "grid", gap: 6, marginLeft: 12 }}>
+            <Check13 checked={row.canSplit} onChange={on => setRow({ canSplit: on })}>Allow row to brea<u>k</u> across pages</Check13>
+            <Check13 checked={values.repeatHeader && values.rowIndex === 0} disabled={values.rowIndex !== 0} onChange={on => set({ repeatHeader: on })} title={values.rowIndex !== 0 ? "Only the table's first row can repeat as its header row." : undefined}>Repeat as <u>h</u>eader row at the top of each page</Check13>
+          </div>
+          <div className="w13-row" style={{ marginTop: 18, gap: 8 }}>
+            <Button13 disabled={values.rowIndex === 0} onClick={() => set({ rowIndex: values.rowIndex - 1 })}>▲ <u>P</u>revious Row</Button13>
+            <Button13 disabled={values.rowIndex >= values.rows.length - 1} onClick={() => set({ rowIndex: values.rowIndex + 1 })}>▼ <u>N</u>ext Row</Button13>
+          </div>
+        </>}
+        {tab === "column" && <>
+          <div style={{ fontWeight: 600 }}>Column {values.columnIndex + 1}:</div>
+          <Group13>Size</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}>
+            <Check13 checked={column.widthOn} onChange={on => setColumn({ widthOn: on })}><u>P</u>referred width:</Check13>
+            <Number13 label="Column width" value={column.width} onChange={value => setColumn({ width: value ?? 2.5 })} unit={column.unit === "pct" ? "%" : "cm"} dimension={column.unit === "pct" ? "plain" : "length"} step={column.unit === "pct" ? 5 : 0.1} min={0.1} max={column.unit === "pct" ? 100 : 60} decimals={column.unit === "pct" ? 0 : 2} width={80} disabled={!column.widthOn} />
+            <span>Measure in:</span>{UNIT_SELECT(column.unit, unit => setColumn({ unit, width: unit === "pct" ? Math.round(100 / Math.max(1, values.columns.length)) : 2.5 }), !column.widthOn, "Column width measure in")}
+          </div>
+          <div className="w13-row" style={{ marginTop: 18, gap: 8 }}>
+            <Button13 disabled={values.columnIndex === 0} onClick={() => set({ columnIndex: values.columnIndex - 1 })}>◄ <u>P</u>revious Column</Button13>
+            <Button13 disabled={values.columnIndex >= values.columns.length - 1} onClick={() => set({ columnIndex: values.columnIndex + 1 })}>► <u>N</u>ext Column</Button13>
+          </div>
+        </>}
+        {tab === "cell" && <>
+          <Group13>Size</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}>
+            <Check13 checked={values.cellWidthOn} onChange={on => set({ cellWidthOn: on })}><u>P</u>referred width:</Check13>
+            <Number13 label="Cell width" value={values.cellWidth} onChange={value => set({ cellWidth: value ?? 2.5 })} unit={values.cellUnit === "pct" ? "%" : "cm"} dimension={values.cellUnit === "pct" ? "plain" : "length"} step={values.cellUnit === "pct" ? 5 : 0.1} min={0.1} max={values.cellUnit === "pct" ? 100 : 60} decimals={values.cellUnit === "pct" ? 0 : 2} width={80} disabled={!values.cellWidthOn} />
+            <span>Measure in:</span>{UNIT_SELECT(values.cellUnit, unit => set({ cellUnit: unit, cellWidth: unit === "pct" ? 25 : 2.5 }), !values.cellWidthOn, "Cell width measure in")}
+          </div>
+          <Group13>Vertical alignment</Group13>
+          <div className="w13-row" style={{ gap: 14, marginLeft: 12 }}>
+            {(["top", "middle", "bottom"] as const).map(vertical => <Tile13 key={vertical} selected={values.cellVAlign === vertical} onClick={() => set({ cellVAlign: vertical })} label={vertical === "top" ? <><u>T</u>op</> : vertical === "middle" ? <><u>C</u>enter</> : <><u>B</u>ottom</>} width={40}>{textLines(8, vertical === "top" ? 6 : vertical === "middle" ? 15 : 24, 24, 3)}</Tile13>)}
+          </div>
+          <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 30 }}><Button13 onClick={() => setSub("cell")}>Opt<u>i</u>ons…</Button13></div>
+        </>}
+        {tab === "alt" && <>
+          <div style={{ marginTop: 4 }}><u>T</u>itle:</div>
+          <input className="w13-field" style={{ width: "100%", marginTop: 3 }} aria-label="Alt text title" maxLength={255} value={values.title} onChange={event => set({ title: event.target.value })} />
+          <div style={{ marginTop: 10 }}><u>D</u>escription:</div>
+          <textarea className="w13-field" style={{ width: "100%", height: 120, marginTop: 3, resize: "none", padding: 4 }} aria-label="Alt text description" maxLength={2000} value={values.description} onChange={event => set({ description: event.target.value })} />
+          <div className="w13-note" style={{ marginTop: 6 }}>Titles and descriptions provide alternative, text-based representations of the information contained in tables.</div>
+        </>}
+      </div>
+      <OkCancel13 onOk={() => onSubmit(values)} />
+      {sub === "options" && <SubDialog13 onClose={close}>{renderOptions(close)}</SubDialog13>}
+      {sub === "borders" && <SubDialog13 onClose={close}>{renderBordersShading(close)}</SubDialog13>}
+      {sub === "cell" && <SubDialog13 onClose={close}>{renderCellOptions(close)}</SubDialog13>}
     </Window13>
   );
 }
 
 export type CellMarginValues = { top: number; bottom: number; left: number; right: number };
-export function TableOptionsDialog2013({ values: initial, onSubmit }: { values: CellMarginValues; onSubmit: (values: CellMarginValues) => void }) {
+const marginGrid = (values: CellMarginValues, onChange: (key: keyof CellMarginValues, value: number) => void, disabled = false) => {
+  const field = (key: keyof CellMarginValues, label: ReactNode) => <div className="w13-row" style={{ margin: "3px 0" }}><span className="w13-label" style={{ width: 52, color: disabled ? "#8a8a8a" : undefined }}>{label}</span><Number13 label={`${key} cell margin`} value={values[key]} onChange={value => onChange(key, Math.max(0, value ?? 0))} unit="cm" dimension="length" step={0.05} min={0} max={10} decimals={2} width={84} disabled={disabled} /></div>;
+  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginLeft: 12 }}>{field("top", <><u>T</u>op:</>)}{field("left", <><u>L</u>eft:</>)}{field("bottom", <><u>B</u>ottom:</>)}{field("right", <><u>R</u>ight:</>)}</div>;
+};
+
+export type TableOptionsValues = CellMarginValues & { spacingOn: boolean; spacing: number; autoResize: boolean };
+export function TableOptionsDialog2013({ values: initial, onSubmit }: { values: TableOptionsValues; onSubmit: (values: TableOptionsValues) => void }) {
   const [values, setValues] = useState(initial);
-  const field = (key: keyof CellMarginValues, label: ReactNode) => <div className="w13-row"><span className="w13-label" style={{ width: 52 }}>{label}</span><Number13 label={`${key} cell margin`} value={values[key]} onChange={value => setValues(current => ({ ...current, [key]: Math.max(0, value ?? 0) }))} unit="cm" dimension="length" step={0.05} min={0} max={10} decimals={2} width={80} /></div>;
+  const set = (patch: Partial<TableOptionsValues>) => setValues(current => ({ ...current, ...patch }));
   return (
-    <Window13 title="Table Options" width={320}>
+    <Window13 title="Table Options" width={340}>
       <Group13>Default cell margins</Group13>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", marginLeft: 12 }}>{field("top", <><u>T</u>op:</>)}{field("left", <><u>L</u>eft:</>)}{field("bottom", <><u>B</u>ottom:</>)}{field("right", <><u>R</u>ight:</>)}</div>
+      {marginGrid(values, (key, value) => set({ [key]: value }))}
+      <Group13>Default cell spacing</Group13>
+      <div className="w13-row" style={{ marginLeft: 12 }}><Check13 checked={values.spacingOn} onChange={on => set({ spacingOn: on })}>Allow <u>s</u>pacing between cells</Check13><Number13 label="Spacing between cells" value={values.spacing} onChange={value => set({ spacing: Math.max(0, value ?? 0) })} unit="cm" dimension="length" step={0.05} min={0} max={5} decimals={2} width={84} disabled={!values.spacingOn} /></div>
+      <Group13>Options</Group13>
+      <div style={{ marginLeft: 12 }}><Check13 checked={values.autoResize} onChange={on => set({ autoResize: on })}>Automatically res<u>i</u>ze to fit contents</Check13></div>
       <OkCancel13 onOk={() => onSubmit(values)} />
     </Window13>
   );
 }
 
-export type SortValues = { column: number; type: "text" | "number" | "date"; order: "ascending" | "descending"; hasHeader: boolean };
-export function SortDialog2013({ columns, headerNames, onSubmit }: { columns: number; headerNames: string[]; onSubmit: (values: SortValues) => void }) {
-  const [values, setValues] = useState<SortValues>({ column: 0, type: "text", order: "ascending", hasHeader: true });
-  const set = (patch: Partial<SortValues>) => setValues(current => ({ ...current, ...patch }));
-  const names = Array.from({ length: columns }, (_, c) => (values.hasHeader && headerNames[c]?.trim() ? headerNames[c].trim() : `Column ${c + 1}`));
+export type CellOptionsValues = { sameAsTable: boolean; margins: CellMarginValues; wrapText: boolean; fitText: boolean };
+export function CellOptionsDialog2013({ values: initial, onSubmit }: { values: CellOptionsValues; onSubmit: (values: CellOptionsValues) => void }) {
+  const [values, setValues] = useState(initial);
+  const set = (patch: Partial<CellOptionsValues>) => setValues(current => ({ ...current, ...patch }));
   return (
-    <Window13 title="Sort" width={460}>
-      <Group13><u>S</u>ort by</Group13>
-      <div className="w13-row" style={{ marginLeft: 12, gap: 10 }}>
-        <select className="w13-select" aria-label="Sort by" style={{ width: 150 }} value={values.column} onChange={event => set({ column: Number(event.target.value) })}>{names.map((name, c) => <option key={c} value={c}>{name}</option>)}</select>
-        <span>Type:</span><select className="w13-select" aria-label="Sort type" style={{ width: 90 }} value={values.type} onChange={event => set({ type: event.target.value as SortValues["type"] })}><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option></select>
-        <div style={{ display: "grid", gap: 3 }}><Radio13 name="w13-sort-order" checked={values.order === "ascending"} onChange={() => set({ order: "ascending" })}><u>A</u>scending</Radio13><Radio13 name="w13-sort-order" checked={values.order === "descending"} onChange={() => set({ order: "descending" })}><u>D</u>escending</Radio13></div>
+    <Window13 title="Cell Options" width={340}>
+      <Group13>Cell margins</Group13>
+      <div style={{ marginLeft: 12 }}><Check13 checked={values.sameAsTable} onChange={on => set({ sameAsTable: on })}><u>S</u>ame as the whole table</Check13></div>
+      {marginGrid(values.margins, (key, value) => set({ margins: { ...values.margins, [key]: value } }), values.sameAsTable)}
+      <Group13>Options</Group13>
+      <div style={{ display: "grid", gap: 6, marginLeft: 12 }}>
+        <Check13 checked={values.wrapText} onChange={on => set({ wrapText: on })}><u>W</u>rap text</Check13>
+        <Check13 checked={values.fitText} onChange={on => set({ fitText: on })}><u>F</u>it text</Check13>
       </div>
+      <OkCancel13 onOk={() => onSubmit(values)} />
+    </Window13>
+  );
+}
+
+export function InsertCellsDialog2013({ onSubmit }: { onSubmit: (choice: "right" | "down" | "row" | "column") => void }) {
+  const [choice, setChoice] = useState<"right" | "down" | "row" | "column">("down");
+  return (
+    <Window13 title="Insert Cells" width={240}>
+      <div style={{ display: "grid", gap: 6, marginTop: 10, marginLeft: 6 }}>
+        <Radio13 name="w13-ins" checked={choice === "right"} onChange={() => setChoice("right")}>Shift cells r<u>i</u>ght</Radio13>
+        <Radio13 name="w13-ins" checked={choice === "down"} onChange={() => setChoice("down")}>Shift cells <u>d</u>own</Radio13>
+        <Radio13 name="w13-ins" checked={choice === "row"} onChange={() => setChoice("row")}>Insert entire <u>r</u>ow</Radio13>
+        <Radio13 name="w13-ins" checked={choice === "column"} onChange={() => setChoice("column")}>Insert entire <u>c</u>olumn</Radio13>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(choice)} />
+    </Window13>
+  );
+}
+
+export function DeleteCellsDialog2013({ onSubmit }: { onSubmit: (choice: "left" | "up" | "row" | "column") => void }) {
+  const [choice, setChoice] = useState<"left" | "up" | "row" | "column">("left");
+  return (
+    <Window13 title="Delete Cells" width={240}>
+      <div style={{ display: "grid", gap: 6, marginTop: 10, marginLeft: 6 }}>
+        <Radio13 name="w13-del" checked={choice === "left"} onChange={() => setChoice("left")}>Shift cells l<u>e</u>ft</Radio13>
+        <Radio13 name="w13-del" checked={choice === "up"} onChange={() => setChoice("up")}>Shift cells <u>u</u>p</Radio13>
+        <Radio13 name="w13-del" checked={choice === "row"} onChange={() => setChoice("row")}>Delete entire <u>r</u>ow</Radio13>
+        <Radio13 name="w13-del" checked={choice === "column"} onChange={() => setChoice("column")}>Delete entire <u>c</u>olumn</Radio13>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(choice)} />
+    </Window13>
+  );
+}
+
+export function SplitCellsDialog2013({ canMerge, onSubmit }: { canMerge: boolean; onSubmit: (columns: number, rows: number, mergeFirst: boolean) => void }) {
+  const [columns, setColumns] = useState<number | null>(2), [rows, setRows] = useState<number | null>(1), [mergeFirst, setMergeFirst] = useState(canMerge);
+  return (
+    <Window13 title="Split Cells" width={260}>
+      <div className="w13-row" style={{ marginTop: 10 }}><span className="w13-label" style={{ width: 130 }}>Number of <u>c</u>olumns:</span><Number13 label="Number of columns" value={columns} onChange={setColumns} min={1} max={20} decimals={0} width={64} /></div>
+      <div className="w13-row"><span className="w13-label" style={{ width: 130 }}>Number of <u>r</u>ows:</span><Number13 label="Number of rows" value={rows} onChange={setRows} min={1} max={50} decimals={0} width={64} /></div>
+      <div className="w13-row" style={{ marginTop: 8 }}><Check13 checked={mergeFirst && canMerge} disabled={!canMerge} onChange={setMergeFirst}><u>M</u>erge cells before split</Check13></div>
+      <OkCancel13 onOk={() => onSubmit(Math.round(columns ?? 2), Math.round(rows ?? 1), mergeFirst && canMerge)} />
+    </Window13>
+  );
+}
+
+export type SortKeyValues = { column: number | null; type: "text" | "number" | "date"; order: "ascending" | "descending" };
+export type SortValues = { keys: SortKeyValues[]; hasHeader: boolean; caseSensitive: boolean; columnOnly: boolean };
+export function SortDialog2013({ columns, headerNames, onSubmit }: { columns: number; headerNames: string[]; onSubmit: (values: SortValues) => void }) {
+  const [values, setValues] = useState<SortValues>({ keys: [{ column: 0, type: "text", order: "ascending" }, { column: null, type: "text", order: "ascending" }, { column: null, type: "text", order: "ascending" }], hasHeader: true, caseSensitive: false, columnOnly: false });
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const setKey = (index: number, patch: Partial<SortKeyValues>) => setValues(current => ({ ...current, keys: current.keys.map((key, i) => (i === index ? { ...key, ...patch } : key)) }));
+  const names = Array.from({ length: columns }, (_, c) => (values.hasHeader && headerNames[c]?.trim() ? headerNames[c].trim() : `Column ${c + 1}`));
+  const keyRow = (index: number, heading: ReactNode) => {
+    const key = values.keys[index];
+    const off = index > 0 && key.column === null;
+    const enabled = index === 0 || values.keys[index - 1].column !== null;
+    return <div key={index}>
+      <Group13>{heading}</Group13>
+      <div style={{ display: "grid", gridTemplateColumns: "150px auto 1fr", gap: "4px 10px", alignItems: "center", marginLeft: 12 }}>
+        <select className="w13-select" aria-label={index === 0 ? "Sort by" : `Then by ${index}`} disabled={!enabled} style={{ width: 150 }} value={key.column ?? ""} onChange={event => setKey(index, { column: event.target.value === "" ? null : Number(event.target.value) })}>{index > 0 && <option value="">(none)</option>}{names.map((name, c) => <option key={c} value={c}>{name}</option>)}</select>
+        <div className="w13-row" style={{ margin: 0 }}><span style={{ width: 40, color: off ? "#8a8a8a" : undefined }}>T<u>y</u>pe:</span><select className="w13-select" aria-label={`Sort type ${index + 1}`} disabled={off || !enabled} style={{ width: 92 }} value={key.type} onChange={event => setKey(index, { type: event.target.value as SortKeyValues["type"] })}><option value="text">Text</option><option value="number">Number</option><option value="date">Date</option></select></div>
+        <Radio13 name={`w13-sort-order-${index}`} disabled={off || !enabled} checked={key.order === "ascending"} onChange={() => setKey(index, { order: "ascending" })}><u>A</u>scending</Radio13>
+        <span />
+        <div className="w13-row" style={{ margin: 0 }}><span style={{ width: 40, color: "#8a8a8a" }}>Using:</span><select className="w13-select" aria-label={`Sort using ${index + 1}`} disabled style={{ width: 92 }} value="paragraphs" onChange={() => undefined}><option value="paragraphs">Paragraphs</option></select></div>
+        <Radio13 name={`w13-sort-order-${index}`} disabled={off || !enabled} checked={key.order === "descending"} onChange={() => setKey(index, { order: "descending" })}><u>D</u>escending</Radio13>
+      </div>
+    </div>;
+  };
+  return (
+    <Window13 title="Sort" width={470}>
+      {keyRow(0, <><u>S</u>ort by</>)}
+      {keyRow(1, <><u>T</u>hen by</>)}
+      {keyRow(2, <>Then <u>b</u>y</>)}
       <Group13>My list has</Group13>
-      <div className="w13-row" style={{ marginLeft: 12, gap: 18 }}><Radio13 name="w13-sort-header" checked={values.hasHeader} onChange={() => set({ hasHeader: true })}>Hea<u>d</u>er row</Radio13><Radio13 name="w13-sort-header" checked={!values.hasHeader} onChange={() => set({ hasHeader: false })}>No header ro<u>w</u></Radio13></div>
+      <div className="w13-row" style={{ marginLeft: 12, gap: 18 }}><Radio13 name="w13-sort-header" checked={values.hasHeader} onChange={() => setValues(current => ({ ...current, hasHeader: true }))}>Hea<u>d</u>er row</Radio13><Radio13 name="w13-sort-header" checked={!values.hasHeader} onChange={() => setValues(current => ({ ...current, hasHeader: false }))}>No header ro<u>w</u></Radio13></div>
+      <OkCancel13 left={<Button13 onClick={() => setOptionsOpen(true)}><u>O</u>ptions…</Button13>} onOk={() => onSubmit(values)} />
+      {optionsOpen && <SubDialog13 onClose={() => setOptionsOpen(false)}><SortOptionsDialog2013 values={{ caseSensitive: values.caseSensitive, columnOnly: values.columnOnly }} onSubmit={next => { setValues(current => ({ ...current, ...next })); setOptionsOpen(false); }} /></SubDialog13>}
+    </Window13>
+  );
+}
+
+function SortOptionsDialog2013({ values: initial, onSubmit }: { values: { caseSensitive: boolean; columnOnly: boolean }; onSubmit: (values: { caseSensitive: boolean; columnOnly: boolean }) => void }) {
+  const [values, setValues] = useState(initial);
+  return (
+    <Window13 title="Sort Options" width={320}>
+      <Group13>Separate fields at</Group13>
+      <div className="w13-row" style={{ marginLeft: 12, gap: 14, color: "#8a8a8a" }}><Radio13 name="w13-sort-sep" checked disabled onChange={() => undefined}><u>T</u>abs</Radio13><Radio13 name="w13-sort-sep" checked={false} disabled onChange={() => undefined}><u>C</u>ommas</Radio13><Radio13 name="w13-sort-sep" checked={false} disabled onChange={() => undefined}><u>O</u>ther:</Radio13></div>
+      <Group13>Sort options</Group13>
+      <div style={{ display: "grid", gap: 6, marginLeft: 12 }}>
+        <Check13 checked={values.columnOnly} onChange={on => setValues(current => ({ ...current, columnOnly: on }))}>Sort column onl<u>y</u></Check13>
+        <Check13 checked={values.caseSensitive} onChange={on => setValues(current => ({ ...current, caseSensitive: on }))}>Case <u>s</u>ensitive</Check13>
+      </div>
+      <Group13>Sorting language</Group13>
+      <select className="w13-select" aria-label="Sorting language" style={{ width: "calc(100% - 12px)", marginLeft: 12 }} value="en-US" onChange={() => undefined}><option value="en-US">English (United States)</option></select>
       <OkCancel13 onOk={() => onSubmit(values)} />
     </Window13>
   );
@@ -832,6 +1023,7 @@ export function ConvertToTextDialog2013({ onSubmit }: { onSubmit: (separator: st
     <Window13 title="Convert Table To Text" width={280}>
       <Group13>Separate text with</Group13>
       <div style={{ display: "grid", gap: 4, marginLeft: 12 }}>{SEPARATOR_CHOICES.map(([id, label]) => <div key={id} className="w13-row" style={{ margin: 0 }}><Radio13 name="w13-convert-text" checked={kind === id} onChange={() => setKind(id)}>{label}</Radio13>{id === "other" && <input className="w13-field" style={{ width: 30 }} maxLength={1} value={other} aria-label="Other separator" onChange={event => { setOther(event.target.value); setKind("other"); }} />}</div>)}</div>
+      <div style={{ marginTop: 8, marginLeft: 12 }}><Check13 checked={false} disabled title="This document's tables cannot contain nested tables.">Convert nested <u>t</u>ables</Check13></div>
       <OkCancel13 onOk={() => onSubmit(separatorValue(kind, other))} />
     </Window13>
   );
@@ -849,7 +1041,7 @@ export function ConvertTextToTableDialog2013({ guessColumns, rows, onSubmit }: {
       <div className="w13-row" style={{ marginLeft: 12 }}><span className="w13-label" style={{ width: 130, color: "#8a8a8a" }}>Number of rows:</span><input className="w13-field" style={{ width: 64 }} disabled readOnly value={rows} aria-label="Number of rows" /></div>
       <Group13>AutoFit behavior</Group13>
       <div style={{ display: "grid", gap: 4, marginLeft: 12 }}>
-        <Radio13 name="w13-ttt-fit" checked={layout === "fixed"} onChange={() => setLayout("fixed")}>Fi<u>x</u>ed column width</Radio13>
+        <div className="w13-row" style={{ margin: 0 }}><Radio13 name="w13-ttt-fit" checked={layout === "fixed"} onChange={() => setLayout("fixed")}>Fi<u>x</u>ed column width:</Radio13><input className="w13-field" style={{ width: 62, marginLeft: "auto" }} disabled={layout !== "fixed"} readOnly value="Auto" aria-label="Fixed column width" /></div>
         <Radio13 name="w13-ttt-fit" checked={layout === "auto"} onChange={() => setLayout("auto")}>Auto<u>F</u>it to contents</Radio13>
         <Radio13 name="w13-ttt-fit" checked={layout === "window"} onChange={() => setLayout("window")}>AutoFit to win<u>d</u>ow</Radio13>
       </div>
@@ -860,80 +1052,168 @@ export function ConvertTextToTableDialog2013({ guessColumns, rows, onSubmit }: {
   );
 }
 
-const NUMBER_FORMATS = ["", "0", "0.00", "#,##0", "#,##0.00", "0%"];
+const NUMBER_FORMATS = ["", "0", "0.00", "#,##0", "#,##0.00", "0%", "0.00%", "$#,##0.00;($#,##0.00)"];
 export function formatFormulaResult(value: number, format: string) {
   if (format === "0") return String(Math.round(value));
   if (format === "0.00") return value.toFixed(2);
   if (format === "#,##0") return Math.round(value).toLocaleString("en-US");
   if (format === "#,##0.00") return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (format === "0%") return `${Math.round(value)}%`;
+  if (format === "0.00%") return `${value.toFixed(2)}%`;
+  if (format.startsWith("$")) { const text = `$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; return value < 0 ? `(${text})` : text; }
   return String(value);
 }
 export function FormulaDialog2013({ initial, onSubmit }: { initial: string; onSubmit: (formula: string, format: string) => void }) {
   const [formula, setFormula] = useState(initial), [format, setFormat] = useState("");
   return (
-    <Window13 title="Formula" width={340}>
+    <Window13 title="Formula" width={360}>
       <div style={{ marginTop: 6 }}><u>F</u>ormula:</div>
       <input className="w13-field" style={{ width: "100%", marginTop: 2 }} aria-label="Formula" value={formula} onChange={event => setFormula(event.target.value)} />
       <div style={{ marginTop: 8 }}><u>N</u>umber format:</div>
-      <select className="w13-select" style={{ width: "100%", marginTop: 2 }} aria-label="Number format" value={format} onChange={event => setFormat(event.target.value)}>{NUMBER_FORMATS.map(item => <option key={item} value={item}>{item || "(none)"}</option>)}</select>
-      <div className="w13-row" style={{ marginTop: 8 }}>
-        <span>Paste f<u>u</u>nction:</span>
-        <select className="w13-select" style={{ width: 130 }} aria-label="Paste function" value="" onChange={event => { if (event.target.value) setFormula(`=${event.target.value}(ABOVE)`); }}><option value="" /><option>SUM</option><option>AVERAGE</option><option>COUNT</option><option>MAX</option><option>MIN</option><option>PRODUCT</option></select>
+      <select className="w13-select" style={{ width: "100%", marginTop: 2 }} aria-label="Number format" value={format} onChange={event => setFormat(event.target.value)}>{NUMBER_FORMATS.map(item => <option key={item} value={item}>{item}</option>)}</select>
+      <div className="w13-row" style={{ marginTop: 10, gap: 10 }}>
+        <div style={{ display: "grid", gap: 2, flex: 1 }}><span>Paste f<u>u</u>nction:</span>
+          <select className="w13-select" aria-label="Paste function" value="" onChange={event => { if (event.target.value) setFormula(current => `${current || "="}${event.target.value}()`); }}><option value="" /><option>ABS</option><option>AVERAGE</option><option>COUNT</option><option>MAX</option><option>MIN</option><option>PRODUCT</option><option>SUM</option></select></div>
+        <div style={{ display: "grid", gap: 2, flex: 1 }}><span style={{ color: "#8a8a8a" }}>Paste <u>b</u>ookmark:</span>
+          <select className="w13-select" aria-label="Paste bookmark" disabled value="" onChange={() => undefined}><option value="" /></select></div>
       </div>
       <OkCancel13 onOk={() => onSubmit(formula, format)} />
     </Window13>
   );
 }
 
-export function DeleteCellsDialog2013({ onSubmit }: { onSubmit: (choice: "left" | "up" | "row" | "column") => void }) {
-  const [choice, setChoice] = useState<"left" | "up" | "row" | "column">("left");
+// ---- Borders and Shading ----
+export type BorderEdgeKey = "top" | "bottom" | "left" | "right" | "insideH" | "insideV" | "diagonalDown" | "diagonalUp";
+export type BorderEdges = Record<BorderEdgeKey, boolean>;
+export const SHADING_PATTERNS: { id: string; label: string; strength: number }[] = [
+  { id: "clear", label: "Clear", strength: 0 }, { id: "solid", label: "Solid (100%)", strength: 1 },
+  ...[5, 10, 12.5, 15, 20, 25, 30, 35, 37.5, 40, 45, 50, 55, 60, 62.5, 65, 70, 75, 80, 85, 87.5, 90, 95].map(pct => ({ id: String(pct), label: `${pct}%`, strength: pct / 100 })),
+];
+export type BordersShadingValues = {
+  setting: "none" | "box" | "all" | "grid" | "custom"; edges: BorderEdges; style: "solid" | "double" | "dotted" | "dashed"; color: string; width: number; applyTo: "cell" | "table";
+  fill: string | null; pattern: string; patternColor: string | null; shadingApplyTo: "cell" | "table";
+  pageSetting: "none" | "box" | "shadow" | "3d"; pageStyle: "solid" | "double" | "dotted" | "dashed"; pageColor: string; pageWidth: number;
+};
+const EDGE_PRESETS: Record<"none" | "box" | "all" | "grid", BorderEdges> = {
+  none: { top: false, bottom: false, left: false, right: false, insideH: false, insideV: false, diagonalDown: false, diagonalUp: false },
+  box: { top: true, bottom: true, left: true, right: true, insideH: false, insideV: false, diagonalDown: false, diagonalUp: false },
+  all: { top: true, bottom: true, left: true, right: true, insideH: true, insideV: true, diagonalDown: false, diagonalUp: false },
+  grid: { top: true, bottom: true, left: true, right: true, insideH: true, insideV: true, diagonalDown: false, diagonalUp: false },
+};
+export const bordersPreset = (setting: "none" | "box" | "all" | "grid") => ({ ...EDGE_PRESETS[setting] });
+const STYLE_LIST = ["solid", "dotted", "dashed", "double"] as const;
+const PT_LABELS: Record<number, string> = { 0.25: "¼ pt", 0.5: "½ pt", 0.75: "¾ pt", 1: "1 pt", 1.5: "1 ½ pt", 2.25: "2 ¼ pt", 3: "3 pt", 4.5: "4 ½ pt", 6: "6 pt" };
+const cssLine = (style: string, width: number, color: string) => `${style === "double" ? Math.max(3, Math.round(width * 4 / 3)) : Math.max(1, Math.round(width * 4 / 3))}px ${style} #${color}`;
+
+function PaletteSelect13({ value, onChange, label, autoLabel, width = "100%" }: { value: string | null; onChange: (hex: string | null) => void; label: string; autoLabel: string; width?: number | string }) {
+  const menu = useMenu();
+  return <>
+    <button ref={element => { menu.buttonRef.current = element; }} type="button" className="w13-select" aria-label={label} aria-haspopup="menu" style={{ width, textAlign: "left" }} onMouseDown={event => event.preventDefault()} onClick={() => menu.setOpen(open => !open)}>
+      {value ? <span aria-hidden style={{ display: "inline-block", width: 40, height: 12, marginRight: 6, border: "1px solid #666", background: `#${value}`, verticalAlign: "-2px" }} /> : null}<span>{value ? colorLabel(value) : autoLabel}</span>
+    </button>
+    {menu.open && createPortal(<div ref={menu.menuRef} role="menu" aria-label={`${label} palette`} className="wi-menu wr-menu" style={{ ...menu.style, width: 232 }}><WordPalette noneLabel={autoLabel} close={() => menu.setOpen(false)} onPick={onChange} /></div>, document.body)}
+  </>;
+}
+const colorLabel = (hex: string) => TABLE_COLORS.find(color => color.hex === hex.toUpperCase())?.name ?? `#${hex.toUpperCase()}`;
+
+export function BordersShadingDialog2013({ initial, widths, initialTab = "borders", onSubmit }: { initial: BordersShadingValues; widths: number[]; initialTab?: "borders" | "page" | "shading"; onSubmit: (values: BordersShadingValues) => void }) {
+  const [values, setValues] = useState(initial);
+  const [tab, setTab] = useState<string>(initialTab);
+  const set = (patch: Partial<BordersShadingValues>) => setValues(current => ({ ...current, ...patch }));
+  const toggle = (edge: BorderEdgeKey) => setValues(current => ({ ...current, setting: "custom", edges: { ...current.edges, [edge]: !current.edges[edge] } }));
+  const settingTile = (id: BordersShadingValues["setting"], label: ReactNode, drawing: ReactNode) => <button type="button" className="w13-setting" aria-pressed={values.setting === id} onMouseDown={event => event.preventDefault()} onClick={() => { if (id === "custom") set({ setting: "custom" }); else set({ setting: id, edges: bordersPreset(id) }); }}><svg width="40" height="34" viewBox="0 0 40 34" aria-hidden><rect x="1" y="1" width="38" height="32" fill="#fff" stroke="#d0d0d0" />{drawing}</svg><span>{label}</span></button>;
+  const page = (stroke: number) => <rect x="8" y="5" width="24" height="24" fill="none" stroke="#000" strokeWidth={stroke} />;
+  const cells = <path d="M20 5v24M8 17h24" stroke="#bbb" strokeWidth=".7" />;
+  const edgeLine = (edge: BorderEdgeKey) => values.edges[edge] ? cssLine(values.style, values.width, values.color) : "1px dashed #c6c6c6";
+  const edgeButton = (edge: BorderEdgeKey, drawing: ReactNode, name: string) => <button type="button" className="w13-edge" aria-pressed={values.edges[edge]} aria-label={name} title={name} onMouseDown={event => event.preventDefault()} onClick={() => toggle(edge)}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden><rect x="3" y="3" width="14" height="14" fill="#fff" stroke="#bbb" strokeDasharray="1.5 1" />{drawing}</svg></button>;
+  const ln = (d: string) => <path d={d} stroke="#000" strokeWidth="1.6" />;
+  const pattern = SHADING_PATTERNS.find(item => item.id === values.pattern) ?? SHADING_PATTERNS[0];
+  const shadingResult = pattern.strength === 0 ? values.fill : mixColors(values.fill ?? "FFFFFF", values.patternColor ?? "000000", pattern.strength);
+  const styleList = (current: string, onPick: (style: BordersShadingValues["style"]) => void, label: string) => <div className="w13-list" role="listbox" aria-label={label} style={{ height: 92 }}>
+    {current === "" && null}
+    {STYLE_LIST.map(style => <button key={style} type="button" role="option" aria-selected={current === style} onMouseDown={event => event.preventDefault()} onClick={() => onPick(style)}><span style={{ display: "block", margin: "7px 4px", borderTop: `${style === "double" ? 3 : 1}px ${style} currentColor` }} /></button>)}
+  </div>;
   return (
-    <Window13 title="Delete Cells" width={240}>
-      <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
-        <Radio13 name="w13-del" checked={choice === "left"} onChange={() => setChoice("left")}>Shift cells l<u>e</u>ft</Radio13>
-        <Radio13 name="w13-del" checked={choice === "up"} onChange={() => setChoice("up")}>Shift cells <u>u</u>p</Radio13>
-        <Radio13 name="w13-del" checked={choice === "row"} onChange={() => setChoice("row")}>Delete entire <u>r</u>ow</Radio13>
-        <Radio13 name="w13-del" checked={choice === "column"} onChange={() => setChoice("column")}>Delete entire <u>c</u>olumn</Radio13>
+    <Window13 title="Borders and Shading" width={560}>
+      <Tabs13 tabs={[{ id: "borders", label: <><u>B</u>orders</> }, { id: "page", label: <><u>P</u>age Border</> }, { id: "shading", label: <><u>S</u>hading</> }]} value={tab} onChange={setTab} />
+      <div className="w13-panel" style={{ minHeight: 300 }}>
+        {tab === "borders" && <div style={{ display: "grid", gridTemplateColumns: "96px 150px 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gap: 4, alignContent: "start" }}><span>Setting:</span>
+            {settingTile("none", <><u>N</u>one</>, null)}
+            {settingTile("box", <>Bo<u>x</u></>, page(1.4))}
+            {settingTile("all", <><u>A</u>ll</>, <>{page(1.4)}<path d="M20 5v24M8 17h24" stroke="#000" strokeWidth="1" /></>)}
+            {settingTile("grid", <>Gri<u>d</u></>, <>{page(2.6)}<path d="M20 5v24M8 17h24" stroke="#000" strokeWidth="1" /></>)}
+            {settingTile("custom", <>C<u>u</u>stom</>, <>{cells}<path d="M8 5h24M20 5v24" stroke="#000" strokeWidth="1.4" /></>)}
+          </div>
+          <div><span>St<u>y</u>le:</span>
+            {styleList(values.style, style => set({ style, setting: values.setting === "none" ? "box" : values.setting, edges: values.setting === "none" ? bordersPreset("box") : values.edges }), "Border style")}
+            <div style={{ marginTop: 8 }}><u>C</u>olor:</div>
+            <PaletteSelect13 label="Border color" autoLabel="Automatic" value={values.color === "000000" ? null : values.color} onChange={hex => set({ color: hex ?? "000000" })} />
+            <div style={{ marginTop: 8 }}><u>W</u>idth:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Border width" value={values.width} onChange={event => set({ width: Number(event.target.value) })}>{widths.map(width => <option key={width} value={width}>{PT_LABELS[width] ?? `${width} pt`}</option>)}</select>
+          </div>
+          <div><span>Preview</span>
+            <div className="w13-note" style={{ fontSize: 11, margin: "2px 0 4px" }}>Click on diagram below or use buttons to apply borders</div>
+            <div style={{ display: "grid", gridTemplateColumns: "26px 1fr", gap: 4 }}>
+              <div style={{ display: "grid", gap: 6, alignContent: "start" }}>
+                {edgeButton("top", ln("M3 3h14"), "Top Border")}{edgeButton("insideH", ln("M3 10h14"), "Inside Horizontal Border")}{edgeButton("bottom", ln("M3 17h14"), "Bottom Border")}
+              </div>
+              <div>
+                <div className="w13-border-preview" onMouseDown={event => event.preventDefault()} onClick={event => { const box = (event.currentTarget as HTMLElement).getBoundingClientRect(); const x = (event.clientX - box.left) / box.width, y = (event.clientY - box.top) / box.height; const d = [["top", y], ["bottom", 1 - y], ["left", x], ["right", 1 - x], ["insideH", Math.abs(y - 0.5)], ["insideV", Math.abs(x - 0.5)]] as [BorderEdgeKey, number][]; toggle(d.sort((a, b) => a[1] - b[1])[0][0]); }}
+                  style={{ borderTop: edgeLine("top"), borderBottom: edgeLine("bottom"), borderLeft: edgeLine("left"), borderRight: edgeLine("right") }}>
+                  <span style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: edgeLine("insideH") }} />
+                  <span style={{ position: "absolute", top: 0, bottom: 0, left: "50%", borderLeft: edgeLine("insideV") }} />
+                  {values.edges.diagonalDown && <svg className="w13-diag" viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden><path d="M0 0L10 10" stroke={`#${values.color}`} strokeWidth=".15" /></svg>}
+                  {values.edges.diagonalUp && <svg className="w13-diag" viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden><path d="M0 10L10 0" stroke={`#${values.color}`} strokeWidth=".15" /></svg>}
+                  {[0, 1, 2, 3].map(i => <span key={i} className="w13-preview-text" style={{ gridArea: `${Math.floor(i / 2) + 1} / ${(i % 2) + 1}` }}>Text text text text text</span>)}
+                </div>
+                <div className="w13-row" style={{ justifyContent: "space-between", marginTop: 6 }}>
+                  {edgeButton("diagonalUp", ln("M3 17L17 3"), "Diagonal Up Border")}{edgeButton("left", ln("M3 3v14"), "Left Border")}{edgeButton("insideV", ln("M10 3v14"), "Inside Vertical Border")}{edgeButton("right", ln("M17 3v14"), "Right Border")}{edgeButton("diagonalDown", ln("M3 3l14 14"), "Diagonal Down Border")}
+                </div>
+              </div>
+            </div>
+            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 100 }} aria-label="Apply to" value={values.applyTo} onChange={event => set({ applyTo: event.target.value as BordersShadingValues["applyTo"] })}><option value="table">Table</option><option value="cell">Cell</option></select></div>
+            <div className="w13-row" style={{ justifyContent: "flex-end" }}><Button13 disabled title="Border and Shading Options apply to paragraphs; table cell spacing is set in Table Options."><u>O</u>ptions…</Button13></div>
+          </div>
+        </div>}
+        {tab === "page" && <div style={{ display: "grid", gridTemplateColumns: "96px 150px 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gap: 4, alignContent: "start" }}><span>Setting:</span>
+            {(["none", "box", "shadow", "3d"] as const).map(id => <button key={id} type="button" className="w13-setting" aria-pressed={values.pageSetting === id} onMouseDown={event => event.preventDefault()} onClick={() => set({ pageSetting: id })}><svg width="40" height="34" viewBox="0 0 40 34" aria-hidden><rect x="1" y="1" width="38" height="32" fill="#fff" stroke="#d0d0d0" />{id !== "none" && <rect x="9" y="4" width="20" height="26" fill="#fff" stroke="#000" strokeWidth="1.3" />}{id === "shadow" && <path d="M30 6v25H11" stroke="#000" strokeWidth="2.4" />}{id === "3d" && <path d="M9 4l2-2h20v26l-2 2" stroke="#777" />}</svg><span>{id === "none" ? <><u>N</u>one</> : id === "box" ? <>Bo<u>x</u></> : id === "shadow" ? <>Sh<u>a</u>dow</> : <>3-<u>D</u></>}</span></button>)}
+          </div>
+          <div><span>St<u>y</u>le:</span>
+            {styleList(values.pageStyle, style => set({ pageStyle: style, pageSetting: values.pageSetting === "none" ? "box" : values.pageSetting }), "Page border style")}
+            <div style={{ marginTop: 8 }}><u>C</u>olor:</div>
+            <PaletteSelect13 label="Page border color" autoLabel="Automatic" value={values.pageColor === "000000" ? null : values.pageColor} onChange={hex => set({ pageColor: hex ?? "000000" })} />
+            <div style={{ marginTop: 8 }}><u>W</u>idth:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Page border width" value={values.pageWidth} onChange={event => set({ pageWidth: Number(event.target.value) })}>{widths.map(width => <option key={width} value={width}>{PT_LABELS[width] ?? `${width} pt`}</option>)}</select>
+            <div style={{ marginTop: 8, color: "#8a8a8a" }}>A<u>r</u>t:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Page border art" disabled value="" onChange={() => undefined}><option value="">(none)</option></select>
+          </div>
+          <div><span>Preview</span>
+            <div className="w13-page-preview"><div style={{ border: values.pageSetting === "none" ? "1px dashed #c6c6c6" : cssLine(values.pageStyle, values.pageWidth, values.pageColor), boxShadow: values.pageSetting === "shadow" ? "4px 4px 0 #000" : values.pageSetting === "3d" ? "-2px -2px 0 #999" : undefined }}>{textLines(0, 0, 0, 0)}</div></div>
+            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 130 }} aria-label="Page border apply to" value="document" onChange={() => undefined}><option value="document">Whole document</option></select></div>
+          </div>
+        </div>}
+        {tab === "shading" && <div style={{ display: "grid", gridTemplateColumns: "1fr 170px", gap: 18 }}>
+          <div>
+            <div>Fi<u>l</u>l:</div>
+            <PaletteSelect13 label="Shading fill" autoLabel="No Color" value={values.fill} onChange={hex => set({ fill: hex })} width={180} />
+            <Group13>Patterns</Group13>
+            <div className="w13-row" style={{ marginLeft: 12 }}><span style={{ width: 42 }}>St<u>y</u>le:</span><select className="w13-select" style={{ width: 130 }} aria-label="Pattern style" value={values.pattern} onChange={event => set({ pattern: event.target.value })}>{SHADING_PATTERNS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
+            <div className="w13-row" style={{ marginLeft: 12 }}><span style={{ width: 42, color: pattern.strength === 0 ? "#8a8a8a" : undefined }}><u>C</u>olor:</span><PaletteSelect13 label="Pattern color" autoLabel="Automatic" value={values.patternColor} onChange={hex => set({ patternColor: hex })} width={130} /></div>
+          </div>
+          <div><span>Preview</span>
+            <div className="w13-preview" style={{ height: 110, marginTop: 4, display: "grid", placeItems: "center", background: shadingResult ? `#${shadingResult}` : "#fff" }}><span style={{ fontSize: 11 }}>AaBbCcYyZz</span></div>
+            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 90 }} aria-label="Shading apply to" value={values.shadingApplyTo} onChange={event => set({ shadingApplyTo: event.target.value as BordersShadingValues["shadingApplyTo"] })}><option value="cell">Cell</option><option value="table">Table</option></select></div>
+          </div>
+        </div>}
       </div>
-      <OkCancel13 onOk={() => onSubmit(choice)} />
+      <OkCancel13 left={<Button13 disabled title="Horizontal lines are not part of this exam editor.">Hori<u>z</u>ontal Line…</Button13>} onOk={() => onSubmit(values)} />
     </Window13>
   );
 }
-
-export type BordersShadingValues = { setting: "none" | "box" | "all" | "grid" | "custom"; style: "solid" | "double" | "dotted" | "dashed"; color: string; width: number; fill: string | null; applyTo: "cell" | "table" };
-export function BordersShadingDialog2013({ initial, colors, widths, onSubmit }: { initial: BordersShadingValues; colors: { name: string; hex: string }[]; widths: number[]; onSubmit: (values: BordersShadingValues) => void }) {
-  const [values, setValues] = useState(initial);
-  const [tab, setTab] = useState("borders");
-  const set = (patch: Partial<BordersShadingValues>) => setValues(current => ({ ...current, ...patch }));
-  const settingTile = (id: BordersShadingValues["setting"], label: string, drawing: ReactNode) => <button type="button" aria-pressed={values.setting === id} onMouseDown={event => event.preventDefault()} onClick={() => set({ setting: id })} style={{ display: "flex", alignItems: "center", gap: 8, border: values.setting === id ? "2px solid #0078d7" : "2px solid transparent", background: "transparent", padding: 3, font: "inherit", cursor: "default", width: "100%" }}><svg width="34" height="28" viewBox="0 0 34 28" aria-hidden><rect x="1" y="1" width="32" height="26" fill="#fff" stroke="#ddd" />{drawing}</svg><span><u>{label[0]}</u>{label.slice(1)}</span></button>;
-  const box = <rect x="4" y="4" width="26" height="20" fill="none" stroke="#000" strokeWidth="1.5" />;
-  const inside = <path d="M17 4v20M4 14h26" stroke="#000" strokeWidth="0.7" />;
-  return (
-    <Window13 title="Borders and Shading" width={480}>
-      <Tabs13 tabs={[{ id: "borders", label: <><u>B</u>orders</> }, { id: "shading", label: <><u>S</u>hading</> }]} value={tab} onChange={setTab} />
-      <div className="w13-panel" style={{ minHeight: 210 }}>
-        {tab === "borders" ? <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 14 }}>
-          <div><div>Setting:</div>
-            {settingTile("none", "None", null)}{settingTile("box", "Box", box)}{settingTile("all", "All", <>{box}{inside}</>)}{settingTile("grid", "Grid", <><rect x="4" y="4" width="26" height="20" fill="none" stroke="#000" strokeWidth="2.5" />{inside}</>)}
-          </div>
-          <div>
-            <div>St<u>y</u>le:</div>
-            <div className="w13-list" role="listbox" aria-label="Border style" style={{ height: 76 }}>{(["solid", "double", "dotted", "dashed"] as const).map(style => <button key={style} type="button" role="option" aria-selected={values.style === style} onMouseDown={event => event.preventDefault()} onClick={() => set({ style, setting: values.setting === "none" ? "box" : values.setting })}><span style={{ display: "block", margin: "6px 4px", borderTop: `${style === "double" ? 3 : 1}px ${style} currentColor` }} /></button>)}</div>
-            <div style={{ marginTop: 6 }}><u>C</u>olor:</div>
-            <select className="w13-select" style={{ width: "100%" }} aria-label="Border color" value={values.color} onChange={event => set({ color: event.target.value })}>{colors.map(color => <option key={color.name} value={color.hex}>{color.name}</option>)}</select>
-            <div style={{ marginTop: 6 }}><u>W</u>idth:</div>
-            <select className="w13-select" style={{ width: "100%" }} aria-label="Border width" value={values.width} onChange={event => set({ width: Number(event.target.value) })}>{widths.map(width => <option key={width} value={width}>{width} pt</option>)}</select>
-          </div>
-        </div> : <div>
-          <div>Fi<u>l</u>l:</div>
-          <div className="wt-palette" style={{ padding: "4px 0" }}>{colors.map(color => <button key={color.name} type="button" aria-label={`${color.name} (#${color.hex})`} title={color.name} aria-pressed={values.fill === color.hex} style={{ background: `#${color.hex}`, outline: values.fill === color.hex ? "2px solid #0078d7" : undefined }} onMouseDown={event => event.preventDefault()} onClick={() => set({ fill: color.hex })} />)}</div>
-          <Button13 onClick={() => set({ fill: null })}>No Color</Button13>
-          <div className="w13-preview" style={{ marginTop: 10, height: 50, background: values.fill ? `#${values.fill}` : "#fff" }} />
-        </div>}
-        <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 100 }} aria-label="Apply to" value={values.applyTo} onChange={event => set({ applyTo: event.target.value as BordersShadingValues["applyTo"] })}><option value="cell">Cell</option><option value="table">Table</option></select></div>
-      </div>
-      <OkCancel13 onOk={() => onSubmit(values)} />
-    </Window13>
-  );
+/** The colour a Shading fill + pattern produces (null = no shading). */
+export function shadingResultColor(values: Pick<BordersShadingValues, "fill" | "pattern" | "patternColor">) {
+  const pattern = SHADING_PATTERNS.find(item => item.id === values.pattern) ?? SHADING_PATTERNS[0];
+  return pattern.strength === 0 ? values.fill : mixColors(values.fill ?? "FFFFFF", values.patternColor ?? "000000", pattern.strength);
 }

@@ -345,11 +345,6 @@ main > section.bg-slate-950 a[href="/typing/learn"]:hover {
 .word-ribbon-tabs button[data-tab-id="File"] { background: #2b579a; color: #fff; }
 .word-ribbon-tabs button[data-tab-id="File"]:hover { background: #1e4173; }
 .word-ribbon-tabs button[data-tab-id="File"][aria-selected="true"]::after { background: #7fb2ff; }
-.word-ribbon-context-banner { background: #d97706; padding: 2px 10px; color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: .03em; }
-.word-ribbon-tabs button.word-ribbon-extra-tab { color: #78350f; }
-.word-ribbon-tabs button.word-ribbon-extra-tab:hover:not([aria-selected="true"]) { background: #fef3c7; color: #78350f; }
-.word-ribbon-tabs button.word-ribbon-extra-tab[aria-selected="true"] { background: #d1fae5; color: #065f46; }
-.word-ribbon-tabs button.word-ribbon-extra-tab[aria-selected="true"]::after { background: #059669; }
 .word-ribbon-panel { height: 88px; overflow-x: auto; overflow-y: hidden; background: #fff; scrollbar-width: thin; }
 .word-ribbon-groups { display: flex; width: max-content; min-width: 100%; height: 88px; padding: 3px 4px 2px; }
 .word-ribbon-group { display: flex; min-width: 0; flex-direction: column; padding: 1px 6px 0; border-right: 1px solid #d6d6d6; background: #fff; }
@@ -848,50 +843,103 @@ ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-ite
 .wi-symbol-grid button:hover { background: #fdf3d0; border-color: #f2c867; }
 
 /* ===== Word 2013 TABLE TOOLS (components/word-efficiency/word-table-tools.tsx) ===== */
-.wt-group .wt-group-body { display: flex; flex: 1; align-items: flex-start; gap: 2px; min-height: 58px; }
+.wt-group { position: relative; padding-bottom: 0; }
+.wt-group .wt-group-body { display: flex; flex: 1; align-items: flex-start; gap: 1px; min-height: 66px; padding-top: 1px; }
 .wt-row { display: flex; align-items: flex-start; gap: 1px; }
-.wt-stack { display: flex; flex-direction: column; gap: 1px; }
-.wt-tool { display: inline-flex; align-items: center; gap: 3px; height: 27px; border: 1px solid transparent; border-radius: 1px; background: transparent; padding: 1px 4px; color: #262626; font: 11px "Segoe UI", Calibri, Arial, sans-serif; white-space: nowrap; cursor: default; }
-.wt-tool:hover:not(:disabled), .wt-tool[aria-expanded="true"] { border-color: #f2c867; background: #fdf3d0; }
-.wt-tool[aria-pressed="true"] { border-color: #c2a258; background: #fbe3a2; }
-.wt-tool:disabled { color: #a6a6a6; }
-.wt-tool:disabled .wt-icon { opacity: .45; }
-.wt-tool-big { height: 58px; min-width: 42px; flex-direction: column; justify-content: flex-start; gap: 1px; padding: 2px 3px; text-align: center; white-space: normal; line-height: 1.1; }
-.wt-tool-big .wt-label { max-width: 58px; font-size: 10.5px; }
-.wt-icon { display: inline-flex; color: #2b579a; }
-.wt-checks { display: grid; grid-template-columns: repeat(2, max-content); gap: 2px 14px; padding: 3px 4px; font: 11px "Segoe UI", Calibri, Arial, sans-serif; }
+.wt-stack { display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+/* Large button: 32px icon over a one- or two-line label (Word 2013 ribbon). */
+.wr-big { display: inline-flex; min-width: 40px; height: 66px; flex-direction: column; align-items: center; gap: 2px; border: 1px solid transparent; border-radius: 1px; background: transparent; padding: 2px 3px 1px; color: #262626; font: 400 11px/13px "Segoe UI", Calibri, Arial, sans-serif; text-align: center; white-space: nowrap; cursor: default; }
+.wr-big-icon { display: flex; width: 32px; height: 32px; flex: 0 0 32px; align-items: center; justify-content: center; }
+.wr-big-icon svg { display: block; }
+.wr-big-label { display: flex; flex-direction: column; align-items: center; }
+.wr-caret { margin-left: 2px; color: #555; font-size: 8px; font-style: normal; line-height: 13px; }
+.wr-big:hover:not(:disabled), .wr-big[aria-expanded="true"] { border-color: #e5b92a; background: #fff1b3; }
+.wr-big[aria-pressed="true"] { border-color: #d9a41c; background: #ffe27a; }
+.wr-big:disabled { color: #a6a6a6; }
+.wr-big:disabled .wr-big-icon { opacity: .4; filter: grayscale(1); }
+.wr-big:focus-visible, .wr-small:focus-visible, .wr-box:focus-visible { outline: 1px solid #2b78b8; }
+/* Split large button (Shading, Borders): icon half + label half, hovered separately like Word. */
+.wr-split { display: inline-flex; min-width: 42px; height: 66px; flex-direction: column; align-items: stretch; border: 1px solid transparent; border-radius: 1px; }
+.wr-split:hover, .wr-split[data-open] { border-color: #e5b92a; }
+.wr-split-main { display: flex; height: 36px; align-items: center; justify-content: center; border: 0; background: transparent; padding: 2px 3px 0; cursor: default; }
+.wr-split-arrow { display: flex; flex: 1; justify-content: center; border: 0; border-top: 1px solid transparent; background: transparent; padding: 1px 3px; color: #262626; font: 400 11px/13px "Segoe UI", Calibri, Arial, sans-serif; cursor: default; }
+.wr-split:hover .wr-split-arrow { border-top-color: #e5b92a; }
+.wr-split-main:hover, .wr-split-arrow:hover, .wr-split-arrow[aria-expanded="true"] { background: #fff1b3; }
+/* Small button: 16px icon + label (Distribute Rows / Columns). */
+.wr-small { display: inline-flex; height: 22px; align-items: center; gap: 4px; border: 1px solid transparent; border-radius: 1px; background: transparent; padding: 1px 4px 1px 2px; color: #262626; font: 400 11px "Segoe UI", Calibri, Arial, sans-serif; white-space: nowrap; cursor: default; }
+.wr-small:hover { border-color: #e5b92a; background: #fff1b3; }
+.wr-small-icon { display: inline-flex; width: 16px; height: 16px; }
+/* Small drop-down boxes (Line Style, Line Weight, Pen Color). */
+.wr-box { display: inline-flex; height: 20px; align-items: center; gap: 4px; border: 1px solid #c6c6c6; border-radius: 0; background: #fff; padding: 0 3px 0 5px; color: #262626; font: 400 11px "Segoe UI", Calibri, Arial, sans-serif; cursor: default; }
+.wr-box:hover, .wr-box[aria-expanded="true"] { border-color: #e5b92a; }
+.wr-box-face { display: flex; flex: 1; min-width: 0; align-items: center; overflow: hidden; }
+.wr-pen-color { border-color: transparent; background: transparent; }
+.wr-pen-color:hover, .wr-pen-color[aria-expanded="true"] { background: #fff1b3; }
+.wr-pen-face { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wr-line { display: block; flex: 1; height: 0; min-width: 40px; }
+.wr-line-none { color: #444; }
+.wr-weight { display: flex; width: 100%; align-items: center; gap: 8px; white-space: nowrap; }
+.wr-weight > span:first-child { width: 36px; flex: 0 0 36px; }
+.wr-line-item { display: flex; min-height: 24px; align-items: center; border: 1px solid transparent; background: #fff; padding: 3px 10px; cursor: default; font: 400 11px "Segoe UI", Calibri, Arial, sans-serif; color: #222; }
+.wr-line-item:hover, .wr-line-item[aria-pressed="true"] { border-color: #e5b92a; background: #fff1b3; }
+.wr-border-styles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px 8px; }
+.wr-border-style { display: flex; height: 26px; align-items: center; border: 1px solid #d6d6d6; background: #fff; padding: 0 6px; cursor: default; }
+.wr-border-style:hover, .wr-border-style[aria-pressed="true"] { border-color: #e5b92a; background: #fff1b3; }
+/* Word 2013 colour palette. */
+.wr-palette { display: flex; flex-direction: column; padding-bottom: 2px; }
+.wr-palette-heading { padding: 5px 8px 3px; color: #444; font-weight: 700; }
+.wr-palette-grid { display: grid; grid-template-columns: repeat(10, 17px); gap: 0 4px; padding: 0 8px 4px; }
+.wr-palette-theme { margin-bottom: 4px; }
+.wr-palette-tints { gap: 0 4px; }
+.wr-swatch { width: 17px; height: 17px; border: 1px solid #c6c6c6; padding: 0; cursor: default; }
+.wr-palette-tints .wr-swatch { height: 15px; border-top-width: 0; border-bottom-width: 0; }
+.wr-palette-tints .wr-swatch:nth-child(-n+10) { border-top-width: 1px; }
+.wr-palette-tints .wr-swatch:nth-last-child(-n+10) { border-bottom-width: 1px; }
+.wr-swatch:hover { position: relative; z-index: 1; outline: 2px solid #f29436; outline-offset: -1px; }
+.wr-none-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid #666; background: #fff; }
+.wr-more-colors { position: relative; }
+.wr-more-colors input { position: absolute; inset: 0; opacity: 0; cursor: default; }
+/* Table Style Options: three rows, two columns (Word's order). */
+.wt-checks { display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, auto); gap: 4px 14px; padding: 4px 4px 0; font: 11px "Segoe UI", Calibri, Arial, sans-serif; }
 .wt-check { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .wt-check input { width: 13px; height: 13px; margin: 0; accent-color: #2b579a; }
-.wt-styles { display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid #d6d6d6; background: #fff; }
+/* Table Styles gallery with its up / down / more strip. */
+.wr-gallery { display: flex; height: 62px; margin-top: 1px; border: 1px solid #c6c6c6; background: #fff; }
+.wr-gallery-items { display: flex; align-items: center; gap: 1px; padding: 2px; }
+.wr-gallery-strip { display: flex; width: 15px; flex-direction: column; border-left: 1px solid #c6c6c6; }
+.wr-gallery-strip button { display: flex; flex: 1; align-items: center; justify-content: center; border: 0; border-bottom: 1px solid #e1e1e1; background: #fff; padding: 0; color: #444; cursor: default; }
+.wr-gallery-strip button:last-child { border-bottom: 0; }
+.wr-gallery-strip button svg { width: 8px; height: 7px; }
+.wr-gallery-strip button:hover:not(:disabled), .wr-gallery-strip button[aria-expanded="true"] { background: #fff1b3; }
+.wr-gallery-strip button:disabled { color: #c6c6c6; }
 .wt-style { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; border: 1px solid transparent; background: #fff; padding: 2px; cursor: default; font: 10px "Segoe UI", Calibri, Arial, sans-serif; color: #333; }
-.wt-style:hover { border-color: #f2c867; background: #fdf3d0; }
-.wt-style[aria-pressed="true"] { border-color: #2b579a; outline: 1px solid #2b579a; }
-.wt-more { font-size: 12px; color: #444; }
-.wt-style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 6px; }
-.wt-style-grid .wt-style span { max-width: 100px; text-align: center; white-space: normal; }
-.wt-style-preview { width: 44px; height: 32px; border-collapse: collapse; table-layout: fixed; }
+.wt-style:hover { border-color: #e5b92a; background: #fff1b3; }
+.wt-style[aria-pressed="true"] { border-color: #d9a41c; outline: 1px solid #d9a41c; }
+.wt-style-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 6px; }
+.wt-style-preview { width: 54px; height: 42px; border-collapse: collapse; table-layout: fixed; }
 .wt-style-preview td { height: 8px; padding: 0; border: 1px solid #d0d0d0; }
 .wt-borders { display: flex; align-items: flex-start; gap: 2px; }
-.wt-pen { display: flex; flex-direction: column; gap: 2px; padding-top: 1px; }
-.wt-pen select { width: 108px; height: 19px; border: 1px solid #ababab; background: #fff; font: 10.5px "Segoe UI", Calibri, Arial, sans-serif; }
-.wt-pen .wt-tool { height: 19px; }
-.wt-pen-color { display: inline-block; width: 14px; height: 4px; margin-top: 10px; }
-.wt-pen-sample { display: inline-block; width: 44px; }
-.wt-palette { display: grid; grid-template-columns: repeat(5, 18px); gap: 3px; padding: 6px; }
-.wt-palette button { width: 18px; height: 18px; border: 1px solid #c0c0c0; padding: 0; cursor: default; }
-.wt-palette button:hover { outline: 2px solid #f2c867; }
-.wt-size { display: flex; flex-direction: column; gap: 3px; padding: 2px 4px; font: 11px "Segoe UI", Calibri, Arial, sans-serif; }
-.wt-size label { display: flex; align-items: center; gap: 4px; }
-.wt-size label > span:first-child { width: 40px; }
+.wt-pen { display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+.wt-size { display: flex; flex-direction: column; gap: 4px; padding: 4px 4px 0; font: 11px "Segoe UI", Calibri, Arial, sans-serif; }
+.wt-size label { display: flex; align-items: center; gap: 3px; }
+.wt-size label > span:nth-child(2) { width: 40px; }
 .wt-spin { display: inline-flex; height: 21px; }
-.wt-spin input { width: 58px; border: 1px solid #ababab; border-right: 0; padding: 0 3px; font: inherit; }
-.wt-spin-buttons { display: flex; width: 14px; flex-direction: column; border: 1px solid #ababab; }
-.wt-spin-buttons button { flex: 1; border: 0; background: #f3f3f3; padding: 0; font-size: 6px; line-height: 1; cursor: default; }
-.wt-spin-buttons button:hover { background: #cde6f7; }
-.wt-align { display: grid; grid-template-columns: repeat(3, 20px); gap: 1px; padding: 2px; }
-.wt-align button { display: flex; width: 20px; height: 17px; border: 1px solid transparent; background: #fff; padding: 2px; cursor: default; }
-.wt-align button:hover { border-color: #f2c867; background: #fdf3d0; }
-.wt-align button span { display: block; width: 10px; height: 3px; background: #2b579a; box-shadow: 0 4px 0 #2b579a; }
+.wt-spin input { width: 62px; border: 1px solid #c6c6c6; border-right: 0; padding: 0 3px; font: inherit; }
+.wt-spin-buttons { display: flex; width: 14px; flex-direction: column; border: 1px solid #c6c6c6; }
+.wt-spin-buttons button { flex: 1; border: 0; background: #fff; padding: 0; color: #444; font-size: 6px; line-height: 1; cursor: default; }
+.wt-spin-buttons button:hover { background: #fff1b3; }
+.wt-align { display: grid; grid-template-columns: repeat(3, 22px); gap: 1px; padding: 2px 3px 0 1px; }
+.wt-align button { display: flex; width: 22px; height: 20px; align-items: center; justify-content: center; border: 1px solid transparent; background: transparent; padding: 0; cursor: default; }
+.wt-align button:hover { border-color: #e5b92a; background: #fff1b3; }
+.wt-align button[aria-pressed="true"] { border-color: #d9a41c; background: #ffe27a; }
+
+/* TABLE TOOLS contextual tab header: Word 2013's gold label in the title bar, over DESIGN and LAYOUT only. */
+.word-office-ribbon { position: relative; overflow: visible; }
+.word-ribbon-context-banner { position: absolute; z-index: 3; bottom: 100%; height: 28px; border-top: 4px solid #e6b21e; background: #fbeaba; padding: 4px 8px 0; color: #6b4c00; font: 400 10.5px/18px "Segoe UI", Calibri, Arial, sans-serif; letter-spacing: .04em; text-align: center; text-transform: uppercase; white-space: nowrap; pointer-events: none; }
+.word-ribbon-tabs button.word-ribbon-extra-tab { color: #8a6100; }
+.word-ribbon-tabs button.word-ribbon-extra-tab:hover:not([aria-selected="true"]) { background: #fdf3d6; color: #8a6100; }
+.word-ribbon-tabs button.word-ribbon-extra-tab[aria-selected="true"] { background: #fff; color: #8a6100; box-shadow: inset 1px 0 #d5d5d5, inset -1px 0 #d5d5d5; }
+.word-ribbon-tabs button.word-ribbon-extra-tab[aria-selected="true"]::after { background: #e6b21e; }
 
 /* Table in the editor: Draw/Eraser/Border Painter cursors, gridlines, text direction, cell margins */
 .word-table-mode-draw table, .word-table-mode-draw { cursor: crosshair; }
@@ -946,3 +994,25 @@ table[data-table-style]:not([data-table-style="table-grid"])[data-last-column="t
 table[data-table-style]:not([data-table-style="table-grid"])[data-total-row="true"] tr:last-child td { font-weight: 700; border-top: 2px solid #5b9bd5; }
 table[data-table-style]:not([data-table-style="table-grid"])[data-banded-columns="true"] td:nth-child(even) { background-image: linear-gradient(rgb(0 0 0 / .04), rgb(0 0 0 / .04)); }
 table[data-table-style][data-header-row="false"] tr:first-child td { font-weight: inherit; }
+
+/* Table Tools dialogs (word-2013-dialogs.tsx): sub-dialogs, picture tiles, Borders and Shading preview */
+.w13-sub-overlay { position: fixed; inset: 0; z-index: 2500; display: flex; align-items: center; justify-content: center; background: rgb(15 23 42 / .12); padding: 8px; }
+.w13-tile { display: inline-grid; justify-items: center; gap: 3px; border: 2px solid transparent; border-radius: 1px; background: transparent; padding: 2px; font: inherit; color: inherit; cursor: default; }
+.w13-tile[aria-pressed="true"] { border-color: #0078d7; background: #e5f1fb; }
+.w13-tile:hover:not([aria-pressed="true"]) { border-color: #9ccbf2; }
+.w13-setting { display: flex; width: 100%; align-items: center; gap: 8px; border: 2px solid transparent; background: transparent; padding: 2px; font: inherit; color: inherit; text-align: left; cursor: default; }
+.w13-setting[aria-pressed="true"] { border-color: #0078d7; background: #e5f1fb; }
+.w13-edge { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid #adadad; border-radius: 2px; background: #e1e1e1; padding: 0; cursor: default; }
+.w13-edge[aria-pressed="true"] { border-color: #0078d7; background: #cce4f7; }
+.w13-edge:hover { border-color: #0078d7; }
+.w13-border-preview { position: relative; display: grid; height: 112px; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; background: #fff; cursor: pointer; }
+.w13-preview-text { padding: 6px; color: #9a9a9a; font-size: 9px; line-height: 1.2; overflow: hidden; }
+.w13-diag { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.w13-page-preview { display: flex; height: 150px; align-items: center; justify-content: center; margin-top: 4px; border: 1px solid var(--w13-border); background: #fff; }
+.w13-page-preview > div { width: 90px; height: 118px; background: #fff; }
+/* Table Properties in the document: text wrapping Around (beside the table, at its alignment), Exactly row height, Fit text. */
+table[data-block-type="table"][data-table-wrap="around"] { float: left; margin: 0.1cm 0.32cm 0.1cm 0; }
+table[data-block-type="table"][data-table-wrap="around"][data-table-align="right"] { float: right; margin: 0.1cm 0 0.1cm 0.32cm; }
+table[data-block-type="table"][data-table-wrap="around"][data-table-align="center"] { float: none; }
+table[data-block-type="table"] tr[data-height-rule="exactly"] > td { overflow: hidden; }
+table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; font-stretch: condensed; letter-spacing: -0.02em; }
