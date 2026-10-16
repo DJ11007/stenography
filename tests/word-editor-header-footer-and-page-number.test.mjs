@@ -35,10 +35,10 @@ test("a real Header & Footer Tools > Design contextual ribbon tab appears and au
   assert.match(editor, /extraTabs=\{\[\.\.\.\(hfKind\?\[\{id:"hf-design",label:"Design",contextLabel:"Header & Footer Tools",groups:headerFooterToolsGroups\}\]:\[\]\)/);
   assert.match(editor, /activeExtraTab=\{headerFooterToolsSelected\?"hf-design":/);
   assert.match(editor, /if\(nowInside&&!wasInsideHeaderFooter\.current\)setHeaderFooterToolsSelected\(true\)/);
-  assert.match(editor, /if\(!nowInside&&wasInsideHeaderFooter\.current\)setHeaderFooterToolsSelected\(false\)/);
-  assert.match(editor, /Go to \{hfKind==="header"\?"Footer":"Header"\}/);
-  assert.match(editor, /Show Document Text/);
-  assert.match(editor, /Close Header and Footer/);
+  assert.match(editor, /if\(!nowInside&&wasInsideHeaderFooter\.current\)\{setHeaderFooterToolsSelected\(false\);dropEmptyHeaderFooter\(\)\}/);
+  assert.match(editor, /<HeaderFooterToolsGroups key=\{hfRev\} kind=\{hfKind\}/);
+  const tools = await read("components/word-efficiency/word-header-footer-tools.tsx");
+  for (const label of ["Go to\\nHeader", "Go to\\nFooter", "Show Document Text", "Close Header\\nand Footer", "Date &\\nTime", "Header from Top:"]) assert.ok(tools.includes(label), label);
   assert.match(editor, /const closeHeaderFooter=\(\)=>\{/);
   const ribbon = await read("components/word-efficiency/word-editor-ribbon.tsx");
   assert.match(ribbon, /extraTabs\?: \{ id: string; label: string; contextLabel: string; groups: ReactNode \}\[\]/);
@@ -46,15 +46,23 @@ test("a real Header & Footer Tools > Design contextual ribbon tab appears and au
 });
 
 test("Different First Page and Different Odd & Even Pages are shown but honestly disabled -- this tool has no real page-by-page pagination to back them", async () => {
-  const editor = await read(EDITOR);
-  const reason = "Requires true multi-page pagination, which this exam tool doesn't model.";
-  assert.match(editor, new RegExp(`title="${reason.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"><input type="checkbox" disabled/>Different First Page`));
-  assert.match(editor, new RegExp(`title="${reason.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}"><input type="checkbox" disabled/>Different Odd &amp; Even Pages`));
+  const tools = await read("components/word-efficiency/word-header-footer-tools.tsx");
+  assert.match(tools, /<input type="checkbox" disabled checked=\{false\} onChange=\{\(\) => undefined\} \/><span>Different First Page<\/span>/);
+  assert.match(tools, /<input type="checkbox" disabled checked=\{false\} onChange=\{\(\) => undefined\} \/><span>Different Odd &amp; Even Pages<\/span>/);
 });
 
-test("Header from Top / Footer from Bottom genuinely adjust the header/footer element's own spacing, reusing the marginTop/marginBottom attrs the schema already validates", async () => {
+test("Header from Top / Footer from Bottom (in cm, as Word shows them) set the header/footer element's own marginTop/marginBottom, which the schema already validates", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const adjustHeaderFooterOffset=\(which:"header"\|"footer",value:string\)=>\{const element=editor\.current\?\.querySelector\(which\)as HTMLElement\|null;if\(!element\)return;const amount=bounded\(value,0,10\);element\.style\[which==="header"\?"marginTop":"marginBottom"\]=`\$\{amount\}in`;changed\(\)\}/);
+  assert.match(editor, /if\(action==="headerFromTop"\|\|action==="footerFromBottom"\)\{const which=action==="headerFromTop"\?"header":"footer";const element=editor\.current\?\.querySelector\(which\)as HTMLElement\|null;if\(!element\)return;element\.style\[which==="header"\?"marginTop":"marginBottom"\]=`\$\{Number\(value\)\}cm`;changed\(\)/);
+});
+
+test("double-clicking the top or bottom of the page enters the header or footer, and Esc / Close leave it (dropping an empty one)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /<div ref=\{editor\} onDoubleClick=\{headerFooterDoubleClick\}/);
+  assert.match(editor, /if\(first&&event\.clientY<first\.top\)\{event\.preventDefault\(\);editHeaderFooter\("header"\);return\}/);
+  assert.match(editor, /if\(last&&event\.clientY>last\.bottom\)\{event\.preventDefault\(\);editHeaderFooter\("footer"\)\}/);
+  assert.match(editor, /event\.key==="Escape"&&!dialog\)\{event\.preventDefault\(\);closeHeaderFooterRef\.current\(\)\}/);
+  assert.match(editor, /setInsideHeaderFooter\(null\);\n  dropEmptyHeaderFooter\(\);/);
 });
 
 test("insideHeaderFooter is tracked via the same selectionchange listener that already tracks insideTable", async () => {

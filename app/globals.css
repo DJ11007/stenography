@@ -1096,3 +1096,25 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .wp-size-dim { display: block; color: #555; }
 /* VIEW tab (word-view-tab.tsx): Show checkboxes stacked like Word. */
 .wv-checks { display: flex; flex-direction: column; gap: 5px; padding: 4px 6px 0; font: 11px "Segoe UI", Calibri, Arial, sans-serif; }
+
+/* ===== Word 2013 header & footer (rich-document-editor + word-header-footer-tools.tsx) =====
+   No coloured dashed boxes: like Word, the header/footer is faded while the body is edited;
+   while it is edited (data-hf-editing) it gets a grey dashed line and its "Header"/"Footer"
+   tag, and the body is greyed (hidden with Show Document Text off). Double-click the top or
+   bottom of the page to edit it, double-click the body or press Esc to go back. */
+.word-document-page > header[data-block-type="header"], .word-document-page > footer[data-block-type="footer"] { position: relative; border: 0 !important; padding: 0 0 6px !important; margin-bottom: 12px; cursor: text; }
+.word-document-page > footer[data-block-type="footer"] { padding: 6px 0 0 !important; margin: 12px 0 0; }
+.word-document-page:not([data-hf-editing]) > header[data-block-type="header"], .word-document-page:not([data-hf-editing]) > footer[data-block-type="footer"] { opacity: .55; }
+.word-document-page[data-hf-editing] > :not(header):not(footer) { opacity: .45; }
+.word-document-page[data-hf-hide-body] > :not(header):not(footer) { opacity: 0; }
+.word-document-page[data-hf-editing="header"] > header[data-block-type="header"] { border-bottom: 1px dashed #7f7f7f !important; }
+.word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"] { border-top: 1px dashed #7f7f7f !important; }
+.word-document-page[data-hf-editing="header"] > header[data-block-type="header"]::after,
+.word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"]::after { position: absolute; left: -2px; z-index: 1; border: 1px solid #a6a6a6; background: #e7e7e7; padding: 1px 8px; color: #404040; font: 11px "Segoe UI", Calibri, Arial, sans-serif; font-style: normal; font-weight: 400; pointer-events: none; user-select: none; }
+.word-document-page[data-hf-editing="header"] > header[data-block-type="header"]::after { content: "Header"; top: calc(100% + 3px); }
+.word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"]::after { content: "Footer"; bottom: calc(100% + 3px); }
+/* The big Header / Footer / Page Number menus in HEADER & FOOTER TOOLS: Word's large buttons. */
+.wh-menus .word-ribbon-tool { display: inline-flex; min-width: 46px; height: 66px; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; padding: 2px 3px 1px; text-align: center; }
+.wh-menus .word-ribbon-tool svg { width: 32px; height: 32px; flex-basis: 32px; }
+.wh-menus .word-ribbon-tool > span { max-width: 54px; white-space: normal; line-height: 13px; }
+.wh-position-label { width: 106px !important; white-space: nowrap; }
