@@ -1,4 +1,5 @@
 "use server";
+import { trustedStartedAt } from "@/lib/exam-clock";
 
 import { createClient } from "@/lib/supabase/server";
 import type { ExamPreset } from "@/lib/typing-curriculum";
@@ -32,7 +33,7 @@ export async function recordPracticeAttempt(payload: PracticeAttemptPayload): Pr
   };
   const { error } = await supabase.from("practice_attempts").insert({
     student_id: user.id, preset_id: payload.presetId.slice(0, 200), title: payload.title.slice(0, 300), mode: payload.mode,
-    snapshot: { preset: payload.preset, inputSystemId: payload.inputSystemId }, result, started_at: startedAt.toISOString(),
+    snapshot: { preset: payload.preset, inputSystemId: payload.inputSystemId }, result, started_at: trustedStartedAt(startedAt.toISOString(), payload.elapsedSeconds),
   });
   return error ? null : { status: "scored" };
 }

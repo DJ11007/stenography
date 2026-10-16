@@ -103,3 +103,13 @@ export class ExamClock {
     this.timer = null;
   }
 }
+
+/** The start time to RECORD for an attempt (server side). The browser sends its own
+ *  clock's start time, which on PCs with a wrong clock was off by minutes or hours in
+ *  the saved records; when it disagrees by more than 2 minutes with "now minus the
+ *  test's elapsed time" (the server's own clock), the server's figure is used. */
+export function trustedStartedAt(clientIso: string, elapsedSeconds: number, nowMs = Date.now()): string {
+  const fromServer = nowMs - Math.max(0, Number.isFinite(elapsedSeconds) ? elapsedSeconds : 0) * 1000;
+  const client = new Date(clientIso).getTime();
+  return new Date(Number.isFinite(client) && Math.abs(client - fromServer) <= 120000 ? client : fromServer).toISOString();
+}

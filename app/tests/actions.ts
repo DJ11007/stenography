@@ -1,4 +1,5 @@
 "use server";
+import { trustedStartedAt } from "@/lib/exam-clock";
 
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
@@ -150,7 +151,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // recomputing it -- the list tiles and the detailed breakdown can no
   // longer drift apart, for English or Hindi, typing or stenography.
   const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : speedMarksResult ? speedMarksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : speedMarksResult ? speedMarksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
-  const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: payload.startedAt, snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
+  const { error } = await supabase.from("test_attempts").insert({ test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: trustedStartedAt(payload.startedAt, payload.elapsedSeconds), snapshot: v, result, is_live_attempt: Boolean(test.is_live) });
   // Anytime mode's per-student unlock time is submitted_at + delay, not a
   // shared resultsPublishAt -- and the DB row can't be re-read to fetch its
   // real submitted_at right after insert (the same RLS policy that hides an

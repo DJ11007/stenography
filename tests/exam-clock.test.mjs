@@ -64,3 +64,15 @@ test("the typing exam uses the clock for the finish, Submit and pause; Real File
   assert.doesNotMatch(realfile, /Date\.now\(\) - startTime/);
   assert.match(realfile, /useExamCountdown\(remainingAtLoadSeconds, 0\)/);
 });
+
+test("the recorded start time comes from the server when the PC clock is off", async () => {
+  const { trustedStartedAt } = await import("../lib/exam-clock.ts");
+  const now = Date.parse("2026-10-16T10:25:00.000Z");
+  assert.equal(trustedStartedAt("2026-10-16T10:15:00.500Z", 600, now), "2026-10-16T10:15:00.500Z", "a correct PC clock is kept");
+  assert.equal(trustedStartedAt("2026-10-17T03:40:00.000Z", 600, now), "2026-10-16T10:15:00.000Z", "a PC clock 17 hours ahead is replaced");
+  assert.equal(trustedStartedAt("not a date", 600, now), "2026-10-16T10:15:00.000Z");
+  const exam = await readFile(new URL("../app/tests/actions.ts", import.meta.url), "utf8");
+  assert.match(exam, /started_at: trustedStartedAt\(payload\.startedAt, payload\.elapsedSeconds\)/);
+  const practice = await readFile(new URL("../app/typing/practice-attempt-actions.ts", import.meta.url), "utf8");
+  assert.match(practice, /started_at: trustedStartedAt\(/);
+});
