@@ -192,7 +192,7 @@ test("students always get full editor capabilities and admin no longer configure
   assert.doesNotMatch(workingMatterFields, /EditorCapabilityFields/);
   assert.match(editor, /<WordEditorRibbon/);
   for (const pattern of [/role="tablist"/, /role="tabpanel"/, /aria-label=\{option\.label\}/, /<RibbonIcon/, /WORD_EDITOR_RIBBON/]) assert.match(shared, pattern);
-  for (const pattern of [/sticky bottom-0/, /dataset\.operations/, /operations:/]) assert.match(editor, pattern);
+  for (const pattern of [/word-statusbar-button/, /dataset\.operations/, /operations:/]) assert.match(editor, pattern);
   assert.match(migration, /jsonb_build_object\('working_matter',matter,'editor_capabilities',caps,'initial_editor_document',initial_editor/);
 });
 

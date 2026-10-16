@@ -127,8 +127,10 @@ export function WordVerticalRuler({ height, marginTop, marginBottom }: { height:
   </svg>;
 }
 
-export function WordStatusBar({ page, pages, words, language, mode, onMode, zoom, onZoom, status }: {
+export function WordStatusBar({ page, pages, words, language, mode, onMode, zoom, onZoom, status, actions }: {
   page: number; pages: number; words: number; language: string; mode: string; onMode: (mode: "print" | "web" | "reading") => void; zoom: number; onZoom: (value: number) => void; status?: string;
+  /** Extra buttons at the far right (the admin editors' Save button). */
+  actions?: ReactNode;
 }) {
   const modes: { id: "reading" | "print" | "web"; label: string; icon: ReactNode }[] = [
     { id: "reading", label: "Read Mode", icon: <svg {...iconProps}><path d="M2.5 3.5h4.7c.5 0 .8.3.8.8v8.2c0-.5-.3-.8-.8-.8H2.5zM13.5 3.5H8.8c-.5 0-.8.3-.8.8v8.2c0-.5.3-.8.8-.8h4.7z" /></svg> },
@@ -151,6 +153,7 @@ export function WordStatusBar({ page, pages, words, language, mode, onMode, zoom
       <input type="range" className="word-zoom-slider" aria-label="Zoom" min={25} max={200} step={5} value={clamped} onChange={event => onZoom(Number(event.target.value))} />
       <button type="button" className="word-zoom-step" aria-label="Zoom in" title="Zoom in" onClick={() => onZoom(Math.min(200, Math.round((zoom + 10) / 5) * 5))}>+</button>
       <button type="button" className="word-zoom-value" title="Zoom to 100%" onClick={() => onZoom(100)}>{zoom}%</button>
+      {actions ? <span className="word-statusbar-actions">{actions}</span> : null}
     </div>
   </footer>;
 }

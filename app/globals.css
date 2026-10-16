@@ -1016,3 +1016,39 @@ table[data-block-type="table"][data-table-wrap="around"][data-table-align="right
 table[data-block-type="table"][data-table-wrap="around"][data-table-align="center"] { float: none; }
 table[data-block-type="table"] tr[data-height-rule="exactly"] > td { overflow: hidden; }
 table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; font-stretch: condensed; letter-spacing: -0.02em; }
+/* Admin editors: the Save button lives at the right end of Word's status bar (no separate footer bar). */
+.word-statusbar-actions { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; }
+.word-statusbar-button { height: 20px; border: 1px solid #a4262c; border-radius: 2px; background: #c50f1f; padding: 0 10px; color: #fff; font: 600 11px "Segoe UI", Calibri, Arial, sans-serif; cursor: pointer; }
+.word-statusbar-button:hover:not(:disabled) { background: #a4262c; }
+.word-statusbar-button:disabled { border-color: #8a8a8a; background: #8a8a8a; cursor: default; }
+.word-statusbar-refresh { border-color: #b7791f; background: #f59e0b; color: #1f1f1f; }
+/* INSERT tab: Header / Footer / Page Number labels wrap to two lines like Word ("Page / Number ▾") and
+   each slot is as wide as its button, so neighbours never overlap; Date & Time is never cut off. */
+.word-ribbon-group[data-ribbon-group="headerFooter"] { min-width: 0; }
+.word-ribbon-group[data-ribbon-group="headerFooter"] .word-ribbon-options { grid-template-columns: repeat(3, minmax(46px, max-content)); gap: 0 1px; }
+.word-ribbon-group[data-ribbon-group="headerFooter"] .word-ribbon-option-slot { width: auto; }
+.word-ribbon-group[data-ribbon-group="headerFooter"] .word-ribbon-tool > span,
+.word-ribbon-group[data-ribbon-group="symbols"] .word-ribbon-tool > span,
+.word-ribbon-group[data-ribbon-group="tables"] .word-ribbon-tool > span { max-width: 52px; white-space: normal; line-height: 12px; text-align: center; }
+.word-ribbon-group[data-ribbon-group="text"] { min-width: 0; }
+.word-ribbon-group[data-ribbon-group="text"] .word-ribbon-options { grid-template-columns: 46px max-content; gap: 0 2px; }
+.word-ribbon-group[data-ribbon-group="text"] [data-ribbon-option="dateTime"], .word-ribbon-group[data-ribbon-group="text"] [data-ribbon-option="dateTime"] .word-ribbon-tool { width: auto; min-width: 0; }
+.word-ribbon-group[data-ribbon-group="text"] [data-ribbon-option="dropCap"] .word-ribbon-tool > span { max-width: 44px; white-space: normal; line-height: 12px; }
+/* DESIGN > Page Background and PAGE LAYOUT > Page Setup: columns as wide as their labels (Watermark, Orientation). */
+.word-ribbon-group[data-ribbon-group="pageBackground"] { min-width: 0; }
+.word-ribbon-group[data-ribbon-group="pageBackground"] .word-ribbon-options { grid-template-columns: repeat(3, minmax(48px, max-content)); gap: 0 2px; }
+.word-ribbon-group[data-ribbon-group="pageBackground"] .word-ribbon-option-slot, .word-ribbon-group[data-ribbon-group="pageBackground"] .word-ribbon-tool { width: auto; }
+.word-ribbon-group[data-ribbon-group="pageBackground"] .word-ribbon-tool > span { max-width: 72px; line-height: 12px; }
+.word-ribbon-group[data-ribbon-group="pageSetup"] { min-width: 0; }
+.word-ribbon-group[data-ribbon-group="pageSetup"] .word-ribbon-options { grid-template-columns: repeat(4, minmax(49px, max-content)) 108px; gap: 0 2px; }
+.word-ribbon-group[data-ribbon-group="pageSetup"] [data-ribbon-option="orientation"] .word-ribbon-tool { width: auto; min-width: 49px; padding-inline: 3px; }
+.word-ribbon-group[data-ribbon-group="pageSetup"] [data-ribbon-option="orientation"] .word-ribbon-tool > span { max-width: none; }
+.word-ribbon-group[data-ribbon-group="illustrations"] .word-ribbon-option-slot { width: auto; min-width: 46px; }
+.word-ribbon-group[data-ribbon-group="illustrations"] .word-ribbon-tool > span { max-width: 52px; line-height: 12px; }
+/* Underline Color submenu: Word's full palette (the 4x2 swatch grid had no pure Red). */
+.word-underline-colors.word-underline-palette { display: block; width: 232px; padding: 0; }
+.word-underline-palette .wr-swatch { width: 17px; height: 17px; border: 1px solid #c6c6c6; }
+.word-underline-palette .wr-palette-tints .wr-swatch { height: 15px; border-top-width: 0; border-bottom-width: 0; }
+.word-underline-palette .wr-palette-tints .wr-swatch:nth-child(-n+10) { border-top-width: 1px; }
+.word-underline-palette .wr-palette-tints .wr-swatch:nth-last-child(-n+10) { border-bottom-width: 1px; }
+.word-underline-palette .wi-item { width: 100%; height: auto; border: 0; }
