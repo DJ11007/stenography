@@ -27,22 +27,26 @@ export const MARGIN_PRESETS: MarginPreset[] = [
   { id: "office2003", name: "Office 2003 Default", margins: { top: 2.54, bottom: 2.54, left: 3.18, right: 3.18 } },
 ];
 
-export type PaperSize = { id: string; name: string; width: number; height: number };
-// Word 2013's Size gallery (width x height in cm, portrait).
+export type PaperSize = { id: string; name: string; width: number; height: number; icon?: boolean };
+// Word 2013's Size gallery, in Word's order (width x height in cm, portrait). `icon`:
+// Word draws a page picture beside these entries only.
 export const PAPER_SIZES: PaperSize[] = [
-  { id: "letter", name: "Letter", width: 21.59, height: 27.94 },
-  { id: "legal", name: "Legal", width: 21.59, height: 35.56 },
+  { id: "letter", name: "Letter", width: 21.59, height: 27.94, icon: true },
+  { id: "legal", name: "Legal", width: 21.59, height: 35.56, icon: true },
   { id: "statement", name: "Statement", width: 13.97, height: 21.59 },
-  { id: "executive", name: "Executive", width: 18.41, height: 26.67 },
-  { id: "a3", name: "A3", width: 29.7, height: 42 },
-  { id: "a4", name: "A4", width: 21, height: 29.7 },
-  { id: "a5", name: "A5", width: 14.8, height: 21 },
-  { id: "b4", name: "B4 (JIS)", width: 25.7, height: 36.4 },
+  { id: "executive", name: "Executive", width: 18.41, height: 26.67, icon: true },
+  { id: "a4", name: "A4", width: 21, height: 29.7, icon: true },
+  { id: "a5", name: "A5", width: 14.8, height: 21, icon: true },
   { id: "b5", name: "B5 (JIS)", width: 18.2, height: 25.7 },
+  { id: "envelope10", name: "Envelope #10", width: 10.48, height: 24.13 },
+  { id: "envelopedl", name: "Envelope DL", width: 11, height: 22 },
+  { id: "envelopec5", name: "Envelope C5", width: 16.2, height: 22.9 },
+  { id: "envelopec6", name: "Envelope C6", width: 11.4, height: 16.2 },
+  { id: "envelopemonarch", name: "Envelope Monarch", width: 9.84, height: 19.05 },
+  { id: "a3", name: "A3", width: 29.7, height: 42, icon: true },
+  { id: "b4", name: "B4 (JIS)", width: 25.7, height: 36.4 },
 ];
-// The page widths (px) the editor has always used for the gallery sizes; kept
-// exactly so existing answers and grading rules keep matching.
-export const PAPER_WIDTH_PX: Record<string, number> = { letter: 816, legal: 816, statement: 528, executive: 696, a3: 1123, a4: 794, a5: 559, b4: 971, b5: 688 };
+export const PAPER_WIDTH_PX: Record<string, number> = { letter: 816, legal: 816, statement: 528, executive: 696, a3: 1123, a4: 794, a5: 559, b4: 971, b5: 688, envelope10: 396, envelopedl: 416, envelopec5: 612, envelopec6: 431, envelopemonarch: 372 };
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 export const cmText = (value: number) => `${round2(value)} cm`;

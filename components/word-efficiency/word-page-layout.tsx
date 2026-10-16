@@ -138,12 +138,12 @@ export function PageLayoutGroups({ state, on }: { state: PageLayoutState; on: On
             <button type="button" role="menuitem" className="wp-big-item" aria-pressed={state.orientation === "landscape"} onMouseDown={event => event.preventDefault()} onClick={() => { on("orientation", "landscape"); close(); }}><Icon name="landscape" /><span>Landscape</span></button>
           </>}
         </BigDrop>}
-        {e.pageSize && <BigDrop label={"Size"} width={230} icon={<Icon name="size" />}>
+        {e.pageSize && <BigDrop label={"Size"} width={236} icon={<Icon name="size" />}>
           {close => <div className="wp-sizes">
-            {PAPER_SIZES.map(size => <button key={size.id} type="button" role="menuitem" className="wp-size-item" aria-pressed={state.paper === size.id} onMouseDown={event => event.preventDefault()} onClick={() => { on("pageSize", size.id); close(); }}>
-              <span className="wp-size-icon"><svg viewBox="0 0 24 32" width="22" height="30" aria-hidden><rect x="2.5" y="1.5" width={Math.min(19, 19 * size.width / size.height + 1)} height="29" fill="#fff" stroke={C.frame} /></svg></span>
+            <div className="wp-size-list">{PAPER_SIZES.map(size => <button key={size.id} type="button" role="menuitem" className="wp-size-item" aria-pressed={state.paper === size.id} onMouseDown={event => event.preventDefault()} onClick={() => { on("pageSize", size.id); close(); }}>
+              <span className="wp-size-icon">{size.icon && <svg viewBox="0 0 24 32" width="24" height="32" aria-hidden><rect x={12 - (24 * size.width / size.height) / 2 + 0.5} y="1.5" width={24 * size.width / size.height - 1} height="29" fill="#fff" stroke="#3c3c3c" /></svg>}</span>
               <span><b>{size.name}</b><span className="wp-size-dim">{size.width} cm x {size.height} cm</span></span>
-            </button>)}
+            </button>)}</div>
             <div className="wi-sep" />
             <button type="button" role="menuitem" className="wp-menu-command" onMouseDown={event => event.preventDefault()} onClick={() => { on("pageSetup", "paper"); close(); }}>More P<u>a</u>per Sizes…</button>
           </div>}
