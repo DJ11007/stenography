@@ -39,6 +39,7 @@ const RUN_V1 = new Set(["text", "bold", "italic", "underline", "strike", "supers
 const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "doubleStrike", "href", "bookmark", "field", "smallCaps", "allCaps", "hidden", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin", "outline", "emboss"]);
 const UNDERLINE_STYLES=new Set(["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy","words-only"]);
 const PAGE_LAYOUT_KEYS = new Set(["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"]);
+const PAGE_GUTTER_KEYS = new Set(["gutter", "gutterPosition"]);
 const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "marginTop", "marginBottom", "border", "backgroundColor", "hyphens"]);
 export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle", "bullet-square", "bullet-diamond", "bullet-arrow", "bullet-check", "decimal", "decimal-paren", "upper-roman", "upper-alpha", "lower-alpha-paren", "lower-alpha", "lower-roman"]);
 const ATTRS: Record<string, Set<string>> = {
@@ -106,10 +107,13 @@ function validateOperations(value: unknown) {
 const MARGIN_VALUE = String.raw`\d{1,2}(?:\.\d{1,2})?mm`;
 const MARGIN_PATTERN = new RegExp(`^${MARGIN_VALUE}$|^(?:${MARGIN_VALUE} ){3}${MARGIN_VALUE}$`);
 function validatePageLayout(value: unknown) {
-  if (!object(value) || !exact(value, PAGE_LAYOUT_KEYS)) throw new Error("Invalid page layout.");
+  // gutter / gutterPosition (Page Setup) are optional so older answers stay valid.
+  if (!object(value) || ![...PAGE_LAYOUT_KEYS].every(key => key in value) || !Object.keys(value).every(key => PAGE_LAYOUT_KEYS.has(key) || PAGE_GUTTER_KEYS.has(key))) throw new Error("Invalid page layout.");
   for (const [key, item] of Object.entries(value)) if (!nullableString(item, key === "watermark" ? 40 : 100)) throw new Error(`Invalid page layout ${key}.`);
   if (typeof value.padding === "string" && !MARGIN_PATTERN.test(value.padding)) throw new Error("Invalid page margins.");
   if (typeof value.columnCount === "string" && !/^[1-6]$/.test(value.columnCount)) throw new Error("Invalid page columns.");
+  if (typeof value.gutter === "string" && !/^\d{1,2}(\.\d{1,2})?mm$/.test(value.gutter)) throw new Error("Invalid page gutter.");
+  if (value.gutterPosition != null && !/^(?:left|top)$/.test(String(value.gutterPosition))) throw new Error("Invalid page gutter position.");
   if (typeof value.backgroundColor === "string" && !/^(?:#[0-9A-Fa-f]{6}|[0-9A-Fa-f]{6})$/.test(value.backgroundColor)) throw new Error("Invalid page color.");
 }
 function validateRunLinkFields(run: JsonObject) {

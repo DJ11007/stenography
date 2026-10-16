@@ -41,6 +41,9 @@ type Props = {
   extraTabs?: { id: string; label: string; contextLabel: string; groups: ReactNode }[];
   activeExtraTab?: string | null;
   onExtraTabSelect?: (id: string) => void;
+  // A tab drawn by its own Word 2013-style component (PAGE LAYOUT) instead of
+  // the capability option grid; the component still honours the capabilities.
+  customPanels?: Partial<Record<WordEditorTab, ReactNode>>;
 };
 
 const CLEAR_FORMAT_DEPENDENCIES = ["fontName", "fontSize", "bold", "italic", "underline", "strikeThrough", "subscript", "superscript", "textEffects", "highlightColor", "fontColor"] as const;
@@ -59,7 +62,7 @@ const PAGE_WIDTH_OPTION: RibbonOption = { id: "pageWidth", label: "Page Width", 
 const GROUP_LAUNCHER_OPTION_IDS: Record<string, string> = { font: "fontDialog", paragraph: "paragraphDialog" };
 function GroupLauncherIcon() { return <svg viewBox="0 0 11 11" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5v3M1.5 1.5h3M1.5 1.5 9.5 9.5"/><path d="M9.5 5.5v4h-4"/></svg>; }
 
-export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily, extraTabs = [], activeExtraTab = null, onExtraTabSelect }: Props) {
+export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily, extraTabs = [], activeExtraTab = null, onExtraTabSelect, customPanels }: Props) {
   const activeExtra = extraTabs.find(tab => tab.id === activeExtraTab) ?? null;
   const extraTabActive = Boolean(activeExtra);
   const visibleTabs = WORD_EDITOR_RIBBON.filter(tab => capabilities.tabs[tab.id].enabled);
@@ -133,6 +136,8 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
     </div>
     {activeExtra ? <div ref={panelRef} id={`ribbon-${activeExtra.id}`} role="tabpanel" aria-label={`${activeExtra.contextLabel} ${activeExtra.label} tools`} className="word-ribbon-panel" style={fit < 1 ? { height: Math.ceil(88 * fit) } : undefined}>
       <div ref={groupsRef} className="word-ribbon-groups">{activeExtra.groups}</div>
+    </div> : selectedTab && customPanels?.[selectedTab] ? <div ref={panelRef} id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel" style={fit < 1 ? { height: Math.ceil(88 * fit) } : undefined}>
+      <div ref={groupsRef} className="word-ribbon-groups">{customPanels[selectedTab]}</div>
     </div> : <div ref={panelRef} id={`ribbon-${String(selectedTab).replaceAll(" ", "-")}`} role="tabpanel" aria-label={`${selectedTab} tools`} className="word-ribbon-panel" style={fit < 1 ? { height: Math.ceil(88 * fit) } : undefined}>
       <div ref={groupsRef} className="word-ribbon-groups">
         {groups.map(group => <section key={group.id} data-ribbon-group={group.id} className="word-ribbon-group">

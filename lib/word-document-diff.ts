@@ -132,7 +132,7 @@ function normalizedRunField(run: JsonRecord, field: string): unknown {
 const PARAGRAPH_ATTR_FIELDS = ["marginLeft", "marginRight", "marginTop", "marginBottom", "lineHeight", "backgroundColor", "border", "hyphens", "lineNumbers", "dropCap", "dropCapLines", "dropCapDistance", "dropCapMargin", "listStyle", "specialIndentMode", "specialIndentAmount"] as const;
 // Table Tools settings (lib/word-table-model.ts), each its own gradable field.
 const TABLE_ATTR_FIELDS = ["tableLayout", "tableStyle", "headerRow", "totalRow", "bandedRows", "firstColumn", "lastColumn", "bandedColumns", "repeatHeader", "tableAlign", "cellMarginTop", "cellMarginBottom", "cellMarginLeft", "cellMarginRight", "rowHeights", "colWidths", "tableWidth", "tableWidthUnit", "tableIndent", "tableWrap", "cellSpacing", "rowHeightRules", "rowCantSplit", "tableTitle", "tableDescription"] as const;
-const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"] as const;
+const PAGE_LAYOUT_FIELDS = ["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark", "gutter", "gutterPosition"] as const;
 
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
@@ -310,7 +310,8 @@ export function diffWordDocuments(before: unknown, after: unknown): WordDetected
   const beforeLayout = isObject(before) && isObject(before.pageLayout) ? before.pageLayout : {};
   const afterLayout = isObject(after) && isObject(after.pageLayout) ? after.pageLayout : {};
   for (const field of PAGE_LAYOUT_FIELDS) {
-    if (!equalValue(beforeLayout[field], afterLayout[field])) changes.push({ target: `pageLayout.${field}`, expectedValue: afterLayout[field] ?? null, label: `Page ${fieldLabel(field)} changed to ${String(afterLayout[field])}`, blockPosition: 0 });
+    // A field missing from an older document (gutter) is the same as null.
+    if (!equalValue(beforeLayout[field] ?? null, afterLayout[field] ?? null)) changes.push({ target: `pageLayout.${field}`, expectedValue: afterLayout[field] ?? null, label: `Page ${fieldLabel(field)} changed to ${String(afterLayout[field])}`, blockPosition: 0 });
   }
   return changes;
 }

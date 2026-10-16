@@ -269,7 +269,7 @@ test("change case, list styles, line spacing, shading, and borders drive real Of
 
 test("margins, watermark, page color, columns, page size, symbol, and table insert/edit drive an in-app dialog instead of window.prompt",async()=>{
   const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
-  assert.match(editor,/if\(id==="marginsAction"\)\{if\(value==="custom"\)setDialog\(\{kind:"margins"/);
+  assert.match(editor,/if\(id==="marginsAction"\)\{if\(value==="custom"\)openPageSetup\("margins"\);return\}/); // Word 2013 Page Setup dialog
   assert.match(editor,/watermark:\(\)=>setDialog\(\{kind:"watermark"/);
   assert.match(editor,/pageColor:\(\)=>setDialog\(\{kind:"pageColor"/);
   assert.match(editor,/if\(id==="columnsAction"\)\{if\(value==="custom"\)setDialog\(\{kind:"columns"/);

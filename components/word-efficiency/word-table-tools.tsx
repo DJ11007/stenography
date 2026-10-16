@@ -60,7 +60,7 @@ export function WordPalette({ onPick, close, noneLabel, noneSwatch }: { onPick: 
 
 // ---------- building blocks ----------
 
-function Group({ id, name, children, launcher, onLauncher }: { id: string; name: string; children: ReactNode; launcher?: string; onLauncher?: () => void }) {
+export function Group({ id, name, children, launcher, onLauncher }: { id: string; name: string; children: ReactNode; launcher?: string; onLauncher?: () => void }) {
   return <section className="word-ribbon-group wt-group" data-ribbon-group={id}>
     <div className="wt-group-body">{children}</div>
     <span className="word-ribbon-group-name">{name}</span>
@@ -69,12 +69,12 @@ function Group({ id, name, children, launcher, onLauncher }: { id: string; name:
 }
 
 // Word's large-button label: up to two lines; a drop-down's caret goes on the last line.
-function BigLabel({ label, caret }: { label: string; caret?: boolean }) {
+export function BigLabel({ label, caret }: { label: string; caret?: boolean }) {
   const [first, second] = label.split("\n");
   return <span className="wr-big-label"><span>{first}</span>{(second !== undefined || caret) && <span>{second}{caret && <i aria-hidden className="wr-caret">▾</i>}</span>}</span>;
 }
 
-function Big({ label, icon, onClick, pressed, disabled, title }: { label: string; icon: ReactNode; onClick?: () => void; pressed?: boolean; disabled?: boolean; title?: string }) {
+export function Big({ label, icon, onClick, pressed, disabled, title }: { label: string; icon: ReactNode; onClick?: () => void; pressed?: boolean; disabled?: boolean; title?: string }) {
   const name = label.replace("\n", " ");
   return <button type="button" className="wr-big" aria-pressed={pressed === undefined ? undefined : pressed} disabled={disabled} title={title ?? name} aria-label={name}
     onMouseDown={event => event.preventDefault()} onClick={onClick}>
@@ -82,26 +82,26 @@ function Big({ label, icon, onClick, pressed, disabled, title }: { label: string
   </button>;
 }
 
-function Small({ label, icon, onClick, pressed, title }: { label: string; icon: ReactNode; onClick?: () => void; pressed?: boolean; title?: string }) {
-  return <button type="button" className="wr-small" aria-pressed={pressed === undefined ? undefined : pressed} title={title ?? label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={onClick}>
+export function Small({ label, icon, onClick, pressed, title, disabled }: { label: string; icon: ReactNode; onClick?: () => void; pressed?: boolean; title?: string; disabled?: boolean }) {
+  return <button type="button" className="wr-small" disabled={disabled} aria-pressed={pressed === undefined ? undefined : pressed} title={title ?? label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={onClick}>
     <span className="wr-small-icon" aria-hidden>{icon}</span><span>{label}</span>
   </button>;
 }
 
-function useFlyout() {
+export function useFlyout() {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const { position, flyoutRef } = useClampedFlyoutPosition(open, anchorRef);
   useDismiss(open, () => setOpen(false), [anchorRef, flyoutRef]);
   return { open, setOpen, anchorRef, position, flyoutRef };
 }
-function Flyout({ flyout, label, width, children }: { flyout: ReturnType<typeof useFlyout>; label: string; width: number; children: (close: () => void) => ReactNode }) {
+export function Flyout({ flyout, label, width, children }: { flyout: ReturnType<typeof useFlyout>; label: string; width: number; children: (close: () => void) => ReactNode }) {
   if (!flyout.open || typeof document === "undefined") return null;
   return createPortal(<div ref={flyout.flyoutRef} role="menu" aria-label={label} className="wi-menu wr-menu" style={{ ...flyout.position, width }}>{children(() => flyout.setOpen(false))}</div>, document.body);
 }
 
 // Large drop-down button (Select, Delete, AutoFit, Border Styles).
-function BigDrop({ label, icon, width = 220, title, children }: { label: string; icon: ReactNode; width?: number; title?: string; children: (close: () => void) => ReactNode }) {
+export function BigDrop({ label, icon, width = 220, title, children }: { label: string; icon: ReactNode; width?: number; title?: string; children: (close: () => void) => ReactNode }) {
   const flyout = useFlyout();
   const name = label.replace("\n", " ");
   return <>
@@ -114,7 +114,7 @@ function BigDrop({ label, icon, width = 220, title, children }: { label: string;
 }
 
 // Large split button (Shading, Borders): the icon half repeats the last choice, the label half opens the menu.
-function BigSplit({ label, icon, onMain, mainTitle, width = 240, children }: { label: string; icon: ReactNode; onMain: () => void; mainTitle: string; width?: number; children: (close: () => void) => ReactNode }) {
+export function BigSplit({ label, icon, onMain, mainTitle, width = 240, children }: { label: string; icon: ReactNode; onMain: () => void; mainTitle: string; width?: number; children: (close: () => void) => ReactNode }) {
   const flyout = useFlyout();
   const name = label.replace("\n", " ");
   return <span className="wr-split" data-open={flyout.open || undefined}>
@@ -125,7 +125,7 @@ function BigSplit({ label, icon, onMain, mainTitle, width = 240, children }: { l
 }
 
 // Small drop-down box (Line Style, Line Weight, Pen Color).
-function BoxDrop({ label, face, width = 180, menuWidth, children, className = "" }: { label: string; face: ReactNode; width?: number; menuWidth?: number; children: (close: () => void) => ReactNode; className?: string }) {
+export function BoxDrop({ label, face, width = 180, menuWidth, children, className = "" }: { label: string; face: ReactNode; width?: number; menuWidth?: number; children: (close: () => void) => ReactNode; className?: string }) {
   const flyout = useFlyout();
   return <>
     <button ref={flyout.anchorRef} type="button" className={`wr-box ${className}`} style={{ width }} aria-haspopup="menu" aria-expanded={flyout.open} title={label} aria-label={label}
@@ -136,7 +136,7 @@ function BoxDrop({ label, face, width = 180, menuWidth, children, className = ""
   </>;
 }
 
-function MenuItem({ children, onClick, icon, pressed, disabled }: { children: ReactNode; onClick: () => void; icon?: ReactNode; pressed?: boolean; disabled?: boolean }) {
+export function MenuItem({ children, onClick, icon, pressed, disabled }: { children: ReactNode; onClick: () => void; icon?: ReactNode; pressed?: boolean; disabled?: boolean }) {
   return <button role="menuitem" type="button" className="wi-item" aria-pressed={pressed} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={onClick}><span className="wi-icon" aria-hidden>{icon}</span><span>{children}</span></button>;
 }
 
@@ -444,7 +444,7 @@ function BorderOverlay({ border }: { border: BorderCommand }) {
   return <>{map[border]}</>;
 }
 
-function Icon16({ name, color }: { name: string; color?: string }) {
+export function Icon16({ name, color }: { name: string; color?: string }) {
   const svg = (children: ReactNode) => <svg viewBox="0 0 16 16" width="16" height="16" fill="none" strokeWidth="1">{children}</svg>;
   const mini = (extra: ReactNode) => svg(<><rect x="1.5" y="2.5" width="13" height="11" fill="#fff" stroke={T.frame} /><path d="M1.5 6.2h13M1.5 9.8h13M5.8 2.5v11M10.2 2.5v11" stroke={T.line} />{extra}</>);
   switch (name) {

@@ -5,6 +5,7 @@ import { APPROVED_WORD_FONTS, WORD_THEME_FONTS } from "@/lib/word-editor-capabil
 import { WORD_FONT_SIZE_LIST, wordFontSize } from "@/lib/word-font-sizes";
 import { DEFAULT_ENGINE_OPTIONS, describeFormat, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
 import { mixColors } from "@/lib/word-colors";
+import { PAPER_SIZES, type PageSetupValues } from "@/lib/word-page-setup";
 import { TABLE_COLORS, WordPalette } from "./word-table-tools";
 
 // Word 2013-style dialogs: Find and Replace (with Special / Format / search options),
@@ -1216,4 +1217,127 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
 export function shadingResultColor(values: Pick<BordersShadingValues, "fill" | "pattern" | "patternColor">) {
   const pattern = SHADING_PATTERNS.find(item => item.id === values.pattern) ?? SHADING_PATTERNS[0];
   return pattern.strength === 0 ? values.fill : mixColors(values.fill ?? "FFFFFF", values.patternColor ?? "000000", pattern.strength);
+}
+
+// ---- Page Setup (PAGE LAYOUT > Page Setup launcher / Custom Margins… / More Paper Sizes…) ----
+function PagePreview13({ values }: { values: PageSetupValues }) {
+  // A small page drawn to scale: portrait or landscape, margins and gutter around the text.
+  const landscape = values.orientation === "landscape";
+  const pw = landscape ? values.height : values.width, ph = landscape ? values.width : values.height;
+  const scale = 80 / Math.max(pw, ph), w = pw * scale, h = ph * scale;
+  const gutterLeft = values.gutterPosition === "left" ? values.gutter : 0, gutterTop = values.gutterPosition === "top" ? values.gutter : 0;
+  const x = Math.min(w - 4, (values.left + gutterLeft) * scale), y = Math.min(h - 4, (values.top + gutterTop) * scale);
+  const tw = Math.max(4, w - x - values.right * scale), th = Math.max(4, h - y - values.bottom * scale);
+  const lines = Math.max(1, Math.floor(th / 4));
+  return <svg width={w + 6} height={h + 6} viewBox={`-1 -1 ${w + 6} ${h + 6}`} aria-label="Page preview" role="img">
+    <defs><pattern id="w13-gutter" width="3" height="3" patternUnits="userSpaceOnUse"><path d="M0 3L3 0" stroke="#a0a0a0" strokeWidth=".6" /></pattern></defs>
+    <rect x="3" y="3" width={w} height={h} fill="#7f7f7f" />
+    <rect x="0" y="0" width={w} height={h} fill="#fff" stroke="#3c3c3c" />
+    {values.gutter > 0 && <rect x="0" y="0" width={values.gutterPosition === "left" ? gutterLeft * scale : w} height={values.gutterPosition === "top" ? gutterTop * scale : h} fill="url(#w13-gutter)" />}
+    {Array.from({ length: lines }, (_, i) => <rect key={i} x={x} y={y + i * 4} width={i % 5 === 4 ? tw * 0.6 : tw} height="1.4" fill="#1f1f1f" />)}
+  </svg>;
+}
+
+export function PageSetupDialog2013({ values: initial, initialTab = "margins", onSubmit, renderBorders }: { values: PageSetupValues; initialTab?: "margins" | "paper" | "layout"; onSubmit: (values: PageSetupValues) => void; renderBorders: (close: () => void) => ReactNode }) {
+  const [values, setValues] = useState(initial);
+  const [tab, setTab] = useState<string>(initialTab);
+  const [sub, setSub] = useState<"lineNumbers" | "borders" | null>(null);
+  const set = (patch: Partial<PageSetupValues>) => setValues(current => ({ ...current, ...patch }));
+  const mirror = values.multiplePages === "mirror";
+  const field = (key: "top" | "bottom" | "left" | "right" | "gutter", label: ReactNode, aria: string) => <>
+    <span className="w13-label">{label}</span>
+    <Number13 label={aria} value={values[key]} onChange={value => set({ [key]: Math.max(0, value ?? 0) })} unit="cm" dimension="length" step={0.1} min={0} max={9.99} decimals={2} width={96} />
+  </>;
+  const apply = <div className="w13-row" style={{ marginTop: 8 }}><span>Appl<u>y</u> to:</span><select className="w13-select" style={{ width: 140 }} aria-label="Apply to" value="whole" onChange={() => undefined}><option value="whole">Whole document</option></select></div>;
+  return (
+    <Window13 title="Page Setup" width={420}>
+      <Tabs13 tabs={[{ id: "margins", label: <><u>M</u>argins</> }, { id: "paper", label: <>Pap<u>e</u>r</> }, { id: "layout", label: <><u>L</u>ayout</> }]} value={tab} onChange={setTab} />
+      <div className="w13-panel" style={{ minHeight: 400 }}>
+        {tab === "margins" && <>
+          <Group13>Margins</Group13>
+          <div style={{ display: "grid", gridTemplateColumns: "auto auto auto auto", gap: "6px 10px", alignItems: "center", marginLeft: 12 }}>
+            {field("top", <><u>T</u>op:</>, "Top margin")}{field("bottom", <><u>B</u>ottom:</>, "Bottom margin")}
+            {field("left", mirror ? <>I<u>n</u>side:</> : <><u>L</u>eft:</>, mirror ? "Inside margin" : "Left margin")}{field("right", mirror ? <>O<u>u</u>tside:</> : <><u>R</u>ight:</>, mirror ? "Outside margin" : "Right margin")}
+            {field("gutter", <><u>G</u>utter:</>, "Gutter")}
+            <span className="w13-label">G<u>u</u>tter position:</span>
+            <select className="w13-select" aria-label="Gutter position" style={{ width: 96 }} value={values.gutterPosition} disabled={mirror} onChange={event => set({ gutterPosition: event.target.value as PageSetupValues["gutterPosition"] })}><option value="left">Left</option><option value="top">Top</option></select>
+          </div>
+          <Group13>Orientation</Group13>
+          <div className="w13-row" style={{ marginLeft: 12, gap: 10 }}>
+            {(["portrait", "landscape"] as const).map(orientation => <button key={orientation} type="button" className="w13-tile" aria-pressed={values.orientation === orientation} onMouseDown={event => event.preventDefault()} onClick={() => set({ orientation })}>
+              <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden>{orientation === "portrait" ? <rect x="10.5" y="4.5" width="23" height="33" fill="#fff" stroke="#1f1f1f" /> : <rect x="4.5" y="10.5" width="35" height="23" fill="#fff" stroke="#1f1f1f" />}<text x="15" y="29" fontSize="18" fontFamily="Times New Roman, serif" fontWeight="700" fill="#1f1f1f">A</text></svg>
+              <span>{orientation === "portrait" ? <><u>P</u>ortrait</> : <>Land<u>s</u>cape</>}</span>
+            </button>)}
+          </div>
+          <Group13>Pages</Group13>
+          <div className="w13-row" style={{ marginLeft: 12 }}><span><u>M</u>ultiple pages:</span>
+            <select className="w13-select" aria-label="Multiple pages" style={{ width: 140 }} value={values.multiplePages} onChange={event => set({ multiplePages: event.target.value as PageSetupValues["multiplePages"], gutterPosition: event.target.value === "mirror" ? "left" : values.gutterPosition })}><option value="normal">Normal</option><option value="mirror">Mirror margins</option><option value="twoPerSheet" disabled>2 pages per sheet</option><option value="bookFold" disabled>Book fold</option></select>
+          </div>
+          <Group13>Preview</Group13>
+          <div style={{ marginLeft: 50 }}><PagePreview13 values={values} /></div>
+          {apply}
+        </>}
+        {tab === "paper" && <>
+          <div style={{ marginTop: 4 }}>Pape<u>r</u> size:</div>
+          <select className="w13-select" aria-label="Paper size" style={{ width: 210, marginTop: 3 }} value={values.paper} onChange={event => { const size = PAPER_SIZES.find(item => item.id === event.target.value); set(size ? { paper: size.id, width: size.width, height: size.height } : { paper: "custom" }); }}>
+            {PAPER_SIZES.map(size => <option key={size.id} value={size.id}>{size.name}</option>)}<option value="custom">Custom size</option>
+          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "60px auto", gap: "6px 8px", alignItems: "center", marginTop: 8, marginLeft: 12 }}>
+            <span className="w13-label"><u>W</u>idth:</span><Number13 label="Paper width" value={values.width} onChange={value => set({ width: Math.max(1, value ?? values.width), paper: "custom" })} unit="cm" dimension="length" step={0.1} min={1} max={55.88} decimals={2} width={96} />
+            <span className="w13-label">H<u>e</u>ight:</span><Number13 label="Paper height" value={values.height} onChange={value => set({ height: Math.max(1, value ?? values.height), paper: "custom" })} unit="cm" dimension="length" step={0.1} min={1} max={55.88} decimals={2} width={96} />
+          </div>
+          <Group13>Paper source</Group13>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginLeft: 12, color: "#8a8a8a" }}>
+            <div><div><u>F</u>irst page:</div><div className="w13-list" style={{ height: 64, background: "#ece6df" }}><button type="button" disabled aria-selected="true">Default tray</button></div></div>
+            <div><div><u>O</u>ther pages:</div><div className="w13-list" style={{ height: 64, background: "#ece6df" }}><button type="button" disabled aria-selected="true">Default tray</button></div></div>
+          </div>
+          <Group13>Preview</Group13>
+          <div style={{ marginLeft: 50 }}><PagePreview13 values={values} /></div>
+          {apply}
+        </>}
+        {tab === "layout" && <>
+          <Group13>Section</Group13>
+          <div className="w13-row" style={{ marginLeft: 12, color: "#8a8a8a" }}><span>Section sta<u>r</u>t:</span><select className="w13-select" disabled style={{ width: 140 }} aria-label="Section start" value="newPage" onChange={() => undefined}><option value="newPage">New page</option></select></div>
+          <Group13>Headers and footers</Group13>
+          <div style={{ display: "grid", gap: 6, marginLeft: 12 }}>
+            <Check13 checked={false} disabled title="Headers and footers are the same on every page in this exam editor.">Different <u>o</u>dd and even</Check13>
+            <Check13 checked={false} disabled title="Headers and footers are the same on every page in this exam editor.">Different first <u>p</u>age</Check13>
+          </div>
+          <Group13>Page</Group13>
+          <div className="w13-row" style={{ marginLeft: 12, color: "#8a8a8a" }}><span><u>V</u>ertical alignment:</span><select className="w13-select" disabled style={{ width: 110 }} aria-label="Vertical alignment" value="top" onChange={() => undefined}><option value="top">Top</option></select></div>
+          <Group13>Preview</Group13>
+          <div style={{ marginLeft: 50 }}><PagePreview13 values={values} /></div>
+          {apply}
+          <div className="w13-row" style={{ justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+            <Button13 onClick={() => setSub("lineNumbers")}>Line <u>N</u>umbers…</Button13>
+            <Button13 onClick={() => setSub("borders")}><u>B</u>orders…</Button13>
+          </div>
+        </>}
+      </div>
+      <OkCancel13 left={<Button13 disabled title="Default page settings for new documents are not used in this exam editor.">Set As <u>D</u>efault</Button13>} onOk={() => onSubmit(values)} />
+      {sub === "lineNumbers" && <SubDialog13 onClose={() => setSub(null)}><LineNumbersDialog2013 value={values.lineNumbers} onSubmit={on => { set({ lineNumbers: on }); setSub(null); }} /></SubDialog13>}
+      {sub === "borders" && <SubDialog13 onClose={() => setSub(null)}>{renderBorders(() => setSub(null))}</SubDialog13>}
+    </Window13>
+  );
+}
+
+function LineNumbersDialog2013({ value, onSubmit }: { value: boolean; onSubmit: (on: boolean) => void }) {
+  const [on, setOn] = useState(value);
+  return (
+    <Window13 title="Line Numbers" width={300}>
+      <div style={{ marginTop: 8 }}><Check13 checked={on} onChange={setOn}>Add <u>l</u>ine numbering</Check13></div>
+      <div style={{ display: "grid", gridTemplateColumns: "auto auto", gap: "6px 10px", alignItems: "center", marginTop: 8, marginLeft: 22, color: "#8a8a8a" }}>
+        <span>Start <u>a</u>t:</span><input className="w13-field" style={{ width: 70 }} disabled readOnly value="1" aria-label="Start at" />
+        <span>From <u>t</u>ext:</span><input className="w13-field" style={{ width: 70 }} disabled readOnly value="Auto" aria-label="From text" />
+        <span>Count <u>b</u>y:</span><input className="w13-field" style={{ width: 70 }} disabled readOnly value="1" aria-label="Count by" />
+      </div>
+      <Group13>Numbering</Group13>
+      <div style={{ display: "grid", gap: 4, marginLeft: 12 }}>
+        <Radio13 name="w13-ln" checked={false} disabled onChange={() => undefined}>Restart each <u>p</u>age</Radio13>
+        <Radio13 name="w13-ln" checked={false} disabled onChange={() => undefined}>Restart each <u>s</u>ection</Radio13>
+        <Radio13 name="w13-ln" checked={on} disabled={!on} onChange={() => undefined}><u>C</u>ontinuous</Radio13>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(on)} />
+    </Window13>
+  );
 }
