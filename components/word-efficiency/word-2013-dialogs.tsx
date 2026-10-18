@@ -18,7 +18,16 @@ export const Word13Chrome = createContext<Chrome | null>(null);
 function Window13({ title, width, children }: { title: string; width: number; children: ReactNode }) {
   const chrome = useContext(Word13Chrome);
   return (
-    <div className="w13" role="document" style={{ width, maxWidth: "calc(100vw - 16px)" }}>
+    <div className="w13" role="document" style={{ width, maxWidth: "calc(100vw - 16px)" }} onKeyDown={event => {
+      // As in Word: Enter in a box presses OK, Esc presses Cancel (after the box has committed its value).
+      const target = event.target as HTMLElement;
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      if (event.key === "Enter" && (target.closest("textarea, select, button, [role=listbox]") || event.defaultPrevented)) return;
+      const window13 = event.currentTarget;
+      const pick = (label: string) => [...window13.querySelectorAll<HTMLButtonElement>(".w13-buttons button, button")].find(button => button.textContent?.trim() === label && !button.disabled);
+      event.preventDefault();
+      setTimeout(() => { (event.key === "Enter" ? pick("OK") : pick("Cancel") ?? null)?.click(); if (event.key === "Escape" && !pick("Cancel")) chrome?.onClose?.(); }, 0);
+    }}>
       <div className="w13-title" onMouseDown={chrome?.startDrag}>
         <span>{title}</span>
         <span className="w13-title-buttons" onMouseDown={event => event.stopPropagation()}>

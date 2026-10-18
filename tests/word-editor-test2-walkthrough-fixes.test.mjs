@@ -34,3 +34,38 @@ test("Undo / Redo restore whole document states (the browser's own undo scramble
   // after an undo the next ribbon command must act where the cursor now is, not on the replaced content
   assert.match(editor, /restoreState\(page,log\.states\[target\],caret\);\{const restored=getSelection\(\);savedRange\.current=/);
 });
+
+// Found by the user's own attempt on the real exam page (2026-10-18), whose timer re-renders
+// the editor every second -- something the local harness never did.
+test("reading the current paragraph/cell never moves the selection (re-renders stole focus from dialog boxes and threw the header cursor back)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const selectedBlocks=\(\)=>\{const range=editorRange\(\);/);
+  assert.match(editor, /const cursorCell=\(\)=>\{const node=editorRange\(\)\?\.startContainer;/);
+  assert.match(editor, /const restoreSelection=\(\)=>\{const selection=getSelection\(\);if\(selection\?\.rangeCount&&editor\.current\?\.contains\(selection\.anchorNode\)\)return;/);
+});
+
+test("Enter in a Word dialog presses OK and Esc presses Cancel", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /\(event\.key === "Enter" \? pick\("OK"\) : pick\("Cancel"\) \?\? null\)\?\.click\(\)/);
+});
+
+test("empty text pieces are not saved as runs (a header's first run was \"\" so its text was not graded)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const textRuns=type==="table"\?runs:runs\.filter\(run=>run\.text!==""\);/);
+});
+
+test("the page grows a whole sheet at a time instead of leaving text (the table) below a fixed A5/A4 page", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const sheet=`\$\{Math\.round\(pages\*pageHeight\)\}px`;if\(el\.style\.minHeight!==sheet\)el\.style\.minHeight=sheet;/);
+  const css = await read("app/globals.css");
+  assert.match(css, /\.word-document-page table\[data-block-type="table"\] \{ max-width: 100%; \}/);
+});
+
+test("marks per part (a)(b)(c): a question's score is the sum of its part rules, shown on the result page", async () => {
+  const migration = await read("supabase/migrations/202610181500_word_efficiency_part_marks.sql");
+  assert.match(migration, /add column if not exists part_label text/);
+  assert.match(migration, /create unique index if not exists word_efficiency_grading_rules_version_question_part_key/);
+  assert.match(migration, /public\.word_efficiency_score_question\(p_document,attempt_record\.version_id,score_row\.question_id,score_row\.maximum_marks,model_document\)/);
+  const result = await read("app/typing/word-efficiency/results/[attemptId]/page.tsx");
+  assert.match(result, /question\.partScores\.map\(part=><li key=\{part\.label\}/);
+});

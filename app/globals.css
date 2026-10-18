@@ -1118,3 +1118,11 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .wh-menus .word-ribbon-tool svg { width: 32px; height: 32px; flex-basis: 32px; }
 .wh-menus .word-ribbon-tool > span { max-width: 54px; white-space: normal; line-height: 13px; }
 .wh-position-label { width: 106px !important; white-space: nowrap; }
+
+/* Pages (rich-document-editor syncChrome): the page is a whole number of sheets tall; a grey
+   page-break line marks where each sheet ends, as Word shows its pages. */
+.word-document-page { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--word-page-height, 1123px) - 2px), #a3a3a3 calc(var(--word-page-height, 1123px) - 2px), #a3a3a3 var(--word-page-height, 1123px)); }
+/* A table never runs past the page's text area (Word fits it to the margins): fixed-width
+   tables are capped at the page width, and long cell text wraps instead of widening it. */
+.word-document-page table[data-block-type="table"] { max-width: 100%; }
+.word-document-page table[data-block-type="table"] td, .word-document-page table[data-block-type="table"] th { overflow-wrap: anywhere; }
