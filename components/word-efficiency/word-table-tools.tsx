@@ -381,7 +381,7 @@ function SizeInput({ label, value, onCommit }: { label: string; value: number | 
   const commit = (raw: string) => { setText(null); const number = Number.parseFloat(raw.replace(",", ".")); if (Number.isFinite(number)) onCommit(String(Math.max(0.1, Math.round(number * 100) / 100))); };
   const step = (delta: number) => { const base = value ?? 0.5; onCommit(String(Math.max(0.1, Math.round((base + delta) * 100) / 100))); };
   return <span className="wt-spin">
-    <input aria-label={label} value={shown} onChange={event => setText(event.target.value)} onBlur={() => text !== null && commit(text)} onKeyDown={event => { if (event.key === "Enter") commit((event.target as HTMLInputElement).value); if (event.key === "ArrowUp") { event.preventDefault(); step(0.1); } if (event.key === "ArrowDown") { event.preventDefault(); step(-0.1); } }} />
+    <input aria-label={label} value={shown} onChange={event => setText(event.target.value)} onBlur={() => text !== null && commit(text)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); commit((event.target as HTMLInputElement).value); } if (event.key === "ArrowUp") { event.preventDefault(); step(0.1); } if (event.key === "ArrowDown") { event.preventDefault(); step(-0.1); } }} />
     <span className="wt-spin-buttons"><button type="button" tabIndex={-1} aria-label={`Increase ${label}`} onMouseDown={event => event.preventDefault()} onClick={() => step(0.1)}>▲</button><button type="button" tabIndex={-1} aria-label={`Decrease ${label}`} onMouseDown={event => event.preventDefault()} onClick={() => step(-0.1)}>▼</button></span>
   </span>;
 }

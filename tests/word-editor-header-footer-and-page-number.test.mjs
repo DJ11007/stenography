@@ -67,7 +67,7 @@ test("double-clicking the top or bottom of the page enters the header or footer,
 
 test("insideHeaderFooter is tracked via the same selectionchange listener that already tracks insideTable", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const headerFooter=parent\.closest\("header,footer"\);const kind=headerFooter\?headerFooter\.tagName\.toLowerCase\(\)as"header"\|"footer":null;.*?setInsideHeaderFooter\(kind\)/);
+  assert.match(editor, /const headerFooter=parent\.closest\("header,footer"\);setInsideHeaderFooter\(headerFooter\?headerFooter\.tagName\.toLowerCase\(\)as"header"\|"footer":null\)/);
 });
 
 test("Page Number gains a real Style gallery (Plain Number / Page X / Accent Bar) and a Format Page Numbers section (number format + start at), still using the same page-number field encoding (no schema change)", async () => {
@@ -93,7 +93,24 @@ test("Page Number and Header/Footer gallery features touch no new document schem
 test("a single click (or arrow key) never enters the header/footer -- only a double-click, the Header menu or Go to Header does, as in Word", async () => {
   const editor = await read(EDITOR);
   assert.match(editor, /hfMode=useRef<"header"\|"footer"\|null>\(null\)/);
-  assert.match(editor, /if\(kind&&hfMode\.current!==kind\)\{/);
-  assert.match(editor, /event\.detail<2\)\{const area=\(event\.target as Element\)\.closest\("header,footer"\);if\(area\?hfMode\.current!==area\.tagName\.toLowerCase\(\):hfMode\.current\)\{event\.preventDefault\(\);return\}\}/);
-  assert.match(editor, /hfMode\.current=which;\n  setInsideHeaderFooter\(which\);/);
+  // the selection is kept inside the area being edited (the body unless in header mode)
+  assert.match(editor, /if\(clampSelectionToArea\(selection\)\)return;/);
+  assert.match(editor, /const area=hfMode\.current\?page\.querySelector<HTMLElement>\(`:scope > \$\{hfMode\.current\}`\):null;/);
+  assert.match(editor, /event\.detail<2\)\{const area=\(event\.target as Element\)\.closest\("header,footer"\);if\(area\?hfMode\.current!==area\.tagName\.toLowerCase\(\):hfMode\.current\)\{event\.preventDefault\(\);return\}/);
+  assert.match(editor, /hfMode\.current=which;\n  const range=document\.createRange\(\);[\s\S]*?setInsideHeaderFooter\(which\);/);
+});
+
+test("a selection can never span the header/footer and the body, and Ctrl+A selects only the area being edited (a triple-click on the header used to merge the first paragraph into it)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const clampSelectionToArea=\(selection:Selection\)=>\{/);
+  assert.match(editor, /key==="a"&&!\(document\.activeElement as Element\|null\)\?\.closest\?\.\("td,th"\)&&editor\.current\)\{/);
+});
+
+test("gallery headers use Word's placeholders: [Type here] is selected on insert and on one click, so typing replaces it whole", async () => {
+  const gallery = await read("lib/word-insert-gallery.ts");
+  assert.match(gallery, /const ph = \(text: string\) => `<span data-placeholder="true">\$\{text\}<\/span>`;/);
+  assert.match(gallery, /\{ name: "Blank", preview: "blank", html: ph\("\[Type here\]"\) \}/);
+  const editor = await read(EDITOR);
+  assert.match(editor, /const placeholder=target\.querySelector\("\[data-placeholder\]"\);if\(placeholder\)range\.selectNode\(placeholder\)/);
+  assert.match(editor, /const placeholder=\(event\.target as Element\)\.closest\("\[data-placeholder\]"\);if\(placeholder&&event\.detail<2\)/);
 });

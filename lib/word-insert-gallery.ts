@@ -5,27 +5,30 @@
 export type HeaderFooterStyle = { name: string; html: string; preview: "blank" | "three" | "austin" | "banded" | "facet" | "facet-odd" | "alphabet" | "annual" };
 
 const year = () => new Date().getFullYear();
+// Word's "[Type here]" placeholders are content controls: one click selects the whole
+// placeholder and typing replaces it (rich-document-editor selects [data-placeholder]).
+const ph = (text: string) => `<span data-placeholder="true">${text}</span>`;
 const center = (text: string, extra = "") => `<span style="display:block;text-align:center${extra}">${text}</span>`;
 const three = (a: string, b: string, c: string) => `<span style="display:inline-block;width:33%">${a}</span><span style="display:inline-block;width:33%;text-align:center">${b}</span><span style="display:inline-block;width:33%;text-align:right">${c}</span>`;
 
 export const HEADER_STYLES: HeaderFooterStyle[] = [
-  { name: "Blank", preview: "blank", html: "[Type here]" },
-  { name: "Blank (Three Columns)", preview: "three", html: three("[Type here]", "[Type here]", "[Type here]") },
-  { name: "Austin", preview: "austin", html: '<span style="display:block;border:1px solid #7f7f7f;padding:4px 8px;color:#2e74b5">[Document title]</span>' },
-  { name: "Banded", preview: "banded", html: center("[DOCUMENT TITLE]", ";background:#5b9bd5;color:#ffffff;padding:3px 0;letter-spacing:1px") },
-  { name: "Facet (Even Page)", preview: "facet", html: '<span style="display:block;color:#5b9bd5;font-weight:700">[Document title]</span>' },
-  { name: "Facet (Odd Page)", preview: "facet-odd", html: '<span style="display:block;color:#5b9bd5;font-weight:700;text-align:right">[Document title]</span>' },
-  { name: "Alphabet", preview: "alphabet", html: '<span style="display:block;border-bottom:2px solid #94a3b8;padding-bottom:4px;font-weight:700">[Type the document title]</span>' },
-  { name: "Annual", preview: "annual", html: `<span style="display:block;border-bottom:1px solid #cbd5e1;padding-bottom:4px">[Type the document title] &middot; ${year()}</span>` },
+  { name: "Blank", preview: "blank", html: ph("[Type here]") },
+  { name: "Blank (Three Columns)", preview: "three", html: three(ph("[Type here]"), ph("[Type here]"), ph("[Type here]")) },
+  { name: "Austin", preview: "austin", html: `<span style="display:block;border:1px solid #7f7f7f;padding:4px 8px;color:#2e74b5">${ph("[Document title]")}</span>` },
+  { name: "Banded", preview: "banded", html: center(ph("[DOCUMENT TITLE]"), ";background:#5b9bd5;color:#ffffff;padding:3px 0;letter-spacing:1px") },
+  { name: "Facet (Even Page)", preview: "facet", html: `<span style="display:block;color:#5b9bd5;font-weight:700">${ph("[Document title]")}</span>` },
+  { name: "Facet (Odd Page)", preview: "facet-odd", html: `<span style="display:block;color:#5b9bd5;font-weight:700;text-align:right">${ph("[Document title]")}</span>` },
+  { name: "Alphabet", preview: "alphabet", html: `<span style="display:block;border-bottom:2px solid #94a3b8;padding-bottom:4px;font-weight:700">${ph("[Type the document title]")}</span>` },
+  { name: "Annual", preview: "annual", html: `<span style="display:block;border-bottom:1px solid #cbd5e1;padding-bottom:4px">${ph("[Type the document title]")} &middot; ${year()}</span>` },
 ];
 
 export const FOOTER_STYLES: HeaderFooterStyle[] = [
-  { name: "Blank", preview: "blank", html: "[Type here]" },
-  { name: "Blank (Three Columns)", preview: "three", html: three("[Type here]", "[Type here]", "[Type here]") },
+  { name: "Blank", preview: "blank", html: ph("[Type here]") },
+  { name: "Blank (Three Columns)", preview: "three", html: three(ph("[Type here]"), ph("[Type here]"), ph("[Type here]")) },
   { name: "Austin", preview: "austin", html: '<span style="display:block;border:1px solid #7f7f7f;padding:4px 8px;color:#2e74b5">pg. 1</span>' },
   { name: "Banded", preview: "banded", html: center("1", ";background:#5b9bd5;color:#ffffff;padding:3px 0") },
-  { name: "Facet (Even Page)", preview: "facet", html: '<span style="display:block;color:#7f7f7f;font-size:9pt">[Author name] | [SCHOOL]</span>' },
-  { name: "Facet (Odd Page)", preview: "facet-odd", html: '<span style="display:block;color:#7f7f7f;font-size:9pt;text-align:right">[Author name] | [SCHOOL]</span>' },
+  { name: "Facet (Even Page)", preview: "facet", html: `<span style="display:block;color:#7f7f7f;font-size:9pt">${ph("[Author name]")} | ${ph("[SCHOOL]")}</span>` },
+  { name: "Facet (Odd Page)", preview: "facet-odd", html: `<span style="display:block;color:#7f7f7f;font-size:9pt;text-align:right">${ph("[Author name]")} | ${ph("[SCHOOL]")}</span>` },
 ];
 
 // Page Number > Top of Page / Bottom of Page / Page Margins / Current Position.

@@ -114,7 +114,7 @@ function Spin({ label, value, unit, step, min, max, onCommit, disabled }: { labe
     onCommit(clamp(inUnit));
   };
   return <span className="wt-spin wp-spin">
-    <input aria-label={label} value={shown} disabled={disabled} onChange={event => setText(event.target.value)} onBlur={() => text !== null && commit(text)} onKeyDown={event => { if (event.key === "Enter") commit((event.target as HTMLInputElement).value); if (event.key === "ArrowUp") { event.preventDefault(); onCommit(clamp(value + step)); } if (event.key === "ArrowDown") { event.preventDefault(); onCommit(clamp(value - step)); } }} />
+    <input aria-label={label} value={shown} disabled={disabled} onChange={event => setText(event.target.value)} onBlur={() => text !== null && commit(text)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); commit((event.target as HTMLInputElement).value); } if (event.key === "ArrowUp") { event.preventDefault(); onCommit(clamp(value + step)); } if (event.key === "ArrowDown") { event.preventDefault(); onCommit(clamp(value - step)); } }} />
     <span className="wt-spin-buttons"><button type="button" tabIndex={-1} disabled={disabled} aria-label={`Increase ${label}`} onMouseDown={event => event.preventDefault()} onClick={() => onCommit(clamp(value + step))}>▲</button><button type="button" tabIndex={-1} disabled={disabled} aria-label={`Decrease ${label}`} onMouseDown={event => event.preventDefault()} onClick={() => onCommit(clamp(value - step))}>▼</button></span>
   </span>;
 }

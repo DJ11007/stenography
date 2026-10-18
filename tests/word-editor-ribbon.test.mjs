@@ -164,7 +164,7 @@ test("browser measurement serializer and formatting commands retain autosave tra
     read("supabase/migrations/202608240009_repair_word_efficiency_measurement_canonicalization.sql"),
   ]);
   assert.match(editor, /canonicalizeBlockMeasurements\(enrichBlock\(makeStructuredBlock/);
-  assert.match(editor, /const exec=.*changed\(\)/);
+  assert.match(editor, /const exec=[\s\S]*?changed\(\)\};/);
   for (const command of ["bold", "italic"]) assert.match(editor, new RegExp(`${command}:\\(\\)=>exec`));
   assert.match(editor, /underline:\(\)=>underline\("toggle","single"\)/);
   assert.match(editor, /setStatus\("Saving…"\)[\s\S]*setStatus\("Saved"\)/);
