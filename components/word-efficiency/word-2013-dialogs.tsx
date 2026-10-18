@@ -1129,9 +1129,11 @@ export const SHADING_PATTERNS: { id: string; label: string; strength: number }[]
   ...[5, 10, 12.5, 15, 20, 25, 30, 35, 37.5, 40, 45, 50, 55, 60, 62.5, 65, 70, 75, 80, 85, 87.5, 90, 95].map(pct => ({ id: String(pct), label: `${pct}%`, strength: pct / 100 })),
 ];
 export type BordersShadingValues = {
-  setting: "none" | "box" | "all" | "grid" | "custom"; edges: BorderEdges; style: "solid" | "double" | "dotted" | "dashed"; color: string; width: number; applyTo: "cell" | "table";
-  fill: string | null; pattern: string; patternColor: string | null; shadingApplyTo: "cell" | "table";
-  pageSetting: "none" | "box" | "shadow" | "3d"; pageStyle: "solid" | "double" | "dotted" | "dashed"; pageColor: string; pageWidth: number;
+  setting: "none" | "box" | "all" | "grid" | "shadow" | "3d" | "custom"; edges: BorderEdges; style: "solid" | "double" | "dotted" | "dashed"; color: string; width: number; applyTo: "cell" | "table" | "paragraph" | "text";
+  fill: string | null; pattern: string; patternColor: string | null; shadingApplyTo: "cell" | "table" | "paragraph" | "text";
+  pageSetting: "none" | "box" | "shadow" | "3d" | "custom"; pageStyle: "solid" | "double" | "dotted" | "dashed"; pageColor: string; pageWidth: number;
+  /** Page Border sides (Word: click the preview or its buttons; e.g. bottom and right only). */
+  pageEdges?: { top: boolean; bottom: boolean; left: boolean; right: boolean };
 };
 const EDGE_PRESETS: Record<"none" | "box" | "all" | "grid", BorderEdges> = {
   none: { top: false, bottom: false, left: false, right: false, insideH: false, insideV: false, diagonalDown: false, diagonalUp: false },
@@ -1155,72 +1157,99 @@ function PaletteSelect13({ value, onChange, label, autoLabel, width = "100%" }: 
 }
 const colorLabel = (hex: string) => TABLE_COLORS.find(color => color.hex === hex.toUpperCase())?.name ?? `#${hex.toUpperCase()}`;
 
-export function BordersShadingDialog2013({ initial, widths, initialTab = "borders", onSubmit }: { initial: BordersShadingValues; widths: number[]; initialTab?: "borders" | "page" | "shading"; onSubmit: (values: BordersShadingValues) => void }) {
-  const [values, setValues] = useState(initial);
+// Word 2013's Borders and Shading dialog. mode "table" borders table cells (Setting: None, Box,
+// All, Grid, Custom; inside and diagonal edges); mode "paragraph" is the dialog Home > Borders
+// opens for text (Setting: None, Box, Shadow, 3-D, Custom; top/bottom/left/right; Apply to:
+// Paragraph or Text). The Page Border tab can have any sides, e.g. bottom and right only.
+export function BordersShadingDialog2013({ initial, widths, initialTab = "borders", onSubmit, mode = "table" }: { initial: BordersShadingValues; widths: number[]; initialTab?: "borders" | "page" | "shading"; onSubmit: (values: BordersShadingValues) => void; mode?: "table" | "paragraph" }) {
+  const paragraph = mode === "paragraph";
+  const allSides = { top: true, bottom: true, left: true, right: true }, noSides = { top: false, bottom: false, left: false, right: false };
+  const [values, setValues] = useState<BordersShadingValues>(() => ({ ...initial, pageEdges: initial.pageEdges ?? (initial.pageSetting === "none" ? noSides : allSides) }));
   const [tab, setTab] = useState<string>(initialTab);
   const set = (patch: Partial<BordersShadingValues>) => setValues(current => ({ ...current, ...patch }));
   const toggle = (edge: BorderEdgeKey) => setValues(current => ({ ...current, setting: "custom", edges: { ...current.edges, [edge]: !current.edges[edge] } }));
-  const settingTile = (id: BordersShadingValues["setting"], label: ReactNode, drawing: ReactNode) => <button type="button" className="w13-setting" aria-pressed={values.setting === id} onMouseDown={event => event.preventDefault()} onClick={() => { if (id === "custom") set({ setting: "custom" }); else set({ setting: id, edges: bordersPreset(id) }); }}><svg width="40" height="34" viewBox="0 0 40 34" aria-hidden><rect x="1" y="1" width="38" height="32" fill="#fff" stroke="#d0d0d0" />{drawing}</svg><span>{label}</span></button>;
+  const pageEdges = values.pageEdges ?? allSides;
+  const togglePage = (edge: keyof typeof allSides) => setValues(current => { const edges = { ...(current.pageEdges ?? allSides), [edge]: !(current.pageEdges ?? allSides)[edge] }; const any = edges.top || edges.bottom || edges.left || edges.right; return { ...current, pageEdges: edges, pageSetting: any ? "custom" : "none" }; });
+  const boxEdges = { ...bordersPreset("box") };
+  const settingTile = (id: BordersShadingValues["setting"], label: ReactNode, drawing: ReactNode) => <button type="button" className="w13-setting" aria-pressed={values.setting === id} onMouseDown={event => event.preventDefault()} onClick={() => { if (id === "custom") set({ setting: "custom" }); else if (id === "shadow" || id === "3d") set({ setting: id, edges: boxEdges }); else set({ setting: id, edges: bordersPreset(id as "none" | "box" | "all" | "grid") }); }}><svg width="40" height="34" viewBox="0 0 40 34" aria-hidden><rect x="1" y="1" width="38" height="32" fill="#fff" stroke="#d0d0d0" />{drawing}</svg><span>{label}</span></button>;
   const page = (stroke: number) => <rect x="8" y="5" width="24" height="24" fill="none" stroke="#000" strokeWidth={stroke} />;
   const cells = <path d="M20 5v24M8 17h24" stroke="#bbb" strokeWidth=".7" />;
+  const lines = <path d="M12 10h16M12 14h16M12 18h16M12 22h16M12 26h10" stroke="#9a9a9a" strokeWidth=".9" />;
   const edgeLine = (edge: BorderEdgeKey) => values.edges[edge] ? cssLine(values.style, values.width, values.color) : "1px dashed #c6c6c6";
-  const edgeButton = (edge: BorderEdgeKey, drawing: ReactNode, name: string) => <button type="button" className="w13-edge" aria-pressed={values.edges[edge]} aria-label={name} title={name} onMouseDown={event => event.preventDefault()} onClick={() => toggle(edge)}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden><rect x="3" y="3" width="14" height="14" fill="#fff" stroke="#bbb" strokeDasharray="1.5 1" />{drawing}</svg></button>;
+  const edgeButton = (pressed: boolean, onClick: () => void, drawing: ReactNode, name: string) => <button type="button" className="w13-edge" aria-pressed={pressed} aria-label={name} title={name} onMouseDown={event => event.preventDefault()} onClick={onClick}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden><rect x="3" y="3" width="14" height="14" fill="#fff" stroke="#bbb" strokeDasharray="1.5 1" />{drawing}</svg></button>;
+  const edge = (key: BorderEdgeKey, drawing: ReactNode, name: string) => edgeButton(values.edges[key], () => toggle(key), drawing, name);
+  const pageEdge = (key: keyof typeof allSides, drawing: ReactNode, name: string) => edgeButton(pageEdges[key] && values.pageSetting !== "none", () => togglePage(key), drawing, name);
   const ln = (d: string) => <path d={d} stroke="#000" strokeWidth="1.6" />;
   const pattern = SHADING_PATTERNS.find(item => item.id === values.pattern) ?? SHADING_PATTERNS[0];
   const shadingResult = pattern.strength === 0 ? values.fill : mixColors(values.fill ?? "FFFFFF", values.patternColor ?? "000000", pattern.strength);
   const styleList = (current: string, onPick: (style: BordersShadingValues["style"]) => void, label: string) => <div className="w13-list" role="listbox" aria-label={label} style={{ height: 92 }}>
-    {current === "" && null}
     {STYLE_LIST.map(style => <button key={style} type="button" role="option" aria-selected={current === style} onMouseDown={event => event.preventDefault()} onClick={() => onPick(style)}><span style={{ display: "block", margin: "7px 4px", borderTop: `${style === "double" ? 3 : 1}px ${style} currentColor` }} /></button>)}
   </div>;
+  const nearest = (event: React.MouseEvent<HTMLElement>, keys: BorderEdgeKey[]) => { const box = event.currentTarget.getBoundingClientRect(); const x = (event.clientX - box.left) / box.width, y = (event.clientY - box.top) / box.height; const distance: Record<string, number> = { top: y, bottom: 1 - y, left: x, right: 1 - x, insideH: Math.abs(y - 0.5), insideV: Math.abs(x - 0.5) }; return [...keys].sort((first, second) => distance[first] - distance[second])[0]; };
+  const paragraphShadow = values.setting === "shadow" ? "4px 4px 0 #000" : values.setting === "3d" ? "-2px -2px 0 #999" : undefined;
+  const pageLine = cssLine(values.pageStyle, values.pageWidth, values.pageColor);
+  const pageSide = (key: keyof typeof allSides) => values.pageSetting !== "none" && pageEdges[key] ? pageLine : "1px dashed #c6c6c6";
+  const sideTiles = (current: string, pick: (id: "none" | "box" | "shadow" | "3d" | "custom") => void) => (["none", "box", "shadow", "3d", "custom"] as const).map(id => <button key={id} type="button" className="w13-setting" aria-pressed={current === id} onMouseDown={event => event.preventDefault()} onClick={() => pick(id)}>
+    <svg width="40" height="34" viewBox="0 0 40 34" aria-hidden><rect x="1" y="1" width="38" height="32" fill="#fff" stroke="#d0d0d0" />{id !== "none" && id !== "custom" && <rect x="9" y="4" width="22" height="26" fill="#fff" stroke="#000" strokeWidth="1.3" />}{id === "shadow" && <path d="M32 6v25H11" stroke="#000" strokeWidth="2.4" />}{id === "3d" && <path d="M9 4l2-2h22v26l-2 2" stroke="#777" />}{id === "custom" && <path d="M9 4h22M9 30h22" stroke="#000" strokeWidth="1.3" strokeDasharray="2 1.5" />}{lines}</svg>
+    <span>{id === "none" ? <><u>N</u>one</> : id === "box" ? <>Bo<u>x</u></> : id === "shadow" ? <>Sh<u>a</u>dow</> : id === "3d" ? <>3-<u>D</u></> : <>C<u>u</u>stom</>}</span></button>);
   return (
     <Window13 title="Borders and Shading" width={560}>
       <Tabs13 tabs={[{ id: "borders", label: <><u>B</u>orders</> }, { id: "page", label: <><u>P</u>age Border</> }, { id: "shading", label: <><u>S</u>hading</> }]} value={tab} onChange={setTab} />
       <div className="w13-panel" style={{ minHeight: 300 }}>
         {tab === "borders" && <div style={{ display: "grid", gridTemplateColumns: "96px 150px 1fr", gap: 14 }}>
           <div style={{ display: "grid", gap: 4, alignContent: "start" }}><span>Setting:</span>
-            {settingTile("none", <><u>N</u>one</>, null)}
-            {settingTile("box", <>Bo<u>x</u></>, page(1.4))}
-            {settingTile("all", <><u>A</u>ll</>, <>{page(1.4)}<path d="M20 5v24M8 17h24" stroke="#000" strokeWidth="1" /></>)}
-            {settingTile("grid", <>Gri<u>d</u></>, <>{page(2.6)}<path d="M20 5v24M8 17h24" stroke="#000" strokeWidth="1" /></>)}
-            {settingTile("custom", <>C<u>u</u>stom</>, <>{cells}<path d="M8 5h24M20 5v24" stroke="#000" strokeWidth="1.4" /></>)}
+            {paragraph ? sideTiles(values.setting, id => { if (id === "custom") set({ setting: "custom" }); else set({ setting: id, edges: id === "none" ? bordersPreset("none") : boxEdges }); }) : <>
+              {settingTile("none", <><u>N</u>one</>, null)}
+              {settingTile("box", <>Bo<u>x</u></>, page(1.4))}
+              {settingTile("all", <><u>A</u>ll</>, <>{page(1.4)}<path d="M20 5v24M8 17h24" stroke="#000" strokeWidth="1" /></>)}
+              {settingTile("grid", <>Gri<u>d</u></>, <>{page(2.6)}<path d="M20 5v24M8 17h24" stroke="#000" strokeWidth="1" /></>)}
+              {settingTile("custom", <>C<u>u</u>stom</>, <>{cells}<path d="M8 5h24M20 5v24" stroke="#000" strokeWidth="1.4" /></>)}
+            </>}
           </div>
           <div><span>St<u>y</u>le:</span>
-            {styleList(values.style, style => set({ style, setting: values.setting === "none" ? "box" : values.setting, edges: values.setting === "none" ? bordersPreset("box") : values.edges }), "Border style")}
+            {styleList(values.style, style => set({ style, setting: values.setting === "none" ? "box" : values.setting, edges: values.setting === "none" ? boxEdges : values.edges }), "Border style")}
             <div style={{ marginTop: 8 }}><u>C</u>olor:</div>
             <PaletteSelect13 label="Border color" autoLabel="Automatic" value={values.color === "000000" ? null : values.color} onChange={hex => set({ color: hex ?? "000000" })} />
             <div style={{ marginTop: 8 }}><u>W</u>idth:</div>
             <select className="w13-select" style={{ width: "100%" }} aria-label="Border width" value={values.width} onChange={event => set({ width: Number(event.target.value) })}>{widths.map(width => <option key={width} value={width}>{PT_LABELS[width] ?? `${width} pt`}</option>)}</select>
           </div>
           <div><span>Preview</span>
-            <div className="w13-note" style={{ fontSize: 11, margin: "2px 0 4px" }}>Click on diagram below or use buttons to apply borders</div>
+            <div className="w13-note" style={{ fontSize: 11, margin: "2px 0 4px", textAlign: "center" }}>Click on diagram below or use buttons to apply borders</div>
             <div style={{ display: "grid", gridTemplateColumns: "26px 1fr", gap: 4 }}>
-              <div style={{ display: "grid", gap: 6, alignContent: "start" }}>
-                {edgeButton("top", ln("M3 3h14"), "Top Border")}{edgeButton("insideH", ln("M3 10h14"), "Inside Horizontal Border")}{edgeButton("bottom", ln("M3 17h14"), "Bottom Border")}
+              <div style={{ display: "grid", gap: 6, alignContent: "start", paddingTop: paragraph ? 18 : 0 }}>
+                {edge("top", ln("M3 3h14"), "Top Border")}{!paragraph && edge("insideH", ln("M3 10h14"), "Inside Horizontal Border")}{edge("bottom", ln("M3 17h14"), "Bottom Border")}
               </div>
               <div>
-                <div className="w13-border-preview" onMouseDown={event => event.preventDefault()} onClick={event => { const box = (event.currentTarget as HTMLElement).getBoundingClientRect(); const x = (event.clientX - box.left) / box.width, y = (event.clientY - box.top) / box.height; const d = [["top", y], ["bottom", 1 - y], ["left", x], ["right", 1 - x], ["insideH", Math.abs(y - 0.5)], ["insideV", Math.abs(x - 0.5)]] as [BorderEdgeKey, number][]; toggle(d.sort((a, b) => a[1] - b[1])[0][0]); }}
-                  style={{ borderTop: edgeLine("top"), borderBottom: edgeLine("bottom"), borderLeft: edgeLine("left"), borderRight: edgeLine("right") }}>
-                  <span style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: edgeLine("insideH") }} />
-                  <span style={{ position: "absolute", top: 0, bottom: 0, left: "50%", borderLeft: edgeLine("insideV") }} />
-                  {values.edges.diagonalDown && <svg className="w13-diag" viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden><path d="M0 0L10 10" stroke={`#${values.color}`} strokeWidth=".15" /></svg>}
-                  {values.edges.diagonalUp && <svg className="w13-diag" viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden><path d="M0 10L10 0" stroke={`#${values.color}`} strokeWidth=".15" /></svg>}
-                  {[0, 1, 2, 3].map(i => <span key={i} className="w13-preview-text" style={{ gridArea: `${Math.floor(i / 2) + 1} / ${(i % 2) + 1}` }}>Text text text text text</span>)}
-                </div>
-                <div className="w13-row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-                  {edgeButton("diagonalUp", ln("M3 17L17 3"), "Diagonal Up Border")}{edgeButton("left", ln("M3 3v14"), "Left Border")}{edgeButton("insideV", ln("M10 3v14"), "Inside Vertical Border")}{edgeButton("right", ln("M17 3v14"), "Right Border")}{edgeButton("diagonalDown", ln("M3 3l14 14"), "Diagonal Down Border")}
+                {paragraph
+                  ? <div className="w13-border-preview w13-paragraph-preview" onMouseDown={event => event.preventDefault()} onClick={event => toggle(nearest(event, ["top", "bottom", "left", "right"]))}>
+                    <div style={{ borderTop: edgeLine("top"), borderBottom: edgeLine("bottom"), borderLeft: edgeLine("left"), borderRight: edgeLine("right"), boxShadow: values.setting !== "none" ? paragraphShadow : undefined }}>
+                      {Array.from({ length: 6 }, (_, index) => <span key={index} style={{ width: index === 5 ? "45%" : "100%" }} />)}
+                    </div>
+                  </div>
+                  : <div className="w13-border-preview" onMouseDown={event => event.preventDefault()} onClick={event => toggle(nearest(event, ["top", "bottom", "left", "right", "insideH", "insideV"]))}
+                    style={{ borderTop: edgeLine("top"), borderBottom: edgeLine("bottom"), borderLeft: edgeLine("left"), borderRight: edgeLine("right") }}>
+                    <span style={{ position: "absolute", left: 0, right: 0, top: "50%", borderTop: edgeLine("insideH") }} />
+                    <span style={{ position: "absolute", top: 0, bottom: 0, left: "50%", borderLeft: edgeLine("insideV") }} />
+                    {values.edges.diagonalDown && <svg className="w13-diag" viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden><path d="M0 0L10 10" stroke={`#${values.color}`} strokeWidth=".15" /></svg>}
+                    {values.edges.diagonalUp && <svg className="w13-diag" viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden><path d="M0 10L10 0" stroke={`#${values.color}`} strokeWidth=".15" /></svg>}
+                    {[0, 1, 2, 3].map(i => <span key={i} className="w13-preview-text" style={{ gridArea: `${Math.floor(i / 2) + 1} / ${(i % 2) + 1}` }}>Text text text text text</span>)}
+                  </div>}
+                <div className="w13-row" style={{ justifyContent: paragraph ? "space-around" : "space-between", marginTop: 6 }}>
+                  {!paragraph && edge("diagonalUp", ln("M3 17L17 3"), "Diagonal Up Border")}{edge("left", ln("M3 3v14"), "Left Border")}{!paragraph && edge("insideV", ln("M10 3v14"), "Inside Vertical Border")}{edge("right", ln("M17 3v14"), "Right Border")}{!paragraph && edge("diagonalDown", ln("M3 3l14 14"), "Diagonal Down Border")}
                 </div>
               </div>
             </div>
-            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 100 }} aria-label="Apply to" value={values.applyTo} onChange={event => set({ applyTo: event.target.value as BordersShadingValues["applyTo"] })}><option value="table">Table</option><option value="cell">Cell</option></select></div>
-            <div className="w13-row" style={{ justifyContent: "flex-end" }}><Button13 disabled title="Border and Shading Options apply to paragraphs; table cell spacing is set in Table Options."><u>O</u>ptions…</Button13></div>
+            <div style={{ marginTop: 8 }}>Apply t<u>o</u>:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Apply to" value={values.applyTo} onChange={event => set({ applyTo: event.target.value as BordersShadingValues["applyTo"] })}>{paragraph ? <><option value="paragraph">Paragraph</option><option value="text">Text</option></> : <><option value="table">Table</option><option value="cell">Cell</option></>}</select>
+            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 6 }}><Button13 disabled title={paragraph ? "The distance between the border and the text is fixed in this exam editor." : "Table cell spacing is set in Table Options."}><u>O</u>ptions…</Button13></div>
           </div>
         </div>}
         {tab === "page" && <div style={{ display: "grid", gridTemplateColumns: "96px 150px 1fr", gap: 14 }}>
           <div style={{ display: "grid", gap: 4, alignContent: "start" }}><span>Setting:</span>
-            {(["none", "box", "shadow", "3d"] as const).map(id => <button key={id} type="button" className="w13-setting" aria-pressed={values.pageSetting === id} onMouseDown={event => event.preventDefault()} onClick={() => set({ pageSetting: id })}><svg width="40" height="34" viewBox="0 0 40 34" aria-hidden><rect x="1" y="1" width="38" height="32" fill="#fff" stroke="#d0d0d0" />{id !== "none" && <rect x="9" y="4" width="20" height="26" fill="#fff" stroke="#000" strokeWidth="1.3" />}{id === "shadow" && <path d="M30 6v25H11" stroke="#000" strokeWidth="2.4" />}{id === "3d" && <path d="M9 4l2-2h20v26l-2 2" stroke="#777" />}</svg><span>{id === "none" ? <><u>N</u>one</> : id === "box" ? <>Bo<u>x</u></> : id === "shadow" ? <>Sh<u>a</u>dow</> : <>3-<u>D</u></>}</span></button>)}
+            {sideTiles(values.pageSetting, id => set({ pageSetting: id, pageEdges: id === "none" ? noSides : id === "custom" ? pageEdges : allSides }))}
           </div>
           <div><span>St<u>y</u>le:</span>
-            {styleList(values.pageStyle, style => set({ pageStyle: style, pageSetting: values.pageSetting === "none" ? "box" : values.pageSetting }), "Page border style")}
+            {styleList(values.pageStyle, style => set({ pageStyle: style, pageSetting: values.pageSetting === "none" ? "box" : values.pageSetting, pageEdges: values.pageSetting === "none" ? allSides : pageEdges }), "Page border style")}
             <div style={{ marginTop: 8 }}><u>C</u>olor:</div>
             <PaletteSelect13 label="Page border color" autoLabel="Automatic" value={values.pageColor === "000000" ? null : values.pageColor} onChange={hex => set({ pageColor: hex ?? "000000" })} />
             <div style={{ marginTop: 8 }}><u>W</u>idth:</div>
@@ -1229,25 +1258,41 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
             <select className="w13-select" style={{ width: "100%" }} aria-label="Page border art" disabled value="" onChange={() => undefined}><option value="">(none)</option></select>
           </div>
           <div><span>Preview</span>
-            <div className="w13-page-preview"><div style={{ border: values.pageSetting === "none" ? "1px dashed #c6c6c6" : cssLine(values.pageStyle, values.pageWidth, values.pageColor), boxShadow: values.pageSetting === "shadow" ? "4px 4px 0 #000" : values.pageSetting === "3d" ? "-2px -2px 0 #999" : undefined }}>{textLines(0, 0, 0, 0)}</div></div>
-            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 130 }} aria-label="Page border apply to" value="document" onChange={() => undefined}><option value="document">Whole document</option></select></div>
+            <div className="w13-note" style={{ fontSize: 11, margin: "2px 0 4px", textAlign: "center" }}>Click on diagram below or use buttons to apply borders</div>
+            <div style={{ display: "grid", gridTemplateColumns: "26px 1fr", gap: 4 }}>
+              <div style={{ display: "grid", gap: 40, alignContent: "start", paddingTop: 22 }}>
+                {pageEdge("top", ln("M3 3h14"), "Top Border")}{pageEdge("bottom", ln("M3 17h14"), "Bottom Border")}
+              </div>
+              <div>
+                <div className="w13-page-preview" onMouseDown={event => event.preventDefault()} onClick={event => togglePage(nearest(event, ["top", "bottom", "left", "right"]) as keyof typeof allSides)}>
+                  <div style={{ borderTop: pageSide("top"), borderBottom: pageSide("bottom"), borderLeft: pageSide("left"), borderRight: pageSide("right"), boxShadow: values.pageSetting === "shadow" ? "4px 4px 0 #000" : values.pageSetting === "3d" ? "-2px -2px 0 #999" : undefined }}>{Array.from({ length: 9 }, (_, index) => <span key={index} className="w13-page-line" style={{ width: index === 8 ? "45%" : "78%" }} />)}</div>
+                </div>
+                <div className="w13-row" style={{ justifyContent: "space-around", marginTop: 6 }}>{pageEdge("left", ln("M3 3v14"), "Left Border")}{pageEdge("right", ln("M17 3v14"), "Right Border")}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 8 }}>Apply t<u>o</u>:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Page border apply to" value="document" onChange={() => undefined}><option value="document">Whole document</option></select>
+            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 6 }}><Button13 disabled title="The page border's distance from the text is fixed in this exam editor."><u>O</u>ptions…</Button13></div>
           </div>
         </div>}
-        {tab === "shading" && <div style={{ display: "grid", gridTemplateColumns: "1fr 170px", gap: 18 }}>
+        {tab === "shading" && <div style={{ display: "grid", gridTemplateColumns: "1fr 210px", gap: 18 }}>
           <div>
-            <div>Fi<u>l</u>l:</div>
-            <PaletteSelect13 label="Shading fill" autoLabel="No Color" value={values.fill} onChange={hex => set({ fill: hex })} width={180} />
+            <Group13>Fi<u>l</u>l</Group13>
+            <div style={{ marginLeft: 12 }}><PaletteSelect13 label="Shading fill" autoLabel="No Color" value={values.fill} onChange={hex => set({ fill: hex })} width={140} /></div>
             <Group13>Patterns</Group13>
             <div className="w13-row" style={{ marginLeft: 12 }}><span style={{ width: 42 }}>St<u>y</u>le:</span><select className="w13-select" style={{ width: 130 }} aria-label="Pattern style" value={values.pattern} onChange={event => set({ pattern: event.target.value })}>{SHADING_PATTERNS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div>
             <div className="w13-row" style={{ marginLeft: 12 }}><span style={{ width: 42, color: pattern.strength === 0 ? "#8a8a8a" : undefined }}><u>C</u>olor:</span><PaletteSelect13 label="Pattern color" autoLabel="Automatic" value={values.patternColor} onChange={hex => set({ patternColor: hex })} width={130} /></div>
           </div>
           <div><span>Preview</span>
-            <div className="w13-preview" style={{ height: 110, marginTop: 4, display: "grid", placeItems: "center", background: shadingResult ? `#${shadingResult}` : "#fff" }}><span style={{ fontSize: 11 }}>AaBbCcYyZz</span></div>
-            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 8 }}><span>Apply t<u>o</u>:</span><select className="w13-select" style={{ width: 90 }} aria-label="Shading apply to" value={values.shadingApplyTo} onChange={event => set({ shadingApplyTo: event.target.value as BordersShadingValues["shadingApplyTo"] })}><option value="cell">Cell</option><option value="table">Table</option></select></div>
+            {paragraph
+              ? <div className="w13-page-preview" style={{ height: 118 }}><div style={{ border: 0, background: "#fff" }}>{Array.from({ length: 9 }, (_, index) => <span key={index} className="w13-page-line" style={{ width: index === 8 ? "45%" : "78%", background: shadingResult && index > 1 && index < 7 ? `#${shadingResult}` : undefined, height: shadingResult && index > 1 && index < 7 ? 6 : undefined }} />)}</div></div>
+              : <div className="w13-preview" style={{ height: 110, marginTop: 4, display: "grid", placeItems: "center", background: shadingResult ? `#${shadingResult}` : "#fff" }}><span style={{ fontSize: 11 }}>AaBbCcYyZz</span></div>}
+            <div style={{ marginTop: 8 }}>Apply t<u>o</u>:</div>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Shading apply to" value={values.shadingApplyTo} onChange={event => set({ shadingApplyTo: event.target.value as BordersShadingValues["shadingApplyTo"] })}>{paragraph ? <><option value="paragraph">Paragraph</option><option value="text">Text</option></> : <><option value="cell">Cell</option><option value="table">Table</option></>}</select>
           </div>
         </div>}
       </div>
-      <OkCancel13 left={<Button13 disabled title="Horizontal lines are not part of this exam editor.">Hori<u>z</u>ontal Line…</Button13>} onOk={() => onSubmit(values)} />
+      <OkCancel13 left={paragraph ? <span /> : <Button13 disabled title="Horizontal lines are not part of this exam editor.">Hori<u>z</u>ontal Line…</Button13>} onOk={() => onSubmit(values)} />
     </Window13>
   );
 }

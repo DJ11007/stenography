@@ -1137,3 +1137,11 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-borders-menu button:disabled { color: #a6a6a6; cursor: default; }
 .word-borders-menu button:disabled svg { opacity: .45; }
 .word-borders-sep { border: 0; border-top: 1px solid #d9d9d9; margin: 3px 0 3px 30px; }
+
+/* Borders and Shading (paragraph mode / Page Border): Word's preview of a few text lines. */
+.w13-paragraph-preview { display: flex; align-items: center; justify-content: center; }
+.w13-paragraph-preview > div { display: grid; gap: 5px; width: 74%; padding: 8px 6px; }
+.w13-paragraph-preview > div > span { display: block; height: 2px; background: #9a9a9a; }
+.w13-page-preview { cursor: pointer; }
+.w13-page-preview > div { display: grid; align-content: center; justify-items: center; gap: 6px; }
+.w13-page-line { display: block; height: 2px; background: #9a9a9a; }
