@@ -171,7 +171,7 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} onPick={value=>onValueCommand?.("numbering",value)}/>;
   if(option.id==="multilevelList")return <GalleryMenu option={option} preview={preview} items={MULTILEVEL_ITEMS} onPick={value=>onValueCommand?.("multilevelList",value)}/>;
   if(option.id==="lineSpacing")return <GalleryMenu option={option} preview={preview} items={SPACING_ITEMS} onPick={value=>onValueCommand?.("lineSpacing",value)} actions={SPACING_ACTIONS} onAction={id=>onValueCommand?.("lineSpacingAction",id)}/>;
-  if(option.id==="borders")return <GalleryMenu option={option} preview={preview} items={BORDER_ITEMS} onPick={value=>onValueCommand?.("borders",value)} actions={BORDER_ACTIONS} onAction={id=>onValueCommand?.("borders",id)}/>;
+  if(option.id==="borders")return <BordersMenu option={option} preview={preview} onPick={value=>onValueCommand?.("borders",value)}/>;
   if(option.id==="margins")return <GalleryMenu option={option} preview={preview} items={MARGIN_PRESETS} onPick={value=>onValueCommand?.("margins",value)} actions={MARGIN_ACTIONS} onAction={id=>onValueCommand?.("marginsAction",id)}/>;
   if(option.id==="orientation")return <GalleryMenu option={option} preview={preview} items={ORIENTATION_ITEMS} onPick={value=>onValueCommand?.("orientation",value)}/>;
   if(option.id==="pageSize")return <GalleryMenu option={option} preview={preview} items={PAGE_SIZE_ITEMS} onPick={value=>onValueCommand?.("pageSize",value)} actions={PAGE_SIZE_ACTIONS} onAction={id=>onValueCommand?.("pageSizeAction",id)}/>;
@@ -301,8 +301,37 @@ const COLUMN_ITEMS=[{value:"1",label:"One"},{value:"2",label:"Two"},{value:"3",l
 const COLUMN_ACTIONS=[{id:"custom",label:"More Columns…"}];
 const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
 const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];
-const BORDER_ITEMS=[{value:"bottom",label:"Bottom Border"},{value:"top",label:"Top Border"},{value:"left",label:"Left Border"},{value:"right",label:"Right Border"},{value:"none",label:"No Border"},{value:"all",label:"All Borders"},{value:"outside",label:"Outside Borders"}];
-const BORDER_ACTIONS=[{id:"horizontal-line",label:"Horizontal Line"}];
+// Word 2013's Borders menu (Home > Paragraph), in its order and groups. Diagonal borders only
+// apply to table cells, so they are greyed out for paragraphs, as in Word.
+const BORDER_MENU:{value:string;label:string;key:string;group:number;tableOnly?:boolean}[]=[
+ {value:"bottom",label:"Bottom Border",key:"B",group:0},{value:"top",label:"Top Border",key:"P",group:0},{value:"left",label:"Left Border",key:"L",group:0},{value:"right",label:"Right Border",key:"R",group:0},
+ {value:"none",label:"No Border",key:"N",group:1},{value:"all",label:"All Borders",key:"A",group:1},{value:"outside",label:"Outside Borders",key:"S",group:1},{value:"inside",label:"Inside Borders",key:"I",group:1},
+ {value:"insideH",label:"Inside Horizontal Border",key:"H",group:2},{value:"insideV",label:"Inside Vertical Border",key:"V",group:2},{value:"diagonalDown",label:"Diagonal Down Border",key:"W",group:2,tableOnly:true},{value:"diagonalUp",label:"Diagonal Up Border",key:"U",group:2,tableOnly:true},
+ {value:"horizontal-line",label:"Horizontal Line",key:"Z",group:3},
+ {value:"draw-table",label:"Draw Table",key:"D",group:4},{value:"view-gridlines",label:"View Gridlines",key:"G",group:4},{value:"borders-shading",label:"Borders and Shading...",key:"O",group:4},
+];
+function BorderMenuIcon({kind}:{kind:string}){
+ const edge=(d:string)=><path d={d} stroke="#1f1f1f" strokeWidth="1.6"/>;
+ const grid=<g stroke="#9a9a9a" strokeWidth="0.8" strokeDasharray="1 1.2" fill="none"><rect x="2.5" y="2.5" width="11" height="11"/><path d="M8 2.5v11M2.5 8h11"/></g>;
+ if(kind==="horizontal-line")return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M2 4h12M2 12h12" stroke="#9a9a9a" strokeWidth="0.8"/><path d="M2 8h12" stroke="#1f1f1f" strokeWidth="1.8"/></svg>;
+ if(kind==="draw-table")return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><rect x="2" y="3" width="10" height="10" fill="#fff" stroke="#6b6b6b"/><path d="M2 8h10M7 3v10" stroke="#6b6b6b"/><path d="m9 11 5-7 1.2 1-5 7-1.6.4z" fill="#f2c15a" stroke="#8a6d1f" strokeWidth="0.7"/></svg>;
+ if(kind==="view-gridlines")return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><rect x="2" y="2" width="12" height="12" fill="#fff" stroke="#5b9bd5" strokeDasharray="1.5 1"/><path d="M6 2v12M10 2v12M2 6h12M2 10h12" stroke="#5b9bd5" strokeDasharray="1.5 1"/></svg>;
+ if(kind==="borders-shading")return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><rect x="2" y="2" width="12" height="12" fill="#fde9b6" stroke="#b08a2e"/><path d="M4 6h8M4 9h8M4 12h5" stroke="#8a6d1f"/></svg>;
+ const sides:Record<string,string[]>={bottom:["M2.5 13.5h11"],top:["M2.5 2.5h11"],left:["M2.5 2.5v11"],right:["M13.5 2.5v11"],none:[],all:["M2.5 2.5h11v11h-11z","M8 2.5v11M2.5 8h11"],outside:["M2.5 2.5h11v11h-11z"],inside:["M8 2.5v11M2.5 8h11"],insideH:["M2.5 8h11"],insideV:["M8 2.5v11"],diagonalDown:["M2.5 2.5l11 11"],diagonalUp:["M2.5 13.5l11-11"]};
+ return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden fill="none">{grid}{(sides[kind]??[]).map(d=><g key={d}>{edge(d)}</g>)}</svg>;
+}
+function BordersMenu({option,preview,onPick}:{option:RibbonOption;preview:boolean;onPick:(value:string)=>void}){
+  const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
+  const buttonRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);
+  useDismiss(open,()=>setOpen(false),[buttonRef,menuRef]);
+  useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-232)),top:rect.bottom+2,right:"auto",bottom:"auto",maxHeight:`calc(100vh - ${Math.round(rect.bottom)+8}px)`,overflowY:"auto"})},[open]);
+  const inTable=open&&typeof document!=="undefined"&&Boolean(getSelection()?.anchorNode?.parentElement?.closest(".word-document-page td, .word-document-page th"));
+  const menu=open&&typeof document!=="undefined"?createPortal(<div ref={menuRef} role="menu" aria-label={option.label} className="word-gallery-menu word-borders-menu" style={position}>{BORDER_MENU.map((item,index)=>{const disabled=Boolean(item.tableOnly&&!inTable);const label=item.label.includes(item.key)?<>{item.label.slice(0,item.label.indexOf(item.key))}<u>{item.key}</u>{item.label.slice(item.label.indexOf(item.key)+1)}</>:item.label;return <div key={item.value}>{index>0&&BORDER_MENU[index-1].group!==item.group&&<hr className="word-borders-sep" aria-hidden/>}<button role="menuitem" type="button" disabled={disabled} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}><BorderMenuIcon kind={item.value}/><span>{label}</span></button></div>})}</div>,document.body):null;
+  return <div data-ribbon-option={option.id}>
+    <button ref={buttonRef} type="button" className="word-ribbon-tool word-gallery-trigger" aria-label={option.label} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><RibbonIcon id={option.id}/><span>{option.label}<i aria-hidden>▾</i></span></button>
+    {menu}
+  </div>;
+}
 function GalleryMenu({option,preview,items,onPick,actions,onAction}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void}){
   const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
   const buttonRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);

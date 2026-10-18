@@ -14,7 +14,7 @@ test("every ribbon flyout stacks above the ruler and title bar and is dismissed 
  const[ribbon,css]=await Promise.all([read(ribbonPath),read("app/globals.css")]);
  for(const cls of["word-font-gallery","word-size-gallery","word-color-palette","word-underline-gallery","word-gallery-menu"])assert.match(css,new RegExp(`\\.${cls} \\{[^}]*z-index: 1000`));
  assert.match(await read("components/word-efficiency/word-flyout.ts"),/function useDismiss\(/);
- assert.equal((ribbon.match(/useDismiss\(open,/g)||[]).length,3);
+ assert.equal((ribbon.match(/useDismiss\(open,/g)||[]).length,4);
 });
 
 test("flyouts are only clamped after being placed under their trigger (no jump to the screen corner)",async()=>{

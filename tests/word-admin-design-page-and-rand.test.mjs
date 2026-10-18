@@ -38,7 +38,7 @@ test("the designer applies Word's default paragraph spacing in the editor itself
  const[editor,page]=await Promise.all([read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"),read(ADMIN+"design/document/working-matter-editor-page.tsx")]);
  assert.match(editor,/const applyParagraphDefaults=\(\)=>\{if\(!paragraphDefaults\|\|!editor\.current\)return;/);
  assert.match(editor,/if\(!element\.style\.marginBottom\)element\.style\.marginBottom=`\$\{paragraphDefaults\.spaceAfter\}pt`/);
- assert.match(editor,/const changed=\(\)=>\{if\(submitted\)return;applyParagraphDefaults\(\);/);
+ assert.match(editor,/const changed=\(\)=>\{if\(submitted\)return;paginationDirty\.current=true;applyParagraphDefaults\(\);/);
  assert.match(page,/const PARAGRAPH_DEFAULTS = \{ spaceAfter: 8, lineHeight: 1\.15 \};/);
  assert.match(page,/paragraphDefaults=\{PARAGRAPH_DEFAULTS\}/);
  assert.match(page,/editorDocumentToMatter\(latest, language, PARAGRAPH_DEFAULTS_FOR_MATTER\)/);

@@ -59,6 +59,6 @@ test("Find In is available as soon as Find what has text (as in Word 2013); Curr
   assert.match(dialogs, /Current Selection/);
   // The choice is actually threaded into every action, not just displayed.
   assert.match(dialogs, /onFindNext\(query, options, scope\)/);
-  assert.match(dialogs, /onReplaceOne\(query, replacement, options, scope\)/);
-  assert.match(dialogs, /onReplaceAll\(query, replacement, options, scope\)/);
+  assert.match(dialogs, /onReplaceOne\(query, replacement, options, scope, replaceFormat\)/);
+  assert.match(dialogs, /onReplaceAll\(query, replacement, options, scope, replaceFormat\)/);
 });

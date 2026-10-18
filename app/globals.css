@@ -1119,10 +1119,21 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .wh-menus .word-ribbon-tool > span { max-width: 54px; white-space: normal; line-height: 13px; }
 .wh-position-label { width: 106px !important; white-space: nowrap; }
 
-/* Pages (rich-document-editor syncChrome): the page is a whole number of sheets tall; a grey
-   page-break line marks where each sheet ends, as Word shows its pages. */
-.word-document-page { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--word-page-height, 1123px) - 2px), #a3a3a3 calc(var(--word-page-height, 1123px) - 2px), #a3a3a3 var(--word-page-height, 1123px)); }
+/* Pages (rich-document-editor paginatePages): white sheets of the paper's height with a grey gap
+   between them, as Word shows its pages; a block that does not fit moves to the next sheet. */
+.word-document-page { background-image: repeating-linear-gradient(to bottom, #fff 0, #fff var(--word-page-height, 1123px), #d4d4d4 var(--word-page-height, 1123px), #d4d4d4 var(--word-page-step, 1145px)); background-color: transparent !important; }
+.word-document-page [data-page-push] { margin-top: var(--page-push-mt) !important; }
+/* Words only underline: the span's own line is hidden, drawWordsOnlyUnderlines draws one per word. */
+.word-document-page [data-underline-style="words-only"], .word-document-page [data-underline-words-only="true"] { text-decoration-line: none !important; }
+.word-wordsonly-layer { position: absolute; inset: 0; pointer-events: none; }
+.word-wordsonly-layer > div { position: absolute; }
 /* A table never runs past the page's text area (Word fits it to the margins): fixed-width
    tables are capped at the page width, and long cell text wraps instead of widening it. */
 .word-document-page table[data-block-type="table"] { max-width: 100%; }
 .word-document-page table[data-block-type="table"] td, .word-document-page table[data-block-type="table"] th { overflow-wrap: anywhere; }
+/* Home > Borders menu (word-editor-ribbon BordersMenu): Word 2013's icon + label rows in groups. */
+.word-borders-menu { min-width: 220px; }
+.word-borders-menu button { display: flex; align-items: center; gap: 10px; width: 100%; }
+.word-borders-menu button:disabled { color: #a6a6a6; cursor: default; }
+.word-borders-menu button:disabled svg { opacity: .45; }
+.word-borders-sep { border: 0; border-top: 1px solid #d9d9d9; margin: 3px 0 3px 30px; }

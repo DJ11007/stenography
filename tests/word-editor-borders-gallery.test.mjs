@@ -6,9 +6,8 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("the Borders gallery offers the real Word option set (per-side, All, Outside, None) plus a Horizontal Line action, not just a two-option toggle", async () => {
   const ribbon = await read("components/word-efficiency/word-editor-ribbon.tsx");
-  assert.match(ribbon, /const BORDER_ITEMS=\[\{value:"bottom",label:"Bottom Border"\},\{value:"top",label:"Top Border"\},\{value:"left",label:"Left Border"\},\{value:"right",label:"Right Border"\},\{value:"none",label:"No Border"\},\{value:"all",label:"All Borders"\},\{value:"outside",label:"Outside Borders"\}\]/);
-  assert.match(ribbon, /const BORDER_ACTIONS=\[\{id:"horizontal-line",label:"Horizontal Line"\}\]/);
-  assert.match(ribbon, /GalleryMenu option=\{option\} preview=\{preview\} items=\{BORDER_ITEMS\} onPick=\{value=>onValueCommand\?\.\("borders",value\)\} actions=\{BORDER_ACTIONS\} onAction=\{id=>onValueCommand\?\.\("borders",id\)\}/);
+  assert.match(ribbon, /if\(option\.id==="borders"\)return <BordersMenu option=\{option\} preview=\{preview\} onPick=\{value=>onValueCommand\?\.\("borders",value\)\}\/>;/);
+  for (const label of ["Bottom Border","Top Border","Left Border","Right Border","No Border","All Borders","Outside Borders","Inside Borders","Inside Horizontal Border","Inside Vertical Border","Diagonal Down Border","Diagonal Up Border","Horizontal Line","Draw Table","View Gridlines","Borders and Shading..."]) assert.ok(ribbon.includes(`label:"${label}"`), label);
 });
 
 test("applying a per-side border clears the other sides first (so switching from Top to Left doesn't leave a stray top border), and Horizontal Line inserts a real rule instead of being treated as a border side", async () => {

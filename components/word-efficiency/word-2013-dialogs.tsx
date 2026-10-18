@@ -22,6 +22,7 @@ function Window13({ title, width, children }: { title: string; width: number; ch
       // As in Word: Enter in a box presses OK, Esc presses Cancel (after the box has committed its value).
       const target = event.target as HTMLElement;
       if (event.key !== "Enter" && event.key !== "Escape") return;
+      event.stopPropagation();
       if (event.key === "Enter" && (target.closest("textarea, select, button, [role=listbox]") || event.defaultPrevented)) return;
       const window13 = event.currentTarget;
       const pick = (label: string) => [...window13.querySelectorAll<HTMLButtonElement>(".w13-buttons button, button")].find(button => button.textContent?.trim() === label && !button.disabled);
@@ -312,7 +313,7 @@ function ListBox13({ items, value, onPick, label }: { items: { id: string; label
   );
 }
 
-export function FontDialog2013({ values: initial, onSubmit }: { values: FontValues; onSubmit: (values: FontValues) => void }) {
+export function FontDialog2013({ values: initial, onSubmit, title = "Font" }: { values: FontValues; onSubmit: (values: FontValues) => void; title?: string }) {
   const chrome = useContext(Word13Chrome);
   const [values, setValues] = useState(initial);
   const [tab, setTab] = useState("font");
@@ -354,7 +355,7 @@ export function FontDialog2013({ values: initial, onSubmit }: { values: FontValu
     verticalAlign: values.superscript ? "super" : values.subscript ? "sub" : "baseline",
   };
   return (
-    <Window13 title="Font" width={514}>
+    <Window13 title={title} width={514}>
       <Tabs13 tabs={[{ id: "font", label: <span><u>F</u>ont</span> }, { id: "advanced", label: <span>Ad<u>v</u>anced</span> }]} value={tab} onChange={setTab} />
       <div className="w13-panel" style={{ minHeight: 410, position: "relative" }}>
         {tab === "font" && <>
@@ -443,14 +444,24 @@ const GOTO_KINDS: { id: string; label: string; working: boolean }[] = [
   { id: "table", label: "Table", working: true }, { id: "graphic", label: "Graphic", working: false }, { id: "equation", label: "Equation", working: false }, { id: "object", label: "Object", working: false }, { id: "heading", label: "Heading", working: false },
 ];
 
-export type FindDialogInput = { mode: "find" | "replace" | "goto"; query: string; replacement: string; hadSelection: boolean; bookmarks: string[] };
+export type FindDialogInput = { mode: "find" | "replace" | "goto"; query: string; replacement: string; hadSelection: boolean; bookmarks: string[]; highlightColor?: string };
+// Formatting given to the "Replace with" text (the Format menu while that box has the cursor).
+// Highlight uses the ribbon's current highlight colour, as in Word.
+export type ReplaceFormat = { font?: Partial<FontValues>; highlight?: string };
+export const BLANK_FONT_VALUES: FontValues = { bold: false, italic: false, fontFamily: "", fontSize: "", color: "", underlineStyle: "none", underlineColor: "", strike: false, doubleStrike: false, superscript: false, subscript: false, smallCaps: false, allCaps: false, hidden: false, outline: false, emboss: false, charScale: "100", charSpacing: "0", charPosition: "0", kerningEnabled: false, kerningMin: "" };
+const changedFont = (values: FontValues): Partial<FontValues> => Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== BLANK_FONT_VALUES[key as keyof FontValues])) as Partial<FontValues>;
+const describeReplaceFormat = (format: ReplaceFormat | null) => {
+  if (!format) return "";
+  const font = format.font ?? {};
+  return [font.fontFamily ? `Font: ${font.fontFamily}` : "", font.fontSize ? `${font.fontSize} pt` : "", font.bold ? "Bold" : "", font.italic ? "Italic" : "", font.underlineStyle && font.underlineStyle !== "none" ? `Underline${font.underlineColor ? `, Underline color: ${font.underlineColor}` : ""}` : "", font.strike ? "Strikethrough" : "", font.doubleStrike ? "Double strikethrough" : "", font.superscript ? "Superscript" : "", font.subscript ? "Subscript" : "", font.color ? `Font color: ${font.color}` : "", format.highlight ? "Highlight" : ""].filter(Boolean).join(", ");
+};
 type Scope = "selection" | "document";
 
 export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onReplaceAll, onHighlightAll, onSelectAll, onClearHighlight, onGoTo }: {
   dialog: FindDialogInput;
   onFindNext: (needle: string, options: FindEngineOptions, scope: Scope) => string;
-  onReplaceOne: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope) => string;
-  onReplaceAll: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope) => string;
+  onReplaceOne: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope, replaceFormat: ReplaceFormat | null) => string;
+  onReplaceAll: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope, replaceFormat: ReplaceFormat | null) => string;
   onHighlightAll: (needle: string, options: FindEngineOptions, scope: Scope) => string;
   onSelectAll: (needle: string, options: FindEngineOptions, scope: Scope) => string;
   onClearHighlight: () => void;
@@ -466,7 +477,8 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   const [message, setMessage] = useState("");
   // Word turns Cancel into Close once a search has run.
   const [searched, setSearched] = useState(false);
-  const [fontPanel, setFontPanel] = useState<"font" | "paragraph" | null>(null);
+  const [fontPanel, setFontPanel] = useState<"font" | "replace-font" | "paragraph" | null>(null);
+  const [replaceFormat, setReplaceFormat] = useState<ReplaceFormat | null>(null);
   const [gotoKind, setGotoKind] = useState("page"), [gotoValue, setGotoValue] = useState("");
   const findRef = useRef<HTMLInputElement>(null), replaceRef = useRef<HTMLInputElement>(null);
   const focused = useRef<"find" | "replace">("find");
@@ -474,13 +486,15 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   useEffect(() => { findRef.current?.focus(); findRef.current?.select(); }, [tab]);
   useEffect(() => () => onClearHighlight(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const canRun = query.length > 0 || Boolean(options.format);
+  // As in Word, the Format menu and No Formatting act on whichever box has the cursor.
+  const formatTarget = () => (tab === "replace" && focused.current === "replace" ? "replace" : "find");
   const wild = options.wildcards;
   const run = (action: "next" | "replace" | "all" | "highlight") => {
     if (!canRun) return;
     setSearched(true);
     if (action === "next") setMessage(onFindNext(query, options, scope));
-    else if (action === "replace") setMessage(onReplaceOne(query, replacement, options, scope));
-    else if (action === "all") setMessage(onReplaceAll(query, replacement, options, scope));
+    else if (action === "replace") setMessage(onReplaceOne(query, replacement, options, scope, replaceFormat));
+    else if (action === "all") setMessage(onReplaceAll(query, replacement, options, scope, replaceFormat));
     else { if (highlightOn) { onClearHighlight(); setHighlightOn(false); setMessage(""); } else { setMessage(onHighlightAll(query, options, scope)); setHighlightOn(true); } }
   };
   const insertSpecial = (id: string) => {
@@ -490,7 +504,14 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
     if (target === "replace") { if (!REPLACE_SPECIALS.has(id)) { setMessage(`${item.label} can only be used in Find what.`); return; } setReplacement(current => current + item.code); replaceRef.current?.focus(); }
     else { setQuery(current => current + item.code); findRef.current?.focus(); }
   };
-  const pickFormat = (id: string) => { if (id === "font") setFontPanel("font"); else if (id === "paragraph") setFontPanel("paragraph"); else if (id === "highlight") set("format", { ...(options.format ?? {}), highlight: true }); };
+  const pickFormat = (id: string) => {
+    const target = formatTarget();
+    if (id === "font") setFontPanel(target === "replace" ? "replace-font" : "font");
+    else if (id === "paragraph") setFontPanel("paragraph");
+    else if (id === "highlight") { if (target === "replace") setReplaceFormat(current => ({ ...(current ?? {}), highlight: dialog.highlightColor || "#FFFF00" })); else set("format", { ...(options.format ?? {}), highlight: true }); }
+  };
+  const fontToFind = (values: FontValues): FindFormat | null => { const changed = changedFont(values); const next: FindFormat = { ...(options.format ?? {}) }; if ("bold" in changed) next.bold = values.bold; if ("italic" in changed) next.italic = values.italic; if ("underlineStyle" in changed) next.underline = values.underlineStyle !== "none"; if ("strike" in changed) next.strike = values.strike; if (values.superscript) next.superscript = true; if (values.subscript) next.subscript = true; if (values.fontFamily) next.fontName = values.fontFamily; const size = Number(values.fontSize); if (Number.isFinite(size) && size > 0) next.fontSize = size; if (values.color) next.color = values.color.replace("#", "").toUpperCase(); return Object.keys(next).length ? next : null; };
+  const replaceText = describeReplaceFormat(replaceFormat);
   const formatText = describeFormat(options.format);
   // Word lists the search options in effect under Find what ("Search Down, Match Case, Whole Words").
   const optionsText = [options.direction === "down" ? "Search Down" : options.direction === "up" ? "Search Up" : "", options.matchCase ? "Match Case" : "", options.wholeWord ? "Whole Words" : "", options.wildcards ? "Use Wildcards" : "", options.soundsLike ? "Sounds Like" : "", options.allWordForms ? "All Word Forms" : "", options.matchPrefix ? "Match Prefix" : "", options.matchSuffix ? "Match Suffix" : "", options.ignorePunctuation ? "Ignore Punctuation" : "", options.ignoreWhitespace ? "Ignore White-space" : ""].filter(Boolean).join(", ");
@@ -508,7 +529,8 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
             {formatText && <div className="w13-note" style={{ marginTop: 3 }}>Format: {formatText}</div>}
             {options.wildcards && <div className="w13-note" style={{ marginTop: 3 }}>Wildcards: ? * [ ] [!x] &lt; &gt; {"{n,m}"} @ ( ) \n</div>}
           </>)}
-          {tab === "replace" && row(<span>Replace w<u>i</u>th:</span>, <input ref={replaceRef} className="w13-field" aria-label="Replace with" style={{ width: "100%" }} value={replacement} onFocus={() => { focused.current = "replace"; }} onChange={event => setReplacement(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); run("replace"); } }} />)}
+          {tab === "replace" && row(<span>Replace w<u>i</u>th:</span>, <><input ref={replaceRef} className="w13-field" aria-label="Replace with" style={{ width: "100%" }} value={replacement} onFocus={() => { focused.current = "replace"; }} onChange={event => setReplacement(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); run("replace"); } }} />
+            {replaceText && <div className="w13-note" style={{ marginTop: 3 }}>Format: {replaceText}</div>}</>)}
           <div role="status" aria-live="polite" style={{ minHeight: more ? 12 : 22, margin: "4px 0 0 88px", color: message.includes("not found") || message.includes("only be") ? "#a4262c" : "#0b5a0b" }}>{message}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: more ? 6 : 14 }}>
             <Button13 onClick={() => setMore(value => !value)}>{more ? "<< Less" : "More >>"}</Button13>
@@ -548,7 +570,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <MenuButton13 label={<span>Forma<u>t</u></span>} items={FORMAT_MENU} onPick={pickFormat} />
               <MenuButton13 label={<span>Sp<u>e</u>cial</span>} items={SPECIAL_MENU.map(item => ({ id: item.id, label: item.label }))} onPick={insertSpecial} />
-              <Button13 disabled={!options.format} onClick={() => set("format", null)}>No Formatting</Button13>
+              <Button13 disabled={tab === "replace" && focused.current === "replace" ? !replaceFormat : !options.format} onClick={() => { if (formatTarget() === "replace") setReplaceFormat(null); else set("format", null); }}>No Formatting</Button13>
             </div>
           </>}
         </>}
@@ -568,7 +590,14 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
             </div>
           </div>
         </div>}
-        {fontPanel && <FindFormatPanel kind={fontPanel} initial={options.format} onCancel={() => setFontPanel(null)} onOk={format => { set("format", format); setFontPanel(null); }} />}
+        {fontPanel === "paragraph" && <FindFormatPanel kind="paragraph" initial={options.format} onCancel={() => setFontPanel(null)} onOk={format => { set("format", format); setFontPanel(null); }} />}
+        {/* Format > Font is Word's own Font dialog, titled Find Font / Replace Font. */}
+        {(fontPanel === "font" || fontPanel === "replace-font") && <Word13Chrome.Provider value={{ ...(chrome ?? {}), onClose: () => setFontPanel(null) } as NonNullable<typeof chrome>}>
+          <div style={{ position: "absolute", left: 8, top: -40, zIndex: 6 }}>
+            <FontDialog2013 title={fontPanel === "font" ? "Find Font" : "Replace Font"} values={fontPanel === "replace-font" ? { ...BLANK_FONT_VALUES, ...(replaceFormat?.font ?? {}) } : BLANK_FONT_VALUES}
+              onSubmit={values => { if (fontPanel === "font") set("format", fontToFind(values)); else { const font = changedFont(values); setReplaceFormat(current => (Object.keys(font).length || current?.highlight ? { ...(current ?? {}), font } : null)); } setFontPanel(null); }} />
+          </div>
+        </Word13Chrome.Provider>}
       </div>
     </Window13>
   );

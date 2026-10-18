@@ -16,7 +16,7 @@ const DIALOGS_PATH = "components/word-efficiency/word-2013-dialogs.tsx";
 
 test("the Font dialog is the Word 2013 two-tab dialog: Font and Advanced, with Font/Style/Size lists, colours and effects", async () => {
   const dialogs = await read(DIALOGS_PATH);
-  assert.match(dialogs, /<Window13 title="Font"/);
+  assert.match(dialogs, /export function FontDialog2013\(\{ values: initial, onSubmit, title = "Font" \}/);
   assert.match(dialogs, /id: "font", label: <span><u>F<\/u>ont<\/span>/);
   assert.match(dialogs, /id: "advanced", label: <span>Ad<u>v<\/u>anced<\/span>/);
   for (const label of ["Font list", "Font style list", "Font size list"]) assert.match(dialogs, new RegExp(label));
