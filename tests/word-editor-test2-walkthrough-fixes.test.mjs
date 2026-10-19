@@ -215,9 +215,14 @@ test("typing in Find what highlights nothing; matches are marked only by Reading
 
 test("dragging from one table cell into another selects the rectangle of cells (a column when dragging down), as in Word", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const moveCellDrag=\(event:MouseEvent<HTMLDivElement>\)=>\{/);
-  assert.match(editor, /onMouseMove=\{moveCellDrag\} onMouseUp=\{event=>\{endCellDrag\(\);/);
-  assert.match(editor, /startCellDrag\(event\);handleEditorMouseDown\(event\)/);
+  // followed on the whole document (clamped to the table) so leaving the table never falls back to text selection
+  assert.match(editor, /document\.addEventListener\("mousemove",move,true\);document\.addEventListener\("mouseup",up,true\);/);
+  assert.match(editor, /const cellAtPoint=\(table:HTMLTableElement,x:number,y:number\)=>\{/);
+  assert.match(editor, /if\(!startCellDrag\(event\)\)handleEditorMouseDown\(event\)/);
+  // click above a column / left of a row / the table handle, as in Word
+  assert.match(editor, /return\{kind:"column",table,index:cell\.cellIndex\}/);
+  assert.match(editor, /return\{kind:"row",table,index:row\.rowIndex\}/);
+  assert.match(editor, /created\.className="word-table-handle"/);
 });
 
 test("Any Letter (^$) is one letter, as in Word: \"Word found 715 items matching this criteria. (129 words)\"; refused with Use wildcards", async () => {

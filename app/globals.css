@@ -1152,4 +1152,7 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-pageborder-layer > div { position: absolute; box-sizing: border-box; }
 
 /* While dragging across table cells the cells are selected (word-cell-selected), not the text. */
-.word-document-page.word-cell-dragging td, .word-document-page.word-cell-dragging th { user-select: none; }
+.word-document-page.word-cell-dragging, .word-document-page.word-cell-dragging * { user-select: none; }
+/* Word's table move handle at the table's top-left corner: click it to select the whole table. */
+.word-table-handle { position: absolute; z-index: 5; width: 14px; height: 14px; display: grid; place-items: center; font-size: 11px; line-height: 1; color: #333; background: #fff; border: 1px solid #9a9a9a; cursor: move; user-select: none; }
+.word-table-handle[hidden] { display: none; }
