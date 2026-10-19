@@ -446,9 +446,9 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   if(scopeRange)matches=matches.filter(match=>{const range=rangeForMatch(segments,match.index,match.length);return Boolean(range)&&scopeRange.compareBoundaryPoints(Range.START_TO_START,range!)<=0&&scopeRange.compareBoundaryPoints(Range.END_TO_END,range!)>=0});
   return{matches,segments,text}
  };
- // Matches that touch (Any Letter ^$ matches every letter of a word) are counted as words, which
- // is what a student is looking for: "129 words (715 letters)" rather than "715 items".
- const countMatches=(matches:TextMatch[],text:string,noun:string)=>{let groups=0,end=-1;for(const match of matches){if(match.index!==end)groups++;end=match.index+match.length}const plural=(count:number,word:string)=>`${count} ${word}${count===1?"":"s"}`;if(groups===matches.length)return plural(matches.length,noun);const letters=matches.every(match=>/^[A-Za-zÀ-ɏऀ-ॿ]+$/.test(text.slice(match.index,match.index+match.length)));return`${plural(groups,"word")} (${plural(matches.length,letters?"letter":"character")})`};
+ // Word counts every match (Any Letter ^$ is ONE letter, so a paragraph is ~715 items, as in Word);
+ // when matches touch, the number of words they make is added in brackets: "(129 words)".
+ const countMatches=(matches:TextMatch[],text:string)=>{let groups=0,end=-1;for(const match of matches){if(match.index!==end)groups++;end=match.index+match.length}void text;return{total:matches.length,words:groups<matches.length?` (${groups} word${groups===1?"":"s"})`:""}};
  const selectMatch=(range:Range)=>{const selection=getSelection();selection?.removeAllRanges();selection?.addRange(range);savedRange.current=range.cloneRange();paintHighlight("word-find-current",[range.cloneRange()]);const target=range.startContainer instanceof Element?range.startContainer:range.startContainer.parentElement;target?.scrollIntoView({block:"center"})};
  // Returns the user-facing message for the dialog.
  const findNext=(needle:string,options:FindEngineOptions,scope:"selection"|"document"):string=>{
@@ -478,7 +478,7 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   const spans:{index:number;length:number}[]=[];for(const match of matches){const last=spans[spans.length-1];if(last&&last.index+last.length===match.index)last.length+=match.length;else spans.push({index:match.index,length:match.length})}
   findSelection.current=spans;
   const selection=getSelection();selection?.removeAllRanges();selection?.addRange(ranges[0].cloneRange());savedRange.current=ranges[0].cloneRange();
-  return`Word found ${countMatches(matches,text,"item")} matching this criteria.`
+  const counted=countMatches(matches,text);return`Word found ${counted.total} item${counted.total===1?"":"s"} matching this criteria.${counted.words}`
  };
  const highlightAll=(needle:string,options:FindEngineOptions,scope:"selection"|"document"):string=>{
   dropFindSelection();
@@ -486,7 +486,7 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   const ranges=matches.map(match=>rangeForMatch(segments,match.index,match.length)).filter((range):range is Range=>Boolean(range));
   if(!ranges.length){clearFindHighlights();return"Search text not found."}
   paintHighlight("word-find-all",ranges);
-  return`${countMatches(matches,text,"match").replace(/^(\d+) matchs/,"$1 matches")} highlighted.`
+  const counted=countMatches(matches,text);return`${counted.total} match${counted.total===1?"":"es"} highlighted.${counted.words}`
  };
  // Replace one match with the (expanded) replacement text, through the editor's own commands so
  // formatting is inherited and undo works. A ^p in the replacement becomes a real paragraph break.
@@ -537,7 +537,9 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   let count=0;
   for(let i=steps.length-1;i>=0;i--){const item=steps[i];const range=rangeForMatch(buildDocumentText(editor.current).segments,item.index,item.length);if(!range)continue;replaceMatch(range,item.text,replaceFormat)}
   count=plan.length;void count;
-  return`Replaced ${countMatches(matches,text,"occurrence")}${scope==="selection"?" in the selection":""}.`
+  // Word 2013's own messages after Replace All.
+  const counted=countMatches(matches,text),made=`${counted.total} replacement${counted.total===1?"":"s"}`;
+  return scope==="selection"?`Word has completed its search of the selection and has made ${made}.${counted.words}`:`All done. We made ${made}.${counted.words}`
  };
  const find=(replace:boolean)=>{
   const bookmarks=editor.current?[...editor.current.querySelectorAll("[data-bookmark]")].map(element=>(element as HTMLElement).dataset.bookmark).filter((value):value is string=>Boolean(value)):[];

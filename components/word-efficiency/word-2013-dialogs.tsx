@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { APPROVED_WORD_FONTS, WORD_THEME_FONTS } from "@/lib/word-editor-capabilities";
 import { WORD_FONT_SIZE_LIST, wordFontSize } from "@/lib/word-font-sizes";
-import { DEFAULT_ENGINE_OPTIONS, describeFormat, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
+import { DEFAULT_ENGINE_OPTIONS, describeFormat, findWhatError, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
 import { mixColors } from "@/lib/word-colors";
 import { PAPER_SIZES, type PageSetupValues } from "@/lib/word-page-setup";
 import { TABLE_COLORS, WordPalette } from "./word-table-tools";
@@ -518,6 +518,8 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   const wild = options.wildcards;
   const run = (action: "next" | "replace" | "all" | "highlight") => {
     if (!canRun) return;
+    const invalid = findWhatError(query, options);
+    if (invalid) { setSearched(true); setMessage(invalid); return; }
     setSearched(true);
     if (action === "next") setMessage(onFindNext(query, options, scope));
     else if (action === "replace") { setMessage(onReplaceOne(query, replacement, options, scope, replaceFormat)); setRefresh(value => value + 1); }
@@ -567,7 +569,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
               {/* Word 2013: Find In becomes available as soon as Find what has text. Picking Main Document (or
                   Current Selection, when there was one) marks every match in it at once; the scope then carries
                   over to the Replace tab. */}
-              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const picked = id as Scope; if (picked !== scope) selectedAll.current = true; setScope(picked); setHighlightOn(false); setSearched(true); setMessage(onSelectAll(query, options, picked)); }} />
+              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const invalid = findWhatError(query, options); if (invalid) { setSearched(true); setMessage(invalid); return; } const picked = id as Scope; if (picked !== scope) selectedAll.current = true; setScope(picked); setHighlightOn(false); setSearched(true); setMessage(onSelectAll(query, options, picked)); }} />
               <Button13 isDefault disabled={!canRun} onClick={() => run("next")}>Find Next</Button13>
             </> : <>
               <Button13 disabled={!canRun} onClick={() => run("replace")}>Replace</Button13>

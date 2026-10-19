@@ -60,6 +60,20 @@ function codeAtom(code: string): string | null {
   }
 }
 
+// Word refuses these codes once "Use wildcards" is ticked (they have wildcard equivalents:
+// [a-zA-Z] for ^$, [0-9] for ^#, ? for ^?), with this exact message.
+const NOT_IN_WILDCARDS = new Set(["$", "#", "?", "w"]);
+export function findWhatError(needle: string, options: Pick<FindEngineOptions, "wildcards">): string | null {
+  if (!options.wildcards) return null;
+  for (let i = 0; i < needle.length - 1; i++) {
+    if (needle[i] !== "^") continue;
+    const code = needle[i + 1];
+    if (code === "^") { i++; continue; }
+    if (NOT_IN_WILDCARDS.has(code)) return `^${code} is not a valid special character for the Find What box or is not supported when the Use Wildcards check box is selected.`;
+  }
+  return null;
+}
+
 export function translateNeedle(needle: string, options: FindEngineOptions): { pattern: string; groupCount: number } | null {
   const atoms: string[] = [];
   let groups = 0;

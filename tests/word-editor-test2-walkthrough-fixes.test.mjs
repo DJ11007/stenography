@@ -220,10 +220,19 @@ test("dragging from one table cell into another selects the rectangle of cells (
   assert.match(editor, /startCellDrag\(event\);handleEditorMouseDown\(event\)/);
 });
 
-test("matches that touch (Any Letter ^$) are reported as words: \"129 words (715 letters)\"", async () => {
+test("Any Letter (^$) is one letter, as in Word: \"Word found 715 items matching this criteria. (129 words)\"; refused with Use wildcards", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const countMatches=\(matches:TextMatch\[\],text:string,noun:string\)=>\{/);
-  assert.match(editor, /return`Word found \$\{countMatches\(matches,text,"item"\)\} matching this criteria\.`/);
+  assert.match(editor, /return`Word found \$\{counted\.total\} item\$\{counted\.total===1\?"":"s"\} matching this criteria\.\$\{counted\.words\}`/);
+  assert.match(editor, /`Word has completed its search of the selection and has made \$\{made\}\.\$\{counted\.words\}`/);
+  const engine = await read("lib/word-find-engine.ts");
+  assert.ok(engine.includes(String.raw`case "$": return "\\p{L}";`));
+  assert.match(engine, /is not a valid special character for the Find What box or is not supported when the Use Wildcards check box is selected\./);
+  const { findWhatError } = await import("../lib/word-find-engine.ts").catch(() => ({}));
+  if (findWhatError) {
+    assert.match(findWhatError("^$", { wildcards: true }), /^\^\$ is not a valid special character/);
+    assert.equal(findWhatError("^$", { wildcards: false }), null);
+    assert.equal(findWhatError("[a-z]@", { wildcards: true }), null);
+  }
 });
 
 test("a document that fails validation still submits once time is up (the server then uses the last autosave)", async () => {

@@ -42,7 +42,7 @@ test("the selection scope is captured once when Find and Replace opens, not re-r
   assert.match(editor, /scopeRange\.compareBoundaryPoints\(Range\.START_TO_START,range!\)<=0&&scopeRange\.compareBoundaryPoints\(Range\.END_TO_END,range!\)>=0/);
 
   // The status message tells the user when a replace was scoped.
-  assert.match(editor, /Replaced \$\{countMatches\(matches,text,"occurrence"\)\}\$\{scope==="selection"\?" in the selection":""\}\./);
+  assert.match(editor, /return scope==="selection"\?`Word has completed its search of the selection and has made \$\{made\}\.\$\{counted\.words\}`:`All done\. We made \$\{made\}\.\$\{counted\.words\}`/);
 });
 
 test("Find In is available as soon as Find what has text (as in Word 2013); Current Selection only when something was selected, and picking a scope marks every match in it", async () => {
