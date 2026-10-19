@@ -311,9 +311,23 @@ export function diffWordDocuments(before: unknown, after: unknown): WordDetected
   const afterLayout = isObject(after) && isObject(after.pageLayout) ? after.pageLayout : {};
   for (const field of PAGE_LAYOUT_FIELDS) {
     // A field missing from an older document (gutter) is the same as null.
-    if (!equalValue(beforeLayout[field] ?? null, afterLayout[field] ?? null)) changes.push({ target: `pageLayout.${field}`, expectedValue: afterLayout[field] ?? null, label: `Page ${fieldLabel(field)} changed to ${String(afterLayout[field])}`, blockPosition: 0 });
+    if (equalValue(beforeLayout[field] ?? null, afterLayout[field] ?? null)) continue;
+    // A page border is marked by its sides only (server target pageLayout.borderSides): the line
+    // style, colour and width a student picks are not what "bottom and right border" asks for.
+    if (field === "border") { const sides = pageBorderSides(afterLayout.border); changes.push({ target: "pageLayout.borderSides", expectedValue: sides, label: sides ? `Page border on ${sides.split(",").join(", ")}` : "Page border removed", blockPosition: 0 }); continue; }
+    changes.push({ target: `pageLayout.${field}`, expectedValue: afterLayout[field] ?? null, label: `Page ${fieldLabel(field)} changed to ${String(afterLayout[field])}`, blockPosition: 0 });
   }
   return changes;
+}
+
+// Mirrors public.word_efficiency_page_border_sides: "<css>" = all four sides, "<css> sides:right,bottom"
+// = those sides; returned sorted ("bottom,right"), null when there is no border.
+export function pageBorderSides(border: unknown): string | null {
+  if (typeof border !== "string" || !border.trim() || /(^|\s)none(\s|$)/i.test(border)) return null;
+  const match = / sides:([a-z,]+)$/.exec(border);
+  if (!match) return "bottom,left,right,top";
+  const sides = [...new Set(match[1].split(",").filter(side => ["top", "right", "bottom", "left"].includes(side)))].sort();
+  return sides.length ? sides.join(",") : null;
 }
 
 // What a question's own edit changed: the target, the value it had right

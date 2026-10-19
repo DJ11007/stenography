@@ -174,3 +174,21 @@ test("Undo history leaves out the page layout (push margins, sheet height), so U
   assert.match(editor, /for\(const block of clone\.querySelectorAll<HTMLElement>\("\[data-page-push\]"\)\)\{block\.removeAttribute\("data-page-push"\);block\.style\.removeProperty\("--page-push-mt"\);/);
   assert.match(editor, /clone\.style\.removeProperty\("min-height"\);return\{html:clone\.innerHTML/);
 });
+
+// Q4(b) "bottom and right page border only" had no marking rule (Q4 = a + c only).
+test("a page border is marked by its sides (pageLayout.borderSides), whatever line style the student picked", async () => {
+  const migration = await read("supabase/migrations/202610191300_word_efficiency_page_border_sides.sql");
+  assert.match(migration, /if parts\[2\]='borderSides' and coalesce\(array_length\(parts,1\),0\)=2 then/);
+  assert.match(migration, /'pageLayout\.borderSides', 'model-answer-match-v2', to_jsonb\('bottom,right'::text\), 1\.67/);
+  const diff = await read("lib/word-document-diff.ts");
+  assert.match(diff, /if \(field === "border"\) \{ const sides = pageBorderSides\(afterLayout\.border\); changes\.push\(\{ target: "pageLayout\.borderSides"/);
+  const sidesOf = (border) => {
+    if (typeof border !== "string" || !border.trim() || /(^|\s)none(\s|$)/i.test(border)) return null;
+    const match = / sides:([a-z,]+)$/.exec(border);
+    return match ? [...new Set(match[1].split(","))].sort().join(",") : "bottom,left,right,top";
+  };
+  assert.equal(sidesOf("1px solid #000000 sides:right,bottom"), "bottom,right");
+  assert.equal(sidesOf("3px dotted #FF0000 sides:bottom,right"), "bottom,right");
+  assert.equal(sidesOf("1px solid #000000"), "bottom,left,right,top");
+  assert.equal(sidesOf(null), null);
+});
