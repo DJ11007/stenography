@@ -46,7 +46,9 @@ function EnemyView({ enemy, fontFamily, typedLength, onImpact }: { enemy: Enemy;
         transform: "translateX(-50%)",
         transition: falling ? `top ${enemy.fallMs}ms linear` : "none",
       }}
-      onTransitionEnd={() => { if (falling) onImpact(enemy.id); }}
+      // Only this element's own fall counts as an impact. transitionend bubbles: the amber ring that
+      // appears on the first typed letter (box-shadow, 150ms) used to end here too and count as a hit.
+      onTransitionEnd={(event) => { if (falling && event.target === event.currentTarget && event.propertyName === "top") onImpact(enemy.id); }}
     >
       <div className={`relative flex min-w-20 items-center justify-center rounded-full px-5 py-4 text-center text-lg drop-shadow-[0_6px_16px_rgba(190,18,60,0.55)] transition ${locked ? "ring-4 ring-amber-300" : ""}`} style={{ fontFamily }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 -z-10 h-full w-full" aria-hidden="true">

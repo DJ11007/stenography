@@ -82,7 +82,10 @@ function FallingDropView({ drop, fontFamily, typedLength, onMiss }: { drop: Acti
         // (CSS transitions apply to any style change, not just the fall).
         transition: falling ? `top ${drop.fallMs}ms linear` : "none",
       }}
-      onTransitionEnd={() => { if (falling) onMiss(drop.id); }}
+      // Only this element's own fall counts as reaching the bottom. transitionend bubbles: the amber
+      // ring that appears on the first typed letter (box-shadow, 150ms) used to end here too, so typing
+      // the first letter of a word counted it as missed -- the word vanished and the next one fell.
+      onTransitionEnd={(event) => { if (falling && event.target === event.currentTarget && event.propertyName === "top") onMiss(drop.id); }}
     >
       <div className={`relative min-w-24 rounded-2xl px-7 pb-5 pt-11 text-center text-2xl drop-shadow-[0_6px_18px_rgba(8,145,178,0.6)] transition ${locked ? "ring-4 ring-amber-300" : ""}`} style={{ fontFamily }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 -z-10 h-full w-full" aria-hidden="true">
