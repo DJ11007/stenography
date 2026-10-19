@@ -115,3 +115,28 @@ test("Find and Replace keeps every match highlighted while open, refreshed after
   assert.match(dialogs, /const result = onHighlightAll\(query, options, scope\); setHighlightOn\(true\); setMatchCount\(result\);/);
   assert.match(dialogs, /setMessage\(onReplaceAll\(query, replacement, options, scope, replaceFormat\)\); setRefresh\(value => value \+ 1\);/);
 });
+
+// Own full attempt of Test 2 (2026-10-19, 25/25): what still got in a student's way.
+test("Replace All with only formatting keeps Find and Replace open (the font step closed every dialog)", async () => {
+  const editor = await read(EDITOR);
+  const body = editor.slice(editor.indexOf("const applyFontValues="), editor.indexOf("const applyFontValues=") + 6000);
+  assert.doesNotMatch(body.slice(0, body.indexOf("\n };")), /setDialog\(null\)/);
+});
+
+test("the Font dialog on a selected row/column formats each cell once (it ran once per cell inside a per-cell loop)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /onFont=\{applyFontDialog\}/);
+});
+
+test("a short selection goes into Find what and the whole document is searched, as in Word", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /query:selectionIsQuery\?selected:query,selectionIsQuery,/);
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /useEffect\(\(\) => \{ setMessage\(""\); \}, \[query, options, scope, tab\]\);/);
+});
+
+test("dialog drop-downs (colour palette, Format menu) are not cut short with needless scrollbars", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /menu\.scrollHeight \+ menu\.offsetHeight - menu\.clientHeight/);
+  assert.match(dialogs, /Math\.min\(height, window\.innerHeight - top - 8\)/);
+});

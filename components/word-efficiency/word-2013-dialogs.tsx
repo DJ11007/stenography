@@ -106,11 +106,13 @@ function useMenu() {
     if (!open) { setStyle({ visibility: "hidden" }); return; }
     const button = buttonRef.current?.getBoundingClientRect(), menu = menuRef.current;
     if (!button || !menu) return;
-    const height = Math.min(menu.scrollHeight, window.innerHeight - 16), width = menu.offsetWidth;
+    // scrollHeight leaves out the border, and max-height (border-box) includes it: without it every menu got a needless scrollbar
+    const height = Math.min(menu.scrollHeight + menu.offsetHeight - menu.clientHeight, window.innerHeight - 16), width = menu.offsetWidth;
     const below = window.innerHeight - button.bottom - 8, above = button.top - 8;
     const openUp = height > below && above > below;
     const top = openUp ? Math.max(8, button.top - height - 1) : Math.min(button.bottom + 1, window.innerHeight - height - 8);
-    setStyle({ left: Math.max(8, Math.min(button.left, window.innerWidth - width - 8)), top, maxHeight: openUp ? Math.min(height, above) : Math.min(height, below), visibility: "visible" });
+    // A menu moved up to fit is limited by the room from where it now starts, not the room below the button.
+    setStyle({ left: Math.max(8, Math.min(button.left, window.innerWidth - width - 8)), top, maxHeight: openUp ? Math.min(height, above) : Math.min(height, window.innerHeight - top - 8), visibility: "visible" });
   }, [open]);
   useEffect(() => {
     if (!open) return;
@@ -153,7 +155,7 @@ function ColorSelect13({ value, onChange, autoLabel = "Automatic", width = 112, 
     <>
       <button ref={element => { menu.buttonRef.current = element; }} type="button" aria-label={label} aria-haspopup="menu" disabled={disabled} className="w13-select" title={value ? current?.name ?? value : autoLabel} style={{ width, textAlign: "left", cursor: "default" }}
         onMouseDown={event => event.preventDefault()} onClick={() => menu.setOpen(open => !open)}>{value ? <span aria-hidden style={{ display: "inline-block", width: width - 34, height: 12, border: "1px solid #666", verticalAlign: "-2px", background: value }} /> : autoLabel}</button>
-      {menu.open && createPortal(<div ref={menu.menuRef} role="menu" aria-label={`${label} palette`} className="w13-menu" style={{ ...menu.style, padding: 4, width: 186 }}>
+      {menu.open && createPortal(<div ref={menu.menuRef} role="menu" aria-label={`${label} palette`} className="w13-menu" style={{ ...menu.style, padding: 4, width: 198, overflowX: "hidden" }}>
         <button type="button" role="menuitem" onMouseDown={event => event.preventDefault()} onClick={() => pick("")} style={{ padding: "3px 6px", width: "100%" }}>
           <span aria-hidden style={{ display: "inline-block", width: 14, height: 14, marginRight: 8, border: "1px solid #666", background: "#000", verticalAlign: "-3px" }} />{autoLabel}</button>
         <div className="w13-note" style={{ margin: "6px 4px 4px", fontWeight: 600, color: "#333" }}>Standard Colors</div>
@@ -444,7 +446,7 @@ const GOTO_KINDS: { id: string; label: string; working: boolean }[] = [
   { id: "table", label: "Table", working: true }, { id: "graphic", label: "Graphic", working: false }, { id: "equation", label: "Equation", working: false }, { id: "object", label: "Object", working: false }, { id: "heading", label: "Heading", working: false },
 ];
 
-export type FindDialogInput = { mode: "find" | "replace" | "goto"; query: string; replacement: string; hadSelection: boolean; bookmarks: string[]; highlightColor?: string };
+export type FindDialogInput = { mode: "find" | "replace" | "goto"; query: string; replacement: string; hadSelection: boolean; selectionIsQuery?: boolean; bookmarks: string[]; highlightColor?: string };
 // Formatting given to the "Replace with" text (the Format menu while that box has the cursor).
 // Highlight uses the ribbon's current highlight colour, as in Word.
 export type ReplaceFormat = { font?: Partial<FontValues>; highlight?: string };
@@ -471,7 +473,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   const [tab, setTab] = useState<string>(dialog.mode);
   const [query, setQuery] = useState(dialog.query), [replacement, setReplacement] = useState(dialog.replacement);
   const [more, setMore] = useState(false);
-  const [scope, setScope] = useState<Scope>(dialog.hadSelection ? "selection" : "document");
+  const [scope, setScope] = useState<Scope>(dialog.hadSelection && !dialog.selectionIsQuery ? "selection" : "document");
   const [options, setOptions] = useState<FindEngineOptions>(DEFAULT_ENGINE_OPTIONS);
   const [highlightOn, setHighlightOn] = useState(false);
   const [message, setMessage] = useState("");
@@ -495,6 +497,9 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
     const timer = setTimeout(() => { const result = onHighlightAll(query, options, scope); setHighlightOn(true); setMatchCount(result); }, 200);
     return () => clearTimeout(timer);
   }, [query, options, scope, tab, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A message from the last action (e.g. "Search text not found.") is cleared as soon as the
+  // search changes, so the live match count shows again.
+  useEffect(() => { setMessage(""); }, [query, options, scope, tab]);
   // As in Word, the Format menu and No Formatting act on whichever box has the cursor.
   const formatTarget = () => (tab === "replace" && focused.current === "replace" ? "replace" : "find");
   const wild = options.wildcards;
