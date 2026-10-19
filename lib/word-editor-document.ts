@@ -67,7 +67,7 @@ export function validateWordEditorDocument(value: unknown) {
     if (!object(block) || !exact(block, version === "1" ? BLOCK_V1 : BLOCK_V2) || typeof block.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(block.id) || ids.has(block.id)) throw new Error("Invalid or duplicate structured document block ID.");
     ids.add(block.id);
     const types = version === "1" ? V1_BLOCK_TYPES : V2_BLOCK_TYPES;
-    if (typeof block.type !== "string" || !types.has(block.type) || typeof block.alignment !== "string" || !ALIGNMENTS.has(block.alignment) || !Array.isArray(block.runs) || block.runs.length < 1 || block.runs.length > 500) throw new Error("Invalid structured document block.");
+    if (typeof block.type !== "string" || !types.has(block.type) || typeof block.alignment !== "string" || !ALIGNMENTS.has(block.alignment) || !Array.isArray(block.runs) || block.runs.length < 1 || block.runs.length > 5000) throw new Error("Invalid structured document block.");
     if (version === "2") { const media = validateAttrs(block.attrs, block.type); imageCount += media.count; imageBytes += media.bytes; }
     for (const run of block.runs) {
       runs++; if (runs > 20000 || !object(run) || !(version==="1"?exact(run,RUN_V1):validV2Run(run)) || typeof run.text !== "string" || run.text.length > 200000) throw new Error("Invalid structured document run.");

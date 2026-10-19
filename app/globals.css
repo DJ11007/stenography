@@ -1150,3 +1150,6 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-page-frame .word-document-page[data-sheet-borders] { border-color: transparent !important; }
 .word-pageborder-layer { position: absolute; inset: 0; pointer-events: none; }
 .word-pageborder-layer > div { position: absolute; box-sizing: border-box; }
+
+/* While dragging across table cells the cells are selected (word-cell-selected), not the text. */
+.word-document-page.word-cell-dragging td, .word-document-page.word-cell-dragging th { user-select: none; }

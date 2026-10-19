@@ -500,10 +500,14 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   // Find In just selected every match in the new scope: the live highlight (and message reset) must
   // not run over that selection and its "Word found N items" message.
   const selectedAll = useRef(false);
+  // As in Word, typing in Find what highlights nothing: matches are marked only by Reading
+  // Highlight > Highlight All or Find In. Once highlighting is on it follows the search and
+  // is refreshed after each Replace.
   useEffect(() => {
     if (selectedAll.current) return;
-    if (tab === "goto" || !canRun) { onClearHighlight(); setHighlightOn(false); setMatchCount(""); return; }
-    const timer = setTimeout(() => { const result = onHighlightAll(query, options, scope); setHighlightOn(true); setMatchCount(result); }, 200);
+    if (tab === "goto" || !canRun) { if (highlightOn) { onClearHighlight(); setHighlightOn(false); } setMatchCount(""); return; }
+    if (!highlightOn) { setMatchCount(""); return; }
+    const timer = setTimeout(() => { const result = onHighlightAll(query, options, scope); setMatchCount(result); }, 200);
     return () => clearTimeout(timer);
   }, [query, options, scope, tab, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   // A message from the last action (e.g. "Search text not found.") is cleared as soon as the

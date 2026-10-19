@@ -51,7 +51,7 @@ test("Enter in a Word dialog presses OK and Esc presses Cancel", async () => {
 
 test("empty text pieces are not saved as runs (a header's first run was \"\" so its text was not graded)", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const textRuns=type==="table"\?runs:runs\.filter\(run=>run\.text!==""\);/);
+  assert.match(editor, /const textRuns=type==="table"\?runs:mergeSameRuns\(runs\.filter\(run=>run\.text!==""\)\);/);
 });
 
 test("the page grows a whole sheet at a time instead of leaving text (the table) below a fixed A5/A4 page", async () => {
@@ -88,7 +88,7 @@ test("Find and Replace: Format > Font is Word's Font dialog (Find Font / Replace
   assert.match(dialogs, /const formatTarget = \(\) => \(tab === "replace" && focused\.current === "replace" \? "replace" : "find"\);/);
   const editor = await read(EDITOR);
   assert.match(editor, /if\(replacementText===""\)\{applyReplaceFormat\(range,format\);return\}/);
-  assert.match(editor, /replaceMatch\(item\.range,item\.text,replaceFormat\)/);
+  assert.match(editor, /replaceMatch\(range,item\.text,replaceFormat\)/);
 });
 
 test("Home > Borders has Word's full menu; Borders and Shading... works on paragraphs (and on the table when in one)", async () => {
@@ -110,9 +110,9 @@ test("a page border can be on some sides only (bottom and right), saved as \"<cs
   assert.match(dialogs, /pageEdge\("bottom", ln\("M3 17h14"\), "Bottom Border"\)/);
 });
 
-test("Find and Replace keeps every match highlighted while open, refreshed after each Replace", async () => {
+test("Find and Replace keeps the matches highlighted (once Reading Highlight is on), refreshed after each Replace", async () => {
   const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
-  assert.match(dialogs, /const result = onHighlightAll\(query, options, scope\); setHighlightOn\(true\); setMatchCount\(result\);/);
+  assert.match(dialogs, /const timer = setTimeout\(\(\) => \{ const result = onHighlightAll\(query, options, scope\); setMatchCount\(result\); \}, 200\);/);
   assert.match(dialogs, /setMessage\(onReplaceAll\(query, replacement, options, scope, replaceFormat\)\); setRefresh\(value => value \+ 1\);/);
 });
 
@@ -191,4 +191,31 @@ test("a page border is marked by its sides (pageLayout.borderSides), whatever li
   assert.equal(sidesOf("3px dotted #FF0000 sides:bottom,right"), "bottom,right");
   assert.equal(sidesOf("1px solid #000000"), "bottom,left,right,top");
   assert.equal(sidesOf(null), null);
+});
+
+// User's attempt 2026-10-19 (time-up submit failed: "Invalid structured document block").
+test("Replace All finds each match's range again just before replacing it (stale ranges formatted only the last letter of each text piece)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /for\(let i=steps\.length-1;i>=0;i--\)\{const item=steps\[i\];const range=rangeForMatch\(buildDocumentText\(editor\.current\)\.segments,item\.index,item\.length\);/);
+});
+
+test("neighbouring runs with the same formatting are saved as one run, and a block may have up to 5000 runs", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const textRuns=type==="table"\?runs:mergeSameRuns\(runs\.filter\(run=>run\.text!==""\)\);/);
+  const schema = await read("lib/word-editor-document.ts");
+  assert.match(schema, /block\.runs\.length < 1 \|\| block\.runs\.length > 5000\)/);
+  const migration = await read("supabase/migrations/202610191400_word_efficiency_block_run_limit.sql");
+  assert.match(migration, /not between 1 and 5000/);
+});
+
+test("typing in Find what highlights nothing; matches are marked only by Reading Highlight or Find In", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /if \(!highlightOn\) \{ setMatchCount\(""\); return; \}/);
+});
+
+test("dragging from one table cell into another selects the rectangle of cells (a column when dragging down), as in Word", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const moveCellDrag=\(event:MouseEvent<HTMLDivElement>\)=>\{/);
+  assert.match(editor, /onMouseMove=\{moveCellDrag\} onMouseUp=\{event=>\{endCellDrag\(\);/);
+  assert.match(editor, /startCellDrag\(event\);handleEditorMouseDown\(event\)/);
 });
