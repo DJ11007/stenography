@@ -486,6 +486,15 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   useEffect(() => { findRef.current?.focus(); findRef.current?.select(); }, [tab]);
   useEffect(() => () => onClearHighlight(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const canRun = query.length > 0 || Boolean(options.format);
+  // Every match stays highlighted while the dialog is open (as Word marks the search results),
+  // updated as Find what or the options change and after each Replace.
+  const [refresh, setRefresh] = useState(0);
+  const [matchCount, setMatchCount] = useState("");
+  useEffect(() => {
+    if (tab === "goto" || !canRun) { onClearHighlight(); setHighlightOn(false); setMatchCount(""); return; }
+    const timer = setTimeout(() => { const result = onHighlightAll(query, options, scope); setHighlightOn(true); setMatchCount(result); }, 200);
+    return () => clearTimeout(timer);
+  }, [query, options, scope, tab, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   // As in Word, the Format menu and No Formatting act on whichever box has the cursor.
   const formatTarget = () => (tab === "replace" && focused.current === "replace" ? "replace" : "find");
   const wild = options.wildcards;
@@ -493,8 +502,8 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
     if (!canRun) return;
     setSearched(true);
     if (action === "next") setMessage(onFindNext(query, options, scope));
-    else if (action === "replace") setMessage(onReplaceOne(query, replacement, options, scope, replaceFormat));
-    else if (action === "all") setMessage(onReplaceAll(query, replacement, options, scope, replaceFormat));
+    else if (action === "replace") { setMessage(onReplaceOne(query, replacement, options, scope, replaceFormat)); setRefresh(value => value + 1); }
+    else if (action === "all") { setMessage(onReplaceAll(query, replacement, options, scope, replaceFormat)); setRefresh(value => value + 1); }
     else { if (highlightOn) { onClearHighlight(); setHighlightOn(false); setMessage(""); } else { setMessage(onHighlightAll(query, options, scope)); setHighlightOn(true); } }
   };
   const insertSpecial = (id: string) => {
@@ -531,7 +540,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
           </>)}
           {tab === "replace" && row(<span>Replace w<u>i</u>th:</span>, <><input ref={replaceRef} className="w13-field" aria-label="Replace with" style={{ width: "100%" }} value={replacement} onFocus={() => { focused.current = "replace"; }} onChange={event => setReplacement(event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); run("replace"); } }} />
             {replaceText && <div className="w13-note" style={{ marginTop: 3 }}>Format: {replaceText}</div>}</>)}
-          <div role="status" aria-live="polite" style={{ minHeight: more ? 12 : 22, margin: "4px 0 0 88px", color: message.includes("not found") || message.includes("only be") ? "#a4262c" : "#0b5a0b" }}>{message}</div>
+          <div role="status" aria-live="polite" style={{ minHeight: more ? 12 : 22, margin: "4px 0 0 88px", color: message.includes("not found") || message.includes("only be") ? "#a4262c" : "#0b5a0b" }}>{message || matchCount}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: more ? 6 : 14 }}>
             <Button13 onClick={() => setMore(value => !value)}>{more ? "<< Less" : "More >>"}</Button13>
             <span style={{ flex: 1 }} />

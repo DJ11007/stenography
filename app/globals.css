@@ -1145,3 +1145,8 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .w13-page-preview { cursor: pointer; }
 .w13-page-preview > div { display: grid; align-content: center; justify-items: center; gap: 6px; }
 .w13-page-line { display: block; height: 2px; background: #9a9a9a; }
+
+/* Page border drawn per sheet (drawSheetBorders); the page element's own saved border is hidden. */
+.word-page-frame .word-document-page[data-sheet-borders] { border-color: transparent !important; }
+.word-pageborder-layer { position: absolute; inset: 0; pointer-events: none; }
+.word-pageborder-layer > div { position: absolute; box-sizing: border-box; }

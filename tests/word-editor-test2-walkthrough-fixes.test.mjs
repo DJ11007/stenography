@@ -97,3 +97,21 @@ test("Home > Borders has Word's full menu; Borders and Shading... works on parag
   assert.match(editor, /if\(value==="borders-shading"\)\{setDialog\(\{kind:"paragraphBorders",initial:paragraphBorderValues\(\)\}\);return\}/);
   assert.match(editor, /"insertCells","paragraphBorders"\]\)/);
 });
+
+// Third real attempt (2026-10-19).
+test("a page border can be on some sides only (bottom and right), saved as \"<css> sides:...\" and drawn on every sheet", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /function setPageBorder\(page: HTMLElement, text: string\) \{/);
+  assert.match(editor, /border:pageBorderText\(editor\)/);
+  assert.match(editor, /if\(text\("border"\)\)setPageBorder\(editor,text\("border"\)\);/);
+  assert.match(editor, /function drawSheetBorders\(page: HTMLElement, sheets: number, sheetHeight: number, step: number, zoom: number\) \{/);
+  assert.match(editor, /pageBorders:\(\)=>setDialog\(\{kind:"paragraphBorders",initial:paragraphBorderValues\(\),tab:"page"\}\)/);
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /pageEdge\("bottom", ln\("M3 17h14"\), "Bottom Border"\)/);
+});
+
+test("Find and Replace keeps every match highlighted while open, refreshed after each Replace", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /const result = onHighlightAll\(query, options, scope\); setHighlightOn\(true\); setMatchCount\(result\);/);
+  assert.match(dialogs, /setMessage\(onReplaceAll\(query, replacement, options, scope, replaceFormat\)\); setRefresh\(value => value \+ 1\);/);
+});
