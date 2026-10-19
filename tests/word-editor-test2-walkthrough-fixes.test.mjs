@@ -140,3 +140,13 @@ test("dialog drop-downs (colour palette, Format menu) are not cut short with nee
   assert.match(dialogs, /menu\.scrollHeight \+ menu\.offsetHeight - menu\.clientHeight/);
   assert.match(dialogs, /Math\.min\(height, window\.innerHeight - top - 8\)/);
 });
+
+// User's attempt 2026-10-19: typed 0.8 / 0.5 / 1 (the paper's inches) and got 0.8 cm, 0.5 cm, 1 cm.
+test("margins, gutter and indents are shown and typed in inches, as in Word for English (US): a plain 0.8 is 0.8\"", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /if \(dimension === "inches"\) return amount \* \(unit \? TO_CM\[unit\] : 2\.54\);/);
+  assert.match(dialogs, /value=\{values\[key\]\} onChange=\{value => set\(\{ \[key\]: Math\.max\(0, value \?\? 0\) \}\)\} dimension="inches"/);
+  assert.match(dialogs, /value=\{rightCm\} dimension="inches"/);
+  const ribbon = await read("components/word-efficiency/word-page-layout.tsx");
+  assert.match(ribbon, /<Spin label="Indent right" unit="in"/);
+});

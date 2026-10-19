@@ -59,7 +59,9 @@ function Button13({ children, onClick, disabled, isDefault, title }: { children:
 
 // ---- Number field: typed text is taken as it is typed (digits, decimals, units); the
 // up/down arrows and the ArrowUp/ArrowDown keys step it. ----
-type Dimension = "length" | "points" | "plain";
+// "inches": the value is kept in cm, but shown and typed in inches, as in Word set up for English (US):
+// a plain 0.8 means 0.8" (the exam papers give every margin and indent in inches).
+type Dimension = "length" | "inches" | "points" | "plain";
 const TO_CM: Record<string, number> = { cm: 1, mm: 0.1, in: 2.54, '"': 2.54, pt: 2.54 / 72, pc: 2.54 / 6 };
 const TO_PT: Record<string, number> = { pt: 1, in: 72, '"': 72, cm: 72 / 2.54, mm: 72 / 25.4, pc: 12 };
 function parseMeasure(text: string, dimension: Dimension): number | null {
@@ -67,6 +69,7 @@ function parseMeasure(text: string, dimension: Dimension): number | null {
   if (!match) return null;
   const amount = Number(match[1]);
   const unit = (match[2] ?? "").toLowerCase();
+  if (dimension === "inches") return amount * (unit ? TO_CM[unit] : 2.54);
   if (!unit || dimension === "plain") return amount;
   return amount * (dimension === "length" ? TO_CM[unit] : TO_PT[unit]);
 }
@@ -75,12 +78,14 @@ const formatNumber = (value: number, decimals: number) => String(Number(value.to
 function Number13({ value, onChange, unit = "", dimension = "plain", step = 1, min = 0, max = 1000, decimals = 2, disabled, label, width = 78, blankWhenEmpty }: {
   value: number | null; onChange: (value: number | null) => void; unit?: string; dimension?: Dimension; step?: number; min?: number; max?: number; decimals?: number; disabled?: boolean; label: string; width?: number; blankWhenEmpty?: boolean;
 }) {
-  const show = (current: number | null) => (current === null ? "" : `${formatNumber(current, decimals)}${unit ? ` ${unit}` : ""}`);
+  const inches = dimension === "inches";
+  const show = (current: number | null) => (current === null ? "" : inches ? `${formatNumber(current / 2.54, decimals)}"` : `${formatNumber(current, decimals)}${unit ? ` ${unit}` : ""}`);
   const [text, setText] = useState(() => show(value));
   const [editing, setEditing] = useState(false);
   useEffect(() => { if (!editing) setText(show(value)); }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const clamp = (number: number) => Math.min(max, Math.max(min, number));
-  const spin = (direction: 1 | -1) => { const next = clamp((value ?? 0) + direction * step); onChange(Number(next.toFixed(decimals + 1))); setText(show(next)); };
+  // with inches the step is in inches (0.1" a click, as in Word)
+  const spin = (direction: 1 | -1) => { const next = clamp((value ?? 0) + direction * step * (inches ? 2.54 : 1)); onChange(Number(next.toFixed(decimals + 2))); setText(show(next)); };
   return (
     <span className="w13-spin" style={{ width }}>
       <input aria-label={label} inputMode="decimal" disabled={disabled} value={blankWhenEmpty && value === null ? "" : text} placeholder=""
@@ -241,12 +246,12 @@ export function ParagraphDialog2013({ values: initial, onSubmit }: { values: Par
             <Check13 checked={false} disabled>Collapsed by default</Check13></div>
           <Group13>Indentation</Group13>
           <div style={{ display: "grid", gridTemplateColumns: "56px 100px 1fr", gap: "6px 8px", alignItems: "center", marginLeft: 12 }}>
-            <span>Left:</span><Number13 label="Left indent" value={leftCm} unit="cm" dimension="length" step={0.1} min={0} max={25} onChange={n => set("marginLeft", asInches(n))} />
+            <span>Left:</span><Number13 label="Left indent" value={leftCm} dimension="inches" step={0.1} min={0} max={25} onChange={n => set("marginLeft", asInches(n))} />
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 52 }}>Special:</span><span style={{ flex: 1 }} /><span>By:</span></div>
-            <span>Right:</span><Number13 label="Right indent" value={rightCm} unit="cm" dimension="length" step={0.1} min={0} max={25} onChange={n => set("marginRight", asInches(n))} />
+            <span>Right:</span><Number13 label="Right indent" value={rightCm} dimension="inches" step={0.1} min={0} max={25} onChange={n => set("marginRight", asInches(n))} />
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <select className="w13-select" aria-label="Special indent" style={{ width: 118 }} value={values.specialIndentMode} onChange={event => { const mode = event.target.value; setValues(current => ({ ...current, specialIndentMode: mode, specialIndentAmount: mode === "none" ? "0" : Number(current.specialIndentAmount) > 0 ? current.specialIndentAmount : "0.5" })); }}><option value="none">(none)</option><option value="firstLine">First line</option><option value="hanging">Hanging</option></select>
-              <Number13 label="Special indent by" value={values.specialIndentMode === "none" ? null : byCm} blankWhenEmpty unit="cm" dimension="length" step={0.1} min={0} max={25} disabled={values.specialIndentMode === "none"} width={70} onChange={n => set("specialIndentAmount", asInches(n))} />
+              <Number13 label="Special indent by" value={values.specialIndentMode === "none" ? null : byCm} blankWhenEmpty dimension="inches" step={0.1} min={0} max={25} disabled={values.specialIndentMode === "none"} width={70} onChange={n => set("specialIndentAmount", asInches(n))} />
             </div>
             <span />
             <div style={{ gridColumn: "2 / span 2" }}><Check13 checked={false} disabled title="Mirror indents are not used in this exam editor.">Mirror indents</Check13></div>
@@ -1343,7 +1348,7 @@ export function PageSetupDialog2013({ values: initial, initialTab = "margins", o
   const mirror = values.multiplePages === "mirror";
   const field = (key: "top" | "bottom" | "left" | "right" | "gutter", label: ReactNode, aria: string) => <>
     <span className="w13-label">{label}</span>
-    <Number13 label={aria} value={values[key]} onChange={value => set({ [key]: Math.max(0, value ?? 0) })} unit="cm" dimension="length" step={0.1} min={0} max={9.99} decimals={2} width={96} />
+    <Number13 label={aria} value={values[key]} onChange={value => set({ [key]: Math.max(0, value ?? 0) })} dimension="inches" step={0.1} min={0} max={55.88} decimals={2} width={96} />
   </>;
   const apply = <div className="w13-row" style={{ marginTop: 8 }}><span>Appl<u>y</u> to:</span><select className="w13-select" style={{ width: 140 }} aria-label="Apply to" value="whole" onChange={() => undefined}><option value="whole">Whole document</option></select></div>;
   return (

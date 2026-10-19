@@ -100,17 +100,20 @@ function ArrangeIcon({ name }: { name: string }) {
   }
 }
 
-// Indent / Spacing spin box (cm or pt), committed on Enter, blur or the arrows.
-function Spin({ label, value, unit, step, min, max, onCommit, disabled }: { label: string; value: number; unit: "cm" | "pt"; step: number; min: number; max: number; onCommit: (value: number) => void; disabled?: boolean }) {
+// Indent / Spacing spin box, committed on Enter, blur or the arrows. "in": the value is in cm but
+// shown and typed in inches, as in Word for English (US) -- a plain 1 means 1", and the arrows step 0.1".
+function Spin({ label, value, unit, step, min, max, onCommit, disabled }: { label: string; value: number; unit: "cm" | "in" | "pt"; step: number; min: number; max: number; onCommit: (value: number) => void; disabled?: boolean }) {
   const [text, setText] = useState<string | null>(null);
-  const shown = text ?? `${Math.round(value * 100) / 100} ${unit}`;
-  const clamp = (number: number) => Math.min(max, Math.max(min, Math.round(number * 100) / 100));
+  const inches = unit === "in";
+  if (inches) step = step * 2.54;
+  const shown = text ?? (inches ? `${Math.round(value / 2.54 * 100) / 100}"` : `${Math.round(value * 100) / 100} ${unit}`);
+  const clamp = (number: number) => Math.min(max, Math.max(min, Math.round(number * 10000) / 10000));
   const commit = (raw: string) => {
     setText(null);
     const match = /^\s*(-?\d*\.?\d+)\s*(cm|mm|in|"|pt)?\s*$/i.exec(raw.replace(",", "."));
     if (!match) return;
     const amount = Number(match[1]), given = (match[2] ?? unit).toLowerCase();
-    const inUnit = unit === "cm" ? (given === "mm" ? amount / 10 : given === "in" || given === '"' ? amount * 2.54 : given === "pt" ? amount * 2.54 / 72 : amount) : (given === "cm" ? amount * 72 / 2.54 : given === "in" || given === '"' ? amount * 72 : given === "mm" ? amount * 72 / 25.4 : amount);
+    const inUnit = unit !== "pt" ? (given === "mm" ? amount / 10 : given === "in" || given === '"' ? amount * 2.54 : given === "pt" ? amount * 2.54 / 72 : amount) : (given === "cm" ? amount * 72 / 2.54 : given === "in" || given === '"' ? amount * 72 : given === "mm" ? amount * 72 / 25.4 : amount);
     onCommit(clamp(inUnit));
   };
   return <span className="wt-spin wp-spin">
@@ -198,8 +201,8 @@ export function PageLayoutGroups({ state, on }: { state: PageLayoutState; on: On
       <div className="wp-para">
         <div className="wp-para-col">
           <span className="wp-para-head">Indent</span>
-          <label><Icon16 name="indentLeft" /><span>Left:</span><Spin label="Indent left" unit="cm" value={state.indentLeft} step={0.1} min={-55} max={55} onCommit={value => on("indentLeft", String(value))} /></label>
-          <label><Icon16 name="indentRight" /><span>Right:</span><Spin label="Indent right" unit="cm" value={state.indentRight} step={0.1} min={-55} max={55} onCommit={value => on("indentRight", String(value))} /></label>
+          <label><Icon16 name="indentLeft" /><span>Left:</span><Spin label="Indent left" unit="in" value={state.indentLeft} step={0.1} min={-55} max={55} onCommit={value => on("indentLeft", String(value))} /></label>
+          <label><Icon16 name="indentRight" /><span>Right:</span><Spin label="Indent right" unit="in" value={state.indentRight} step={0.1} min={-55} max={55} onCommit={value => on("indentRight", String(value))} /></label>
         </div>
         <div className="wp-para-col">
           <span className="wp-para-head">Spacing</span>
