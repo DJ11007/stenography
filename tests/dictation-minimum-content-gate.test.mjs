@@ -18,7 +18,7 @@ test("Submit is never blocked by how much the student has typed -- only a comple
   assert.doesNotMatch(editor, /MINIMUM_DICTATION_CONTENT_PERCENT/);
   assert.doesNotMatch(editor, /contentRequirementMet/);
   assert.doesNotMatch(editor, /contentStatus/);
-  assert.match(editor, /const submit = \(\) => \{ if \(!typedText\.trim\(\)\) \{ window\.alert\("Please write at least one word before submitting\."\); return; \}/);
+  assert.match(editor, /const submit = \(\) => \{ if \(!typedText\.trim\(\)\) \{ setExamNotice\("Please write at least one word before submitting\."\); return; \}/);
 });
 
 test("the Submit button is always enabled (no disabled/title tied to a content requirement) and the Ctrl+Enter shortcut no longer checks one either", async () => {

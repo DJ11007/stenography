@@ -808,6 +808,8 @@ ol[data-list-style="lower-alpha-paren"] > li::marker { content: counter(list-ite
 ::highlight(word-find-current) { background-color: #ff9d2e; color: #000; }
 /* Find In: every match "selected", grey like Word's selection. */
 ::highlight(word-find-selected) { background-color: #c8c8c8; color: #000; }
+/* The selection stays visible (grey, as in Word) while focus is in a ribbon box such as Font / Font Size. */
+::highlight(word-kept-selection) { background-color: #c8c8c8; }
 /* Table Tools: cells chosen with Select Row / Column / Table. */
 .word-cell-selected { background-color: #d4d4d4 !important; }
 

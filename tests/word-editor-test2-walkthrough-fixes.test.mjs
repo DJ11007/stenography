@@ -245,3 +245,12 @@ test("a document that fails validation still submits once time is up (the server
   assert.match(actions, /catch\(validationError\)\{.*safeDocument=INVALID_DOCUMENT_PLACEHOLDER\}/);
   assert.doesNotMatch(actions, /submitWordDocument\(attemptId:string,document:unknown\):Promise<\{ok:boolean;error:string\}>\{try\{const safeDocument=validateWordEditorDocument\(document\);/);
 });
+
+// Test 1 Q8 (2026-10-19): typing a font name / 18.5 in the ribbon boxes applied to nothing.
+test("ribbon Font / Font Size boxes keep the page selection (focusing the page no longer replaces it with a cursor)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const focusKeepingSelection=\(\)=>\{const page=editor\.current;/);
+  assert.match(editor, /const exec=\(name:string,value\?:string\)=>\{focusKeepingSelection\(\);/);
+  assert.doesNotMatch(editor, /editor\.current\?\.focus\(\);restoreSelection\(\);/);
+  assert.match(editor, /onBlur=\{\(\)=>\{const kept=savedRange\.current;if\(kept&&!kept\.collapsed/);
+});

@@ -50,7 +50,7 @@ test("Word and Excel Efficiency results always show the question list (not gated
  assert.match(excelMigration,/'awardedMarks',case when is_published then score_rows\.awarded_marks else null end/);
  for(const page of[wordPage,excelPage]){
   assert.doesNotMatch(page,/function Pending\(/);
-  assert.match(page,/<Published result=\{result\} catalogue=\{catalogue\}\s*\/>/);
+  assert.match(page,/<Published result=\{result\} catalogue=\{catalogue\}(?: attemptId=\{attemptId\})?\s*\/>/);
   assert.match(page,/result\.status\s*!==\s*"published"\s*&&\s*<p role="status"/);
   assert.match(page,/Submitted — evaluation pending\. /);
  }
