@@ -446,6 +446,9 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   if(scopeRange)matches=matches.filter(match=>{const range=rangeForMatch(segments,match.index,match.length);return Boolean(range)&&scopeRange.compareBoundaryPoints(Range.START_TO_START,range!)<=0&&scopeRange.compareBoundaryPoints(Range.END_TO_END,range!)>=0});
   return{matches,segments,text}
  };
+ // Matches that touch (Any Letter ^$ matches every letter of a word) are counted as words, which
+ // is what a student is looking for: "129 words (715 letters)" rather than "715 items".
+ const countMatches=(matches:TextMatch[],text:string,noun:string)=>{let groups=0,end=-1;for(const match of matches){if(match.index!==end)groups++;end=match.index+match.length}const plural=(count:number,word:string)=>`${count} ${word}${count===1?"":"s"}`;if(groups===matches.length)return plural(matches.length,noun);const letters=matches.every(match=>/^[A-Za-zÀ-ɏऀ-ॿ]+$/.test(text.slice(match.index,match.index+match.length)));return`${plural(groups,"word")} (${plural(matches.length,letters?"letter":"character")})`};
  const selectMatch=(range:Range)=>{const selection=getSelection();selection?.removeAllRanges();selection?.addRange(range);savedRange.current=range.cloneRange();paintHighlight("word-find-current",[range.cloneRange()]);const target=range.startContainer instanceof Element?range.startContainer:range.startContainer.parentElement;target?.scrollIntoView({block:"center"})};
  // Returns the user-facing message for the dialog.
  const findNext=(needle:string,options:FindEngineOptions,scope:"selection"|"document"):string=>{
@@ -467,7 +470,7 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  // criteria." Browsers allow only one selection range, so the matches are painted as a selection
  // and the real selection is put on the first one.
  const selectAllMatches=(needle:string,options:FindEngineOptions,scope:"selection"|"document"):string=>{
-  const{matches,segments}=collectMatches(needle,options,scope);
+  const{matches,segments,text}=collectMatches(needle,options,scope);
   const ranges=matches.map(match=>rangeForMatch(segments,match.index,match.length)).filter((range):range is Range=>Boolean(range));
   clearFindHighlights();
   if(!ranges.length)return`Search text not found${scope==="selection"?" in the selection":""}.`;
@@ -475,15 +478,15 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   const spans:{index:number;length:number}[]=[];for(const match of matches){const last=spans[spans.length-1];if(last&&last.index+last.length===match.index)last.length+=match.length;else spans.push({index:match.index,length:match.length})}
   findSelection.current=spans;
   const selection=getSelection();selection?.removeAllRanges();selection?.addRange(ranges[0].cloneRange());savedRange.current=ranges[0].cloneRange();
-  return`Word found ${ranges.length} item${ranges.length===1?"":"s"} matching this criteria.`
+  return`Word found ${countMatches(matches,text,"item")} matching this criteria.`
  };
  const highlightAll=(needle:string,options:FindEngineOptions,scope:"selection"|"document"):string=>{
   dropFindSelection();
-  const{matches,segments}=collectMatches(needle,options,scope);
+  const{matches,segments,text}=collectMatches(needle,options,scope);
   const ranges=matches.map(match=>rangeForMatch(segments,match.index,match.length)).filter((range):range is Range=>Boolean(range));
   if(!ranges.length){clearFindHighlights();return"Search text not found."}
   paintHighlight("word-find-all",ranges);
-  return`${ranges.length} match${ranges.length===1?"":"es"} highlighted.`
+  return`${countMatches(matches,text,"match").replace(/^(\d+) matchs/,"$1 matches")} highlighted.`
  };
  // Replace one match with the (expanded) replacement text, through the editor's own commands so
  // formatting is inherited and undo works. A ^p in the replacement becomes a real paragraph break.
@@ -533,8 +536,8 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   const steps:typeof plan=[];for(const item of plan){const last=steps[steps.length-1];if(last&&item.text===""&&last.text===""&&replaceFormat&&last.index+last.length===item.index)last.length+=item.length;else steps.push({...item})}
   let count=0;
   for(let i=steps.length-1;i>=0;i--){const item=steps[i];const range=rangeForMatch(buildDocumentText(editor.current).segments,item.index,item.length);if(!range)continue;replaceMatch(range,item.text,replaceFormat)}
-  count=plan.length;
-  return`Replaced ${count} occurrence${count===1?"":"s"}${scope==="selection"?" in the selection":""}.`
+  count=plan.length;void count;
+  return`Replaced ${countMatches(matches,text,"occurrence")}${scope==="selection"?" in the selection":""}.`
  };
  const find=(replace:boolean)=>{
   const bookmarks=editor.current?[...editor.current.querySelectorAll("[data-bookmark]")].map(element=>(element as HTMLElement).dataset.bookmark).filter((value):value is string=>Boolean(value)):[];

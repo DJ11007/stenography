@@ -219,3 +219,15 @@ test("dragging from one table cell into another selects the rectangle of cells (
   assert.match(editor, /onMouseMove=\{moveCellDrag\} onMouseUp=\{event=>\{endCellDrag\(\);/);
   assert.match(editor, /startCellDrag\(event\);handleEditorMouseDown\(event\)/);
 });
+
+test("matches that touch (Any Letter ^$) are reported as words: \"129 words (715 letters)\"", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const countMatches=\(matches:TextMatch\[\],text:string,noun:string\)=>\{/);
+  assert.match(editor, /return`Word found \$\{countMatches\(matches,text,"item"\)\} matching this criteria\.`/);
+});
+
+test("a document that fails validation still submits once time is up (the server then uses the last autosave)", async () => {
+  const actions = await read("app/typing/word-efficiency/actions.ts");
+  assert.match(actions, /catch\(validationError\)\{.*safeDocument=INVALID_DOCUMENT_PLACEHOLDER\}/);
+  assert.doesNotMatch(actions, /submitWordDocument\(attemptId:string,document:unknown\):Promise<\{ok:boolean;error:string\}>\{try\{const safeDocument=validateWordEditorDocument\(document\);/);
+});
