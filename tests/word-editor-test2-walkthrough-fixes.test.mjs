@@ -266,3 +266,8 @@ test("Test 1 Q8: font and size boxes keep the text selected and show the chosen 
   assert.match(editor, /const focusKeepingSelection=\(\)=>\{/);
   assert.match(editor, /word-kept-selection/);
 });
+
+test("text with no font of its own shows Calibri (Body) in the Font box, not the page's Segoe UI", async () => {
+  const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /const family=styledFont\?approvedFont\(getComputedStyle\(fontSource\)\.fontFamily\):"Calibri \(Body\)";/);
+});
