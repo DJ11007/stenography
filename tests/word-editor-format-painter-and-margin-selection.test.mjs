@@ -48,7 +48,7 @@ test("clicking in the page's left margin selects a line (1 click), paragraph (2)
   assert.match(editor, /const selectByMargin=\(count:number,clientY:number,rect:DOMRect,paddingLeft:number\)=>\{/);
   assert.match(editor, /if\(count>=3\)\{[\s\S]{0,120}range\.selectNodeContents\(editor\.current\)/);
   assert.match(editor, /selection\.modify\("move","backward","lineboundary"\);selection\.modify\("extend","forward","lineboundary"\)/);
-  assert.match(editor, /onMouseDown=\{event=>\{if\(tableMode!=="off"&&!submitted\)\{tableModeMouseDown\(event\);return\}.*?if\(cellSelection\.current\.length\)setCellSelection\(\[\]\);handleEditorMouseDown\(event\)\}\}/);
+  assert.match(editor, /onMouseDown=\{event=>\{if\(tableMode!=="off"&&!submitted\)\{tableModeMouseDown\(event\);return\}.*?if\(cellSelection\.current\.length\)setCellSelection\(\[\]\);dropFindSelection\(\);handleEditorMouseDown\(event\)\}\}/);
 });
 
 test("margin clicks use time+proximity based counting (not native dblclick) so a tall paragraph's margin still counts as one double click", async () => {

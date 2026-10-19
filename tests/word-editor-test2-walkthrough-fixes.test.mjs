@@ -132,7 +132,7 @@ test("a short selection goes into Find what and the whole document is searched, 
   const editor = await read(EDITOR);
   assert.match(editor, /query:selectionIsQuery\?selected:query,selectionIsQuery,/);
   const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
-  assert.match(dialogs, /useEffect\(\(\) => \{ setMessage\(""\); \}, \[query, options, scope, tab\]\);/);
+  assert.match(dialogs, /useEffect\(\(\) => \{ if \(selectedAll\.current\) \{ selectedAll\.current = false; return; \} setMessage\(""\); \}, \[query, options, scope, tab\]\);/);
 });
 
 test("dialog drop-downs (colour palette, Format menu) are not cut short with needless scrollbars", async () => {
