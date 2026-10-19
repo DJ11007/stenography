@@ -31,6 +31,7 @@ export function AnswerReview({ attemptId, snapshot, document }: { attemptId: str
           capabilities={snapshot.editor_capabilities}
           initialDocument={document}
           locked
+          hideSubmit
           documentLanguage={snapshot.language.toLowerCase() === "hindi" ? "Hindi" : "English (U.S.)"}
           questionBar={questions.length ? <QuestionBar questions={questions} current={current} onSelect={setCurrent} language={snapshot.language} /> : undefined}
         />
