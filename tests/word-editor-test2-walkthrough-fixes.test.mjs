@@ -150,3 +150,20 @@ test("margins, gutter and indents are shown and typed in inches, as in Word for 
   const ribbon = await read("components/word-efficiency/word-page-layout.tsx");
   assert.match(ribbon, /<Spin label="Indent right" unit="in"/);
 });
+
+// User's attempt 2026-10-19: Find ^$ (Any Letter) > Find In > Current Selection, then Highlight + Font Color.
+test("after Find In selects every match, formatting applies to ALL of them (it reached only the first)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const findSelection=useRef<\{index:number;length:number\}\[\]\|null>\(null\);/);
+  assert.match(editor, /if\(!cells\.length&&findSelection\.current\?\.length&&editor\.current\)\{const spans=findSelection\.current;for\(let i=spans\.length-1;i>=0;i--\)/);
+  assert.match(editor, /findSelection\.current=spans;/);
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /useEffect\(\(\) => \(\) => onClearHighlight\(true\), \[\]\);/);
+  assert.match(dialogs, /if \(picked !== scope\) selectedAll\.current = true;/);
+});
+
+test("grading also accepts formatting applied to the words only (spaces/punctuation left plain)", async () => {
+  const migration = await read("supabase/migrations/202610191200_word_efficiency_words_only_runs.sql");
+  assert.match(migration, /continue when coalesce\(run->>'text', ''\) !~ '\[\[:alnum:\]\]';/);
+  assert.match(migration, /earned:=round\(greatest\(/);
+});

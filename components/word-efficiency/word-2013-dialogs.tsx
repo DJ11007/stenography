@@ -471,7 +471,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   onReplaceAll: (needle: string, replacement: string, options: FindEngineOptions, scope: Scope, replaceFormat: ReplaceFormat | null) => string;
   onHighlightAll: (needle: string, options: FindEngineOptions, scope: Scope) => string;
   onSelectAll: (needle: string, options: FindEngineOptions, scope: Scope) => string;
-  onClearHighlight: () => void;
+  onClearHighlight: (keepSelection?: boolean) => void;
   onGoTo: (kind: string, value: string) => void;
 }) {
   const chrome = useContext(Word13Chrome);
@@ -491,20 +491,24 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
   const focused = useRef<"find" | "replace">("find");
   const set = <K extends keyof FindEngineOptions>(key: K, value: FindEngineOptions[K]) => setOptions(current => ({ ...current, [key]: value }));
   useEffect(() => { findRef.current?.focus(); findRef.current?.select(); }, [tab]);
-  useEffect(() => () => onClearHighlight(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onClearHighlight(true), []); // eslint-disable-line react-hooks/exhaustive-deps
   const canRun = query.length > 0 || Boolean(options.format);
   // Every match stays highlighted while the dialog is open (as Word marks the search results),
   // updated as Find what or the options change and after each Replace.
   const [refresh, setRefresh] = useState(0);
   const [matchCount, setMatchCount] = useState("");
+  // Find In just selected every match in the new scope: the live highlight (and message reset) must
+  // not run over that selection and its "Word found N items" message.
+  const selectedAll = useRef(false);
   useEffect(() => {
+    if (selectedAll.current) return;
     if (tab === "goto" || !canRun) { onClearHighlight(); setHighlightOn(false); setMatchCount(""); return; }
     const timer = setTimeout(() => { const result = onHighlightAll(query, options, scope); setHighlightOn(true); setMatchCount(result); }, 200);
     return () => clearTimeout(timer);
   }, [query, options, scope, tab, refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   // A message from the last action (e.g. "Search text not found.") is cleared as soon as the
   // search changes, so the live match count shows again.
-  useEffect(() => { setMessage(""); }, [query, options, scope, tab]);
+  useEffect(() => { if (selectedAll.current) { selectedAll.current = false; return; } setMessage(""); }, [query, options, scope, tab]);
   // As in Word, the Format menu and No Formatting act on whichever box has the cursor.
   const formatTarget = () => (tab === "replace" && focused.current === "replace" ? "replace" : "find");
   const wild = options.wildcards;
@@ -559,7 +563,7 @@ export function FindReplaceDialog2013({ dialog, onFindNext, onReplaceOne, onRepl
               {/* Word 2013: Find In becomes available as soon as Find what has text. Picking Main Document (or
                   Current Selection, when there was one) marks every match in it at once; the scope then carries
                   over to the Replace tab. */}
-              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const picked = id as Scope; setScope(picked); setHighlightOn(false); setSearched(true); setMessage(onSelectAll(query, options, picked)); }} />
+              <MenuButton13 label="Find In" disabled={!canRun} items={[{ id: "selection", label: "Current Selection", disabled: !dialog.hadSelection }, { id: "document", label: "Main Document" }]} onPick={id => { const picked = id as Scope; if (picked !== scope) selectedAll.current = true; setScope(picked); setHighlightOn(false); setSearched(true); setMessage(onSelectAll(query, options, picked)); }} />
               <Button13 isDefault disabled={!canRun} onClick={() => run("next")}>Find Next</Button13>
             </> : <>
               <Button13 disabled={!canRun} onClick={() => run("replace")}>Replace</Button13>
