@@ -167,3 +167,10 @@ test("grading also accepts formatting applied to the words only (spaces/punctuat
   assert.match(migration, /continue when coalesce\(run->>'text', ''\) !~ '\[\[:alnum:\]\]';/);
   assert.match(migration, /earned:=round\(greatest\(/);
 });
+
+// Own attempt 2026-10-19 (25/25): Undo seemed to do nothing after a ribbon change.
+test("Undo history leaves out the page layout (push margins, sheet height), so Undo steps real edits, not invisible re-layouts", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /for\(const block of clone\.querySelectorAll<HTMLElement>\("\[data-page-push\]"\)\)\{block\.removeAttribute\("data-page-push"\);block\.style\.removeProperty\("--page-push-mt"\);/);
+  assert.match(editor, /clone\.style\.removeProperty\("min-height"\);return\{html:clone\.innerHTML/);
+});
