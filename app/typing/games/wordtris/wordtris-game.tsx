@@ -52,6 +52,17 @@ const NEXT_DROP_DELAY_MS = 250;
 // actual attempt to type the falling word.
 const MODIFIER_ONLY_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "Tab"]);
 
+// Kruti Dev letters with no key of their own (ऊ "Å", ट्र's "ª", क्र "Ø", त्त "Ù", ँ "¡", ...) are typed
+// with Windows Alt codes -- hold Alt, type the number on the number pad. The code is the character's
+// Windows-1252 byte: Latin-1 characters are their own code point, the few in 0x80-0x9F are mapped here.
+const CP1252_HIGH: Record<string, number> = { "€": 128, "‚": 130, "ƒ": 131, "„": 132, "…": 133, "†": 134, "‡": 135, "ˆ": 136, "‰": 137, "Š": 138, "‹": 139, "Œ": 140, "Ž": 142, "‘": 145, "’": 146, "“": 147, "”": 148, "•": 149, "–": 150, "—": 151, "˜": 152, "™": 153, "š": 154, "›": 155, "œ": 156, "ž": 158, "Ÿ": 159 };
+export function wordtrisAltCode(char: string | undefined): string | null {
+  if (!char) return null;
+  const code = CP1252_HIGH[char] ?? char.codePointAt(0)!;
+  return code >= 128 && code <= 255 ? `Alt+0${code}` : null;
+}
+const DEVANAGARI_TYPED = /[\u0900-\u097F]/;
+
 function shuffledPool(list: string[]) {
   const pool = [...list];
   for (let i = pool.length - 1; i > 0; i -= 1) {
@@ -174,6 +185,11 @@ export function WordtrisGame({ words, characterPool }: Props) {
   const [typed, setTyped] = useState("");
   const [flash, setFlash] = useState<"catch" | "miss" | null>(null);
   const [inputShake, setInputShake] = useState(false);
+  // Why a keystroke is not being accepted, when the cause is the student's keyboard rather than a
+  // wrong key: Caps Lock (Kruti Dev is case-sensitive, so every Hindi letter flips to another one) or a
+  // Unicode Hindi keyboard (Kruti Dev is typed with the ENGLISH layout). Both used to just do nothing.
+  const [capsLock, setCapsLock] = useState(false);
+  const [unicodeKeyboard, setUnicodeKeyboard] = useState(false);
   const [readoutFontSize, setReadoutFontSize] = useState(READOUT_DEFAULT_FONT_PX);
   // Every missed drop stacks up as its own labeled block at the bottom of
   // the bucket (the same "missed words pile up" visual the reference game
@@ -405,7 +421,14 @@ export function WordtrisGame({ words, characterPool }: Props) {
 
   const handleTyped = (value: string) => {
     const isShrinking = value.length < typed.length && typed.startsWith(value);
-    if (!isShrinking && value && !isValidPrefix(value)) return;
+    if (!isShrinking && value && !isValidPrefix(value)) {
+      if (language === "hindi" && DEVANAGARI_TYPED.test(value)) setUnicodeKeyboard(true);
+      // A rejected key used to be silently dropped -- shake the readout so the student sees it.
+      setInputShake(true);
+      window.setTimeout(() => setInputShake(false), 320);
+      return;
+    }
+    setUnicodeKeyboard(false);
     setTyped(value);
   };
 
@@ -437,6 +460,7 @@ export function WordtrisGame({ words, characterPool }: Props) {
   // real continuation of the target phrase, so it's left to type
   // normally instead of being intercepted.
   const handleTypedKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (typeof event.getModifierState === "function") setCapsLock(event.getModifierState("CapsLock"));
     // Real reported request: the first drop shouldn't fall the instant
     // Start is clicked -- the play field waits until the student actually
     // presses a key (any real key, not just a lone modifier).
@@ -714,6 +738,20 @@ export function WordtrisGame({ words, characterPool }: Props) {
                 <span className="text-xs font-bold text-slate-400">{awaitingFirstKey ? "⌨ Press any key to start…" : "Get ready…"}</span>
               )}
             </button>
+            {(() => {
+              const nextAlt = activeDrop && language === "hindi" ? wordtrisAltCode(activeDrop.target[typedLength]) : null;
+              const warning = language === "hindi" && capsLock
+                ? "Caps Lock is ON -- turn it OFF. Kruti Dev letters change with Caps Lock, so your keys are not accepted."
+                : unicodeKeyboard
+                  ? "Your keyboard is typing Unicode Hindi. Switch it to English (ENG) -- Kruti Dev is typed with English keys."
+                  : null;
+              return (
+                <>
+                  {nextAlt && <p className="mx-auto mt-1 w-fit rounded-md bg-amber-100 px-2 py-0.5 text-center text-xs font-black text-amber-900">Next letter: hold <kbd>Alt</kbd>, type <kbd>{nextAlt.slice(4)}</kbd> on the number pad ({nextAlt})</p>}
+                  {warning && <p role="alert" className="mx-auto mt-1 max-w-sm rounded-md bg-rose-100 px-2 py-1 text-center text-xs font-black text-rose-800">{warning}</p>}
+                </>
+              );
+            })()}
 
             {/* The actual keystroke-capturing input -- carries the real
                 accessible label (the button above is purely decorative,
@@ -727,7 +765,13 @@ export function WordtrisGame({ words, characterPool }: Props) {
               value={typed}
               onChange={(event) => handleTyped(event.target.value)}
               onKeyDown={handleTypedKeyDown}
+              onKeyUp={(event) => { if (typeof event.getModifierState === "function") setCapsLock(event.getModifierState("CapsLock")); }}
               spellCheck={false}
+              // Phone and tablet keyboards capitalise the first letter and autocorrect words; Kruti Dev
+              // is case-sensitive ("v" is अ, "V" is ट), so either one turns a correct key into a wrong one.
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
               autoFocus
               aria-label={`Type the falling ${mode === "character" ? "character" : "word"}, then press Space`}
               className="absolute h-px w-px overflow-hidden whitespace-nowrap opacity-0"
