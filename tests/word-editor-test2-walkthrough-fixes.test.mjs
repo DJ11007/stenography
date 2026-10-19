@@ -254,3 +254,15 @@ test("ribbon Font / Font Size boxes keep the page selection (focusing the page n
   assert.doesNotMatch(editor, /editor\.current\?\.focus\(\);restoreSelection\(\);/);
   assert.match(editor, /onBlur=\{\(\)=>\{const kept=savedRange\.current;if\(kept&&!kept\.collapsed/);
 });
+
+test("Test 1 Q8: font and size boxes keep the text selected and show the chosen values", async () => {
+  const ribbon = await readFile(new URL("../components/word-efficiency/word-editor-ribbon.tsx", import.meta.url), "utf8");
+  // the size box commits once (Enter), not again on blur, which used to collapse the selection
+  assert.match(ribbon, /const edited = useRef\(false\);/);
+  // after a font is chosen the box shows that font, not the stale one from before the choice
+  assert.match(ribbon, /const chosenRef=useRef<string\|null>\(null\);/);
+  assert.match(ribbon, /setText\(chosenRef\.current\?\?selected\);chosenRef\.current=null;/);
+  const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /const focusKeepingSelection=\(\)=>\{/);
+  assert.match(editor, /word-kept-selection/);
+});
