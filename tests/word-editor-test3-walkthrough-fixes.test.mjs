@@ -72,3 +72,13 @@ test("Dot-dash and Dot-dot-dash underlines are drawn as their real pattern in th
   assert.match(editor, /function syncPatternUnderlines\(root:HTMLElement\)\{for\(const element of root\.querySelectorAll<HTMLElement>\('\[data-underline-style="dot-dash"\],\[data-underline-style="dot-dot-dash"\]'\)\)/);
   assert.match(editor, /const observer=new MutationObserver\(\(\)=>syncPatternUnderlines\(root\)\)/);
 });
+
+test("Tab in a header/footer moves to Word's centre and right positions, keeping what was typed on the left (date left, page number right without losing the date)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /onKeyDown=\{event=>\{if\(event\.key==="Tab"&&!event\.ctrlKey&&!event\.metaKey&&!event\.altKey&&!submitted&&headerFooterTab\(event\.shiftKey\)\)\{event\.preventDefault\(\);return\}/);
+  assert.match(editor, /const headerFooterTab=\(back:boolean\)=>\{/);
+  assert.match(editor, /left\.append\(\.\.\.\[\.\.\.area\.childNodes\]/, "the text already in the footer stays in the left position");
+  // A page number / date at an empty position goes inside it, so the position keeps its right alignment.
+  assert.match(editor, /const placeholder=selectedPlaceholder\(\),holder=placeholder\?\?emptySpot;if\(holder\)\{/);
+  assert.match(editor, /if\(placeholder\)holder\.replaceWith\(\.\.\.nodes\);else holder\.append\(\.\.\.nodes\);/);
+});
