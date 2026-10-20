@@ -76,3 +76,39 @@ test("the recorded start time comes from the server when the PC clock is off", a
   const practice = await readFile(new URL("../app/typing/practice-attempt-actions.ts", import.meta.url), "utf8");
   assert.match(practice, /started_at: trustedStartedAt\(/);
 });
+
+// Follow-up report (2026-10-20): on slow / hanging PCs some students got extra time.
+test("a PC whose own clocks run SLOW still ends on the server's time, not late", async () => {
+  const { t, sources } = fakeClocks();
+  t.perfRate = 0.8; // the browser's timer runs 20% slow
+  const realSources = { ...sources, wall: () => 1_800_000_000_000 + t.real * 0.8 };
+  const clock = new ExamClock(600_000, realSources, 0);
+  await tick();
+  for (let real = 15_000; real <= 600_000; real += 15_000) { t.real = real; await clock.confirmEnded(); }
+  t.real = 600_000;
+  assert.equal(await clock.confirmEnded(), true, "over at 600 real seconds, not 750");
+});
+
+test("a server check that never answers can't keep the test open", async () => {
+  const { t, sources } = fakeClocks();
+  const clock = new ExamClock(600_000, { ...sources, server: () => new Promise(() => {}) }, 0);
+  await tick();
+  t.real = 600_000;
+  const started = Date.now();
+  assert.equal(await clock.confirmEnded(), true);
+  assert.ok(Date.now() - started < 6000, "gave up waiting within a few seconds");
+});
+
+test("the server-time request has a timeout and a slow answer is not used as a clock sample", async () => {
+  const source = await readFile(new URL("../lib/exam-clock.ts", import.meta.url), "utf8");
+  assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), SERVER_TIMEOUT_MS\)/);
+  assert.match(source, /if \(roundTrip > MAX_TRUSTED_ROUND_TRIP_MS\) return null;/);
+});
+
+test("exam and live typing tests have no Pause (button or Escape key); practice keeps it", async () => {
+  const exam = await readFile(new URL("../app/typing/_components/configurable-typing-exam.tsx", import.meta.url), "utf8");
+  assert.match(exam, /const pauseAllowed = mode === "practice";/);
+  assert.match(exam, /const togglePause = \(\) => \{ if \(!timerStarted \|\| !pauseAllowed\) return;/);
+  assert.match(exam, /onPauseToggle=\{pauseAllowed \? togglePause : undefined\}/);
+  assert.match(exam, /\{onPauseToggle && <button type="button" disabled=\{!timerStarted\} onClick=\{onPauseToggle\}/);
+});

@@ -14,6 +14,16 @@
 // Taking the minimum means the test can only ever run a little LONG, never short.
 // When the local count reaches zero, the end is confirmed with the server before the
 // test is submitted; if the server says time is left, the countdown keeps going.
+//
+// Follow-up report (2026-10-20): on slow or hanging PCs some students got EXTRA time -- their
+// 10-minute test, started with everyone else, did not end. Two causes here:
+//   - Believing the slowest clock also believed a PC clock that runs SLOW, by however much it was
+//     slow, even though the server knew the real time. Now, while recent server samples exist,
+//     the server's time decides (it can be neither fast nor slow); the slowest local clock is only
+//     the fallback when the server can't be reached.
+//   - The end-of-test server check had no time limit: on a slow PC or network the request could
+//     hang, so the countdown sat at 0:00 and the test never submitted. Requests now give up after
+//     a few seconds, and a slow answer (long round trip) is not trusted as a clock sample.
 
 export type ClockSources = {
   perf: () => number;
@@ -22,20 +32,33 @@ export type ClockSources = {
   server: () => Promise<number | null>;
 };
 
+/** A server request that hasn't answered by then is abandoned (the test must still end). */
+export const SERVER_TIMEOUT_MS = 4000;
+/** An answer slower than this can't say exactly when the server read its clock: not used. */
+export const MAX_TRUSTED_ROUND_TRIP_MS = 2500;
+/** Server samples older than this (no answer since) stop deciding; the local clocks take over. */
+export const SERVER_SAMPLE_FRESH_MS = 45000;
+
 export const browserClockSources = (): ClockSources => ({
   perf: () => performance.now(),
   wall: () => Date.now(),
   server: async () => {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), SERVER_TIMEOUT_MS) : null;
     try {
       const sent = performance.now();
-      const response = await fetch("/server-time", { cache: "no-store" });
+      const response = await fetch("/server-time", { cache: "no-store", signal: controller?.signal });
       if (!response.ok) return null;
       const { now } = (await response.json()) as { now?: number };
       if (typeof now !== "number" || !Number.isFinite(now)) return null;
+      const roundTrip = performance.now() - sent;
+      if (roundTrip > MAX_TRUSTED_ROUND_TRIP_MS) return null;
       // The server read its clock about halfway through the round trip.
-      return now + (performance.now() - sent) / 2;
+      return now + roundTrip / 2;
     } catch {
       return null;
+    } finally {
+      if (timeout) clearTimeout(timeout);
     }
   },
 });
@@ -70,9 +93,12 @@ export class ExamClock {
     this.serverLatest = sample;
   }
 
-  /** Elapsed ms by the slowest of the clocks we have. */
+  /** Elapsed ms: the server's time while it is reachable, otherwise the slowest local clock. */
   elapsedMs(): number {
     const perfNow = this.sources.perf();
+    if (this.serverStart && this.serverLatest && perfNow - this.serverLatest.perf <= SERVER_SAMPLE_FRESH_MS) {
+      return Math.max(0, this.serverLatest.server - this.serverStart.server + Math.max(0, perfNow - this.serverLatest.perf));
+    }
     const perfElapsed = perfNow - this.startPerf;
     const wallElapsed = this.sources.wall() - this.startWall;
     const candidates = [perfElapsed];
@@ -94,7 +120,8 @@ export class ExamClock {
   /** Called when the countdown reaches 0: true only when the server agrees the time
    *  is really up (or the server can't be reached, so the local count is all we have). */
   async confirmEnded(): Promise<boolean> {
-    await this.sync(false);
+    // Never wait on the server longer than its timeout: the test has to end even when it hangs.
+    await Promise.race([this.sync(false), new Promise(resolve => setTimeout(resolve, SERVER_TIMEOUT_MS + 500))]);
     return this.remainingMs() <= 0;
   }
 
