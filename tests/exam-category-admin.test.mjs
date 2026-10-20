@@ -92,11 +92,12 @@ test("managedVersionToPreset's viewAsCategorySlug overrides duration/speed/accur
   const native = managedVersionToPreset(base);
   const viewedAsSscChsl = managedVersionToPreset(base, "ssc-chsl");
   // SSC CHSL's own real values (lib/exam-categories.ts): 15 min, 35 WPM
-  // English, 90% accuracy, full backspace, no category-specific word
+  // English, 93% accuracy, full backspace, no category-specific word
   // method/highlight (falls back to characters/character).
   assert.equal(viewedAsSscChsl.durationSeconds, 15 * 60);
   assert.equal(viewedAsSscChsl.speedRequirement, 35);
-  assert.equal(viewedAsSscChsl.accuracyRequirement, 90);
+  // SSC CHSL's official error limit (UR 7%) = 93% accuracy (researched 2026-10-20).
+  assert.equal(viewedAsSscChsl.accuracyRequirement, 93);
   assert.equal(viewedAsSscChsl.backspaceMode, "full");
   assert.equal(viewedAsSscChsl.wordMethod, "characters");
   assert.equal(viewedAsSscChsl.highlightMode, "character");
@@ -104,7 +105,7 @@ test("managedVersionToPreset's viewAsCategorySlug overrides duration/speed/accur
   assert.notDeepEqual(viewedAsSscChsl.instructionNotes, native.instructionNotes);
   // The actual scoring thresholds, not just the displayed target.
   assert.equal(viewedAsSscChsl.scoringProfile.passNetWpm, 35);
-  assert.equal(viewedAsSscChsl.scoringProfile.passAccuracy, 90);
+  assert.equal(viewedAsSscChsl.scoringProfile.passAccuracy, 93);
   // Confirms native (no override) is unaffected and still Rajasthan LDC's own.
   assert.equal(native.durationSeconds, 600);
   assert.equal(native.speedRequirement, 40);

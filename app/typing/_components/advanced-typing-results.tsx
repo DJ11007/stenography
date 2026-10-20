@@ -147,11 +147,12 @@ function ResultBanner({ label, passed, title, requiredWpm, achievedWpm, required
   const wpmGap = !passed && requiredWpm != null && achievedWpm != null ? Math.max(0, requiredWpm - achievedWpm) : 0;
   const accuracyGap = !passed && requiredAccuracy != null && achievedAccuracy != null ? Math.max(0, requiredAccuracy - achievedAccuracy) : 0;
   const gapParts = [wpmGap > 0 ? `${number(wpmGap)} more net WPM` : null, accuracyGap > 0 ? `${number(accuracyGap)}% more accuracy` : null].filter((part): part is string => Boolean(part));
+  const what = requiredAccuracy ? "speed and accuracy" : "speed";
   const message = passed
-    ? "This attempt met the required speed and accuracy."
+    ? `This attempt met the required ${what}.`
     : gapParts.length
       ? `To pass, you need ${gapParts.join(" and ")}. Review the mistakes below and try again.`
-      : "This attempt did not meet the required speed and accuracy. Review the mistakes below and try again.";
+      : `This attempt did not meet the required ${what}. Review the mistakes below and try again.`;
   return <section aria-live="polite" className={`mt-6 rounded-3xl p-6 text-center shadow sm:p-8 ${passed ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}><p className="text-xs font-black uppercase tracking-[.2em] opacity-90">{title}</p><p className="mt-2 text-3xl font-black sm:text-4xl">{label}</p><p className="mt-2 text-sm font-bold opacity-90">{message}</p></section>;
 }
 // AIIMS-style "Insufficient Attempt" rule: below a minimum keystroke
