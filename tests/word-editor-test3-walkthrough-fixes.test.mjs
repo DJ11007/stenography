@@ -57,3 +57,18 @@ test("Page Borders has Word's Wave and Double wave styles, drawn as a wave and s
   assert.match(dialogs, /wave: "Wave", doubleWave: "Double wave"/);
   assert.match(editor, /function waveBorderImage\(color: string, double: boolean\)/);
 });
+
+test("Font > Advanced: typing 0.5 into Condensed By keeps Condensed (the leading 0 used to switch it to Normal and disable the box)", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.match(dialogs, /const \[spacingMode, setSpacingMode\] = useState<"normal" \| "expanded" \| "condensed">/);
+  assert.match(dialogs, /const \[positionMode, setPositionMode\] = useState<"normal" \| "raised" \| "lowered">/);
+  assert.doesNotMatch(dialogs, /spacingMode = spacingNumber > 0/, "the mode must not be worked out from the number while typing");
+});
+
+test("Dot-dash and Dot-dot-dash underlines are drawn as their real pattern in the underline colour, not as plain dots", async () => {
+  const [editor, css] = await Promise.all([read(EDITOR), read("app/globals.css")]);
+  assert.match(css, /\.word-document-page \[data-underline-style="dot-dot-dash"\] \{ background-size: 17px 1\.5px; background-image: linear-gradient\(90deg, var\(--word-underline-color, currentColor\) 0 6px/);
+  assert.match(css, /\.word-document-page \[data-underline-style="dot-dash"\] \{ background-size: 13px 1\.5px;/);
+  assert.match(editor, /function syncPatternUnderlines\(root:HTMLElement\)\{for\(const element of root\.querySelectorAll<HTMLElement>\('\[data-underline-style="dot-dash"\],\[data-underline-style="dot-dot-dash"\]'\)\)/);
+  assert.match(editor, /const observer=new MutationObserver\(\(\)=>syncPatternUnderlines\(root\)\)/);
+});

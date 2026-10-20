@@ -1133,6 +1133,12 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-document-page [data-page-push] { margin-top: var(--page-push-mt) !important; }
 /* Words only underline: the span's own line is hidden, drawWordsOnlyUnderlines draws one per word. */
 .word-document-page [data-underline-style="words-only"], .word-document-page [data-underline-words-only="true"] { text-decoration-line: none !important; }
+/* Word's Dot-dash and Dot-dot-dash underlines. CSS has no such line style (they used to show as
+   plain dots), so the pattern is painted under the text in the underline colour, which the editor
+   keeps in --word-underline-color. */
+.word-document-page [data-underline-style="dot-dash"], .word-document-page [data-underline-style="dot-dot-dash"] { text-decoration-line: none !important; background-repeat: repeat-x; background-position: 0 calc(100% - 1px); }
+.word-document-page [data-underline-style="dot-dash"] { background-size: 13px 1.5px; background-image: linear-gradient(90deg, var(--word-underline-color, currentColor) 0 6px, transparent 6px 8px, var(--word-underline-color, currentColor) 8px 10px, transparent 10px 13px); }
+.word-document-page [data-underline-style="dot-dot-dash"] { background-size: 17px 1.5px; background-image: linear-gradient(90deg, var(--word-underline-color, currentColor) 0 6px, transparent 6px 8px, var(--word-underline-color, currentColor) 8px 10px, transparent 10px 12px, var(--word-underline-color, currentColor) 12px 14px, transparent 14px 17px); }
 .word-wordsonly-layer { position: absolute; inset: 0; pointer-events: none; }
 .word-wordsonly-layer > div { position: absolute; }
 /* A table never runs past the page's text area (Word fits it to the margins): fixed-width

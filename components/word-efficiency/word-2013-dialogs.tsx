@@ -342,8 +342,13 @@ export function FontDialog2013({ values: initial, onSubmit, title = "Font" }: { 
   const pickSize = (size: string) => { setSizeText(size); set("fontSize", size); };
   // Word accepts any size from 1 to 1638 pt in half points (1.5, 18.5, 1000.5 ...).
   const typedSize = (text: string) => { setSizeText(text); const number = wordFontSize(text); if (number !== null) set("fontSize", String(number)); };
-  const spacingNumber = Number(values.charSpacing) || 0, spacingMode = spacingNumber > 0 ? "expanded" : spacingNumber < 0 ? "condensed" : "normal";
-  const positionNumber = Number(values.charPosition) || 0, positionMode = positionNumber > 0 ? "raised" : positionNumber < 0 ? "lowered" : "normal";
+  // Spacing / Position keep the mode the student picked. It used to be worked out from the number,
+  // so typing "0.5" into By: went through 0 first -> mode "Normal" -> the By box was disabled under
+  // the student's fingers and the rest of the number was lost (EFFICIENCY TEST 3, Q4).
+  const spacingNumber = Number(values.charSpacing) || 0;
+  const [spacingMode, setSpacingMode] = useState<"normal" | "expanded" | "condensed">(spacingNumber > 0 ? "expanded" : spacingNumber < 0 ? "condensed" : "normal");
+  const positionNumber = Number(values.charPosition) || 0;
+  const [positionMode, setPositionMode] = useState<"normal" | "raised" | "lowered">(positionNumber > 0 ? "raised" : positionNumber < 0 ? "lowered" : "normal");
   const underlined = values.underlineStyle !== "none";
   const previewName = values.fontFamily ? themeLabel(values.fontFamily) : "+Body";
   const theme = values.fontFamily === "" || (WORD_THEME_FONTS as readonly string[]).includes(values.fontFamily);
@@ -396,10 +401,10 @@ export function FontDialog2013({ values: initial, onSubmit, title = "Font" }: { 
           <div style={{ display: "grid", gridTemplateColumns: "70px 120px 40px 80px", gap: "8px 8px", alignItems: "center", marginLeft: 8 }}>
             <span>S<u>c</u>ale:</span><select className="w13-select" aria-label="Scale" style={{ width: 120 }} value={values.charScale} onChange={event => set("charScale", event.target.value)}>{["200", "150", "100", "90", "80", "66", "50", "33", "25"].map(preset => <option key={preset} value={preset}>{preset}%</option>)}</select><span /><span />
             <span>S<u>p</u>acing:</span>
-            <select className="w13-select" aria-label="Spacing" style={{ width: 120 }} value={spacingMode} onChange={event => { const magnitude = Math.abs(spacingNumber) || 1; set("charSpacing", event.target.value === "normal" ? "0" : String(event.target.value === "condensed" ? -magnitude : magnitude)); }}><option value="normal">Normal</option><option value="expanded">Expanded</option><option value="condensed">Condensed</option></select>
+            <select className="w13-select" aria-label="Spacing" style={{ width: 120 }} value={spacingMode} onChange={event => { const mode = event.target.value as typeof spacingMode; setSpacingMode(mode); const magnitude = Math.abs(spacingNumber) || 1; set("charSpacing", event.target.value === "normal" ? "0" : String(event.target.value === "condensed" ? -magnitude : magnitude)); }}><option value="normal">Normal</option><option value="expanded">Expanded</option><option value="condensed">Condensed</option></select>
             <span>B<u>y</u>:</span><Number13 label="Spacing by" value={spacingMode === "normal" ? null : Math.abs(spacingNumber)} blankWhenEmpty unit="pt" dimension="points" step={0.1} min={0} max={100} decimals={1} disabled={spacingMode === "normal"} onChange={n => set("charSpacing", String(spacingMode === "condensed" ? -(n ?? 0) : n ?? 0))} />
             <span>Posi<u>t</u>ion:</span>
-            <select className="w13-select" aria-label="Position" style={{ width: 120 }} value={positionMode} onChange={event => { const magnitude = Math.abs(positionNumber) || 3; set("charPosition", event.target.value === "normal" ? "0" : String(event.target.value === "lowered" ? -magnitude : magnitude)); }}><option value="normal">Normal</option><option value="raised">Raised</option><option value="lowered">Lowered</option></select>
+            <select className="w13-select" aria-label="Position" style={{ width: 120 }} value={positionMode} onChange={event => { const mode = event.target.value as typeof positionMode; setPositionMode(mode); const magnitude = Math.abs(positionNumber) || 3; set("charPosition", event.target.value === "normal" ? "0" : String(event.target.value === "lowered" ? -magnitude : magnitude)); }}><option value="normal">Normal</option><option value="raised">Raised</option><option value="lowered">Lowered</option></select>
             <span>By:</span><Number13 label="Position by" value={positionMode === "normal" ? null : Math.abs(positionNumber)} blankWhenEmpty unit="pt" dimension="points" step={0.5} min={0} max={100} decimals={1} disabled={positionMode === "normal"} onChange={n => set("charPosition", String(positionMode === "lowered" ? -(n ?? 0) : n ?? 0))} />
           </div>
           <div style={{ margin: "12px 0 0 8px", display: "flex", alignItems: "center", gap: 8 }}>
