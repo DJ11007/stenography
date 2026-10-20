@@ -39,7 +39,7 @@ const RUN_V1 = new Set(["text", "bold", "italic", "underline", "strike", "supers
 const RUN_V2 = new Set([...RUN_V1, "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "doubleStrike", "href", "bookmark", "field", "smallCaps", "allCaps", "hidden", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin", "outline", "emboss"]);
 const UNDERLINE_STYLES=new Set(["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy","words-only"]);
 const PAGE_LAYOUT_KEYS = new Set(["padding", "maxWidth", "aspectRatio", "columnCount", "backgroundColor", "border", "watermark"]);
-const PAGE_GUTTER_KEYS = new Set(["gutter", "gutterPosition"]);
+const PAGE_GUTTER_KEYS = new Set(["gutter", "gutterPosition", ...["watermarkFont", "watermarkSize", "watermarkColor", "watermarkSemitransparent", "watermarkLayout"]]);
 const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "marginTop", "marginBottom", "border", "backgroundColor", "hyphens"]);
 export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle", "bullet-square", "bullet-diamond", "bullet-arrow", "bullet-check", "decimal", "decimal-paren", "upper-roman", "upper-alpha", "lower-alpha-paren", "lower-alpha", "lower-roman"]);
 const ATTRS: Record<string, Set<string>> = {
@@ -115,6 +115,11 @@ function validatePageLayout(value: unknown) {
   if (typeof value.gutter === "string" && !/^\d{1,2}(\.\d{1,2})?mm$/.test(value.gutter)) throw new Error("Invalid page gutter.");
   if (value.gutterPosition != null && !/^(?:left|top)$/.test(String(value.gutterPosition))) throw new Error("Invalid page gutter position.");
   if (typeof value.backgroundColor === "string" && !/^(?:#[0-9A-Fa-f]{6}|[0-9A-Fa-f]{6})$/.test(value.backgroundColor)) throw new Error("Invalid page color.");
+  // Custom Watermark settings (optional, saved only with a watermark).
+  if (value.watermarkSize != null && !/^(?:auto|\d{1,3})$/.test(String(value.watermarkSize))) throw new Error("Invalid watermark size.");
+  if (value.watermarkColor != null && !/^[0-9A-F]{6}$/.test(String(value.watermarkColor))) throw new Error("Invalid watermark color.");
+  if (value.watermarkSemitransparent != null && !/^(?:true|false)$/.test(String(value.watermarkSemitransparent))) throw new Error("Invalid watermark transparency.");
+  if (value.watermarkLayout != null && !/^(?:diagonal|horizontal)$/.test(String(value.watermarkLayout))) throw new Error("Invalid watermark layout.");
 }
 function validateRunLinkFields(run: JsonObject) {
   if (!nullableString(run.href, 2048) || !nullableString(run.bookmark, 50) || !nullableString(run.field, 30)) throw new Error("Invalid link or field metadata.");

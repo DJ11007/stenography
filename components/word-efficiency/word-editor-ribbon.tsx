@@ -175,6 +175,7 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="margins")return <GalleryMenu option={option} preview={preview} items={MARGIN_PRESETS} onPick={value=>onValueCommand?.("margins",value)} actions={MARGIN_ACTIONS} onAction={id=>onValueCommand?.("marginsAction",id)}/>;
   if(option.id==="orientation")return <GalleryMenu option={option} preview={preview} items={ORIENTATION_ITEMS} onPick={value=>onValueCommand?.("orientation",value)}/>;
   if(option.id==="pageSize")return <GalleryMenu option={option} preview={preview} items={PAGE_SIZE_ITEMS} onPick={value=>onValueCommand?.("pageSize",value)} actions={PAGE_SIZE_ACTIONS} onAction={id=>onValueCommand?.("pageSizeAction",id)}/>;
+  if(option.id==="watermark")return <GalleryMenu option={option} preview={preview} items={WATERMARK_ITEMS} onPick={value=>onValueCommand?.("watermark",value)} actions={WATERMARK_ACTIONS} onAction={id=>onValueCommand?.("watermarkAction",id)}/>;
   if(option.id==="columns")return <GalleryMenu option={option} preview={preview} items={COLUMN_ITEMS} onPick={value=>onValueCommand?.("columns",value)} actions={COLUMN_ACTIONS} onAction={id=>onValueCommand?.("columnsAction",id)}/>;
   const disabled = preview || Boolean(option.unsupported);
   return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-description={option.unsupported} aria-haspopup={option.menu ? "menu" : undefined} aria-pressed={active || undefined} disabled={disabled} title={option.unsupported ?? option.label} onMouseDown={event => { if (!disabled) event.preventDefault(); }} onClick={() => onCommand?.(option.id === "zoom" ? "zoom100" : option.id)}><RibbonIcon id={option.id}/><span>{option.label}{option.menu && <i aria-hidden>▾</i>}</span></button>;
@@ -307,6 +308,9 @@ const PAGE_SIZE_ITEMS=[
 const PAGE_SIZE_ACTIONS=[{id:"custom",label:"More Paper Sizes…"}];
 const COLUMN_ITEMS=[{value:"1",label:"One"},{value:"2",label:"Two"},{value:"3",label:"Three"}];
 const COLUMN_ACTIONS=[{id:"custom",label:"More Columns…"}];
+// Word 2013's Watermark gallery (DESIGN > Page Background): value "TEXT|layout".
+const WATERMARK_ITEMS=[{value:"CONFIDENTIAL|diagonal",label:"CONFIDENTIAL 1"},{value:"CONFIDENTIAL|horizontal",label:"CONFIDENTIAL 2"},{value:"DO NOT COPY|diagonal",label:"DO NOT COPY 1"},{value:"DO NOT COPY|horizontal",label:"DO NOT COPY 2"},{value:"DRAFT|diagonal",label:"DRAFT 1"},{value:"DRAFT|horizontal",label:"DRAFT 2"},{value:"SAMPLE|diagonal",label:"SAMPLE 1"},{value:"ASAP|diagonal",label:"ASAP 1"},{value:"URGENT|diagonal",label:"URGENT 1"}];
+const WATERMARK_ACTIONS=[{id:"custom",label:"Custom Watermark…"},{id:"remove",label:"Remove Watermark"}];
 const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
 const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];
 // Word 2013's Borders menu (Home > Paragraph), in its order and groups. Diagonal borders only

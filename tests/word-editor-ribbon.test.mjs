@@ -216,7 +216,7 @@ test("autosave restore, watermark autosave, drop cap and line-number restoration
   const[workspace,editor]=await Promise.all([read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
   assert.match(workspace,/initialDocument=\{initialDocument\}/);
   assert.match(editor,/lastAutosave\.current=snapshot/);
-  assert.match(editor,/applyWatermark=\(text:string\)=>\{setDialog\(null\);editor\.current\?\.setAttribute\("data-watermark",text\.slice\(0,40\)\);changed\(\)\}/);
+  assert.match(editor,/const applyWatermark=\(values:WatermarkValues,keepOpen=false\)=>\{[^\n]*page\.dataset\.watermark=values\.text\.trim\(\)\.slice\(0,40\);[^\n]*changed\(\)\};/);
   assert.match(editor,/applyDropCapMarker/);
   assert.match(editor,/classList\.add\("editor-line-numbers"\)/);
   assert.match(editor,/data-field="date-time"/);

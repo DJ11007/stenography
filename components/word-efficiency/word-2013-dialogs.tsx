@@ -759,6 +759,37 @@ export function DropCapDialog2013({ values: initial, onSubmit }: { values: DropC
   );
 }
 
+// Word 2013's Printed Watermark dialog (DESIGN > Watermark > Custom Watermark…). A text watermark
+// has its own font, size, colour, Semitransparent and Diagonal/Horizontal layout; "Kruti Dev 010"
+// is in the font list, so a Hindi watermark can be typed in Kruti Dev keystrokes.
+export type WatermarkValues = { kind: "none" | "text"; text: string; font: string; size: string; color: string; semitransparent: boolean; layout: "diagonal" | "horizontal" };
+export const WATERMARK_TEXTS = ["ASAP", "CONFIDENTIAL", "COPY", "DO NOT COPY", "DRAFT", "ORIGINAL", "PERSONAL", "SAMPLE", "TOP SECRET", "URGENT"];
+export const WATERMARK_SIZES = ["Auto", "36", "40", "44", "48", "54", "60", "66", "72", "80", "90", "96", "105", "120", "144", "200"];
+export const DEFAULT_WATERMARK: WatermarkValues = { kind: "text", text: "ASAP", font: "Calibri", size: "Auto", color: "C0C0C0", semitransparent: true, layout: "diagonal" };
+export function WatermarkDialog2013({ values: initial, onSubmit }: { values: WatermarkValues; onSubmit: (values: WatermarkValues, keepOpen: boolean) => void }) {
+  const chrome = useContext(Word13Chrome);
+  const [values, setValues] = useState(initial);
+  const set = (patch: Partial<WatermarkValues>) => setValues(current => ({ ...current, ...patch }));
+  const off = values.kind !== "text";
+  const dim = off ? { color: "#8a8a8a" } : undefined;
+  const row = (label: ReactNode, field: ReactNode) => <div className="w13-row" style={{ marginLeft: 20 }}><span className="w13-label" style={{ width: 70, ...dim }}>{label}</span><div style={{ flex: 1 }}>{field}</div></div>;
+  return (
+    <Window13 title="Printed Watermark" width={430}>
+      <div className="w13-row" style={{ marginTop: 6 }}><label className="w13-check"><input type="radio" name="w13-watermark" checked={values.kind === "none"} onChange={() => set({ kind: "none" })} /><span>N<u>o</u> watermark</span></label></div>
+      <div className="w13-row"><label className="w13-check" title="Picture watermarks are not available in this exam tool"><input type="radio" name="w13-watermark" disabled /><span style={{ color: "#8a8a8a" }}>Pi<u>c</u>ture watermark</span></label></div>
+      <div className="w13-row" style={{ marginLeft: 20, color: "#8a8a8a" }}><Button13 disabled>Select <u>P</u>icture…</Button13></div>
+      <div className="w13-row"><label className="w13-check"><input type="radio" name="w13-watermark" checked={values.kind === "text"} onChange={() => set({ kind: "text" })} /><span>Te<u>x</u>t watermark</span></label></div>
+      {row(<><u>L</u>anguage:</>, <select className="w13-select" style={{ width: "100%" }} disabled={off} aria-label="Watermark language"><option>English (United States)</option><option>Hindi</option></select>)}
+      {row(<><u>T</u>ext:</>, <><input className="w13-field" style={{ width: "100%" }} disabled={off} aria-label="Watermark text" list="w13-watermark-texts" maxLength={40} value={values.text} onChange={event => set({ text: event.target.value })} /><datalist id="w13-watermark-texts">{WATERMARK_TEXTS.map(text => <option key={text} value={text} />)}</datalist></>)}
+      {row(<><u>F</u>ont:</>, <select className="w13-select" style={{ width: "100%", fontFamily: values.font === "Kruti Dev 010" ? undefined : values.font }} disabled={off} aria-label="Watermark font" value={values.font} onChange={event => set({ font: event.target.value })}>{APPROVED_WORD_FONTS.map(font => <option key={font} value={font}>{font}</option>)}</select>)}
+      {row(<><u>S</u>ize:</>, <select className="w13-select" style={{ width: 120 }} disabled={off} aria-label="Watermark size" value={values.size} onChange={event => set({ size: event.target.value })}>{WATERMARK_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select>)}
+      {row(<><u>C</u>olor:</>, <div style={{ display: "flex", gap: 12, alignItems: "center" }}>{off ? <select className="w13-select" style={{ width: 140 }} disabled aria-label="Watermark color"><option>{colorLabel(values.color)}</option></select> : <PaletteSelect13 value={values.color} onChange={hex => set({ color: hex ?? "C0C0C0" })} label="Watermark color" autoLabel="Automatic" width={140} />}<Check13 checked={values.semitransparent} disabled={off} onChange={semitransparent => set({ semitransparent })}>S<u>e</u>mitransparent</Check13></div>)}
+      {row(<>Layout:</>, <div style={{ display: "flex", gap: 18 }}><label className="w13-check"><input type="radio" name="w13-watermark-layout" disabled={off} checked={values.layout === "diagonal"} onChange={() => set({ layout: "diagonal" })} /><span><u>D</u>iagonal</span></label><label className="w13-check"><input type="radio" name="w13-watermark-layout" disabled={off} checked={values.layout === "horizontal"} onChange={() => set({ layout: "horizontal" })} /><span><u>H</u>orizontal</span></label></div>)}
+      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 onClick={() => onSubmit({ ...values, text: values.text.trim() }, true)} disabled={!off && !values.text.trim()}><u>A</u>pply</Button13><Button13 isDefault onClick={() => onSubmit({ ...values, text: values.text.trim() }, false)} disabled={!off && !values.text.trim()}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+    </Window13>
+  );
+}
+
 export function DateTimeDialog2013({ formats, languages, onSubmit }: { formats: (language: string) => string[]; languages: readonly string[]; onSubmit: (text: string) => void }) {
   const chrome = useContext(Word13Chrome);
   const [language, setLanguage] = useState(languages[0]);
