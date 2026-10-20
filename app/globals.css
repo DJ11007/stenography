@@ -1121,6 +1121,11 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"]::after { position: absolute; left: -2px; z-index: 1; border: 1px solid #a6a6a6; background: #e7e7e7; padding: 1px 8px; color: #404040; font: 11px "Segoe UI", Calibri, Arial, sans-serif; font-style: normal; font-weight: 400; pointer-events: none; user-select: none; }
 .word-document-page[data-hf-editing="header"] > header[data-block-type="header"]::after { content: "Header"; top: calc(100% + 3px); }
 .word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"]::after { content: "Footer"; bottom: calc(100% + 3px); }
+/* Fields (page number, date and time) look like the text around them, as in Word 2013, with Word's
+   light grey field shading while the header/footer is being edited or the pointer is on the field.
+   The shading is a background IMAGE: a background colour would be saved as a highlight. */
+.word-document-page .word-field { font: inherit; color: inherit; }
+.word-document-page[data-hf-editing] [data-field], .word-document-page [data-field]:hover { background-image: linear-gradient(#d9d9d9, #d9d9d9); }
 /* The big Header / Footer / Page Number menus in HEADER & FOOTER TOOLS: Word's large buttons. */
 .wh-menus .word-ribbon-tool { display: inline-flex; min-width: 46px; height: 66px; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; padding: 2px 3px 1px; text-align: center; }
 .wh-menus .word-ribbon-tool svg { width: 32px; height: 32px; flex-basis: 32px; }

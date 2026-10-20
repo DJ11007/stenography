@@ -82,3 +82,12 @@ test("Tab in a header/footer moves to Word's centre and right positions, keeping
   assert.match(editor, /const placeholder=selectedPlaceholder\(\),holder=placeholder\?\?emptySpot;if\(holder\)\{/);
   assert.match(editor, /if\(placeholder\)holder\.replaceWith\(\.\.\.nodes\);else holder\.append\(\.\.\.nodes\);/);
 });
+
+test("a page number looks like Word's: plain text in the line's font, Word's grey field shading only while the header/footer is edited (no cyan chip)", async () => {
+  const [editor, css] = await Promise.all([read(EDITOR), read("app/globals.css")]);
+  assert.doesNotMatch(editor, /border-dashed border-cyan-500 bg-cyan-50 px-1 text-xs font-bold text-cyan-800/);
+  assert.match(editor, /contenteditable="false">\$\{escapeHtml\(pageNumberLabel/);
+  assert.match(css, /\.word-document-page \.word-field \{ font: inherit; color: inherit; \}/);
+  // A background IMAGE: the run reader saves a background COLOUR as a highlight.
+  assert.match(css, /\.word-document-page\[data-hf-editing\] \[data-field\], \.word-document-page \[data-field\]:hover \{ background-image: linear-gradient\(#d9d9d9, #d9d9d9\); \}/);
+});
