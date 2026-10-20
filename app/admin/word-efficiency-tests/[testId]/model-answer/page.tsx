@@ -17,7 +17,10 @@ type StoredCriterion = { target: string; expectedValue: unknown; alternatives?: 
 function existingModelAnswerCriteria(rule: { exact_target: string; expected_operation: string; expected_value: unknown; additional_criteria: unknown }): ModelAnswerCriterion[] {
   const stored = (Array.isArray(rule.additional_criteria) ? rule.additional_criteria : []) as StoredCriterion[];
   const all = rule.expected_operation === "model-answer-match-v2" ? stored : [{ target: rule.exact_target, expectedValue: rule.expected_value }, ...stored];
+  // Hand-written rule criteria ({ rule: "words" | "text" | "table" ... }, migration 202610201200)
+  // have no single target to show here; they are kept in the database as they are.
   return all
+    .filter((criterion) => typeof criterion.target === "string")
     .filter((criterion) => !/^blocks\.[^.]*[^0-9.][^.]*\./.test(criterion.target))
     .map((criterion) => ({ target: criterion.target, savedValue: criterion.alternatives?.[0] ?? criterion.expectedValue, caseOnly: criterion.ignoreCase === false }));
 }

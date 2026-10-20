@@ -56,6 +56,17 @@ function emptyCell(document: Document) {
   return td;
 }
 
+// Word gives an inserted row/column the cell formatting of the cells it was inserted next to
+// (alignment, shading, borders, padding) -- only the text is left out.
+function emptyCellLike(document: Document, reference: HTMLTableCellElement | null | undefined) {
+  const td = emptyCell(document);
+  if (!reference) return td;
+  td.className = reference.className || td.className;
+  const style = reference.getAttribute("style");
+  if (style) td.setAttribute("style", style);
+  return td;
+}
+
 // Puts a cell into row r so that it starts at grid column c.
 function insertCellAt(table: HTMLTableElement, r: number, c: number, cell: HTMLTableCellElement) {
   const grid = tableGrid(table);
@@ -90,7 +101,7 @@ export function insertRow(table: HTMLTableElement, refRow: number, where: "above
       c += crossing.colSpan - 1;
       continue;
     }
-    tr.append(emptyCell(table.ownerDocument));
+    tr.append(emptyCellLike(table.ownerDocument, grid.at[Math.min(refRow, grid.rows - 1)]?.[c]?.cell));
   }
   const body = table.tBodies[0] ?? table;
   body.insertBefore(tr, table.rows[at] ?? null);
@@ -124,7 +135,7 @@ export function insertColumn(table: HTMLTableElement, refCol: number, where: "le
       if (!extended.has(crossing.cell)) { crossing.cell.colSpan = crossing.colSpan + 1; extended.add(crossing.cell); }
       continue;
     }
-    const cell = emptyCell(table.ownerDocument);
+    const cell = emptyCellLike(table.ownerDocument, grid.at[r][Math.min(refCol, grid.cols - 1)]?.cell);
     const tr = table.rows[r];
     const after = [...tr.cells].find(other => (slotOf(grid, other)?.col ?? 0) >= at);
     tr.insertBefore(cell, after ?? null);

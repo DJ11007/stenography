@@ -197,3 +197,16 @@ test("a saved table never carries the paragraph-only attrs (marginLeft etc.) tha
   // Centered/indented tables set style.marginLeft; tables don't allow that attr, so the save would be refused.
   assert.match(source, /if\(block\.type==="table"\)\{for\(const \[key,value\] of Object\.entries\(source\)\)if\(value!=null&&!common\.includes\(key\)\)attrs\[key\]=value\}/);
 });
+
+test("an inserted column or row takes the cell formatting of the cells beside it, like Word", () => {
+  const { table: t } = table([["S.NO.", "CITY"], ["1", "JAIPUR"]]);
+  for (const row of t.rows) for (const td of row.cells) { td.style.verticalAlign = "bottom"; td.style.textAlign = "center"; }
+  insertColumn(t, 1, "right");
+  insertRow(t, 1, "below");
+  const attrs = readTableAttrs(t);
+  assert.deepEqual(attrs.rows, [["S.NO.", "CITY", ""], ["1", "JAIPUR", ""], ["", "", ""]]);
+  for (const row of attrs.cellFormats) for (const format of row) {
+    assert.equal(format.valign, "bottom");
+    assert.equal(format.align, "center");
+  }
+});

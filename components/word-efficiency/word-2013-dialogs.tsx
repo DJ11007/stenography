@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState
 import { APPROVED_WORD_FONTS, WORD_THEME_FONTS } from "@/lib/word-editor-capabilities";
 import { WORD_FONT_SIZE_LIST, wordFontSize } from "@/lib/word-font-sizes";
 import { DEFAULT_ENGINE_OPTIONS, describeFormat, findWhatError, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
-import { mixColors } from "@/lib/word-colors";
+import { colorName, mixColors } from "@/lib/word-colors";
 import { PAPER_SIZES, type PageSetupValues } from "@/lib/word-page-setup";
 import { TABLE_COLORS, WordPalette } from "./word-table-tools";
 
@@ -457,10 +457,14 @@ export type FindDialogInput = { mode: "find" | "replace" | "goto"; query: string
 export type ReplaceFormat = { font?: Partial<FontValues>; highlight?: string };
 export const BLANK_FONT_VALUES: FontValues = { bold: false, italic: false, fontFamily: "", fontSize: "", color: "", underlineStyle: "none", underlineColor: "", strike: false, doubleStrike: false, superscript: false, subscript: false, smallCaps: false, allCaps: false, hidden: false, outline: false, emboss: false, charScale: "100", charSpacing: "0", charPosition: "0", kerningEnabled: false, kerningMin: "" };
 const changedFont = (values: FontValues): Partial<FontValues> => Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== BLANK_FONT_VALUES[key as keyof FontValues])) as Partial<FontValues>;
+// Word writes the replace format as "Font: 24 pt, Font color: Red" -- colours by name, all the
+// font settings after one "Font:" label.
 const describeReplaceFormat = (format: ReplaceFormat | null) => {
   if (!format) return "";
   const font = format.font ?? {};
-  return [font.fontFamily ? `Font: ${font.fontFamily}` : "", font.fontSize ? `${font.fontSize} pt` : "", font.bold ? "Bold" : "", font.italic ? "Italic" : "", font.underlineStyle && font.underlineStyle !== "none" ? `Underline${font.underlineColor ? `, Underline color: ${font.underlineColor}` : ""}` : "", font.strike ? "Strikethrough" : "", font.doubleStrike ? "Double strikethrough" : "", font.superscript ? "Superscript" : "", font.subscript ? "Subscript" : "", font.color ? `Font color: ${font.color}` : "", format.highlight ? "Highlight" : ""].filter(Boolean).join(", ");
+  const named = (hex: string | null | undefined) => colorName(hex?.replace(/^#/, "")) ?? "";
+  const items = [font.fontFamily ?? "", font.fontSize ? `${font.fontSize} pt` : "", font.bold ? "Bold" : "", font.italic ? "Italic" : "", font.underlineStyle && font.underlineStyle !== "none" ? `Underline${font.underlineColor ? `, Underline color: ${named(font.underlineColor)}` : ""}` : "", font.strike ? "Strikethrough" : "", font.doubleStrike ? "Double strikethrough" : "", font.superscript ? "Superscript" : "", font.subscript ? "Subscript" : "", font.color ? `Font color: ${named(font.color)}` : ""].filter(Boolean);
+  return [items.length ? `Font: ${items.join(", ")}` : "", format.highlight ? "Highlight" : ""].filter(Boolean).join(", ");
 };
 type Scope = "selection" | "document";
 
@@ -1160,7 +1164,7 @@ export const SHADING_PATTERNS: { id: string; label: string; strength: number }[]
 export type BordersShadingValues = {
   setting: "none" | "box" | "all" | "grid" | "shadow" | "3d" | "custom"; edges: BorderEdges; style: "solid" | "double" | "dotted" | "dashed"; color: string; width: number; applyTo: "cell" | "table" | "paragraph" | "text";
   fill: string | null; pattern: string; patternColor: string | null; shadingApplyTo: "cell" | "table" | "paragraph" | "text";
-  pageSetting: "none" | "box" | "shadow" | "3d" | "custom"; pageStyle: "solid" | "double" | "dotted" | "dashed"; pageColor: string; pageWidth: number;
+  pageSetting: "none" | "box" | "shadow" | "3d" | "custom"; pageStyle: "solid" | "double" | "dotted" | "dashed" | "wave" | "doubleWave"; pageColor: string; pageWidth: number;
   /** Page Border sides (Word: click the preview or its buttons; e.g. bottom and right only). */
   pageEdges?: { top: boolean; bottom: boolean; left: boolean; right: boolean };
 };
@@ -1172,6 +1176,10 @@ const EDGE_PRESETS: Record<"none" | "box" | "all" | "grid", BorderEdges> = {
 };
 export const bordersPreset = (setting: "none" | "box" | "all" | "grid") => ({ ...EDGE_PRESETS[setting] });
 const STYLE_LIST = ["solid", "dotted", "dashed", "double"] as const;
+// Word's Page Border style list also has Wave and Double wave (paragraph/table borders here keep the
+// four CSS line styles). A page border "with a waved line" could not be made before.
+const PAGE_STYLE_LIST = [...STYLE_LIST, "wave", "doubleWave"] as const;
+const WaveSample = ({ double }: { double?: boolean }) => <svg aria-hidden width="100%" height={double ? 12 : 8} preserveAspectRatio="none" viewBox={`0 0 100 ${double ? 12 : 8}`} style={{ display: "block", margin: "4px 0" }}><path d="M0 4 Q2.5 0 5 4 T10 4 T15 4 T20 4 T25 4 T30 4 T35 4 T40 4 T45 4 T50 4 T55 4 T60 4 T65 4 T70 4 T75 4 T80 4 T85 4 T90 4 T95 4 T100 4" fill="none" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />{double && <path d="M0 9 Q2.5 5 5 9 T10 9 T15 9 T20 9 T25 9 T30 9 T35 9 T40 9 T45 9 T50 9 T55 9 T60 9 T65 9 T70 9 T75 9 T80 9 T85 9 T90 9 T95 9 T100 9" fill="none" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />}</svg>;
 const PT_LABELS: Record<number, string> = { 0.25: "¼ pt", 0.5: "½ pt", 0.75: "¾ pt", 1: "1 pt", 1.5: "1 ½ pt", 2.25: "2 ¼ pt", 3: "3 pt", 4.5: "4 ½ pt", 6: "6 pt" };
 const cssLine = (style: string, width: number, color: string) => `${style === "double" ? Math.max(3, Math.round(width * 4 / 3)) : Math.max(1, Math.round(width * 4 / 3))}px ${style} #${color}`;
 
@@ -1211,8 +1219,8 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
   const ln = (d: string) => <path d={d} stroke="#000" strokeWidth="1.6" />;
   const pattern = SHADING_PATTERNS.find(item => item.id === values.pattern) ?? SHADING_PATTERNS[0];
   const shadingResult = pattern.strength === 0 ? values.fill : mixColors(values.fill ?? "FFFFFF", values.patternColor ?? "000000", pattern.strength);
-  const styleList = (current: string, onPick: (style: BordersShadingValues["style"]) => void, label: string) => <div className="w13-list" role="listbox" aria-label={label} style={{ height: 92 }}>
-    {STYLE_LIST.map(style => <button key={style} type="button" role="option" aria-selected={current === style} onMouseDown={event => event.preventDefault()} onClick={() => onPick(style)}><span style={{ display: "block", margin: "7px 4px", borderTop: `${style === "double" ? 3 : 1}px ${style} currentColor` }} /></button>)}
+  const styleList = <S extends string>(current: string, onPick: (style: S) => void, label: string, list: readonly S[] = STYLE_LIST as unknown as readonly S[]) => <div className="w13-list" role="listbox" aria-label={label} style={{ height: 92 }}>
+    {list.map(style => <button key={style} type="button" role="option" aria-label={({ solid: "Single line", dotted: "Dotted", dashed: "Dashed", double: "Double", wave: "Wave", doubleWave: "Double wave" } as Record<string, string>)[style] ?? style} aria-selected={current === style} onMouseDown={event => event.preventDefault()} onClick={() => onPick(style)}>{style === "wave" || style === "doubleWave" ? <WaveSample double={style === "doubleWave"} /> : <span style={{ display: "block", margin: "7px 4px", borderTop: `${style === "double" ? 3 : 1}px ${style} currentColor` }} />}</button>)}
   </div>;
   const nearest = (event: React.MouseEvent<HTMLElement>, keys: BorderEdgeKey[]) => { const box = event.currentTarget.getBoundingClientRect(); const x = (event.clientX - box.left) / box.width, y = (event.clientY - box.top) / box.height; const distance: Record<string, number> = { top: y, bottom: 1 - y, left: x, right: 1 - x, insideH: Math.abs(y - 0.5), insideV: Math.abs(x - 0.5) }; return [...keys].sort((first, second) => distance[first] - distance[second])[0]; };
   const paragraphShadow = values.setting === "shadow" ? "4px 4px 0 #000" : values.setting === "3d" ? "-2px -2px 0 #999" : undefined;
@@ -1236,7 +1244,7 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
             </>}
           </div>
           <div><span>St<u>y</u>le:</span>
-            {styleList(values.style, style => set({ style, setting: values.setting === "none" ? "box" : values.setting, edges: values.setting === "none" ? boxEdges : values.edges }), "Border style")}
+            {styleList<BordersShadingValues["style"]>(values.style, style => set({ style, setting: values.setting === "none" ? "box" : values.setting, edges: values.setting === "none" ? boxEdges : values.edges }), "Border style")}
             <div style={{ marginTop: 8 }}><u>C</u>olor:</div>
             <PaletteSelect13 label="Border color" autoLabel="Automatic" value={values.color === "000000" ? null : values.color} onChange={hex => set({ color: hex ?? "000000" })} />
             <div style={{ marginTop: 8 }}><u>W</u>idth:</div>
@@ -1278,7 +1286,7 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
             {sideTiles(values.pageSetting, id => set({ pageSetting: id, pageEdges: id === "none" ? noSides : id === "custom" ? pageEdges : allSides }))}
           </div>
           <div><span>St<u>y</u>le:</span>
-            {styleList(values.pageStyle, style => set({ pageStyle: style, pageSetting: values.pageSetting === "none" ? "box" : values.pageSetting, pageEdges: values.pageSetting === "none" ? allSides : pageEdges }), "Page border style")}
+            {styleList<BordersShadingValues["pageStyle"]>(values.pageStyle, style => set({ pageStyle: style, pageSetting: values.pageSetting === "none" ? "box" : values.pageSetting, pageEdges: values.pageSetting === "none" ? allSides : pageEdges }), "Page border style", PAGE_STYLE_LIST)}
             <div style={{ marginTop: 8 }}><u>C</u>olor:</div>
             <PaletteSelect13 label="Page border color" autoLabel="Automatic" value={values.pageColor === "000000" ? null : values.pageColor} onChange={hex => set({ pageColor: hex ?? "000000" })} />
             <div style={{ marginTop: 8 }}><u>W</u>idth:</div>

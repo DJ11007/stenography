@@ -67,8 +67,10 @@ test("Left/Right unequal columns are honestly noted as unsupported instead of si
 test("picking a margin/orientation/page size/columns preset applies immediately via onValueCommand, and More Columns genuinely offers more than the gallery's 1/2/3 (up to 6)", async () => {
   const editor = await read(EDITOR);
   assert.match(editor, /if\(id==="margins"\)\{const preset=MARGIN_PRESET_VALUES\[value\];if\(preset\)applyMargins\(\.\.\.preset\);return\}/);
-  assert.match(editor, /if\(id==="orientation"\)\{setDialog\(null\);pageStyle\("aspectRatio",value==="landscape"\?"1\.414 \/ 1":"1 \/ 1\.414"\);return\}/);
-  assert.match(editor, /if\(id==="pageSize"\)\{const width=PAGE_SIZE_WIDTHS\[value\];if\(width\)\{setDialog\(null\);pageStyle\("maxWidth",`\$\{width\}px`\)\}return\}/);
+  // Orientation swaps the page's own ratio (Legal stays Legal turned sideways), and a paper size
+  // sets its real height/width ratio, not only the width: Legal and Letter are both 8.5" wide.
+  assert.match(editor, /if\(id==="orientation"\)\{setDialog\(null\);const parts=ratioParts\(editor\.current\?\.style\.aspectRatio\?\?""\)\?\?\[1,1\.414\];const \[a,b\]=parts;const wantLandscape=value==="landscape";if\(\(a>b\)!==wantLandscape\)pageStyle\("aspectRatio",`\$\{b\} \/ \$\{a\}`\);return\}/);
+  assert.match(editor, /if\(id==="pageSize"\)\{const width=PAGE_SIZE_WIDTHS\[value\];const paper=PAPER_SIZES\.find\(size=>size\.id===value\);if\(width&&paper\)\{setDialog\(null\);[^;]*;pageStyle\("maxWidth",[^;]*;pageStyle\("aspectRatio",paperRatio\(value,landscape\)!\)\}return\}/);
   assert.match(editor, /if\(id==="columns"\)\{setDialog\(null\);pageStyle\("columnCount",value\);return\}/);
   assert.match(editor, /options=\{\["1","2","3","4","5","6"\]\}/);
   assert.match(editor, /const applyColumns=\(value:string\)=>\{setDialog\(null\);pageStyle\("columnCount",String\(bounded\(value,1,6\)\)\)\}/);

@@ -219,7 +219,21 @@ export function findMatches(text: string, needle: string, options: FindEngineOpt
 
 // Replacement text: ^& found text, ^c nothing, ^t ^^ ^l ^m ^s ^~ ^- ^+ ^= and, with wildcards, \1..\9.
 // A ^p becomes a real paragraph mark ("\r") which the editor turns into a paragraph break.
-export function expandReplacement(replacement: string, match: { text: string; groups: string[] }, options: Pick<FindEngineOptions, "wildcards">): string {
+// Word, with Match case off (and no wildcards), gives a lower-case replacement the found text's
+// capitalisation: replacing "rajasthan" with "punjab" turns "Rajasthan" into "Punjab" and
+// "RAJASTHAN" into "PUNJAB". A replacement typed with capitals is used exactly as typed.
+export function matchReplacementCase(found: string, replacement: string): string {
+  if (!replacement || replacement !== replacement.toLowerCase()) return replacement;
+  const letters = found.replace(/[^\p{L}]/gu, "");
+  if (!letters || letters === letters.toLowerCase()) return replacement;
+  if (letters.length > 1 && letters === letters.toUpperCase()) return replacement.toUpperCase();
+  const first = found.search(/\p{L}/u);
+  if (first >= 0 && found[first] === found[first].toUpperCase()) { const at = replacement.search(/\p{L}/u); return at < 0 ? replacement : replacement.slice(0, at) + replacement[at].toUpperCase() + replacement.slice(at + 1); }
+  return replacement;
+}
+
+export function expandReplacement(replacement: string, match: { text: string; groups: string[] }, options: Pick<FindEngineOptions, "wildcards"> & Partial<Pick<FindEngineOptions, "matchCase">>): string {
+  if (!options.wildcards && options.matchCase === false && !replacement.includes("^") ) return matchReplacementCase(match.text, replacement);
   let output = "";
   for (let i = 0; i < replacement.length;) {
     const character = replacement[i];
