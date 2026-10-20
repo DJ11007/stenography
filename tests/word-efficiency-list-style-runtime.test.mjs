@@ -22,6 +22,8 @@ end $$;
 create function public.assert_word_efficiency_document_schema(jsonb,jsonb) returns void language sql immutable as $$select null::void$$;
 `);
  await db.exec(await readFile(migrationPath,"utf8"));
+ // Multilevel List (202610201400) adds its styles to the approved set.
+ await db.exec(await readFile(new URL("../supabase/migrations/202610201400_word_efficiency_multilevel_lists.sql",import.meta.url),"utf8"));
  return db;
 }
 

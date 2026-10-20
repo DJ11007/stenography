@@ -307,9 +307,10 @@ test("bullets, numbering, and multilevel list galleries offer real Word-style fo
   const[shared,css,editor]=await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"),read("app/globals.css"),read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx")]);
   for(const value of["bullet-disc","bullet-circle","bullet-square","bullet-diamond","bullet-arrow","bullet-check"])assert.match(shared,new RegExp(`value:"${value}"`));
   for(const value of["decimal","decimal-paren","upper-roman","upper-alpha","lower-alpha-paren","lower-alpha","lower-roman"])assert.match(shared,new RegExp(`value:"${value}"`));
-  assert.match(shared,/const MULTILEVEL_ITEMS=NUMBER_ITEMS/);
+  // Multilevel List has Word's own library (1. 1.1. 1.1.1. ...) and real levels now.
+  assert.match(shared,/const MULTILEVEL_ITEMS=\[\{value:"none",label:"None",swatch:""\},\{value:"multilevel-decimal"/);
   assert.match(shared,/GALLERY_NOTES/);
-  assert.match(shared,/nested outline levels/);
+  assert.match(shared,/Press Tab \(or Increase Indent\) to move an item a level down, Shift\+Tab to move it up\./);
   assert.match(shared,/useLayoutEffect/);
   assert.match(shared,/className="word-gallery-menu"/);
   assert.match(css,/\.word-gallery-menu \{ position: fixed;/);

@@ -67,3 +67,22 @@ test("typing over or deleting a selected [Type here] placeholder changes only th
   assert.match(editor, /const text=document\.createTextNode\(deleting\?"":event\.data\?\?""\);holder\.replaceWith\(text\);/);
   assert.match(editor, /root\.addEventListener\("beforeinput",onBeforeInput\)/);
 });
+
+test("Multilevel List: Word's library styles with a level (1-9) per item, saved and checked (Test 4 Q4c)", async () => {
+  const listDoc = (attrs) => ({ ...doc({}), blocks: [{ id: "block-0", type: "list-item", alignment: "left", runs: [run], attrs }] });
+  assert.doesNotThrow(() => validateWordEditorDocument(listDoc({ listStyle: "multilevel-decimal", listLevel: "2" })));
+  assert.doesNotThrow(() => validateWordEditorDocument(listDoc({ listStyle: "multilevel-bullet", listLevel: "9" })));
+  assert.throws(() => validateWordEditorDocument(listDoc({ listStyle: "multilevel-decimal", listLevel: "10" })), /list level/);
+  assert.throws(() => validateWordEditorDocument(listDoc({ listStyle: "multilevel-zigzag", listLevel: "1" })), /list style/);
+  const [ribbon, editor, css, structure] = await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"), read(EDITOR), read("app/globals.css"), read("lib/word-editor-structure.ts")]);
+  assert.match(ribbon, /const MULTILEVEL_ITEMS=\[\{value:"none",label:"None",swatch:""\},\{value:"multilevel-decimal",label:"1\.  1\.1\.  1\.1\.1\."/);
+  // Tab / Increase Indent go a level down, Shift+Tab / Decrease Indent a level up.
+  assert.match(editor, /const changeListLevel=\(delta:number\)=>\{/);
+  assert.match(editor, /\(changeListLevel\(event\.shiftKey\?-1:1\)\|\|headerFooterTab\(event\.shiftKey\)\)/);
+  assert.match(editor, /if\(id==="increaseIndent"\|\|id==="decreaseIndent"\)\{if\(changeListLevel\(id==="increaseIndent"\?1:-1\)\)return false;/);
+  assert.match(editor, /if\(String\(attrs\.listStyle\)\.startsWith\("multilevel-"\)\)\{const level=\(element as HTMLElement\)\.dataset\.listLevel\?\?"";attrs\.listLevel=/);
+  // 1. / 1.1. / 1.1.1.: each level shows every higher level's number.
+  assert.match(css, /ol\[data-list-style="multilevel-decimal"\] > li\[data-list-level="3"\]::marker \{ content: counter\(wl1\) "\." counter\(wl2\) "\." counter\(wl3\) "\. "; \}/);
+  assert.match(css, /li\[data-list-level="1"\], ol\[data-list-style\^="multilevel-"\] > li:not\(\[data-list-level\]\) \{ counter-increment: wl1; counter-set: wl2 0/);
+  assert.match(structure, /export const MULTILEVEL_LIST_STYLES=\["multilevel-decimal","multilevel-paren","multilevel-outline","multilevel-bullet"\] as const;/);
+});

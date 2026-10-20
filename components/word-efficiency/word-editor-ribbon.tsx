@@ -284,8 +284,9 @@ function defaultSwatch(id:string){return({fontColor:"#c00000",highlightColor:"#f
 const CASE_ITEMS=[{value:"sentence",label:"Sentence case."},{value:"lower",label:"lowercase"},{value:"upper",label:"UPPERCASE"},{value:"title",label:"Capitalize Each Word"},{value:"toggle",label:"tOGGLE cASE"}];
 const BULLET_ITEMS=[{value:"none",label:"None",swatch:""},{value:"bullet-disc",label:"Filled round bullets",swatch:"•"},{value:"bullet-circle",label:"Hollow round bullets",swatch:"○"},{value:"bullet-square",label:"Filled square bullets",swatch:"■"},{value:"bullet-diamond",label:"Diamond bullets",swatch:"◆"},{value:"bullet-arrow",label:"Arrow bullets",swatch:"➤"},{value:"bullet-check",label:"Checkmark bullets",swatch:"✓"}];
 const NUMBER_ITEMS=[{value:"none",label:"None",swatch:""},{value:"decimal",label:"1.  2.  3.",swatch:"1."},{value:"decimal-paren",label:"1)  2)  3)",swatch:"1)"},{value:"upper-roman",label:"I.  II.  III.",swatch:"I."},{value:"upper-alpha",label:"A.  B.  C.",swatch:"A."},{value:"lower-alpha-paren",label:"a)  b)  c)",swatch:"a)"},{value:"lower-alpha",label:"a.  b.  c.",swatch:"a."},{value:"lower-roman",label:"i.  ii.  iii.",swatch:"i."}];
-const MULTILEVEL_ITEMS=NUMBER_ITEMS;
-const GALLERY_NOTES:Record<string,string>={multilevelList:"This editor supports one numbering level per list, not nested outline levels.",columns:"Left/Right unequal columns aren't supported in this exam tool — only equal-width columns."};
+// Word 2013's Multilevel List library. Tab / Increase Indent moves an item a level down.
+const MULTILEVEL_ITEMS=[{value:"none",label:"None",swatch:""},{value:"multilevel-decimal",label:"1.  1.1.  1.1.1.",swatch:"1.1"},{value:"multilevel-paren",label:"1)  a)  i)",swatch:"a)"},{value:"multilevel-outline",label:"I.  A.  1.",swatch:"I.A"},{value:"multilevel-bullet",label:"•  o  ▪",swatch:"•o"}];
+const GALLERY_NOTES:Record<string,string>={multilevelList:"Press Tab (or Increase Indent) to move an item a level down, Shift+Tab to move it up.",columns:"Left/Right unequal columns aren't supported in this exam tool — only equal-width columns."};
 const MARGIN_PRESETS=[
  {value:"normal",label:"Normal — Top/Bottom 2.54 cm, Left/Right 2.54 cm"},
  {value:"narrow",label:"Narrow — all sides 1.27 cm"},
