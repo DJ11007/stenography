@@ -29,3 +29,41 @@ test("DESIGN > Watermark is Word's gallery with Custom Watermark… and Remove W
   assert.match(editor, /mixBlendMode:"multiply"/, "drawn behind the text, as Word does");
   assert.match(editor, /watermarkSemitransparent:editor\.dataset\.watermarkSemitransparent==="false"\?"false":"true"/);
 });
+
+test("a header/footer in Word's left/centre/right positions saves as tab characters and reloads into the same positions (Test 4 Q3b/c)", async () => {
+  const { Window } = await import("happy-dom");
+  const { headerFooterZone, restoreHeaderFooterTabs } = await import("../lib/word-header-footer-tabs.ts");
+  const document = new Window().document;
+  // Saved runs: page number on the left, "SAMRADHI CLASSES" on the right ("\t\t" = two positions on).
+  document.body.innerHTML = `<div id="page"><p>Body</p><footer data-block-type="footer"><span data-field="page-number|current|left">1</span><span style="font-size:30pt">\t\tSAMRADHI CLASSES</span></footer></div>`;
+  const page = document.getElementById("page");
+  restoreHeaderFooterTabs(page);
+  const footer = page.querySelector("footer");
+  const zones = [...footer.children];
+  assert.equal(zones.length, 3);
+  assert.deepEqual(zones.map(zone => zone.textContent), ["1", "", "SAMRADHI CLASSES"]);
+  assert.equal(zones[2].style.textAlign, "right");
+  assert.equal(zones[2].firstElementChild.style.fontSize, "30pt", "the text keeps its formatting");
+  assert.equal(zones[0].firstElementChild.getAttribute("data-field"), "page-number|current|left", "a field is never split");
+  // Saving walks the same positions back: the right-hand text is in position 2.
+  assert.equal(headerFooterZone(zones[2].firstChild.firstChild ?? zones[2].firstChild, footer), 2);
+  assert.equal(headerFooterZone(zones[0].firstChild, footer), 0);
+  // A plain footer without tabs is left alone.
+  document.body.innerHTML = `<div id="page2"><footer data-block-type="footer"><span>Plain</span></footer></div>`;
+  restoreHeaderFooterTabs(document.getElementById("page2"));
+  assert.equal(document.querySelector("#page2 footer").innerHTML, "<span>Plain</span>");
+});
+
+test("saving a header/footer writes a tab before text in a later position", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const zone=zoned\?headerFooterZone\(own,element\):0;const tabs=zone>zoneAt\?"\\t"\.repeat\(zone-zoneAt\):"";/);
+  assert.match(editor, /runs\.push\(\{text:\(tabs\+\(node\.textContent\?\?""\)\)\.slice\(0,200000\),/);
+  assert.match(editor, /restoreHeaderFooterTabs\(editor\)\}/);
+});
+
+test("typing over or deleting a selected [Type here] placeholder changes only that placeholder (the right-hand box used to merge into the middle one)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const deleting=event\.inputType==="deleteContentForward"\|\|event\.inputType==="deleteContentBackward";/);
+  assert.match(editor, /const text=document\.createTextNode\(deleting\?"":event\.data\?\?""\);holder\.replaceWith\(text\);/);
+  assert.match(editor, /root\.addEventListener\("beforeinput",onBeforeInput\)/);
+});
