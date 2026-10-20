@@ -271,3 +271,26 @@ test("text with no font of its own shows Calibri (Body) in the Font box, not the
   const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
   assert.match(editor, /const family=styledFont\?approvedFont\(getComputedStyle\(fontSource\)\.fontFamily\):"Calibri \(Body\)";/);
 });
+
+test("Bullets / Numbering are Word split buttons: the icon applies (or removes) the list, the arrow opens the library", async () => {
+  const ribbon = await readFile(new URL("../components/word-efficiency/word-editor-ribbon.tsx", import.meta.url), "utf8");
+  assert.match(ribbon, /items=\{BULLET_ITEMS\} split onPick/);
+  assert.match(ribbon, /items=\{NUMBER_ITEMS\} split onPick/);
+  assert.ok(ribbon.includes('className="word-ribbon-tool word-list-apply" aria-label={option.label}'));
+  assert.ok(ribbon.includes('onClick={()=>{if(!preview)onPick("toggle")}}'));
+  assert.match(ribbon, /aria-label=\{`\$\{option\.label\} Library`\}/);
+  const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /if\(value==="toggle"\)value=inList\?"none":kind==="ul"\?"bullet-disc":"decimal";/);
+});
+
+test("taking bullets off several paragraphs keeps them separate paragraphs (the browser command merged them) and the selection stays", async () => {
+  const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /const items=page\?\[\.\.\.page\.querySelectorAll<HTMLElement>\(`\$\{kind\} > li`\)\]\.filter\(item=>keys\.includes\(blockKey\(item\)\)\):\[\];/);
+  assert.match(editor, /if\(items\.includes\(child\)\)\{rest=null;const paragraph=document\.createElement\("p"\);/);
+  assert.match(editor, /changed\(\);\n  \}\n  reselect\(\);\n \};/);
+});
+
+test("the Font dialog shows Calibri (Body) for text with no font of its own", async () => {
+  const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /fontFamily:\(\(\)=>\{for\(let at:Element\|null\|undefined=parent;[^}]*\}\)\(\)|fontFamily:\(\(\)=>\{for\(let at:Element\|null\|undefined=parent;.*?return"Calibri \(Body\)"\}\)\(\)/);
+});

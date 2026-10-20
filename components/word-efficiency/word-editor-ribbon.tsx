@@ -167,8 +167,8 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="formatPainter"){const disabled=preview||Boolean(option.unsupported);return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-pressed={active||undefined} disabled={disabled} title={option.unsupported??option.label} onMouseDown={event=>{if(!disabled)event.preventDefault()}} onClick={event=>{if(!disabled)onCommand?.(event.detail>=2?"formatPainterSticky":"formatPainter")}}><RibbonIcon id={option.id}/><span>{option.label}</span></button>}
   if(INSERT_MENU_IDS.has(option.id))return <InsertMenu option={option} preview={preview} icon={<RibbonIcon id={option.id}/>} onValueCommand={onValueCommand}/>;
   if(option.id==="changeCase")return <GalleryMenu option={option} preview={preview} items={CASE_ITEMS} onPick={value=>onValueCommand?.("changeCase",value)}/>;
-  if(option.id==="bullets")return <GalleryMenu option={option} preview={preview} items={BULLET_ITEMS} onPick={value=>onValueCommand?.("bullets",value)}/>;
-  if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} onPick={value=>onValueCommand?.("numbering",value)}/>;
+  if(option.id==="bullets")return <GalleryMenu option={option} preview={preview} items={BULLET_ITEMS} split onPick={value=>onValueCommand?.("bullets",value)}/>;
+  if(option.id==="numbering")return <GalleryMenu option={option} preview={preview} items={NUMBER_ITEMS} split onPick={value=>onValueCommand?.("numbering",value)}/>;
   if(option.id==="multilevelList")return <GalleryMenu option={option} preview={preview} items={MULTILEVEL_ITEMS} onPick={value=>onValueCommand?.("multilevelList",value)}/>;
   if(option.id==="lineSpacing")return <GalleryMenu option={option} preview={preview} items={SPACING_ITEMS} onPick={value=>onValueCommand?.("lineSpacing",value)} actions={SPACING_ACTIONS} onAction={id=>onValueCommand?.("lineSpacingAction",id)}/>;
   if(option.id==="borders")return <BordersMenu option={option} preview={preview} onPick={value=>onValueCommand?.("borders",value)}/>;
@@ -340,13 +340,21 @@ function BordersMenu({option,preview,onPick}:{option:RibbonOption;preview:boolea
     {menu}
   </div>;
 }
-function GalleryMenu({option,preview,items,onPick,actions,onAction}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void}){
+function GalleryMenu({option,preview,items,onPick,actions,onAction,split}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void;split?:boolean}){
   const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
   const buttonRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);
   useDismiss(open,()=>setOpen(false),[buttonRef,menuRef]);
   useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-204)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
   const note=GALLERY_NOTES[option.id];
   const menu=open&&typeof document!=="undefined"?createPortal(<div ref={menuRef} role="menu" aria-label={option.label} className="word-gallery-menu" style={position}>{items.map(item=><button role="menuitem" type="button" key={item.value} data-list-preview={item.swatch!==undefined?"":undefined} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}>{item.swatch!==undefined&&<span className="word-gallery-swatch" aria-hidden>{item.swatch}</span>}<span>{item.label}</span></button>)}{note&&<p className="word-gallery-note">{note}</p>}{actions&&actions.length>0&&<><hr className="word-gallery-divider"/>{actions.map(action=><button role="menuitem" type="button" key={action.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onAction?.(action.id);setOpen(false)}}>{action.label}</button>)}</>}</div>,document.body):null;
+  // Bullets and Numbering are split buttons in Word 2013: the icon applies the list at once (a second
+  // click takes it off), only the ▾ opens the library. Both halves used to open the library, so a
+  // student who clicked Bullets got a menu and, without picking from it, no bullets.
+  if(split)return <div data-ribbon-option={option.id} className="word-list-split">
+    <button type="button" className="word-ribbon-tool word-list-apply" aria-label={option.label} title={option.label} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>{if(!preview)onPick("toggle")}}><RibbonIcon id={option.id}/></button>
+    <button ref={buttonRef} type="button" className="word-ribbon-tool word-list-arrow" aria-label={`${option.label} Library`} title={`${option.label} Library`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}>▾</button>
+    {menu}
+  </div>;
   return <div data-ribbon-option={option.id}>
     <button ref={buttonRef} type="button" className="word-ribbon-tool word-gallery-trigger" aria-label={option.label} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><RibbonIcon id={option.id}/><span>{option.label}<i aria-hidden>▾</i></span></button>
     {menu}
