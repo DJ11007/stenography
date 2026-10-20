@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { calculateExcelQuestionSummary, MAX_EXCEL_QUESTION_MARKS, type ExcelQuestion } from "@/lib/excel-efficiency";
 import { QuestionContentEditor } from "@/components/efficiency/question-content-editor";
 import { QuestionContent } from "@/components/efficiency/question-content";
@@ -13,6 +13,12 @@ const normalize = (items: EditorQuestion[]) => items.map((item, index) => ({ ...
 export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQuestion[] }) {
   const [questions, setQuestions] = useState<EditorQuestion[]>(() => normalize((initialQuestions.length ? initialQuestions : [fresh(1)]).map((question, index) => ({ ...question, clientId: crypto.randomUUID(), selected: false, display_order: index + 1 } as EditorQuestion))));
   const [bulkMarks, setBulkMarks] = useState("1");
+  // No OK/Cancel boxes here: where they are blocked (the app's browser pane cancels them at once)
+  // Delete and the bulk-marks buttons did nothing. Delete asks for a second click instead; bulk
+  // marks act straight away, say what changed and can be undone (same as the Word editor).
+  const [bulkNote, setBulkNote] = useState<{ text: string; undo?: typeof questions } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  useEffect(() => { if (!pendingDelete) return; const timer = window.setTimeout(() => setPendingDelete(null), 5000); return () => window.clearTimeout(timer); }, [pendingDelete]);
   const [preview, setPreview] = useState(false);
   const [dragged, setDragged] = useState<number | null>(null);
   const summary = useMemo(() => calculateExcelQuestionSummary(questions.map((q) => ({ marks: q.marks }))), [questions]);
@@ -21,8 +27,8 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
   const move = (index: number, direction: -1 | 1) => setQuestions((items) => { const next = [...items]; const target = index + direction; if (target < 0 || target >= next.length) return items; [next[index], next[target]] = [next[target], next[index]]; return normalize(next); });
   const add = () => setQuestions((items) => [...items, fresh(Math.max(0, ...items.map((item) => item.question_number ?? 0)) + 1)]);
   const duplicate = (index: number) => setQuestions((items) => { const source = items[index]; const copy = { ...source, id: "", clientId: crypto.randomUUID(), question_number: Math.max(0, ...items.map((item) => item.question_number ?? 0)) + 1, selected: false }; const next = [...items]; next.splice(index + 1, 0, copy); return normalize(next); });
-  const remove = (id: string) => { if (questions.length === 1 || confirm("Delete this question?")) setQuestions((items) => normalize(items.filter((item) => item.clientId !== id))); };
-  const applyBulk = (selectedOnly: boolean) => { const marks = Number(bulkMarks); if (!Number.isFinite(marks) || marks <= 0 || marks > MAX_EXCEL_QUESTION_MARKS) return alert(`Enter marks between 0 and ${MAX_EXCEL_QUESTION_MARKS}.`); const targets = selectedOnly ? questions.filter((item) => item.selected) : questions; if (!targets.length) return alert("Select at least one question."); if (!confirm(`Replace marks on ${targets.length} question${targets.length === 1 ? "" : "s"}?`)) return; setQuestions((items) => items.map((item) => (!selectedOnly || item.selected ? { ...item, marks } : item))); };
+  const remove = (id: string) => { if (questions.length > 1 && pendingDelete !== id) { setPendingDelete(id); return; } setPendingDelete(null); setQuestions((items) => normalize(items.filter((item) => item.clientId !== id))); };
+  const applyBulk = (selectedOnly: boolean) => { const marks = Number(bulkMarks); if (!Number.isFinite(marks) || marks <= 0 || marks > MAX_EXCEL_QUESTION_MARKS) { setBulkNote({ text: `Enter marks between 0.01 and ${MAX_EXCEL_QUESTION_MARKS}.` }); return; } const targets = selectedOnly ? questions.filter((item) => item.selected) : questions; if (!targets.length) { setBulkNote({ text: "Tick at least one question first (the checkbox at the top of each question)." }); return; } const before = questions; setQuestions((items) => items.map((item) => (!selectedOnly || item.selected ? { ...item, marks } : item))); setBulkNote({ text: `Set ${targets.length} question${targets.length === 1 ? "" : "s"} to ${marks} mark${marks === 1 ? "" : "s"} each.`, undo: before }); };
 
   const serialized = questions.map((question) => ({ id: question.id || undefined, number: question.question_number, instruction: question.instruction, marks: Number.isFinite(question.marks) ? question.marks : null, section: question.section, display_order: question.display_order, is_visible: question.is_visible, gradingRule: question.gradingRule }));
 
@@ -40,6 +46,7 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
         <label className="text-xs font-bold">Bulk marks<input type="number" min="0.01" max={MAX_EXCEL_QUESTION_MARKS} step="0.01" value={bulkMarks} onChange={(event) => setBulkMarks(event.target.value)} className="input mt-1 w-28" /></label>
         <button type="button" onClick={() => applyBulk(false)} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Apply marks to all questions</button>
         <button type="button" onClick={() => applyBulk(true)} className="rounded-lg bg-slate-200 px-3 py-2 text-sm font-bold">Apply marks to selected questions</button>
+        {bulkNote && <p role="status" className="basis-full text-sm font-bold text-slate-700">{bulkNote.text} {bulkNote.undo && <button type="button" onClick={() => { setQuestions(bulkNote.undo!); setBulkNote(null); }} className="ml-1 text-blue-700 underline">Undo</button>}</p>}
       </div>
       <div className="mt-4 space-y-4">
         {questions.map((question, index) => (
@@ -47,7 +54,7 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={question.selected} onChange={(event) => update(question.clientId, { selected: event.target.checked })} />Select</label>
               <span className="cursor-grab text-xs font-bold text-slate-500" title="Drag to reorder">↕ Display order {question.display_order}</span>
-              <div className="flex flex-wrap gap-1"><button type="button" onClick={() => move(index, -1)} disabled={index === 0} className="mini">Move Up</button><button type="button" onClick={() => move(index, 1)} disabled={index === questions.length - 1} className="mini">Move Down</button><button type="button" onClick={() => duplicate(index)} className="mini">Duplicate Question</button><button type="button" onClick={() => remove(question.clientId)} className="mini text-red-700">Delete Question</button></div>
+              <div className="flex flex-wrap gap-1"><button type="button" onClick={() => move(index, -1)} disabled={index === 0} className="mini">Move Up</button><button type="button" onClick={() => move(index, 1)} disabled={index === questions.length - 1} className="mini">Move Down</button><button type="button" onClick={() => duplicate(index)} className="mini">Duplicate Question</button><button type="button" onClick={() => remove(question.clientId)} className={`mini text-red-700${pendingDelete === question.clientId ? " font-black underline" : ""}`}>{pendingDelete === question.clientId ? "Click again to delete" : "Delete Question"}</button></div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Label text="Question number"><input className="input" type="number" min="1" value={question.question_number} onChange={(event) => update(question.clientId, { question_number: Number(event.target.value) })} /></Label>
