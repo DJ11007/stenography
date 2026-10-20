@@ -258,12 +258,12 @@ export function HomepageTypingDemo() {
           <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-6">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
-                <p className="text-xs font-black uppercase tracking-wide text-white/50">Gross Speed</p>
-                <p className="mt-1 text-3xl font-black text-cyan-300">{score.grossWpm} <span className="text-sm font-bold text-white/50">WPM</span></p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
                 <p className="text-xs font-black uppercase tracking-wide text-white/50">Net Speed</p>
                 <p className="mt-1 text-3xl font-black text-violet-300">{score.netWpm} <span className="text-sm font-bold text-white/50">WPM</span></p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
+                <p className="text-xs font-black uppercase tracking-wide text-white/50">Gross Speed</p>
+                <p className="mt-1 text-3xl font-black text-cyan-300">{score.grossWpm} <span className="text-sm font-bold text-white/50">WPM</span></p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
                 <p className="text-xs font-black uppercase tracking-wide text-white/50">Accuracy</p>

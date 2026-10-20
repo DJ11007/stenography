@@ -265,7 +265,8 @@ test("Speed Details offers a WPM/KPM toggle instead of always showing every spee
   assert.match(component, /role="group" aria-label="Speed unit"/);
   assert.match(component, /aria-pressed=\{unit === "wpm"\} onClick=\{\(\) => setUnit\("wpm"\)\}/);
   assert.match(component, /aria-pressed=\{unit === "kpm"\} onClick=\{\(\) => setUnit\("kpm"\)\}/);
-  assert.match(component, /unit === "wpm"\s*\n\s*\? \[\["Gross Speed \(WPM\)", `\$\{summary\.grossWordsPerMinute\.toFixed\(2\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{summary\.netWordsPerMinute\.toFixed\(2\)\} WPM`\]\]/);
+  // Net Speed, then Gross Speed, then Accuracy (the requested scorecard order).
+  assert.ok(component.includes('? [["Net Speed (WPM)", `${summary.netWordsPerMinute.toFixed(2)} WPM`], ["Gross Speed (WPM)", `${summary.grossWordsPerMinute.toFixed(2)} WPM`], ["Accuracy", `${number(summary.accuracy)}%`]]'));
 });
 
 // Real reported request: several boards (NCERT, SSC, DDA...) publish their
@@ -288,8 +289,8 @@ test("non-RSSB exam-simulator results offer a WPM/KDPH Speed Details panel deriv
   const component = readFileSync(new URL("../app/typing/_components/advanced-typing-results.tsx", import.meta.url), "utf8");
   assert.match(component, /function KeyDepressionSpeedDetails\(/);
   assert.match(component, /const \[unit, setUnit\] = useState<"wpm" \| "kdph">\("wpm"\);/);
-  assert.match(component, /\["Gross Speed \(WPM\)", `\$\{number\(summary\.grossWpm\)\} WPM`\], \["Net Speed \(WPM\)", `\$\{number\(summary\.netWpm\)\} WPM`\]/);
-  assert.match(component, /\["Gross Speed \(KDPH\)", number\(summary\.grossWpm \* 300\)\], \["Net Speed \(KDPH\)", number\(summary\.netWpm \* 300\)\]/);
+  assert.ok(component.includes('? [["Net Speed (WPM)", `${number(summary.netWpm)} WPM`], ["Gross Speed (WPM)", `${number(summary.grossWpm)} WPM`], ["Accuracy", `${number(summary.accuracy)}%`]]'));
+  assert.ok(component.includes(': [["Net Speed (KDPH)", number(summary.netWpm * 300)], ["Gross Speed (KDPH)", number(summary.grossWpm * 300)], ["Accuracy", `${number(summary.accuracy)}%`]]'));
   assert.match(component, /<KeyDepressionSpeedDetails summary=\{summary\} profile=\{preset\.scoringProfile\}\/>/);
 });
 

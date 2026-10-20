@@ -201,6 +201,11 @@ export type ScoringProfile = {
   // formula defines accuracy this way. Undefined (every other profile)
   // leaves accuracy as the character-based figure, unchanged.
   accuracyFromSpeedRatio?: boolean;
+  // How this exam's board defines Accuracy (see AccuracyMethod). Takes precedence over
+  // accuracyFromSpeedRatio; undefined keeps the platform's character-based figure.
+  accuracyMethod?: AccuracyMethod;
+  // The board's own accuracy rule in one line (with its source), shown under the Accuracy figure.
+  accuracyNote?: string;
   // AIIMS's "Insufficient Attempt" rule: if gross typed strokes fall short
   // of what the required qualifying pace (passNetWpm) would produce over
   // the full test duration, the attempt isn't scored normally at all --
@@ -214,6 +219,27 @@ export type ScoringProfile = {
   // entirely so old, already-frozen attempts are unaffected. Undefined
   // (every other profile) shows no Insufficient Attempt banner, unchanged.
   minimumStrokesFromPassSpeed?: boolean;
+};
+
+// The ways Indian recruitment boards define typing Accuracy:
+// - "characters": correct keystrokes / typed keystrokes x 100 (the platform default; boards that
+//   publish no accuracy formula of their own).
+// - "speedRatio": Net Speed / Gross Speed x 100 (AIIMS CRE).
+// - "errorPercent": 100 - Error %, where Error % = (full mistakes + half mistakes / 2) / words typed
+//   x 100 -- the SSC DEST style, with "words typed" counted the exam's own way (5 keystrokes or
+//   space-separated words, the same gross word count its speed uses).
+// - "correctWords": fully correct words / words typed x 100 (boards that score correct words).
+export type AccuracyMethod = "characters" | "speedRatio" | "errorPercent" | "correctWords";
+
+export function accuracyMethodOf(profile: ScoringProfile): AccuracyMethod {
+  return profile.accuracyMethod ?? (profile.accuracyFromSpeedRatio ? "speedRatio" : "characters");
+}
+
+export const ACCURACY_METHOD_FORMULAS: Record<AccuracyMethod, string> = {
+  characters: "Accuracy = correct keystrokes ÷ keystrokes typed × 100",
+  speedRatio: "Accuracy = Net Speed ÷ Gross Speed × 100",
+  errorPercent: "Accuracy = 100 − Error %, Error % = (full mistakes + half mistakes ÷ 2) ÷ words typed × 100",
+  correctWords: "Accuracy = correct words ÷ words typed × 100",
 };
 
 export const DEFAULT_SCORING_PROFILE: ScoringProfile = {
@@ -938,11 +964,19 @@ export function calculateTypingScore({
   // just reports that same figure as `accuracy` instead of this
   // platform's default character-based definition. Undefined/false for
   // every other profile leaves this expression byte-identical to before.
-  const accuracy = scoringProfile.accuracyFromSpeedRatio
+  const accuracyMethod = accuracyMethodOf(scoringProfile);
+  const { counts } = analysis;
+  const wordsTyped = counts.correct + counts.substituted + counts.extra + counts.repeated + counts.halfError;
+  const twoDecimals = (value: number) => Math.round(value * 100) / 100;
+  const accuracy = accuracyMethod === "speedRatio"
     ? efficiency
-    : totalCharacters > 0
-      ? Math.round((correctCharacters / (correctCharacters + incorrectCharacters)) * 100)
-      : 100;
+    : accuracyMethod === "errorPercent"
+      ? grossWordCount > 0 ? twoDecimals(Math.min(100, Math.max(0, 100 - ((analysis.fullErrors + analysis.halfErrors / 2) / grossWordCount) * 100))) : 100
+      : accuracyMethod === "correctWords"
+        ? wordsTyped > 0 ? twoDecimals((counts.correct / wordsTyped) * 100) : 100
+        : totalCharacters > 0
+          ? Math.round((correctCharacters / (correctCharacters + incorrectCharacters)) * 100)
+          : 100;
   const safeAccuracy = Number.isFinite(accuracy) ? accuracy : 0;
 
   return {

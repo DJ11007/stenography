@@ -11,10 +11,10 @@ test("the student workspace puts the Submit button in the header right after the
 
 test("with a portal id the editor renders Submit into the header slot and no bottom bar",async()=>{
  const editor=await read(dir+"rich-document-editor.tsx");
- assert.match(editor,/submitSlot\?createPortal\(/);
+ assert.match(editor,/submitSlot&&!hideSubmit\?createPortal\(/);
  assert.match(editor,/,submitSlot\):null\}/);
  // the admin Model Answer editor passes no portal id: its Save button sits in Word's status bar (no footer bar)
- assert.match(editor,/actions=\{submitSlot\|\|submitPortalId\?undefined:/);
+ assert.match(editor,/actions=\{hideSubmit\|\|submitSlot\|\|submitPortalId\?undefined:/);
  const admin=await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
  assert.doesNotMatch(admin,/submitPortalId/);
 });

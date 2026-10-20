@@ -25,7 +25,7 @@ test("Underline Color / thickness / words-only reach every underlined piece in t
 test("the admin editors' Save button sits in Word's status bar; there is no Autosave/Desktop recommended footer", async () => {
   const source = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   assert.doesNotMatch(source, /Desktop recommended/);
-  assert.match(source, /actions=\{submitSlot\|\|submitPortalId\?undefined:/);
+  assert.match(source, /actions=\{hideSubmit\|\|submitSlot\|\|submitPortalId\?undefined:/);
 });
 
 test("Underline Color changes only the selected text's underline (the innermost one), splitting a longer underline at the selection's edges, as in Word", async () => {

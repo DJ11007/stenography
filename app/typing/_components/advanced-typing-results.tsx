@@ -7,7 +7,7 @@ import { EXAM_CATEGORIES, examCategoryPresetId, type ExamCategoryDefinition } fr
 import { segmentGraphemes, type InputSystem } from "@/lib/typing-language";
 import { buildErrorGuide, guidePenaltyTotal, type ErrorGuideDefinition } from "@/lib/typing-error-guide";
 import { buildResultSummary, calculateConfiguredRssbMarks, calculateSpeedBandMarks, comparisonWordDisplay, resultCategoryTotals, spacingMark } from "@/lib/typing-results";
-import { ALL_HALF_ERROR_CATEGORIES, activeHalfErrorCategories, calculateTypingScore, entryMistakeUnits, HALF_ERROR_CATEGORY_LABELS as CATEGORY_LABELS, type TypingScore, type WordAnalysisEntry } from "@/lib/typing-test";
+import { ACCURACY_METHOD_FORMULAS, accuracyMethodOf, ALL_HALF_ERROR_CATEGORIES, activeHalfErrorCategories, calculateTypingScore, entryMistakeUnits, HALF_ERROR_CATEGORY_LABELS as CATEGORY_LABELS, type TypingScore, type WordAnalysisEntry } from "@/lib/typing-test";
 import { TypingBrandHeader } from "./typing-brand";
 import { useTypingStudent } from "./typing-student-provider";
 
@@ -109,7 +109,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
             its own already-non-redundant RssbSpeedDetails display (its
             separate RssbTypingDetails word-count breakdown was later
             merged into RssbSpeedDetails itself -- see that component). */}
-        {marksResult ? <><RssbSpeedDetails summary={summary}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : mode === "practice" ? <MethodBasedSpeedDetails summary={summary} passage={passage} typedText={typedText} backspaces={backspaces} language={inputSystem.language}/> : <>{insufficientAttempt ? <InsufficientAttemptBanner title={preset.title} minimumStrokes={minimumStrokesRequired} achievedStrokes={score.totalCharacters}/> : <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title} requiredWpm={preset.speedRequirement} achievedWpm={summary.netWpm} requiredAccuracy={preset.accuracyRequirement} achievedAccuracy={summary.accuracy}/>}<KeyDepressionSpeedDetails summary={summary} profile={preset.scoringProfile}/></>}
+        {marksResult ? <><RssbSpeedDetails summary={summary} profile={preset.scoringProfile}/><ComparisonTextPanel entries={displayEntries} fontFamily={fontFamily} textLanguage={textLanguage} onSelect={setSelectedError}/></> : mode === "practice" ? <MethodBasedSpeedDetails summary={summary} passage={passage} typedText={typedText} backspaces={backspaces} language={inputSystem.language}/> : <>{insufficientAttempt ? <InsufficientAttemptBanner title={preset.title} minimumStrokes={minimumStrokesRequired} achievedStrokes={score.totalCharacters}/> : <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title} requiredWpm={preset.speedRequirement} achievedWpm={summary.netWpm} requiredAccuracy={preset.accuracyRequirement} achievedAccuracy={summary.accuracy}/>}<KeyDepressionSpeedDetails summary={summary} profile={preset.scoringProfile}/></>}
         {/* RSSB's marks method has no negative marking, so this penalty-based guide would misstate its rules. Practice attempts aren't following any specific exam's official rules at all, so the guide is dropped there entirely rather than shown with blanked-out values. */}
         {!marksResult && mode !== "practice" && <ErrorScoringGuide profile={preset.scoringProfile} textLanguage={textLanguage} entries={score.analysis.entries} savedPenalty={score.analysis.totalPenalty}/>}
         <section className="mt-6 rounded-3xl bg-white p-4 shadow sm:p-7">
@@ -189,6 +189,11 @@ function SpeedBandMarksPanel({ result, method }: { result: ReturnType<typeof cal
   const earned = result.qualified ? [...method.bands].reverse().find((band) => result.actualWpm >= band.minWpm) : undefined;
   return <section aria-labelledby="speed-marks-title" className="mt-6 rounded-3xl border border-amber-200 bg-white p-4 shadow sm:p-5"><p className="text-xs font-black uppercase tracking-[.18em] text-amber-700">Marks by actual speed · from the exam notification</p><h2 id="speed-marks-title" className="mt-1 text-xl font-black text-slate-950">Typing Test Marks</h2><dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5"><ResultMetric label="Maximum Marks" value={String(method.maximumMarks)}/><ResultMetric label="Qualifying Speed" value={`${method.qualifyingWpm} WPM`}/><ResultMetric label="Actual Speed" value={`${result.actualWpm} WPM`}/><ResultMetric label="Marks Obtained" value={String(result.marksObtained)}/><ResultMetric label="Final Result" value={result.qualified ? "Qualified" : "Disqualified"}/></dl>{result.durationWarning && <p role="status" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">{result.durationWarning}</p>}<div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-2">Actual speed</th><th className="p-2">Marks</th></tr></thead><tbody><tr className={`border-b ${!result.qualified ? "bg-red-50 font-black text-red-900" : ""}`}><td className="p-2">Below {method.qualifyingWpm} WPM</td><td className="p-2">Disqualified</td></tr>{bands.map((band) => <tr key={band.minWpm} className={`border-b ${earned?.minWpm === band.minWpm ? "bg-green-50 font-black text-green-900" : ""}`}><td className="p-2">{band.label}</td><td className="p-2">{band.marks} Marks</td></tr>)}</tbody></table></div><details className="group mt-4 rounded-2xl bg-slate-50"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 font-black text-slate-900"><span>Rules and Instructions</span><ChevronIcon/></summary><ul className="list-disc space-y-2 px-9 pb-4 pt-1 text-sm text-slate-700"><li>Words = total strokes ÷ 5; tentative speed = words ÷ 10 minutes.</li><li>Every mistake costs 1 WPM; the marks scale is read against the actual speed left after that deduction (e.g. 40 WPM tentative with 10 mistakes = 30 WPM actual).</li><li>Omission, substitution, addition, punctuation errors, capital instead of small letters (or the reverse), gaps in or between words and not making paragraphs all count as mistakes.</li><li>Speed is rounded to a whole WPM before the scale is applied.</li></ul></details></section>;
 }
+// The exam's own accuracy rule under the figure, so a student sees how their Accuracy was worked out
+// for this exam (each board defines it differently -- see AccuracyMethod).
+function AccuracyFormula({ profile }: { profile: ExamPreset["scoringProfile"] }) {
+  return <p className="mt-2 rounded-xl bg-blue-50 p-2.5 text-xs font-bold text-blue-900"><strong>Accuracy for this exam:</strong> {ACCURACY_METHOD_FORMULAS[accuracyMethodOf(profile)]}.{profile.accuracyNote ? ` ${profile.accuracyNote}` : profile.accuracyMethod || profile.accuracyFromSpeedRatio ? "" : " This exam's board publishes no accuracy formula of its own (it qualifies you on net speed, marks or correct words), so this figure is for your own reference."}</p>;
+}
 function ChevronIcon({ light = false }: { light?: boolean }) { return <svg aria-hidden viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 transition-transform group-open:rotate-180 ${light ? "text-white" : "text-slate-500"}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>; }
 function ResultMetric({ label, value }: { label: string; value: string }) { return <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"><dt className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-0.5 truncate text-sm font-black text-slate-950" title={value}>{value}</dd></div>; }
 // Real reported feedback: "Typing Details" (the word-count breakdown) and
@@ -198,11 +203,11 @@ function ResultMetric({ label, value }: { label: string; value: string }) { retu
 // should [be] there" too. Merged into one section: the word/backspace
 // breakdown is always visible (it doesn't change with the unit toggle),
 // with only the speed-specific metrics switching between WPM and KPM.
-function RssbSpeedDetails({ summary }: { summary: ReturnType<typeof buildResultSummary> }) {
+function RssbSpeedDetails({ summary, profile }: { summary: ReturnType<typeof buildResultSummary>; profile?: ExamPreset["scoringProfile"] }) {
   const [unit, setUnit] = useState<"wpm" | "kpm">("wpm");
   const speedMetrics = unit === "wpm"
-    ? [["Gross Speed (WPM)", `${summary.grossWordsPerMinute.toFixed(2)} WPM`], ["Net Speed (WPM)", `${summary.netWordsPerMinute.toFixed(2)} WPM`]]
-    : [["Gross Speed (CPM / KPM)", `${summary.grossCharactersPerMinute.toFixed(2)} CPM`], ["Gross KDPH", summary.grossKeystrokesPerHour.toFixed(0)], ["Net Speed (CPM / KPM)", `${summary.netCharactersPerMinute.toFixed(2)} CPM`], ["Net KDPH", summary.netKeystrokesPerHour.toFixed(0)]];
+    ? [["Net Speed (WPM)", `${summary.netWordsPerMinute.toFixed(2)} WPM`], ["Gross Speed (WPM)", `${summary.grossWordsPerMinute.toFixed(2)} WPM`], ["Accuracy", `${number(summary.accuracy)}%`]]
+    : [["Net Speed (CPM / KPM)", `${summary.netCharactersPerMinute.toFixed(2)} CPM`], ["Net KDPH", summary.netKeystrokesPerHour.toFixed(0)], ["Gross Speed (CPM / KPM)", `${summary.grossCharactersPerMinute.toFixed(2)} CPM`], ["Gross KDPH", summary.grossKeystrokesPerHour.toFixed(0)], ["Accuracy", `${number(summary.accuracy)}%`]];
   // Real reported feedback: the word-count grid used to list Substitutions,
   // Additions, Repeated words, Omitted words and Half-mistake words all in
   // one flat, unlabeled row alongside neutral counts like Passage words and
@@ -222,7 +227,8 @@ function RssbSpeedDetails({ summary }: { summary: ReturnType<typeof buildResultS
         <button type="button" aria-pressed={unit === "kpm"} onClick={() => setUnit("kpm")} className={`border-l border-slate-300 px-3 ${unit === "kpm" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>KPM</button>
       </div>
     </div>
-    <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{speedMetrics.map(([label,value]) => <ResultMetric key={label} label={label} value={value}/>)}</dl>
+    <dl className={`mt-3 grid gap-2 ${unit === "wpm" ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-5"}`}>{speedMetrics.map(([label,value]) => <ResultMetric key={label} label={label} value={value}/>)}</dl>
+    {profile && <AccuracyFormula profile={profile}/>}
     <h3 className="mt-5 text-xs font-black uppercase tracking-wide text-slate-500">Overview</h3>
     <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">{overviewRows.map(([label,value]) => <ResultMetric key={label} label={label} value={String(value)}/>)}</dl>
     <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -254,9 +260,11 @@ function RssbSpeedDetails({ summary }: { summary: ReturnType<typeof buildResultS
 // typing/exam result, not just AIIMS.
 function KeyDepressionSpeedDetails({ summary, profile }: { summary: ReturnType<typeof buildResultSummary>; profile: ExamPreset["scoringProfile"] }) {
   const [unit, setUnit] = useState<"wpm" | "kdph">("wpm");
+  // Net Speed, then Gross Speed, then Accuracy -- the order exam scorecards use. Accuracy is this
+  // exam's own definition (ScoringProfile.accuracyMethod), not one generic formula for every board.
   const metrics = unit === "wpm"
-    ? [["Gross Speed (WPM)", `${number(summary.grossWpm)} WPM`], ["Net Speed (WPM)", `${number(summary.netWpm)} WPM`]]
-    : [["Gross Speed (KDPH)", number(summary.grossWpm * 300)], ["Net Speed (KDPH)", number(summary.netWpm * 300)]];
+    ? [["Net Speed (WPM)", `${number(summary.netWpm)} WPM`], ["Gross Speed (WPM)", `${number(summary.grossWpm)} WPM`], ["Accuracy", `${number(summary.accuracy)}%`]]
+    : [["Net Speed (KDPH)", number(summary.netWpm * 300)], ["Gross Speed (KDPH)", number(summary.grossWpm * 300)], ["Accuracy", `${number(summary.accuracy)}%`]];
   const overviewRows = [["Passage words",summary.passageWords],["Total words typed",summary.totalWordsTyped],["Fully correct words",summary.correctWordsTyped],["Remaining / unattempted words",summary.remainingWords],["Backspaces",summary.backspaces]] as const;
   // AIIMS-style profiles (minorSpellingIsFullMistake) genuinely count
   // spelling as a full mistake, not half -- move the row to match where
@@ -273,7 +281,8 @@ function KeyDepressionSpeedDetails({ summary, profile }: { summary: ReturnType<t
         <button type="button" aria-pressed={unit === "kdph"} onClick={() => setUnit("kdph")} className={`border-l border-slate-300 px-3 ${unit === "kdph" ? "bg-blue-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>KDPH</button>
       </div>
     </div>
-    <dl className="mt-3 grid grid-cols-2 gap-2">{metrics.map(([label,value]) => <ResultMetric key={label} label={label} value={value}/>)}</dl>
+    <dl className="mt-3 grid grid-cols-3 gap-2">{metrics.map(([label,value]) => <ResultMetric key={label} label={label} value={value}/>)}</dl>
+    <AccuracyFormula profile={profile}/>
     <h3 className="mt-5 text-xs font-black uppercase tracking-wide text-slate-500">Overview</h3>
     <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">{overviewRows.map(([label,value]) => <ResultMetric key={label} label={label} value={String(value)}/>)}</dl>
     <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -316,7 +325,10 @@ function MethodBasedSpeedDetails({ summary, passage, typedText, backspaces, lang
   const [categorySlug, setCategorySlug] = useState(EXAM_CATEGORIES[0]!.slug);
   const grossWpm = method === "word" ? summary.grossWordsPerMinute : summary.grossCharactersPerMinute / 5;
   const netWpm = method === "word" ? summary.netWordsPerMinute : summary.netCharactersPerMinute / 5;
-  const metrics: [string, string][] = [["Gross Speed", `${number(grossWpm)} WPM`], ["Net Speed", `${number(netWpm)} WPM`], ["Keystrokes per minute", number(grossWpm * 5)], ["KDPH", number(grossWpm * 300)]];
+  const accuracy = method === "word"
+    ? summary.totalWordsTyped > 0 ? Math.round((summary.correctWordsTyped / summary.totalWordsTyped) * 10000) / 100 : 100
+    : summary.typedCharacters > 0 ? Math.round((summary.rightCharacters / summary.typedCharacters) * 10000) / 100 : 100;
+  const metrics: [string, string][] = [["Net Speed", `${number(netWpm)} WPM`], ["Gross Speed", `${number(grossWpm)} WPM`], ["Accuracy", `${number(accuracy)}%`], ["Keystrokes per minute", number(grossWpm * 5)], ["KDPH", number(grossWpm * 300)]];
   const overviewRows = [["Passage words", summary.passageWords], ["Total words typed", summary.totalWordsTyped], ["Fully correct words", summary.correctWordsTyped], ["Remaining / unattempted words", summary.remainingWords], ["Backspaces", summary.backspaces]] as const;
   const centralCategories = useMemo(() => EXAM_CATEGORIES.filter((category) => !isRajasthanCategory(category)), []);
   const rajasthanCategories = useMemo(() => EXAM_CATEGORIES.filter(isRajasthanCategory), []);
@@ -345,14 +357,14 @@ function MethodBasedSpeedDetails({ summary, passage, typedText, backspaces, lang
       </label>
       <p className="mt-1 text-xs font-bold text-slate-500">This attempt was not taken as a {category.name} exam -- these are that exam's real rules applied to what you already typed, so you can see whether it would have qualified.</p>
       {categoryResult && categoryPreset && (categoryResult.categoryMarks && categoryPreset.marksMethod
-        ? <><RssbMarksPanel result={categoryResult.categoryMarks} method={categoryPreset.marksMethod} language={categoryPreset.language} /><RssbSpeedDetails summary={categoryResult.categorySummary} /></>
+        ? <><RssbMarksPanel result={categoryResult.categoryMarks} method={categoryPreset.marksMethod} language={categoryPreset.language} /><RssbSpeedDetails summary={categoryResult.categorySummary} profile={categoryPreset.scoringProfile} /></>
         : categoryResult.categorySpeedMarks && categoryPreset.speedMarksMethod
         ? <><SpeedBandMarksPanel result={categoryResult.categorySpeedMarks} method={categoryPreset.speedMarksMethod} /><KeyDepressionSpeedDetails summary={categoryResult.categorySummary} profile={categoryPreset.scoringProfile} /></>
         : <><ResultBanner label={categoryResult.categoryScore.passed ? "Pass" : "Fail"} passed={categoryResult.categoryScore.passed} title={category.fullName} requiredWpm={categoryPreset.speedRequirement} achievedWpm={categoryResult.categorySummary.netWpm} requiredAccuracy={categoryPreset.accuracyRequirement} achievedAccuracy={categoryResult.categorySummary.accuracy} /><KeyDepressionSpeedDetails summary={categoryResult.categorySummary} profile={categoryPreset.scoringProfile} /></>)}
     </> : <>
       <h2 id="method-result-title" className="mt-4 text-lg font-black">Speed Details</h2>
-      <p className="mt-1 text-xs font-bold text-slate-500">{method === "keystroke" ? "1 word = 5 keystrokes" : "1 word = a group of letters separated by space"}</p>
-      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{metrics.map(([label, value]) => <ResultMetric key={label} label={label} value={value} />)}</dl>
+      <p className="mt-1 text-xs font-bold text-slate-500">{method === "keystroke" ? "1 word = 5 keystrokes · Accuracy = correct keystrokes ÷ keystrokes typed × 100" : "1 word = a group of letters separated by space · Accuracy = correct words ÷ words typed × 100"}</p>
+      <dl className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">{metrics.map(([label, value]) => <ResultMetric key={label} label={label} value={value} />)}</dl>
       <h3 className="mt-5 text-xs font-black uppercase tracking-wide text-slate-500">Overview</h3>
       <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">{overviewRows.map(([label, value]) => <ResultMetric key={label} label={label} value={String(value)} />)}</dl>
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
