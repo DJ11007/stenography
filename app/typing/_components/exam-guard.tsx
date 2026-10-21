@@ -1,23 +1,8 @@
 "use client";
 import { useEffect } from "react";
+import { blockedKeyName } from "@/lib/exam-blocked-keys";
 
 export type ExamQuestion = { message: string; confirmLabel: string; onConfirm: () => void };
-
-// Keys that leave, reload or cover the test page. A student's stray finger on one of these used to end
-// the attempt with no result: Back went to another page (the "leave page?" warning does not cover moves
-// inside the site), and a browser OK/Cancel box -- whose OK button has the focus -- was accepted by the
-// next Space or Enter the student typed. While a test is running these keys do nothing except show a
-// short warning, and every question is asked on the page, answered only by clicking.
-function blockedKeyName(event: KeyboardEvent): string | null {
-  const key = event.key;
-  const ctrl = event.ctrlKey || event.metaKey;
-  if (["BrowserBack", "BrowserForward", "BrowserRefresh", "BrowserHome", "BrowserSearch", "BrowserFavorites"].includes(key)) return key.replace("Browser", "Browser ");
-  if (key === "F5" || (ctrl && (key === "r" || key === "R"))) return "Refresh (F5 / Ctrl+R)";
-  if (event.altKey && (key === "ArrowLeft" || key === "ArrowRight" || key === "Home")) return `Alt+${key.replace("Arrow", "")}`;
-  if (["F1", "F3", "F6", "F7", "F10", "ContextMenu"].includes(key)) return key;
-  if (ctrl && !event.altKey && ["p", "P", "s", "S", "o", "O", "u", "U", "l", "L", "f", "F", "g", "G", "h", "H", "j", "J", "d", "D"].includes(key)) return `Ctrl+${key.toUpperCase()}`;
-  return null;
-}
 
 export function ExamGuard({ active, question, onAnswer, notice, onNotice }: { active: boolean; question: ExamQuestion | null; onAnswer: (yes: boolean) => void; notice: string | null; onNotice: (message: string | null) => void }) {
   useEffect(() => {
@@ -38,9 +23,15 @@ export function ExamGuard({ active, question, onAnswer, notice, onNotice }: { ac
       window.history.pushState(guardState(), "", window.location.href);
       onNotice("Going back is turned off during the test, so your test is not lost. Finish or submit the test first.");
     };
+    // The right-click menu has "Inspect" (Developer Tools) and "Back"/"Reload"; it is never needed to type.
+    const onContextMenu = (event: MouseEvent) => {
+      event.preventDefault();
+      onNotice("The right-click menu is turned off during the test, so your test is not lost. Keep typing.");
+    };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("popstate", onPop, true);
-    return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("popstate", onPop, true); };
+    window.addEventListener("contextmenu", onContextMenu, true);
+    return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("popstate", onPop, true); window.removeEventListener("contextmenu", onContextMenu, true); };
   }, [active, onNotice]);
   useEffect(() => {
     if (!notice) return;
