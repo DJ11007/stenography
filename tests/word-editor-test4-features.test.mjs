@@ -86,3 +86,12 @@ test("Multilevel List: Word's library styles with a level (1-9) per item, saved 
   assert.match(css, /li\[data-list-level="1"\], ol\[data-list-style\^="multilevel-"\] > li:not\(\[data-list-level\]\) \{ counter-increment: wl1; counter-set: wl2 0/);
   assert.match(structure, /export const MULTILEVEL_LIST_STYLES=\["multilevel-decimal","multilevel-paren","multilevel-outline","multilevel-bullet"\] as const;/);
 });
+
+test("font names are quoted in CSS, so Kruti Dev 010 (a name with digits) is not ignored by the browser", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /function cssFontFamily\(name:string\)\{const trimmed=name\.trim\(\);return \/\^\["'\]\/\.test\(trimmed\)\|\|trimmed\.includes\(","\)\?trimmed:`"\$\{trimmed\.replace/);
+  assert.match(editor, /fontFamily:run\.fontFamily\?cssFontFamily\(run\.fontFamily\):undefined,/, "the starting document");
+  assert.match(editor, /if\(run\.fontFamily\)span\.style\.fontFamily=cssFontFamily\(run\.fontFamily\);/, "a reloaded document");
+  assert.match(editor, /fontFamily:values\.fontFamily\?cssFontFamily\(values\.fontFamily\):undefined/, "the Font dialog");
+  assert.doesNotMatch(editor, /fontFamily:run\.fontFamily\?\?undefined/);
+});
