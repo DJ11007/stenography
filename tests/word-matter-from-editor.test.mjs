@@ -6,10 +6,12 @@ const block=(runs,extra={})=>({id:"block-0",type:"paragraph",alignment:"left",ru
 const doc=blocks=>({schemaVersion:"2",blocks,pageLayout:{},operations:[],savedAt:"2026-01-01T00:00:00.000Z"});
 
 async function validator(){
- const sql=await readFile(new URL("../supabase/migrations/202608260027_word_efficiency_working_matter_tables.sql",import.meta.url),"utf8");
+ // The live validator (202610211000: any approved font, table cell fonts/sizes) and the live approved-font list.
+ const sql=await readFile(new URL("../supabase/migrations/202610211000_word_efficiency_matter_fonts.sql",import.meta.url),"utf8");
  const start=sql.indexOf("create or replace function public.assert_word_efficiency_working_matter");
- const end=sql.indexOf("end $$;",start)+"end $$;".length;
- const db=new PGlite();await db.exec(sql.slice(start,end));
+ const end=sql.indexOf("end $function$;",start)+"end $function$;".length;
+ const fonts="Calibri Light (Headings)|Calibri (Body)|Calibri|Calibri Light|Calibri Semibold|Arial|Arial Black|Arial Narrow|Arial Rounded MT Bold|Arial Unicode MS|Bahnschrift|Bahnschrift Condensed|Bahnschrift Light|Bahnschrift Light Condensed|Bahnschrift Light SemiCondensed|Bahnschrift SemiBold|Bahnschrift SemiBold Condensed|Bahnschrift SemiBold SemiCondensed|Bahnschrift SemiCondensed|Bahnschrift SemiLight|Bahnschrift SemiLight Condensed|Bahnschrift SemiLight SemiCondensed|Bookman Old Style|Cambria|Cambria Math|Candara|Century|Century Gothic|Comic Sans MS|Consolas|Constantia|Corbel|Courier New|Franklin Gothic Medium|Garamond|Georgia|Gill Sans MT|Lucida Console|Lucida Sans Unicode|Microsoft Sans Serif|Palatino Linotype|Segoe UI|Tahoma|Times New Roman|Trebuchet MS|Verdana|Aparajita|Kokila|Kruti Dev 010|Mangal|Nirmala UI|Sanskrit Text|Utsaah|Noto Sans Devanagari|Noto Serif Devanagari".split("|").map(font=>`'${font}'`).join(",");
+ const db=new PGlite();await db.exec(`create function public.word_efficiency_approved_fonts() returns text[] language sql immutable as $$select array[${fonts}]::text[]$$;`);await db.exec(sql.slice(start,end));
  return async matter=>{try{await db.query("select public.assert_word_efficiency_working_matter($1::jsonb)",[JSON.stringify(matter)]);return"ok"}catch(error){return error.message}};
 }
 
@@ -37,7 +39,7 @@ test("default text colour and unapproved fonts are not stored as formatting; Cal
  const result=editorDocumentToMatter(doc([block([run("plain"),run("calibri",{fontFamily:"Calibri (Body)"}),run("fancy",{fontFamily:"Garamond",color:"000000"})])]),"English");
  assert.equal(result.ok,true);assert.equal(await check(result.matter),"ok");
  const runs=result.matter.paragraphs[0].runs;
- assert.deepEqual(runs.map(r=>[r.text,r.fontFamily,r.color]),[["plain",null,null],["calibri","Calibri",null],["fancy",null,null]]);
+ assert.deepEqual(runs.map(r=>[r.text,r.fontFamily,r.color]),[["plain","Segoe UI",null],["calibri","Calibri",null],["fancy","Garamond",null]]);
 });
 
 test("adjacent runs with the same formatting are merged, and a blank paragraph keeps one empty run",async()=>{
@@ -94,4 +96,25 @@ test("default paragraph spacing: a paragraph with no spacing set gets Word's 8 p
 test("the blank starting document is spaced like a Word paragraph",()=>{
  const blankMatter=blankWorkingMatter("English");
  assert.equal(blankMatter.paragraphs[0].spaceAfter,8);assert.equal(blankMatter.paragraphs[0].lineSpacing,1.15);
+});
+
+test("a Hindi working document keeps Kruti Dev 010 (paragraphs and table cells), and pasted line-wraps become spaces (EFFICIENCY TEST 4)",async()=>{
+ const check=await validator();
+ const result=editorDocumentToMatter(doc([
+  block([run("ukyank gekjs bfrgkl esa\nvR;ar vkd\"kZd uke gS",{fontFamily:"Kruti Dev 010",fontSize:14})]),
+  {id:"t",type:"table",runs:[],attrs:{rows:[["\n  dz0la0\n  ","\n  uke\n  "],["1","dSyk'k tSu"]],cellFormats:[[{fontFamily:"Kruti Dev 010",fontSize:18},{fontFamily:"Kruti Dev 010",fontSize:18}],[{fontFamily:"Kruti Dev 010",fontSize:18},{fontFamily:"Kruti Dev 010",fontSize:18}]]}},
+  block([run("PRINCE")]),block([run(" ")]),block([run("\n\n\n\n")]),
+ ]),"Hindi");
+ assert.equal(result.ok,true);const m=result.matter;
+ assert.equal(m.paragraphs.length,5,"blank paragraphs stay, as in Word");
+ assert.equal(m.paragraphs[4].runs[0].text," ","a pasted block of empty lines is one blank line");
+ assert.deepEqual(m.paragraphs[0].runs.map(r=>[r.text,r.fontFamily,r.fontSize]),[["ukyank gekjs bfrgkl esa vR;ar vkd\"kZd uke gS","Kruti Dev 010",14]]);
+ assert.deepEqual(m.paragraphs[1].rows,[["dz0la0","uke"],["1","dSyk'k tSu"]]);
+ assert.deepEqual(m.paragraphs[1].cellFonts,[["Kruti Dev 010","Kruti Dev 010"],["Kruti Dev 010","Kruti Dev 010"]]);
+ assert.deepEqual(m.paragraphs[1].cellSizes,[[18,18],[18,18]]);
+ assert.deepEqual(m.formattingSummary.fonts,["Kruti Dev 010","Segoe UI"]);
+ assert.equal(await check(m),"ok");
+ // The database still refuses a font the editor does not offer, and a malformed cell font list.
+ assert.match(await check({...m,paragraphs:[{...m.paragraphs[0],runs:[{...m.paragraphs[0].runs[0],fontFamily:"Wingdings"}]}]}),/not approved/);
+ assert.match(await check({...m,paragraphs:[{...m.paragraphs[1],cellFonts:[["Kruti Dev 010"]]}]}),/cell fonts are invalid/);
 });

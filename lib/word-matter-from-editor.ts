@@ -1,4 +1,5 @@
-import type { MatterParagraph, MatterRun, MatterTextParagraph, WorkingMatterSnapshot } from "./word-docx";
+﻿import type { MatterParagraph, MatterRun, MatterTextParagraph, WorkingMatterSnapshot } from "./word-docx";
+import { APPROVED_WORD_FONTS } from "./word-editor-capabilities.ts";
 
 // The admin now DESIGNS the working document in the exam editor itself (instead of uploading a
 // .docx that has to be parsed). This turns that editor's document (what the editor's own
@@ -8,7 +9,10 @@ import type { MatterParagraph, MatterRun, MatterTextParagraph, WorkingMatterSnap
 
 export type MatterConversion = { ok: true; matter: WorkingMatterSnapshot } | { ok: false; error: string };
 
-const APPROVED_MATTER_FONTS = new Set(["Arial", "Calibri", "Times New Roman", "Mangal"]);
+// Every font the editor offers is kept. This used to be four fonts (Arial, Calibri, Times New Roman,
+// Mangal): a Hindi document typed in Kruti Dev 010 lost its font on "Save & return" and students
+// saw the Kruti Dev keys (ukyank gekjs ...) instead of Hindi (EFFICIENCY TEST 4).
+const APPROVED_MATTER_FONTS = new Set<string>(APPROVED_WORD_FONTS);
 const DEFAULT_TEXT_COLORS = new Set(["000000", "020618"]);
 const MAX_PARAGRAPHS = 550, MAX_TEXT_PARAGRAPH_NUMBER = 500;
 
@@ -68,7 +72,9 @@ function convertRun(run: EditorRun): MatterRun {
   const size = Number(run.fontSize);
   const color = hex(run.color);
   return {
-    text: asString(run.text).normalize("NFC").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "").slice(0, 200000),
+    // Line breaks inside a text piece come from pasted HTML (the line-wrapping of the source); the page
+    // shows them as spaces, so they are stored as spaces.
+    text: asString(run.text).normalize("NFC").replace(/[ \t]*[\r\n]+[ \t]*/gu, " ").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, "").slice(0, 200000),
     bold: run.bold === true,
     italic: run.italic === true,
     underline: run.underline === true,
@@ -107,8 +113,15 @@ export function editorDocumentToMatter(document: unknown, language: "English" | 
     const type = asString(raw?.type) || "paragraph";
     const id = `matter-p-${paragraphs.length + 1}`;
     if (type === "table") {
-      const rows = (Array.isArray(raw.attrs?.rows) ? raw.attrs!.rows as unknown[] : []).slice(0, 50).map(row => (Array.isArray(row) ? row : []).slice(0, 20).map(cell => asString(cell).slice(0, 10000))).filter(row => row.length);
-      if (rows.length) paragraphs.push({ id, type: "table", rows });
+      const rawRows = (Array.isArray(raw.attrs?.rows) ? raw.attrs!.rows as unknown[] : []).slice(0, 50).map(row => (Array.isArray(row) ? row : []).slice(0, 20));
+      const keep = rawRows.map((row, index) => ({ row, index })).filter(item => item.row.length);
+      const rows = keep.map(item => item.row.map(cell => asString(cell).replace(/\s+/gu, " ").trim().slice(0, 10000)));
+      // Each cell's font and size (Table Tools saves them in attrs.cellFormats), so a Kruti Dev table stays Hindi.
+      const formats = Array.isArray(raw.attrs?.cellFormats) ? raw.attrs!.cellFormats as unknown[] : [];
+      const cell = (rowIndex: number, cellIndex: number) => { const row = formats[rowIndex]; const format = Array.isArray(row) ? row[cellIndex] as Record<string, unknown> | undefined : undefined; return format ?? {}; };
+      const cellFonts = keep.map(item => item.row.map((_, c) => { const family = asString(cell(item.index, c).fontFamily).replace(/ \((?:Headings|Body)\)$/u, ""); return APPROVED_MATTER_FONTS.has(family) ? family : null; }));
+      const cellSizes = keep.map(item => item.row.map((_, c) => { const size = Number(cell(item.index, c).fontSize); return Number.isFinite(size) && size >= 4 && size <= 200 ? size : null; }));
+      if (rows.length) paragraphs.push({ id, type: "table", rows, ...(cellFonts.flat().some(Boolean) ? { cellFonts } : {}), ...(cellSizes.flat().some(Boolean) ? { cellSizes } : {}) });
       else dropped++;
       previousWasList = false;
       continue;
