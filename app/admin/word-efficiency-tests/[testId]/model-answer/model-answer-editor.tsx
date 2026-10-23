@@ -29,6 +29,12 @@ type Criterion = ModelAnswerCriterion;
 // bottom -- going back to edit an earlier question after later ones are
 // already saved can pick up those later edits too, matching the known,
 // documented scope of diffWordDocuments itself (see lib/word-document-diff.ts).
+// Number of non-blank paragraphs/elements in an editor document, or null when it is not a document.
+function countParagraphs(document: unknown): number | null {
+  const blocks = (stripBlankParagraphs(document) as { blocks?: unknown } | null)?.blocks;
+  return Array.isArray(blocks) ? blocks.length : null;
+}
+
 export function ModelAnswerEditor({ versionId, original, initialDocument, capabilities, questions }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; capabilities: unknown; questions: Question[] }) {
   // The question that starts active (first one with no existing grading
   // rule) needs a checkpoint -- the document as it stood before THIS
@@ -51,6 +57,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   const [activeNumber, setActiveNumber] = useState<number | null>(initialActiveNumber);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [showQuestion, setShowQuestion] = useState(true);
 
   const ready = latestDocument !== null;
   const active = questions.find((question) => question.number === activeNumber) ?? null;
@@ -107,6 +114,15 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
     // Saved without blank paragraphs: grading counts text-bearing paragraphs
     // only (see stripBlankParagraphs), so the stored answer must too.
     const cleanDocument = stripBlankParagraphs(document);
+    // Rules point at paragraphs by position, so solving a question must never add, delete, split or merge
+    // paragraphs. Refuse the save (before anything is stored) and say exactly what changed.
+    if (activeNumber !== null) {
+      const expected = countParagraphs(checkpoints[activeNumber] ?? latestDocument ?? cleanDocument);
+      const actual = countParagraphs(cleanDocument);
+      if (expected !== null && actual !== expected) {
+        return { ok: false, error: `Q${activeNumber} was not saved: the paper had ${expected} paragraphs when you started this question but now has ${actual}. A paragraph was added, deleted, split or merged. While solving, only format or edit text inside the existing paragraphs. Press Undo (Ctrl+Z) until the paper has ${expected} paragraphs again, then save.` };
+      }
+    }
     const saveResult = await saveWordEfficiencyModelAnswer(versionId, cleanDocument);
     if (!saveResult.ok) return saveResult;
     setLatestDocument(cleanDocument);
@@ -153,7 +169,8 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
             {resetting ? "Resetting…" : "Reset"}
           </button>
         </div>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-2 flex items-start gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-2">
           {questions.map((question) => {
             const status = answeredNumbers.has(question.number) ? "answered" : activeNumber === question.number ? "active" : "pending";
             return (
@@ -170,8 +187,19 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
             );
           })}
         </div>
+          <button
+            type="button"
+            onClick={() => setShowQuestion((open) => !open)}
+            aria-expanded={showQuestion}
+            aria-label={showQuestion ? "Hide the question text" : "Show the question text"}
+            title={showQuestion ? "Hide the question text" : "Show the question text"}
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden className={`h-5 w-5 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+        </div>
         {!ready && <p className="mt-3 text-sm text-slate-500">Loading the question paper…</p>}
-        {active && (
+        {active && showQuestion && (
           <div className="mt-4 rounded-2xl bg-blue-50 p-4">
             <p className="text-xs font-black uppercase tracking-wide text-blue-700">Answering Question {active.number} · {active.marks} marks</p>
             <p className="mt-1 text-sm text-blue-900">{active.instruction}</p>

@@ -13,6 +13,7 @@ import {
   saveWordEfficiencyTest,
   setWordEfficiencyStatus,
   retryWordEfficiencyStorageCleanup,
+  retryAllWordEfficiencyStorageCleanup,
 } from "./actions";
 import { QuestionEditor } from "./question-editor";
 import { DeliveryPdfFields } from "./delivery-pdf-fields";
@@ -48,8 +49,9 @@ export async function WordEfficiencyTestsPage({
   const { data: attempts } = await supabase
     .from("word_efficiency_attempts")
     .select("id,test_id,status,result,prepared_at,submitted_at,student_id");
-  const{data:cleanupRows}=await supabase.from("word_efficiency_storage_cleanup").select("audit_id,status").in("status",["pending","failed"]);
+  const{data:cleanupRows}=await supabase.from("word_efficiency_storage_cleanup").select("audit_id,status,bucket_id,object_path,last_error,attempt_count").in("status",["pending","failed"]);
   const cleanupAudits=[...new Set((cleanupRows??[]).map(row=>row.audit_id))];
+  const cleanupKeyMissing=!process.env.SUPABASE_SERVICE_ROLE_KEY;
   const map = new Map(
     (versions ?? []).map((version) => [version.id, version as WordVersion]),
   );
@@ -114,7 +116,7 @@ export async function WordEfficiencyTestsPage({
         )}
         {params.deleted&&<p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">The test and all database records were permanently deleted.{params.cleanup?` ${params.cleanup} storage object cleanup operation(s) remain recorded for retry.`:" Queued storage objects were removed or safely retained because they remain shared."}</p>}
         {params.cleanupRetried&&<p role="status" className="mt-5 rounded-xl bg-blue-50 p-4 font-bold text-blue-800">Storage cleanup retry finished.{params.cleanup?` ${params.cleanup} object(s) still require another retry.`:" All queued objects are removed."}</p>}
-        {view==="manage"&&cleanupAudits.length>0&&<section className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4"><h2 className="font-black text-amber-950">Pending deleted-test storage cleanup</h2><p className="mt-1 text-sm text-amber-800">Database content remains permanently deleted. Retry only the isolated storage jobs recorded during deletion.</p><div className="mt-3 flex flex-wrap gap-2">{cleanupAudits.map(auditId=><form action={retryWordEfficiencyStorageCleanup} key={auditId}><input type="hidden" name="auditId" value={auditId}/><button className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-black text-white">Retry orphan file cleanup</button></form>)}</div></section>}
+        {view==="manage"&&cleanupAudits.length>0&&<section className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4"><h2 className="font-black text-amber-950">Pending deleted-test storage cleanup</h2><p className="mt-1 text-sm text-amber-800">The deleted tests are gone from the database. {(cleanupRows??[]).length} leftover file{(cleanupRows??[]).length===1?"":"s"} could not be removed from storage yet.</p>{cleanupKeyMissing&&<p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-800">This is why: <code>SUPABASE_SERVICE_ROLE_KEY</code> is not set on this server, and removing files from storage needs it. Add it to the server environment (Supabase dashboard, Settings, API, &quot;service_role&quot; key; keep it secret, never use it in the browser), restart the app, then press Retry below.</p>}<form action={retryAllWordEfficiencyStorageCleanup} className="mt-3"><button className="rounded-lg bg-amber-800 px-4 py-2 text-sm font-black text-white">Retry all ({(cleanupRows??[]).length} files)</button></form><div className="mt-3 space-y-2">{cleanupAudits.map(auditId=>{const rows=(cleanupRows??[]).filter(row=>row.audit_id===auditId);return <form action={retryWordEfficiencyStorageCleanup} key={auditId} className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3"><input type="hidden" name="auditId" value={auditId}/><div className="min-w-0 flex-1 text-xs text-slate-700">{rows.map(row=><p key={`${row.bucket_id}/${row.object_path}`} className="truncate"><strong>{row.bucket_id}/{row.object_path}</strong>{row.last_error?` · ${row.last_error}`:" · not attempted yet"}</p>)}</div><button className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-black text-white">Retry orphan file cleanup ({rows.length})</button></form>})}</div></section>}
         <div className={view === "design" ? "mt-6" : "mt-6 grid gap-6"}>
           {view === "design" && (
           <section className="rounded-3xl bg-white p-5 shadow sm:p-7">

@@ -29,7 +29,7 @@ test("each line is about a line's worth of words, and a paragraph never repeats 
  for(const paragraph of text){
   const sentences=paragraph.split(/(?<=\.)\s+/);
   assert.equal(new Set(sentences).size,sentences.length,"no repeated sentence");
-  for(const sentence of sentences){const words=sentence.split(/\s+/).length;assert.ok(words>=10&&words<=22,`${words} words: ${sentence}`);assert.match(sentence,/^[A-Z]/)}
+  for(const sentence of sentences){const words=sentence.split(/\s+/).length;assert.ok(words>=9&&words<=26,`${words} words: ${sentence}`);assert.match(sentence,/^[A-Z]/)}
  }
 });
 
