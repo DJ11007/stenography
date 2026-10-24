@@ -54,3 +54,11 @@ test("the admin test list keeps English and Hindi tests in separate sections of 
   for (const part of ["Model Answer", "duplicateWordEfficiencyTest", 'label="Archive"', "<PermanentDeleteDangerZone"]) assert.ok(details.includes(part), `${part} is inside ▾ More`);
   assert.match(page, /defaultValue=\{current\?\.language \?\? \(params\.language === "Hindi" \? "Hindi" : "English"\)\}/, "+ Create Hindi Test starts in Hindi");
 });
+
+test("efficiency tests offer 10, 15, 20, 25 or 30 minutes: new tests default to them, and the card lists them short", async () => {
+  const [page, lib] = await Promise.all([readFile(new URL("../app/admin/word-efficiency-tests/tests-page.tsx", import.meta.url), "utf8"), import("../lib/word-efficiency.ts")]);
+  assert.match(page, /\.join\(", "\) \?\? "10, 15, 20, 25, 30"/);
+  assert.deepEqual(lib.parseDurationOptions("10, 15, 20, 25, 30"), [600, 900, 1200, 1500, 1800]);
+  assert.equal(lib.formatWordDurations([600, 900, 1200, 1500, 1800]), "10 / 15 / 20 / 25 / 30 minutes");
+  assert.equal(lib.formatWordDurations([600]), "10 minutes");
+});

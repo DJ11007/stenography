@@ -188,7 +188,7 @@ export async function WordEfficiencyTestsPage({
                     defaultValue={
                       current?.duration_options
                         ?.map((value) => value / 60)
-                        .join(", ") ?? "10"
+                        .join(", ") ?? "10, 15, 20, 25, 30"
                     }
                     required
                   />
