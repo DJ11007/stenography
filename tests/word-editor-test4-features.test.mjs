@@ -137,3 +137,10 @@ test("pages: a table is split between rows at a page break, as in Word, and page
   assert.match(css, /\.word-document-page tr\[data-page-push\] > td, \.word-document-page tr\[data-page-push\] > th \{\n  padding-top: calc\(var\(--page-push-mt\) \+ var\(--page-push-pad, 0px\)\) !important;/);
   assert.match(css, /#fff 0 var\(--page-push-white\), #d4d4d4 var\(--page-push-white\) var\(--page-push-gap\), #fff var\(--page-push-gap\) var\(--page-push-mt\)/, "the paper, the grey gap and the next sheet's margin");
 });
+
+test("Home > Font applies Kruti Dev 010 to selected text (the browser's fontName wrote a <font face> it then dropped)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /onFontChange=\{font=>withCells\(\(\)=>applyFontFamily\(font\)\)\}/);
+  assert.match(editor, /const wrapped=wrapEditorRange\(selection\.getRangeAt\(0\),\{fontFamily:cssFontFamily\(font\.replace\(/);
+  assert.match(editor, /for\(const span of wrapped\.spans\)clearInnerRunStyles\(span,\["fontFamily"\]\);/);
+});
