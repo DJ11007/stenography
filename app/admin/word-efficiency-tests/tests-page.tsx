@@ -292,7 +292,7 @@ export async function WordEfficiencyTestsPage({
                   return { key: test.id, searchText: `${test.title} ${test.language} ${test.status}`, node: (
                     <article className="rounded-xl bg-white px-4 py-3 shadow-sm">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-[13rem] flex-1">
                           <h4 className="truncate font-black">{test.title}</h4>
                           <p className="text-xs text-slate-500">
                             {version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks · {count} attempt{count === 1 ? "" : "s"}
