@@ -198,6 +198,10 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   const area=scrollRef.current;let page=1;if(area&&pages>1){const offset=area.getBoundingClientRect().top+area.clientHeight/3-el.getBoundingClientRect().top;page=Math.min(pages,Math.max(1,Math.floor(offset/(pageStep*zoomScale))+1))}
   setStats(prev=>prev.words===words&&prev.pages===pages&&prev.page===page?prev:{words,pages,page})};
  chromeRef.current=syncChrome;
+ // A font that arrives after the first layout (Kruti Dev 010) changes every paragraph's height, so the
+ // pages are split again then; the split used to stay where the fallback font had put it, and a table
+ // was left across the gap between two sheets.
+ useEffect(()=>{const fonts=typeof document!=="undefined"?document.fonts:undefined;if(!fonts)return;let alive=true;const redo=()=>{if(!alive)return;paginationDirty.current=true;chromeRef.current?.()};void fonts.ready.then(redo);fonts.addEventListener("loadingdone",redo);return()=>{alive=false;fonts.removeEventListener("loadingdone",redo)}},[]);
  const applyRulerIndent=(next:RulerIndent,commit:boolean)=>{const blocks=selectedBlocks();if(!blocks.length)return;for(const block of blocks){block.style.marginLeft=`${next.left/PX_PER_INCH}in`;block.style.marginRight=`${next.right/PX_PER_INCH}in`;if(Math.abs(next.first)<0.5){delete block.dataset.specialIndentMode;delete block.dataset.specialIndentAmount;block.style.textIndent=""}else{const amount=`${Math.abs(next.first)/PX_PER_INCH}in`;block.dataset.specialIndentMode=next.first>0?"firstLine":"hanging";block.dataset.specialIndentAmount=amount;block.style.textIndent=next.first>0?amount:`-${amount}`}}setIndent(next);if(commit)changed()};
  // The live selection, when it is in the document; else the one remembered when focus left it.
  // Reading it never moves the selection: the exam page re-renders every second (the timer),
@@ -1605,11 +1609,12 @@ const PAGE_GAP_PX = 22;
 function paginatePages(page: HTMLElement, sheetHeight: number, zoom: number) {
   const style = getComputedStyle(page), num = (value: string) => Number.parseFloat(value) || 0;
   const padTop = num(style.paddingTop), padBottom = num(style.paddingBottom), step = sheetHeight + PAGE_GAP_PX;
-  for (const pushed of page.querySelectorAll<HTMLElement>("[data-page-push]")) { delete pushed.dataset.pagePush; pushed.style.removeProperty("--page-push-mt"); }
+  for (const pushed of page.querySelectorAll<HTMLElement>("[data-page-push]")) { delete pushed.dataset.pagePush; for (const name of ["--page-push-mt", "--page-push-white", "--page-push-gap", "--page-push-pad", "--page-push-border"]) pushed.style.removeProperty(name); }
   const blocks = [...page.children].flatMap(child => (child.tagName === "UL" || child.tagName === "OL" ? [...child.children] : [child])).filter(child => child.tagName !== "FOOTER") as HTMLElement[];
   const top = () => page.getBoundingClientRect().top;
   const usable = sheetHeight - padTop - padBottom;
   for (const block of blocks) {
+    if (block.tagName === "TABLE" && paginateTableRows(block as HTMLTableElement, { top, zoom, step, sheetHeight, padTop, padBottom, usable })) continue;
     const rect = block.getBoundingClientRect(), blockTop = (rect.top - top()) / zoom, blockBottom = (rect.bottom - top()) / zoom;
     const sheet = Math.floor(blockTop / step), sheetTextTop = sheet * step + padTop, sheetTextBottom = sheet * step + sheetHeight - padBottom;
     if (blockBottom <= sheetTextBottom + 0.5 || blockBottom - blockTop > usable) continue;
@@ -1633,6 +1638,32 @@ function paginatePages(page: HTMLElement, sheetHeight: number, zoom: number) {
   const minHeight = `${Math.round(sheets * step - PAGE_GAP_PX)}px`;
   if (page.style.minHeight !== minHeight) page.style.minHeight = minHeight;
   drawSheetBorders(page, sheets, sheetHeight, step, zoom);
+}
+
+// A table that does not fit at the bottom of a sheet is split between rows, as Word does: the rows
+// that fit stay, and the first row that does not starts the next sheet below its top margin. The
+// row's cells get that much extra top padding, drawn as the paper (white, the grey gap, white) with
+// the row's top and side borders moved down to the new sheet (CSS: tr[data-page-push]). Display only,
+// like the paragraph moves. Returns false when the first row itself does not fit (the whole table
+// then moves, as a paragraph does).
+function paginateTableRows(table: HTMLTableElement, sheet: { top: () => number; zoom: number; step: number; sheetHeight: number; padTop: number; padBottom: number; usable: number }) {
+  const rows = [...table.rows].filter(row => row.closest("table") === table);
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index], rect = row.getBoundingClientRect(), rowTop = (rect.top - sheet.top()) / sheet.zoom, rowBottom = (rect.bottom - sheet.top()) / sheet.zoom;
+    const number = Math.floor(rowTop / sheet.step), textBottom = number * sheet.step + sheet.sheetHeight - sheet.padBottom;
+    if (rowBottom <= textBottom + 0.5 || rowBottom - rowTop > sheet.usable) continue;
+    if (index === 0) return false;
+    // Read before the row is marked: getComputedStyle is live, and the marking changes both.
+    const cellStyle = row.cells[0] ? getComputedStyle(row.cells[0]) : null, pad = cellStyle?.paddingTop || "0px", border = cellStyle && cellStyle.borderLeftStyle !== "none" && Number.parseFloat(cellStyle.borderLeftWidth) > 0 ? cellStyle.borderLeftColor : "transparent";
+    const target = (number + 1) * sheet.step + sheet.padTop, push = target - rowTop;
+    row.dataset.pagePush = "true";
+    row.style.setProperty("--page-push-mt", `${push}px`);
+    row.style.setProperty("--page-push-white", `${number * sheet.step + sheet.sheetHeight - rowTop}px`);
+    row.style.setProperty("--page-push-gap", `${(number + 1) * sheet.step - rowTop}px`);
+    row.style.setProperty("--page-push-pad", pad);
+    row.style.setProperty("--page-push-border", border);
+  }
+  return true;
 }
 
 // The page border on every sheet, 24 pt in from the paper's edge (Word's default "Measure from:

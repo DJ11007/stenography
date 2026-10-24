@@ -1244,3 +1244,21 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-text-effects-outline { position: absolute; left: 282px; top: 170px; width: 232px; border: 1px solid #aaa; background: #fff; box-shadow: 0 3px 8px rgb(0 0 0 / .25); }
 .word-text-effects-outline .wr-swatch { width: 17px; height: 17px; border: 1px solid #c6c6c6; }
 .word-text-effects-outline .wi-item:disabled { color: #a6a6a6; }
+/* A table row moved to the next sheet (paginateTableRows): the extra top padding shows the paper
+   (white to the sheet's end, the grey gap, white top margin), and the row's top and side borders
+   start on the new sheet. */
+.word-document-page tr[data-page-push] > td, .word-document-page tr[data-page-push] > th {
+  padding-top: calc(var(--page-push-mt) + var(--page-push-pad, 0px)) !important;
+  border-left-color: transparent !important; border-right-color: transparent !important;
+  background-image: linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(to bottom, #fff 0 var(--page-push-white), #d4d4d4 var(--page-push-white) var(--page-push-gap), #fff var(--page-push-gap) var(--page-push-mt));
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 1px calc(100% - var(--page-push-mt)), 100% var(--page-push-mt);
+  background-position: 0 var(--page-push-mt), 0 var(--page-push-mt), 0 0;
+}
+.word-document-page tr[data-page-push] > :last-child {
+  background-image: linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(to bottom, #fff 0 var(--page-push-white), #d4d4d4 var(--page-push-white) var(--page-push-gap), #fff var(--page-push-gap) var(--page-push-mt));
+  background-size: 100% 1px, 1px calc(100% - var(--page-push-mt)), 1px calc(100% - var(--page-push-mt)), 100% var(--page-push-mt);
+  background-position: 0 var(--page-push-mt), 0 var(--page-push-mt), 100% var(--page-push-mt), 0 0;
+}
+/* View > Gridlines would outline the moved row across the gap; its borders are drawn above. */
+.word-document-page tr[data-page-push] > td, .word-document-page tr[data-page-push] > th { outline: none !important; }
