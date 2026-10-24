@@ -51,8 +51,8 @@ test("the admin test list links to the Model Answer page alongside Edit/Preview 
   const page = await read("app/admin/word-efficiency-tests/tests-page.tsx");
   assert.match(page, /\/admin\/word-efficiency-tests\/\$\{test\.id\}\/model-answer/);
   assert.match(page, /Model Answer/);
-  assert.match(page, /Edit \/ Preview/);
-  assert.match(page, /View Attempts/);
+  assert.match(page, />Edit<\/Link>/);
+  assert.match(page, />Attempts<\/Link>/);
 });
 
 test("the Model Answer page loads test/version/questions/existing grading rules and renders ModelAnswerEditor", async () => {

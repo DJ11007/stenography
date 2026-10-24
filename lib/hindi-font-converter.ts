@@ -474,7 +474,26 @@ const legacyDecodeOverrides = new Map<string, string>([
 ]);
 const legacyOverrideTokens = [...legacyDecodeOverrides].sort(([a], [b]) => b.length - a.length);
 
-function decodeLegacyWord(rawWord: string) {
+function decodeLegacyWord(rawWord: string): string {
+  const decoded = decodeLegacySegments(rawWord);
+  // Real reported bug (EFFICIENCY TEST 1 Hindi paper): "QLVZ" (फर्स्ट) decoded as "फसर्ट". With a
+  // half-letter before the conjunct, the converter puts reph र् between the half-letter and the
+  // consonant, taking the half-letter's halant (स्ट + reph -> स र् ट). Reph belongs before the whole
+  // conjunct: र्स्ट. Seen by decoding the word without its reph: removing the र from the result then
+  // gives that word back exactly, which a genuine "सर्ट" (सर्टिफिकेट, "lfVZfQdsV") never does.
+  if (rawWord.split("Z").length !== 2) return decoded;
+  const plain = decodeLegacySegments(rawWord.replace("Z", ""));
+  const consonant = /[क-हक़-य़]/u;
+  for (let index = decoded.indexOf("र्"); index > 0; index = decoded.indexOf("र्", index + 1)) {
+    if (!consonant.test(decoded[index - 1]) || decoded.slice(0, index) + decoded.slice(index + 1) !== plain) continue;
+    let start = index - 1;
+    while (start >= 2 && plain[start - 1] === "्" && consonant.test(plain[start - 2])) start -= 2;
+    return plain.slice(0, start) + "र्" + plain.slice(start);
+  }
+  return decoded;
+}
+
+function decodeLegacySegments(rawWord: string) {
   let output = "";
   for (let index = 0; index < rawWord.length;) {
     const override = legacyOverrideTokens.find(([legacy]) => rawWord.startsWith(legacy, index));

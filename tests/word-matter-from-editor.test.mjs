@@ -118,3 +118,11 @@ test("a Hindi working document keeps Kruti Dev 010 (paragraphs and table cells),
  assert.match(await check({...m,paragraphs:[{...m.paragraphs[0],runs:[{...m.paragraphs[0].runs[0],fontFamily:"Wingdings"}]}]}),/not approved/);
  assert.match(await check({...m,paragraphs:[{...m.paragraphs[1],cellFonts:[["Kruti Dev 010"]]}]}),/cell fonts are invalid/);
 });
+
+test("Extract Questions reads a Hindi paper typed in Kruti Dev 010 as Hindi: text drawn in a Kruti Dev font is converted, other fonts are not", async () => {
+  const [server, actions] = await Promise.all([readFile(new URL("../lib/word-pdf-server.ts", import.meta.url), "utf8"), readFile(new URL("../app/admin/word-efficiency-tests/actions.ts", import.meta.url), "utf8")]);
+  assert.match(server, /if\(convertKrutiDev\)await page\.getOperatorList\(\);/, "fonts are loaded so their real names are known");
+  assert.match(server, /const text=convertKrutiDev&&\/kruti\/iu\.test\(fontName\(item\.fontName\)\)\?krutiDevToUnicode\(item\.str\):item\.str;/);
+  assert.match(actions, /extractPdfTextPages\(bytes,\{convertKrutiDev:language==="Hindi"\}\)/);
+  assert.match(actions, /const krutidev=language==="Hindi"&&!convertedKrutiDev&&looksLikeKrutiDevText\(text\);/, "the Kruti Dev keys note only when nothing could be converted");
+});

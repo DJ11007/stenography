@@ -610,3 +610,10 @@ test("a 30+ word regression sweep (conjuncts, reph, nukta, matras, anusvara, wor
     assert.equal(krutiDevToUnicode(legacy),word,`${word} -> ${JSON.stringify(legacy)} did not round-trip`);
   }
 });
+
+test("reph after a half-letter conjunct goes before the whole conjunct: QLVZ is फर्स्ट, not फसर्ट (Hindi efficiency paper)", () => {
+  assert.equal(krutiDevToUnicode("QLVZ"), "फर्स्ट");
+  assert.equal(krutiDevToUnicode("nwljs iSjkxzkQ esa QLVZ ykbu baMsaV"), "दूसरे पैराग्राफ में फर्स्ट लाइन इंडेंट");
+  assert.equal(krutiDevToUnicode("lfVZfQdsV"), "सर्टिफिकेट", "a real सर्ट (no half-letter) is unchanged");
+  for (const [legacy, unicode] of [["dk;Z", "कार्य"], ["/keZ", "धर्म"], ["iwoZ", "पूर्व"], ["fuekZ.k", "निर्माण"], ["izkFkZuk", "प्रार्थना"], ["xoZ", "गर्व"]]) assert.equal(krutiDevToUnicode(legacy), unicode);
+});

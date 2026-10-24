@@ -7,7 +7,8 @@ test("the manage page lists tests and offers a Create Test button; the form live
  const[manage,design,body]=await Promise.all([read(ADMIN+"page.tsx"),read(ADMIN+"design/page.tsx"),read(ADMIN+"tests-page.tsx")]);
  assert.match(manage,/view="manage"/);
  assert.match(design,/view="design"/);
- assert.match(body,/<Link href="\/admin\/word-efficiency-tests\/design"[^>]*>\+ Create Test<\/Link>/);
+ assert.match(body,/<Link href="\/admin\/word-efficiency-tests\/design\?language=English"[^>]*>\+ Create English Test<\/Link>/);
+ assert.match(body,/<Link href="\/admin\/word-efficiency-tests\/design\?language=Hindi"[^>]*>\+ Create Hindi Test<\/Link>/);
  // the form is only on the design page, the list only on the manage page
  assert.match(body,/\{view === "design" && \(\s*<section className="rounded-3xl bg-white p-5 shadow sm:p-7">/);
  assert.match(body,/\{view === "manage" && \(\s*<section>/);
@@ -42,4 +43,14 @@ test("the designer applies Word's default paragraph spacing in the editor itself
  assert.match(page,/const PARAGRAPH_DEFAULTS = \{ spaceAfter: 8, lineHeight: 1\.15 \};/);
  assert.match(page,/paragraphDefaults=\{PARAGRAPH_DEFAULTS\}/);
  assert.match(page,/editorDocumentToMatter\(latest, language, PARAGRAPH_DEFAULTS_FOR_MATTER\)/);
+});
+
+test("the admin test list keeps English and Hindi tests in separate sections of compact rows, with details and delete behind ▾ More", async () => {
+  const page = (await readFile(new URL("../app/admin/word-efficiency-tests/tests-page.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(page, /\{\(\["English", "Hindi"\] as const\)\.map\(\(language\) => \{/);
+  assert.match(page, /const languageTests = \(tests \?\? \[\]\)\.filter\(\(test\) => \(test\.language === "Hindi" \? "Hindi" : "English"\) === language\);/);
+  assert.match(page, /<details className="group mt-2">/);
+  const details = page.slice(page.indexOf('<details className="group mt-2">'), page.indexOf("</details>"));
+  for (const part of ["Model Answer", "duplicateWordEfficiencyTest", 'label="Archive"', "<PermanentDeleteDangerZone"]) assert.ok(details.includes(part), `${part} is inside ▾ More`);
+  assert.match(page, /defaultValue=\{current\?\.language \?\? \(params\.language === "Hindi" \? "Hindi" : "English"\)\}/, "+ Create Hindi Test starts in Hindi");
 });

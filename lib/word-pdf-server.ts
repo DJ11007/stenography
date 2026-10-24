@@ -1,4 +1,5 @@
 import"server-only";
+import { krutiDevToUnicode } from "./hindi-font-converter";
 
 type WorkerModule={WorkerMessageHandler:unknown};
 type PdfJsWorkerGlobal=typeof globalThis&{pdfjsWorker?:WorkerModule};
@@ -10,9 +11,11 @@ async function loadServerPdfJs(){
  try{const[pdfjs,worker]=await Promise.all([import("pdfjs-dist/legacy/build/pdf.mjs"),import("pdfjs-dist/legacy/build/pdf.worker.mjs")]);workerAvailable=Boolean(worker.WorkerMessageHandler);if(pdfjs.version!==PDFJS_VERSION||!workerAvailable)throw new Error(`PDF.js runtime mismatch: expected ${PDFJS_VERSION}, loaded ${pdfjs.version||"unknown"}, worker ${workerAvailable?"available":"unavailable"}`);(globalThis as PdfJsWorkerGlobal).pdfjsWorker={WorkerMessageHandler:worker.WorkerMessageHandler};return pdfjs}catch(error){console.error("[Word Efficiency PDF reader startup failed]",pdfStartupDiagnostic(error,workerAvailable));throw new PdfReaderStartError()}
 }
 
-export async function extractPdfTextPages(arrayBuffer:ArrayBuffer|Uint8Array){
+// With convertKrutiDev, text the PDF draws in a Kruti Dev font (a Hindi paper typed in Kruti Dev 010:
+// "igys iSjkxzkQ") is returned as Hindi (पहले पैराग्राफ); English text in other fonts is left as it is.
+export async function extractPdfTextPages(arrayBuffer:ArrayBuffer|Uint8Array,{convertKrutiDev=false}:{convertKrutiDev?:boolean}={}){
  const pdfjs=await loadServerPdfJs();const data=arrayBuffer instanceof Uint8Array?new Uint8Array(arrayBuffer):new Uint8Array(arrayBuffer);const options={data,useSystemFonts:true,isEvalSupported:false}as Parameters<typeof pdfjs.getDocument>[0]&{isEvalSupported:boolean};const loadingTask=pdfjs.getDocument(options);let document:Awaited<typeof loadingTask.promise>|null=null;
- try{document=await loadingTask.promise;const pages:string[]=[];for(let pageNumber=1;pageNumber<=document.numPages;pageNumber++){const page=await document.getPage(pageNumber);const content=await page.getTextContent();const lines=new Map<number,string[]>();for(const item of content.items){if(!("str"in item))continue;const y=Math.round(item.transform[5]);lines.set(y,[...(lines.get(y)??[]),item.str])}pages.push([...lines.entries()].sort((a,b)=>b[0]-a[0]).map(([,parts])=>parts.join(" ").trim()).filter(Boolean).join("\n"))}return{pages,pageCount:document.numPages,workerSource:pdfjs.GlobalWorkerOptions.workerSrc}}
+ try{document=await loadingTask.promise;const pages:string[]=[];let convertedKrutiDev=false;for(let pageNumber=1;pageNumber<=document.numPages;pageNumber++){const page=await document.getPage(pageNumber);if(convertKrutiDev)await page.getOperatorList();const content=await page.getTextContent();const fontNames=new Map<string,string>();const fontName=(id:string)=>{if(!fontNames.has(id)){let name="";try{name=String((page.commonObjs.get(id) as {name?:string}|null)?.name??"")}catch{}fontNames.set(id,name)}return fontNames.get(id)!};const lines=new Map<number,string[]>();for(const item of content.items){if(!("str"in item))continue;const y=Math.round(item.transform[5]);const text=convertKrutiDev&&/kruti/iu.test(fontName(item.fontName))?krutiDevToUnicode(item.str):item.str;lines.set(y,[...(lines.get(y)??[]),text])}convertedKrutiDev||=convertKrutiDev&&[...fontNames.values()].some(name=>/kruti/iu.test(name));pages.push([...lines.entries()].sort((a,b)=>b[0]-a[0]).map(([,parts])=>parts.join(" ").trim()).filter(Boolean).join("\n"))}return{pages,pageCount:document.numPages,convertedKrutiDev,workerSource:pdfjs.GlobalWorkerOptions.workerSrc}}
  finally{try{await document?.cleanup()}catch(error){console.error("[Word Efficiency PDF document cleanup failed]",error)}try{await loadingTask.destroy()}catch(error){console.error("[Word Efficiency PDF loading task cleanup failed]",error)}}
 }
 
