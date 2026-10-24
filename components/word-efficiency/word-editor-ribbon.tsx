@@ -175,6 +175,7 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="margins")return <GalleryMenu option={option} preview={preview} items={MARGIN_PRESETS} onPick={value=>onValueCommand?.("margins",value)} actions={MARGIN_ACTIONS} onAction={id=>onValueCommand?.("marginsAction",id)}/>;
   if(option.id==="orientation")return <GalleryMenu option={option} preview={preview} items={ORIENTATION_ITEMS} onPick={value=>onValueCommand?.("orientation",value)}/>;
   if(option.id==="pageSize")return <GalleryMenu option={option} preview={preview} items={PAGE_SIZE_ITEMS} onPick={value=>onValueCommand?.("pageSize",value)} actions={PAGE_SIZE_ACTIONS} onAction={id=>onValueCommand?.("pageSizeAction",id)}/>;
+  if(option.id==="textEffects")return <GalleryMenu option={option} preview={preview} items={TEXT_EFFECT_ITEMS} onPick={value=>onValueCommand?.("textEffects",value)}/>;
   if(option.id==="watermark")return <GalleryMenu option={option} preview={preview} items={WATERMARK_ITEMS} onPick={value=>onValueCommand?.("watermark",value)} actions={WATERMARK_ACTIONS} onAction={id=>onValueCommand?.("watermarkAction",id)}/>;
   if(option.id==="columns")return <GalleryMenu option={option} preview={preview} items={COLUMN_ITEMS} onPick={value=>onValueCommand?.("columns",value)} actions={COLUMN_ACTIONS} onAction={id=>onValueCommand?.("columnsAction",id)}/>;
   const disabled = preview || Boolean(option.unsupported);
@@ -311,6 +312,8 @@ const COLUMN_ITEMS=[{value:"1",label:"One"},{value:"2",label:"Two"},{value:"3",l
 const COLUMN_ACTIONS=[{id:"custom",label:"More Columns…"}];
 // Word 2013's Watermark gallery (DESIGN > Page Background): value "TEXT|layout".
 const WATERMARK_ITEMS=[{value:"CONFIDENTIAL|diagonal",label:"CONFIDENTIAL 1"},{value:"CONFIDENTIAL|horizontal",label:"CONFIDENTIAL 2"},{value:"DO NOT COPY|diagonal",label:"DO NOT COPY 1"},{value:"DO NOT COPY|horizontal",label:"DO NOT COPY 2"},{value:"DRAFT|diagonal",label:"DRAFT 1"},{value:"DRAFT|horizontal",label:"DRAFT 2"},{value:"SAMPLE|diagonal",label:"SAMPLE 1"},{value:"ASAP|diagonal",label:"ASAP 1"},{value:"URGENT|diagonal",label:"URGENT 1"}];
+// Word 2013's Text Effects and Typography menu, Outline: the standard colours and No Outline.
+const TEXT_EFFECT_ITEMS=[...STANDARD_COLORS.map(color=>({value:`outline:${color.value.slice(1).toUpperCase()}`,label:`Outline: ${color.name}`,swatch:"A",color:color.value})),{value:"outline:none",label:"No Outline",swatch:"A"}];
 const WATERMARK_ACTIONS=[{id:"custom",label:"Custom Watermark…"},{id:"remove",label:"Remove Watermark"}];
 const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
 const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];
@@ -345,13 +348,13 @@ function BordersMenu({option,preview,onPick}:{option:RibbonOption;preview:boolea
     {menu}
   </div>;
 }
-function GalleryMenu({option,preview,items,onPick,actions,onAction,split}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void;split?:boolean}){
+function GalleryMenu({option,preview,items,onPick,actions,onAction,split}:{option:RibbonOption;preview:boolean;items:{value:string;label:string;swatch?:string;color?:string}[];onPick:(value:string)=>void;actions?:{id:string;label:string}[];onAction?:(id:string)=>void;split?:boolean}){
   const[open,setOpen]=useState(false),[position,setPosition]=useState<CSSProperties>({});
   const buttonRef=useRef<HTMLButtonElement>(null),menuRef=useRef<HTMLDivElement>(null);
   useDismiss(open,()=>setOpen(false),[buttonRef,menuRef]);
   useLayoutEffect(()=>{if(!open)return;const rect=buttonRef.current?.getBoundingClientRect();if(rect)setPosition({position:"fixed",left:Math.max(4,Math.min(rect.left,window.innerWidth-204)),top:rect.bottom+2,right:"auto",bottom:"auto"})},[open]);
   const note=GALLERY_NOTES[option.id];
-  const menu=open&&typeof document!=="undefined"?createPortal(<div ref={menuRef} role="menu" aria-label={option.label} className="word-gallery-menu" style={position}>{items.map(item=><button role="menuitem" type="button" key={item.value} data-list-preview={item.swatch!==undefined?"":undefined} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}>{item.swatch!==undefined&&<span className="word-gallery-swatch" aria-hidden>{item.swatch}</span>}<span>{item.label}</span></button>)}{note&&<p className="word-gallery-note">{note}</p>}{actions&&actions.length>0&&<><hr className="word-gallery-divider"/>{actions.map(action=><button role="menuitem" type="button" key={action.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onAction?.(action.id);setOpen(false)}}>{action.label}</button>)}</>}</div>,document.body):null;
+  const menu=open&&typeof document!=="undefined"?createPortal(<div ref={menuRef} role="menu" aria-label={option.label} className="word-gallery-menu" style={position}>{items.map(item=><button role="menuitem" type="button" key={item.value} data-list-preview={item.swatch!==undefined?"":undefined} onMouseDown={event=>event.preventDefault()} onClick={()=>{onPick(item.value);setOpen(false)}}>{item.swatch!==undefined&&<span className="word-gallery-swatch" aria-hidden style={item.color?{color:"transparent",WebkitTextStroke:`1px ${item.color}`,fontWeight:700}:undefined}>{item.swatch}</span>}<span>{item.label}</span></button>)}{note&&<p className="word-gallery-note">{note}</p>}{actions&&actions.length>0&&<><hr className="word-gallery-divider"/>{actions.map(action=><button role="menuitem" type="button" key={action.id} onMouseDown={event=>event.preventDefault()} onClick={()=>{onAction?.(action.id);setOpen(false)}}>{action.label}</button>)}</>}</div>,document.body):null;
   // Bullets and Numbering are split buttons in Word 2013: the icon applies the list at once (a second
   // click takes it off), only the ▾ opens the library. Both halves used to open the library, so a
   // student who clicked Bullets got a menu and, without picking from it, no bullets.

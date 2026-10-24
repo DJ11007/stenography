@@ -78,7 +78,7 @@ test("Multilevel List: Word's library styles with a level (1-9) per item, saved 
   assert.match(ribbon, /const MULTILEVEL_ITEMS=\[\{value:"none",label:"None",swatch:""\},\{value:"multilevel-decimal",label:"1\.  1\.1\.  1\.1\.1\."/);
   // Tab / Increase Indent go a level down, Shift+Tab / Decrease Indent a level up.
   assert.match(editor, /const changeListLevel=\(delta:number\)=>\{/);
-  assert.match(editor, /\(changeListLevel\(event\.shiftKey\?-1:1\)\|\|headerFooterTab\(event\.shiftKey\)\)/);
+  assert.match(editor, /\(changeListLevel\(event\.shiftKey\?-1:1\)\|\|tableTab\(event\.shiftKey\)\|\|headerFooterTab\(event\.shiftKey\)\)/);
   assert.match(editor, /if\(id==="increaseIndent"\|\|id==="decreaseIndent"\)\{if\(changeListLevel\(id==="increaseIndent"\?1:-1\)\)return false;/);
   assert.match(editor, /if\(String\(attrs\.listStyle\)\.startsWith\("multilevel-"\)\)\{const level=\(element as HTMLElement\)\.dataset\.listLevel\?\?"";attrs\.listLevel=/);
   // 1. / 1.1. / 1.1.1.: each level shows every higher level's number.
@@ -94,4 +94,34 @@ test("font names are quoted in CSS, so Kruti Dev 010 (a name with digits) is not
   assert.match(editor, /if\(run\.fontFamily\)span\.style\.fontFamily=cssFontFamily\(run\.fontFamily\);/, "a reloaded document");
   assert.match(editor, /fontFamily:values\.fontFamily\?cssFontFamily\(values\.fontFamily\):undefined/, "the Font dialog");
   assert.doesNotMatch(editor, /fontFamily:run\.fontFamily\?\?undefined/);
+});
+
+test("Text Effects on the ribbon is Word's Outline colour menu (it used to apply double strikethrough) (Test 4 Q1b)", async () => {
+  const [ribbon, editor] = await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"), read(EDITOR)]);
+  assert.match(ribbon, /if\(option\.id==="textEffects"\)return <GalleryMenu option=\{option\} preview=\{preview\} items=\{TEXT_EFFECT_ITEMS\}/);
+  assert.match(ribbon, /label:`Outline: \$\{color\.name\}`/);
+  assert.match(ribbon, /\{value:"outline:none",label:"No Outline",swatch:"A"\}/);
+  assert.match(editor, /if\(id==="textEffects"\)\{applyOutline\(value\.replace\(\/\^outline:\/,""\)\);return\}/);
+  assert.match(editor, /color\?\{outline:"true",outlineFill:fill\}:\{outline:"false"\}/);
+  assert.doesNotMatch(editor, /applyDoubleStrike/);
+  // No Outline inside outlined text: the nearest data-outline decides.
+  assert.match(editor, /outlineNode=\(parent\.closest\("\[data-outline\]"\)as HTMLElement\|null\)\?\.dataset\.outline==="true"/);
+});
+
+test("Tab in a table goes to the next cell, and in the last cell adds a row, as in Word (Test 4 Q5a)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const tableTab=\(back:boolean\)=>\{/);
+  assert.match(editor, /if\(!target\)\{if\(back\)return true;const row=cell\.parentElement as HTMLTableRowElement;if\(!insertRow\(table,row\.rowIndex,"below"\)\)return true;target=table\.rows\[row\.rowIndex\+1\]\?\.cells\[0\];changed\(\)\}/);
+});
+
+test("a first-line / hanging indent is saved with the answer (it was shown on the page but never saved) (Test 4 Q2a)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /if\(\(block\.type==="paragraph"\|\|block\.type==="list-item"\)&&source\.specialIndentMode\)\{attrs\.specialIndentMode=source\.specialIndentMode;attrs\.specialIndentAmount=source\.specialIndentAmount\?\?null\}/);
+});
+
+test("header/footer text in a position stays on one line, and Replace names the underline style as Word does", async () => {
+  const [css, dialogs] = await Promise.all([read("app/globals.css"), read("components/word-efficiency/word-2013-dialogs.tsx")]);
+  assert.match(css, /footer\[data-block-type="footer"\] > span\[style\*="33%"\] \{ white-space: nowrap;/);
+  assert.match(dialogs, /"dot-dash": "Dot dash underline"/);
+  assert.match(dialogs, /\$\{UNDERLINE_DESCRIPTIONS\[font\.underlineStyle\] \?\? "Underline"\}/);
 });

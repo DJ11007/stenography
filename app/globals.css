@@ -637,6 +637,9 @@ ol[data-list-style="multilevel-bullet"] > li[data-list-level="9"]::marker { cont
 .word-document-page header[data-block-type="header"]:has(> br:only-child)::before { content: "Header"; color: #94a3b8; font-style: italic; pointer-events: none; }
 .word-document-page footer[data-block-type="footer"]:empty::before,
 .word-document-page footer[data-block-type="footer"]:has(> br:only-child)::before { content: "Footer"; color: #94a3b8; font-style: italic; pointer-events: none; }
+/* Left / centre / right positions (Word's tab stops): text stays on one line and runs on past the
+   next position, as in Word, instead of wrapping inside its third of the line. */
+.word-document-page header[data-block-type="header"] > span[style*="33%"], .word-document-page footer[data-block-type="footer"] > span[style*="33%"] { white-space: nowrap; vertical-align: bottom; }
 .word-document-page p.editor-line-numbers { position: relative; counter-increment: word-line-number; }
 .word-document-page p.editor-line-numbers::before { content: counter(word-line-number); position: absolute; left: -2.5em; width: 2em; color: #94a3b8; font-size: .75em; text-align: right; }
 .word-thumbnail-page { position: relative; overflow: hidden; border: 1px solid #cbd5e1; background: #fff; box-shadow: 0 1px 3px rgb(15 23 42 / .12); cursor: pointer; }

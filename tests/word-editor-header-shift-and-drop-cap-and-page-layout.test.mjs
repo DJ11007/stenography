@@ -69,7 +69,9 @@ test("picking a margin/orientation/page size/columns preset applies immediately 
   assert.match(editor, /if\(id==="margins"\)\{const preset=MARGIN_PRESET_VALUES\[value\];if\(preset\)applyMargins\(\.\.\.preset\);return\}/);
   // Orientation swaps the page's own ratio (Legal stays Legal turned sideways), and a paper size
   // sets its real height/width ratio, not only the width: Legal and Letter are both 8.5" wide.
-  assert.match(editor, /if\(id==="orientation"\)\{setDialog\(null\);const parts=ratioParts\(editor\.current\?\.style\.aspectRatio\?\?""\)\?\?\[1,1\.414\];const \[a,b\]=parts;const wantLandscape=value==="landscape";if\(\(a>b\)!==wantLandscape\)pageStyle\("aspectRatio",`\$\{b\} \/ \$\{a\}`\);return\}/);
+  assert.match(editor, /if\(id==="orientation"\)\{setDialog\(null\);const parts=ratioParts\(editor\.current\?\.style\.aspectRatio\?\?""\)\?\?\[1,1\.414\];const \[a,b\]=parts;const wantLandscape=value==="landscape";if\(\(a>b\)!==wantLandscape\)\{/);
+  // Like Word, Orientation swaps the page's width and height (A3 landscape is 42 cm wide), not only its shape.
+  assert.match(editor, /pageStyle\("maxWidth",`\$\{wantLandscape\?\(portrait\?Math\.round\(portrait\.height\*96\/2\.54\):Math\.round\(width\*b\/a\)\):\(landscape\?PAPER_WIDTH_PX\[landscape\.id\]:Math\.round\(width\*b\/a\)\)\}px`\);pageStyle\("aspectRatio",`\$\{b\} \/ \$\{a\}`\)\}return\}/);
   assert.match(editor, /if\(id==="pageSize"\)\{const width=PAGE_SIZE_WIDTHS\[value\];const paper=PAPER_SIZES\.find\(size=>size\.id===value\);if\(width&&paper\)\{setDialog\(null\);[^;]*;pageStyle\("maxWidth",[^;]*;pageStyle\("aspectRatio",paperRatio\(value,landscape\)!\)\}return\}/);
   assert.match(editor, /if\(id==="columns"\)\{setDialog\(null\);pageStyle\("columnCount",value\);return\}/);
   assert.match(editor, /options=\{\["1","2","3","4","5","6"\]\}/);

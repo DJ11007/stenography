@@ -117,10 +117,10 @@ test("the underline() function delegates to the shared, block-clamped wrapEditor
 // called this hand-rolled function) still had the raw, unguarded
 // surroundContents()/extractContents() fallback with no block clamp.
 // Migrated to wrapEditorRange for the same block-swallowing protection.
-test("applyDoubleStrike delegates to wrapEditorRange instead of its own unguarded surroundContents/extractContents fallback",async()=>{
+test("Text Effects Outline delegates to wrapEditorRange instead of its own unguarded surroundContents/extractContents fallback",async()=>{
   const source=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
-  assert.match(source,/const applyDoubleStrike=\(\)=>\{[\s\S]{0,400}?wrapEditorRange\(range,\{textDecorationLine:"line-through",textDecorationStyle:"double"\},\{doubleStrike:"true"\}\)/);
-  assert.doesNotMatch(source,/const applyDoubleStrike=[\s\S]{0,600}?range\.surroundContents\(span\)/);
+  assert.match(source,/const applyOutline=\(hex:string\)=>\{[\s\S]{0,600}?wrapEditorRange\(range,color\?\{color:"transparent",webkitTextStroke:/);
+  assert.doesNotMatch(source,/const applyOutline=[\s\S]{0,900}?range\.surroundContents\(span\)/);
 });
 
 // The actual permanent fix: wrapEditorRange (shared by underline, Bold-

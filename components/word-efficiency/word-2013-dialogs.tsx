@@ -464,11 +464,12 @@ export const BLANK_FONT_VALUES: FontValues = { bold: false, italic: false, fontF
 const changedFont = (values: FontValues): Partial<FontValues> => Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== BLANK_FONT_VALUES[key as keyof FontValues])) as Partial<FontValues>;
 // Word writes the replace format as "Font: 24 pt, Font color: Red" -- colours by name, all the
 // font settings after one "Font:" label.
+const UNDERLINE_DESCRIPTIONS: Record<string, string> = { single: "Underline", "words-only": "Words underline", double: "Double underline", thick: "Thick underline", dotted: "Dotted underline", dashed: "Dash underline", "dot-dash": "Dot dash underline", "dot-dot-dash": "Dot dot dash underline", wavy: "Wave underline" };
 const describeReplaceFormat = (format: ReplaceFormat | null) => {
   if (!format) return "";
   const font = format.font ?? {};
   const named = (hex: string | null | undefined) => colorName(hex?.replace(/^#/, "")) ?? "";
-  const items = [font.fontFamily ?? "", font.fontSize ? `${font.fontSize} pt` : "", font.bold ? "Bold" : "", font.italic ? "Italic" : "", font.underlineStyle && font.underlineStyle !== "none" ? `Underline${font.underlineColor ? `, Underline color: ${named(font.underlineColor)}` : ""}` : "", font.strike ? "Strikethrough" : "", font.doubleStrike ? "Double strikethrough" : "", font.superscript ? "Superscript" : "", font.subscript ? "Subscript" : "", font.color ? `Font color: ${named(font.color)}` : ""].filter(Boolean);
+  const items = [font.fontFamily ?? "", font.fontSize ? `${font.fontSize} pt` : "", font.bold ? "Bold" : "", font.italic ? "Italic" : "", font.underlineStyle && font.underlineStyle !== "none" ? `${UNDERLINE_DESCRIPTIONS[font.underlineStyle] ?? "Underline"}${font.underlineColor ? `, Underline color: ${named(font.underlineColor)}` : ""}` : "", font.strike ? "Strikethrough" : "", font.doubleStrike ? "Double strikethrough" : "", font.superscript ? "Superscript" : "", font.subscript ? "Subscript" : "", font.color ? `Font color: ${named(font.color)}` : ""].filter(Boolean);
   return [items.length ? `Font: ${items.join(", ")}` : "", format.highlight ? "Highlight" : ""].filter(Boolean).join(", ");
 };
 type Scope = "selection" | "document";
