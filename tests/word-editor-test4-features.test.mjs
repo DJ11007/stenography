@@ -144,3 +144,11 @@ test("Home > Font applies Kruti Dev 010 to selected text (the browser's fontName
   assert.match(editor, /const wrapped=wrapEditorRange\(selection\.getRangeAt\(0\),\{fontFamily:cssFontFamily\(font\.replace\(/);
   assert.match(editor, /for\(const span of wrapped\.spans\)clearInnerRunStyles\(span,\["fontFamily"\]\);/);
 });
+
+test("Font > Advanced: By is open while Spacing/Position is Normal, and a typed number makes it Expanded/Raised (Word 2013); Font Color's default is Red", async () => {
+  const [dialogs, ribbon] = await Promise.all([read("components/word-efficiency/word-2013-dialogs.tsx"), read("components/word-efficiency/word-editor-ribbon.tsx")]);
+  assert.match(dialogs, /const mode = spacingMode === "normal" && \(n \?\? 0\) > 0 \? "expanded" : spacingMode;/);
+  assert.match(dialogs, /const mode = positionMode === "normal" && \(n \?\? 0\) > 0 \? "raised" : positionMode;/);
+  assert.doesNotMatch(dialogs, /disabled=\{spacingMode === "normal"\}|disabled=\{positionMode === "normal"\}/);
+  assert.match(ribbon, /function defaultSwatch\(id:string\)\{return\(\{fontColor:"#ff0000",/);
+});
