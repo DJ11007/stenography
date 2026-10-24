@@ -12,9 +12,9 @@ test("Undo and Redo live on the title bar only; Cut, Copy and Format Painter are
 
 test("every ribbon flyout stacks above the ruler and title bar and is dismissed by an outside click or Escape",async()=>{
  const[ribbon,css]=await Promise.all([read(ribbonPath),read("app/globals.css")]);
- for(const cls of["word-font-gallery","word-size-gallery","word-color-palette","word-underline-gallery","word-gallery-menu"])assert.match(css,new RegExp(`\\.${cls} \\{[^}]*z-index: 1000`));
+ for(const cls of["word-font-gallery","word-size-gallery","word-color-palette","word-underline-gallery","word-gallery-menu","word-text-effects-menu"])assert.match(css,new RegExp(`\\.${cls} \\{[^}]*z-index: 1000`));
  assert.match(await read("components/word-efficiency/word-flyout.ts"),/function useDismiss\(/);
- assert.equal((ribbon.match(/useDismiss\(open,/g)||[]).length,4);
+ assert.equal((ribbon.match(/useDismiss\(open,/g)||[]).length,5);
 });
 
 test("flyouts are only clamped after being placed under their trigger (no jump to the screen corner)",async()=>{

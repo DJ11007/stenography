@@ -96,12 +96,13 @@ test("font names are quoted in CSS, so Kruti Dev 010 (a name with digits) is not
   assert.doesNotMatch(editor, /fontFamily:run\.fontFamily\?\?undefined/);
 });
 
-test("Text Effects on the ribbon is Word's Outline colour menu (it used to apply double strikethrough) (Test 4 Q1b)", async () => {
+test("Text Effects on the ribbon is Word 2013's menu: 15-effect gallery, Outline colours, the other effect rows (it used to apply double strikethrough) (Test 4 Q1b)", async () => {
   const [ribbon, editor] = await Promise.all([read("components/word-efficiency/word-editor-ribbon.tsx"), read(EDITOR)]);
-  assert.match(ribbon, /if\(option\.id==="textEffects"\)return <GalleryMenu option=\{option\} preview=\{preview\} items=\{TEXT_EFFECT_ITEMS\}/);
-  assert.match(ribbon, /label:`Outline: \$\{color\.name\}`/);
-  assert.match(ribbon, /\{value:"outline:none",label:"No Outline",swatch:"A"\}/);
-  assert.match(editor, /if\(id==="textEffects"\)\{applyOutline\(value\.replace\(\/\^outline:\/,""\)\);return\}/);
+  assert.match(ribbon, /if\(option\.id==="textEffects"\)return <TextEffectsMenu preview=\{preview\} onPick=\{value=>onValueCommand\?\.\("textEffects",value\)\}\/>;/);
+  assert.equal((ribbon.match(/\{label:"(Gradient )?Fill - [^"]+",fill:"[0-9A-F]{6}"(,outline:"[0-9A-F]{6}")?\}/g) ?? []).length, 15, "Word's 3 x 5 gallery");
+  assert.match(ribbon, /const TEXT_EFFECT_ROWS=\["Shadow","Reflection","Glow","Number Styles","Ligatures","Stylistic Sets"\];/);
+  assert.match(ribbon, /<WordPalette noneLabel="No Outline" close=\{close\} onPick=\{hex=>\{if\(!preview\)onPick\(hex\?`outline:\$\{hex\.toUpperCase\(\)\}`:"outline:none"\)\}\}\/>/);
+  assert.match(editor, /if\(id==="textEffects"\)\{if\(value\.startsWith\("fill:"\)\)applyOutline\("none",value\.slice\(5\)\);else applyOutline\(value\.replace\(\/\^outline:\/,""\)\);return\}/);
   assert.match(editor, /color\?\{outline:"true",outlineFill:fill\}:\{outline:"false"\}/);
   assert.doesNotMatch(editor, /applyDoubleStrike/);
   // No Outline inside outlined text: the nearest data-outline decides.

@@ -435,7 +435,7 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
  // fix landed. Delegated now so this caller gets the same clamp-to-block
  // protection instead of carrying its own copy of the fixed bug.
  // Text Effects > Outline: an outline in the colour (drawn as Word does for outlined text); "none" takes it off and restores the text colour.
- const applyOutline=(hex:string)=>{focusKeepingSelection();const selection=getSelection();if(!selection?.rangeCount||selection.isCollapsed)return;const range=selection.getRangeAt(0),start=range.startContainer.nodeType===1?range.startContainer as Element:range.startContainer.parentElement,outlined=start?.closest('[data-outline="true"]')as HTMLElement|null,fill=outlined?.dataset.outlineFill??(start?getComputedStyle(start).color:"#000000"),color=/^[0-9A-F]{6}$/.test(hex)?`#${hex}`:null;const wrapped=wrapEditorRange(range,color?{color:"transparent",webkitTextStroke:`1px ${color}`}:{color:fill,webkitTextStroke:"0px transparent"},color?{outline:"true",outlineFill:fill}:{outline:"false"});if(wrapped){savedRange.current=wrapped.range;changed()}};
+ const applyOutline=(hex:string,fillHex?:string)=>{focusKeepingSelection();const selection=getSelection();if(!selection?.rangeCount||selection.isCollapsed)return;const range=selection.getRangeAt(0),start=range.startContainer.nodeType===1?range.startContainer as Element:range.startContainer.parentElement,outlined=start?.closest('[data-outline="true"]')as HTMLElement|null,fill=outlined?.dataset.outlineFill??(start?getComputedStyle(start).color:"#000000"),color=/^[0-9A-F]{6}$/.test(hex)?`#${hex}`:null;const wrapped=wrapEditorRange(range,color?{color:"transparent",webkitTextStroke:`1px ${color}`}:{color:fillHex&&/^[0-9A-F]{6}$/i.test(fillHex)?`#${fillHex}`:fill,webkitTextStroke:"0px transparent"},color?{outline:"true",outlineFill:fill}:{outline:"false"});if(wrapped){savedRange.current=wrapped.range;changed()}};
  const insertSafe=(html:string)=>exec("insertHTML",html);
  // A symbol, date or page number is its own field: the browser would put the
  // next insert (or typing) inside a field the cursor touches, so step out of it
@@ -1202,7 +1202,7 @@ savedRange.current=wrapped.range;changed();
   if(id==="bullets"){applyListStyle("ul",value);return}
   if(id==="numbering"){applyListStyle("ol",value);return}
   if(id==="multilevelList"){applyListStyle("ol",value);return}
-  if(id==="textEffects"){applyOutline(value.replace(/^outline:/,""));return}
+  if(id==="textEffects"){if(value.startsWith("fill:"))applyOutline("none",value.slice(5));else applyOutline(value.replace(/^outline:/,""));return}
   if(id==="lineSpacing"){const blocks=selectedBlocks();for(const block of blocks)block.style.lineHeight=value;if(blocks.length)changed();return}
   if(id==="lineSpacingAction"){if(value==="options"){setDialog({kind:"lineSpacingOptions",before:"0",after:"8",specialIndentMode:"none",specialIndentAmount:"0.5"});return}const blocks=selectedBlocks();for(const block of blocks)block.style[value==="add-space-before"?"marginTop":"marginBottom"]=value==="add-space-before"?"12pt":"0pt";if(blocks.length)changed();return}
   if(id==="borders"){if(value==="horizontal-line"){insertSafe('<hr data-block-type="horizontal-rule">');return}

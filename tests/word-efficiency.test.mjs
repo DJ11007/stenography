@@ -119,7 +119,7 @@ test("the underline() function delegates to the shared, block-clamped wrapEditor
 // Migrated to wrapEditorRange for the same block-swallowing protection.
 test("Text Effects Outline delegates to wrapEditorRange instead of its own unguarded surroundContents/extractContents fallback",async()=>{
   const source=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
-  assert.match(source,/const applyOutline=\(hex:string\)=>\{[\s\S]{0,600}?wrapEditorRange\(range,color\?\{color:"transparent",webkitTextStroke:/);
+  assert.match(source,/const applyOutline=\(hex:string,fillHex\?:string\)=>\{[\s\S]{0,600}?wrapEditorRange\(range,color\?\{color:"transparent",webkitTextStroke:/);
   assert.doesNotMatch(source,/const applyOutline=[\s\S]{0,900}?range\.surroundContents\(span\)/);
 });
 

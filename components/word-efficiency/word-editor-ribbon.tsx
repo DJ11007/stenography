@@ -175,7 +175,7 @@ function RibbonControl({ option, capabilities, preview, active, onCommand, onFon
   if(option.id==="margins")return <GalleryMenu option={option} preview={preview} items={MARGIN_PRESETS} onPick={value=>onValueCommand?.("margins",value)} actions={MARGIN_ACTIONS} onAction={id=>onValueCommand?.("marginsAction",id)}/>;
   if(option.id==="orientation")return <GalleryMenu option={option} preview={preview} items={ORIENTATION_ITEMS} onPick={value=>onValueCommand?.("orientation",value)}/>;
   if(option.id==="pageSize")return <GalleryMenu option={option} preview={preview} items={PAGE_SIZE_ITEMS} onPick={value=>onValueCommand?.("pageSize",value)} actions={PAGE_SIZE_ACTIONS} onAction={id=>onValueCommand?.("pageSizeAction",id)}/>;
-  if(option.id==="textEffects")return <GalleryMenu option={option} preview={preview} items={TEXT_EFFECT_ITEMS} onPick={value=>onValueCommand?.("textEffects",value)}/>;
+  if(option.id==="textEffects")return <TextEffectsMenu preview={preview} onPick={value=>onValueCommand?.("textEffects",value)}/>;
   if(option.id==="watermark")return <GalleryMenu option={option} preview={preview} items={WATERMARK_ITEMS} onPick={value=>onValueCommand?.("watermark",value)} actions={WATERMARK_ACTIONS} onAction={id=>onValueCommand?.("watermarkAction",id)}/>;
   if(option.id==="columns")return <GalleryMenu option={option} preview={preview} items={COLUMN_ITEMS} onPick={value=>onValueCommand?.("columns",value)} actions={COLUMN_ACTIONS} onAction={id=>onValueCommand?.("columnsAction",id)}/>;
   const disabled = preview || Boolean(option.unsupported);
@@ -259,6 +259,41 @@ function ColorSplitButton({option,preview,swatch,setSwatch,onChange}:{option:Rib
   const colors=option.id==="highlightColor"?HIGHLIGHT_COLORS:STANDARD_COLORS,columns=option.id==="highlightColor"?5:6;
   const palette=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} role="menu" aria-label={`${option.label} colors`} className="word-color-palette" style={{...position,gridTemplateColumns:`repeat(${columns},26px)`,width:"auto"}}><h3 className="word-color-palette-title">{option.id==="highlightColor"?"Highlight Colors":"Standard Colors"}</h3>{colors.map(color=><button role="menuitem" type="button" key={color.value} aria-label={`${color.name} (${color.value.toUpperCase()})`} title={color.name} style={{backgroundColor:color.value}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setSwatch(color.value);apply(color.value);setOpen(false)}}/>)}<button role="menuitem" type="button" onMouseDown={event=>event.preventDefault()} onClick={()=>{apply(option.id==="fontColor"?"automatic":"transparent");setOpen(false)}} style={{gridColumn:"1 / -1",marginTop:4,padding:"5px 4px",fontSize:12,fontWeight:600,background:"#fff",border:"1px solid #999",borderRadius:2,height:"auto",width:"auto"}}>{clearLabel}</button></div>,document.body):null;
   return <div data-ribbon-option={option.id} className="word-color-split"><button type="button" className="word-color-apply" aria-label={`Apply ${option.label}`} disabled={preview} title={option.label} onMouseDown={event=>event.preventDefault()} onClick={()=>apply()}><RibbonIcon id={option.id}/><span className="word-ribbon-color-bar" style={{background:swatch}} aria-hidden/></button><button ref={arrowRef} type="button" className="word-color-arrow" aria-label={`Open ${option.label} palette`} aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>setOpen(value=>!value)}><span aria-hidden>▾</span></button>{palette}</div>}
+// Word 2013's Text Effects and Typography menu (Home > Font): the 15-effect gallery, then Outline
+// (Automatic, Theme / Standard Colors, No Outline, More Colors) and Word's other effect rows. This editor
+// keeps a text outline and a font colour, so a gallery effect applies its outline ("Outline - Accent 2")
+// or, for the rest, its fill colour; Shadow, Reflection, Glow, Weight and Dashes are shown but unavailable.
+const TEXT_EFFECT_PRESETS:{label:string;fill:string;outline?:string}[]=[
+ {label:"Fill - Black, Text 1, Shadow",fill:"000000"},{label:"Fill - Blue, Accent 1, Shadow",fill:"5B9BD5"},{label:"Fill - White, Outline - Accent 2, Hard Shadow - Accent 2",fill:"FFFFFF",outline:"ED7D31"},{label:"Fill - White, Outline - Accent 1, Shadow",fill:"FFFFFF",outline:"5B9BD5"},{label:"Fill - Gold, Accent 4, Soft Bevel",fill:"FFC000"},
+ {label:"Fill - Gray 50%, Accent 3, Sharp Bevel",fill:"808080"},{label:"Gradient Fill - Blue, Accent 1, Reflection",fill:"4472C4"},{label:"Fill - Gold, Accent 4, Outline - Accent 4",fill:"FFFFFF",outline:"FFC000"},{label:"Fill - White, Outline - Accent 1, Glow - Accent 1",fill:"FFFFFF",outline:"5B9BD5"},{label:"Fill - Gray 75%, Text 2",fill:"595959"},
+ {label:"Fill - Black, Text 1, Outline - Background 1, Hard Shadow - Background 1",fill:"000000"},{label:"Fill - Black, Text 1, Outline - Background 1, Hard Shadow - Accent 1",fill:"262626"},{label:"Fill - Blue, Accent 1, Outline - Background 1, Hard Shadow - Accent 1",fill:"4472C4"},{label:"Fill - White, Outline - Accent 2, Hard Shadow - Accent 2",fill:"FFFFFF",outline:"F4B183"},{label:"Fill - Gray 25%, Background 2, Inner Shadow",fill:"BFBFBF"},
+];
+const TEXT_EFFECT_ROWS=["Shadow","Reflection","Glow","Number Styles","Ligatures","Stylistic Sets"];
+function TextEffectsMenu({preview,onPick}:{preview:boolean;onPick:(value:string)=>void}){
+  const[open,setOpen]=useState(false),[sub,setSub]=useState<""|"outline">("");
+  const buttonRef=useRef<HTMLButtonElement>(null);
+  const{position,flyoutRef}=useClampedFlyoutPosition(open,buttonRef,"left");
+  const close=()=>{setOpen(false);setSub("")};
+  useDismiss(open,close,[buttonRef,flyoutRef]);
+  const pick=(value:string)=>{if(!preview)onPick(value);close()};
+  // The Outline submenu opens on the right, or on the left when the window has no room for it.
+  const flip=sub==="outline"&&(flyoutRef.current?.getBoundingClientRect().right??0)+236>window.innerWidth;
+  const row=(label:string,props:{disabled?:boolean;active?:boolean;onEnter?:()=>void;onClick?:()=>void;icon:ReactNode})=><button type="button" role="menuitem" className="word-text-effects-row" aria-haspopup="menu" aria-expanded={props.active||undefined} disabled={props.disabled} title={props.disabled?"Not available in this exam editor.":undefined} onMouseDown={event=>event.preventDefault()} onMouseEnter={props.onEnter} onClick={props.onClick}><span className="word-text-effects-row-icon" aria-hidden>{props.icon}</span><span>{label}</span><i aria-hidden>›</i></button>;
+  const menu=open&&typeof document!=="undefined"?createPortal(<div ref={flyoutRef} role="menu" aria-label="Text Effects and Typography" className="word-text-effects-menu" style={position}>
+    <div className="word-text-effects-gallery" onMouseEnter={()=>setSub("")}>{TEXT_EFFECT_PRESETS.map((preset,index)=><button key={index} type="button" role="menuitem" aria-label={preset.label} title={preset.label} onMouseDown={event=>event.preventDefault()} onClick={()=>pick(preset.outline?`outline:${preset.outline}`:`fill:${preset.fill}`)}><span aria-hidden style={preset.outline?{color:"transparent",WebkitTextStroke:`1.4px #${preset.outline}`}:{color:`#${preset.fill}`}}>A</span></button>)}</div>
+    <div className="word-text-effects-rows">
+      {row("Outline",{active:sub==="outline",onEnter:()=>setSub("outline"),onClick:()=>setSub(sub==="outline"?"":"outline"),icon:<span style={{color:"transparent",WebkitTextStroke:"1px #333",borderBottom:"3px solid #000"}}>A</span>})}
+      {TEXT_EFFECT_ROWS.map(label=><div key={label} onMouseEnter={()=>setSub("")}>{row(label,{disabled:true,icon:<span>{label.startsWith("Number")?"123":label==="Ligatures"?"fi":label==="Stylistic Sets"?"abc":"A"}</span>})}</div>)}
+    </div>
+    {sub==="outline"&&<div role="menu" aria-label="Outline colors" className="word-text-effects-outline" style={flip?{left:"auto",right:282}:undefined}>
+      <button type="button" role="menuitem" className="wi-item" onMouseDown={event=>event.preventDefault()} onClick={()=>pick("outline:000000")}><span className="wi-icon" aria-hidden><span className="wr-none-swatch" style={{background:"#000"}}/></span><span>Automatic</span></button>
+      <WordPalette noneLabel="No Outline" close={close} onPick={hex=>{if(!preview)onPick(hex?`outline:${hex.toUpperCase()}`:"outline:none")}}/>
+      <div className="wi-sep"/>
+      {["Weight","Dashes"].map(label=><button key={label} type="button" role="menuitem" className="wi-item" disabled title="Not available in this exam editor." onMouseDown={event=>event.preventDefault()}><span className="wi-icon" aria-hidden>{label==="Weight"?"≡":"┄"}</span><span>{label}</span><i aria-hidden style={{marginLeft:"auto"}}>›</i></button>)}
+    </div>}
+  </div>,document.body):null;
+  return <div data-ribbon-option="textEffects"><button ref={buttonRef} type="button" className="word-ribbon-tool word-text-effects-button" aria-label="Text Effects and Typography" title="Text Effects and Typography" aria-haspopup="menu" aria-expanded={open} disabled={preview} onMouseDown={event=>event.preventDefault()} onClick={()=>open?close():setOpen(true)}><span className="word-text-effects-glyph" aria-hidden>A</span><span aria-hidden className="word-text-effects-caret">▾</span></button>{menu}</div>;
+}
 const UNDERLINE_STYLES=["single","double","thick","dotted","dashed","dot-dash","dot-dot-dash","wavy"] as const;
 function UnderlineSplitButton({preview,active,onChange}:{preview:boolean;active:boolean;onChange?:(style:string,color?:string)=>void}){
   const[open,setOpen]=useState(false),[moreOpen,setMoreOpen]=useState(false),[colorOpen,setColorOpen]=useState(false),[lastStyle,setLastStyle]=useState("single"),[thickness,setThickness]=useState("3"),[wordsOnly,setWordsOnly]=useState(false);
@@ -312,8 +347,6 @@ const COLUMN_ITEMS=[{value:"1",label:"One"},{value:"2",label:"Two"},{value:"3",l
 const COLUMN_ACTIONS=[{id:"custom",label:"More Columns…"}];
 // Word 2013's Watermark gallery (DESIGN > Page Background): value "TEXT|layout".
 const WATERMARK_ITEMS=[{value:"CONFIDENTIAL|diagonal",label:"CONFIDENTIAL 1"},{value:"CONFIDENTIAL|horizontal",label:"CONFIDENTIAL 2"},{value:"DO NOT COPY|diagonal",label:"DO NOT COPY 1"},{value:"DO NOT COPY|horizontal",label:"DO NOT COPY 2"},{value:"DRAFT|diagonal",label:"DRAFT 1"},{value:"DRAFT|horizontal",label:"DRAFT 2"},{value:"SAMPLE|diagonal",label:"SAMPLE 1"},{value:"ASAP|diagonal",label:"ASAP 1"},{value:"URGENT|diagonal",label:"URGENT 1"}];
-// Word 2013's Text Effects and Typography menu, Outline: the standard colours and No Outline.
-const TEXT_EFFECT_ITEMS=[...STANDARD_COLORS.map(color=>({value:`outline:${color.value.slice(1).toUpperCase()}`,label:`Outline: ${color.name}`,swatch:"A",color:color.value})),{value:"outline:none",label:"No Outline",swatch:"A"}];
 const WATERMARK_ACTIONS=[{id:"custom",label:"Custom Watermark…"},{id:"remove",label:"Remove Watermark"}];
 const SPACING_ITEMS=[{value:"1",label:"1.0"},{value:"1.15",label:"1.15"},{value:"1.5",label:"1.5"},{value:"2",label:"2.0"},{value:"2.5",label:"2.5"},{value:"3",label:"3.0"}];
 const SPACING_ACTIONS=[{id:"options",label:"Line Spacing Options…"},{id:"add-space-before",label:"Add Space Before Paragraph"},{id:"remove-space-after",label:"Remove Space After Paragraph"}];

@@ -1227,3 +1227,20 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 /* Word's table move handle at the table's top-left corner: click it to select the whole table. */
 .word-table-handle { position: absolute; z-index: 5; width: 14px; height: 14px; display: grid; place-items: center; font-size: 11px; line-height: 1; color: #333; background: #fff; border: 1px solid #9a9a9a; cursor: move; user-select: none; }
 .word-table-handle[hidden] { display: none; }
+/* Home > Text Effects and Typography (Word 2013): gallery of 15 effects, Outline submenu, other rows. */
+.word-text-effects-button { display: inline-flex; align-items: center; gap: 1px; width: auto !important; padding: 0 2px; }
+.word-text-effects-glyph { font: 700 17px/1 "Segoe UI",Calibri,Arial,sans-serif; color: #dbe9f8; -webkit-text-stroke: 1.2px #3c78c3; }
+.word-text-effects-caret { font-size: 9px; color: #444; }
+.word-text-effects-menu { z-index: 1000; width: 284px; border: 1px solid #aaa; background: #fff; box-shadow: 0 3px 8px rgb(0 0 0 / .28); font: 12px "Segoe UI",Calibri,Arial,sans-serif; color: #333; }
+.word-text-effects-gallery { display: grid; grid-template-columns: repeat(5,1fr); gap: 4px; padding: 8px; border-bottom: 1px solid #ddd; }
+.word-text-effects-gallery button { height: 50px; border: 1px solid transparent; background: #fff; font: 700 36px/1 Calibri,"Segoe UI",Arial,sans-serif; }
+.word-text-effects-gallery button:hover, .word-text-effects-gallery button:focus-visible { border-color: #e0b92e; background: #fff1b3; outline: 0; }
+.word-text-effects-rows { display: grid; padding: 2px 0; }
+.word-text-effects-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 24px; border: 0; background: #fff; padding: 2px 10px 2px 6px; color: #222; font: inherit; text-align: left; }
+.word-text-effects-row i { margin-left: auto; font-style: normal; }
+.word-text-effects-row:not(:disabled):hover, .word-text-effects-row[aria-expanded="true"] { background: #cfe1f6; }
+.word-text-effects-row:disabled { color: #a6a6a6; }
+.word-text-effects-row-icon { width: 18px; text-align: center; font-weight: 600; }
+.word-text-effects-outline { position: absolute; left: 282px; top: 170px; width: 232px; border: 1px solid #aaa; background: #fff; box-shadow: 0 3px 8px rgb(0 0 0 / .25); }
+.word-text-effects-outline .wr-swatch { width: 17px; height: 17px; border: 1px solid #c6c6c6; }
+.word-text-effects-outline .wi-item:disabled { color: #a6a6a6; }
