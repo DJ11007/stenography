@@ -537,6 +537,9 @@ function repairDecodedWord(word: string) {
     // typing s for l at a word start is the most common slip in these
     // chapters ("सभी" -> ेभी, "समाज" -> ेमाज, "सुरक्षा" -> ेुरक्षा). Restore स.
     .replace(/^े/u, "स")
+    // Real reported bug: "vkWjsat" (ऑरेंज) decoded as अ + ॉ ("अॉरेंज", drawn with a dotted circle);
+    // Hindi writes the one letter ऑ.
+    .replace(/\u0905\u0949/gu, "\u0911")
     // The pre-base ि marker (the f key) then उ (m) instead of म (e): ि
     // cannot ride an independent vowel, so it renders as the impossible
     // उ + ि -- every observed case is मिलना / मिलकर / मिला.

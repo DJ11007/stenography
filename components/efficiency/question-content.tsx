@@ -1,9 +1,19 @@
 import { Fragment } from "react";
 import { parseQuestionContent } from "@/lib/question-content";
 
+// **bold**, *italic*, __underline__, ++bigger++ and ==highlight== (the admin editor's toolbar); they
+// can be nested (**__bold underline__**). Rendered as React elements, never as HTML.
+const INLINE = /(\*\*[^*\n]+?\*\*|__[^_\n]+?__|==[^=\n]+?==|\+\+[^+\n]+?\+\+|\*[^*\s][^*\n]*?\*)/u;
 function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/u);
-  return <>{parts.map((part, index) => (part.startsWith("**") && part.endsWith("**") ? <strong key={index}>{part.slice(2, -2)}</strong> : <Fragment key={index}>{part}</Fragment>))}</>;
+  const parts = text.split(new RegExp(INLINE.source, "gu"));
+  return <>{parts.map((part, index) => {
+    if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) return <strong key={index}><Inline text={part.slice(2, -2)} /></strong>;
+    if (part.length > 4 && part.startsWith("__") && part.endsWith("__")) return <u key={index}><Inline text={part.slice(2, -2)} /></u>;
+    if (part.length > 4 && part.startsWith("==") && part.endsWith("==")) return <mark key={index} style={{ background: "#ffff00", color: "inherit" }}><Inline text={part.slice(2, -2)} /></mark>;
+    if (part.length > 4 && part.startsWith("++") && part.endsWith("++")) return <span key={index} style={{ fontSize: "1.25em" }}><Inline text={part.slice(2, -2)} /></span>;
+    if (part.length > 2 && part.startsWith("*") && part.endsWith("*")) return <em key={index}><Inline text={part.slice(1, -1)} /></em>;
+    return <Fragment key={index}>{part}</Fragment>;
+  })}</>;
 }
 
 /** Renders an admin-authored question's plain-text `instruction` field,

@@ -104,3 +104,40 @@ test("student-facing question surfaces (workspace panels, results tables, gradin
   ].map(read));
   for (const source of sources) assert.match(source, /<QuestionContent /);
 });
+
+test("question text supports the editor toolbar's italic, underline, bigger and yellow-highlight marks, nested, rendered as elements not HTML", async () => {
+  const [renderer, editor] = await Promise.all([readFile(new URL("../components/efficiency/question-content.tsx", import.meta.url), "utf8"), readFile(new URL("../components/efficiency/question-content-editor.tsx", import.meta.url), "utf8")]);
+  const inline = new RegExp(renderer.match(/const INLINE = \/(.+)\/u;/)[1], "gu");
+  assert.deepEqual("a **b** *c* __d__ ++e++ ==f== g".split(inline).filter((part) => /[*_+=]/.test(part)), ["**b**", "*c*", "__d__", "++e++", "==f=="]);
+  assert.deepEqual("**__both__**".split(inline).filter(Boolean), ["**__both__**"], "the outer mark is taken first; its inside is rendered again");
+  assert.deepEqual("- * item".split(inline).filter((part) => part.startsWith("*") && part.endsWith("*") && part.length > 2), [], "a bullet star is not italic");
+  assert.match(renderer, /<mark key=\{index\} style=\{\{ background: "#ffff00", color: "inherit" \}\}>/);
+  assert.doesNotMatch(renderer, /dangerouslySetInnerHTML/);
+  for (const button of ['label="B" title="Bold"', 'label="I" title="Italic"', 'label="U" title="Underline"', 'label="A+" title="Bigger text"', 'label="Highlight" title="Yellow highlight"']) assert.ok(editor.includes(button), button);
+});
+
+test("question editor हिन्दी typing: a word typed with Kruti Dev keys becomes Hindi when finished; Hindi or markup is left alone", async () => {
+  const editor = await readFile(new URL("../components/efficiency/question-content-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /if \(!core \|\| DEVANAGARI\.test\(core\) \|\| !\/\[A-Za-z\]\/u\.test\(core\)\) return token;/);
+  assert.match(editor, /return lead \+ krutiDevToUnicode\(core\) \+ trail;/);
+  assert.match(editor, /if \(language !== "Hindi" \|\| caret !== el\.selectionEnd \|\| next\.length <= value\.length \|\| !\/\\s\/u\.test\(next\[caret - 1\] \?\? ""\)\) \{ onChange\(next\); return; \}/);
+  const { krutiDevToUnicode } = await import("../lib/hindi-font-converter.ts");
+  assert.equal(krutiDevToUnicode("ukyank"), "नालंदा");
+  assert.equal(krutiDevToUnicode("vkWjsat"), "ऑरेंज", "अ + ॉ is written as the one letter ऑ");
+});
+
+test("question list: one line per question with ▾, Select all, and the typing language follows the test's language", async () => {
+  const list = (await readFile(new URL("../app/admin/word-efficiency-tests/question-editor.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(list, /const isOpen=open\.has\(question\.clientId\);/);
+  assert.match(list, /\{isOpen&&<>/);
+  assert.match(list, />Select all \(\{questions\.filter\(item=>item\.selected\)\.length\}\/\{questions\.length\}\)<\/label>/);
+  assert.match(list, /const follow=\(\)=>setTyping\(select\.value==="Hindi"\?"Hindi":"English"\);/);
+  assert.match(list, /typing=\{typing\} onTypingChange=\{setTyping\}/);
+});
+
+test("saving an existing test keeps its web address; a new one with a taken address gets the language added (the Hindi EFFICIENCY TEST 1 failed to save)", async () => {
+  const actions = await readFile(new URL("../app/admin/word-efficiency-tests/actions.ts", import.meta.url), "utf8");
+  assert.match(actions, /if\(!requested&&testId\)\{const\{data\}=await supabase\.from\("word_efficiency_tests"\)\.select\("slug"\)\.eq\("id",testId\)\.maybeSingle\(\);if\(data\?\.slug\)return String\(data\.slug\)\}/);
+  assert.match(actions, /for\(const candidate of\[base,`\$\{base\}-\$\{suffix\}`/);
+  assert.match(actions, /const slug=await availableWordSlug\(supabase,value\(form,"slug"\),draft\.title,testId,language\);/);
+});
