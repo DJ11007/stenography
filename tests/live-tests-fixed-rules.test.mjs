@@ -38,3 +38,11 @@ test("efficiency live test (Word, Excel): no duration choice on the card or inst
   assert.match(migration, /if test_record\.is_live and p_duration_seconds<>version_record\.duration_options\[1\] then raise exception ''a live test runs for its set duration''/);
   assert.match(migration, /if t\.is_live and p_duration_seconds<>v\.duration_options\[1\] then raise exception ''a live test runs for its set duration''/);
 });
+
+// A live efficiency test is taken only from the Live Test page; the Word/Excel lists show it again once it is no longer live.
+test("the Word and Excel efficiency lists leave out live tests", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const [word, excel] = await Promise.all(["lib/word-efficiency-server.ts", "lib/excel-efficiency-server.ts"].map((path) => readFile(new URL(`../${path}`, import.meta.url), "utf8")));
+  assert.match(word, /\.eq\("status","published"\)\.eq\("is_live",false\)\.order\("published_at"/);
+  assert.match(excel, /\.eq\("status", "published"\)\.eq\("is_live", false\)\.order\("published_at"/);
+});
