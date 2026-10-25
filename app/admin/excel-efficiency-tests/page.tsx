@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_EXCEL_INSTRUCTIONS, type ExcelQuestion, type ExcelVersion } from "@/lib/excel-efficiency";
 import { deleteExcelEfficiencyTest, duplicateExcelEfficiencyTest, saveExcelEfficiencyTest, setExcelEfficiencyStatus } from "./actions";
 import { QuestionEditor } from "./question-editor";
-import { ExtractQuestionsPdf } from "./extract-questions-pdf";
+import { DeliveryPdfFields } from "../word-efficiency-tests/delivery-pdf-fields";
 import { WorkingMatterXlsxFields } from "./working-matter-xlsx-fields";
 import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 import { formatIST } from "@/lib/format-datetime";
@@ -64,7 +64,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                 <Field label="Allowed durations in minutes (comma separated)"><input className="input" name="durationOptions" defaultValue={current?.duration_options?.map((value) => value / 60).join(", ") ?? "20"} required /></Field>
               </div>
               <WorkingMatterXlsxFields initialSnapshot={current?.working_matter_snapshot ?? null} />
-              <ExtractQuestionsPdf defaultDeliveryPdf={Boolean(current?.delivery_pdf)} existingPdf={current?.pdf_path ? { fileName: current.pdf_file_name ?? "question-paper.pdf", sizeBytes: current.pdf_size_bytes ?? null } : null} />
+              <DeliveryPdfFields subject="excel" defaultOnscreen defaultPdf={Boolean(current?.delivery_pdf)} existingPdf={editing && current?.pdf_path ? { testId: editing.id, fileName: current.pdf_file_name ?? "question-paper.pdf", sizeBytes: current.pdf_size_bytes ?? null, pageCount: null, uploadedAt: current.pdf_uploaded_at ?? null } : null} />
               <QuestionEditor initialQuestions={initialQuestions} />
               <fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                 <label className="flex items-center gap-2 font-black text-blue-950">

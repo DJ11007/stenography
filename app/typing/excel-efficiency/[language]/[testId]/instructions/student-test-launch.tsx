@@ -23,9 +23,10 @@ export function StudentTestLaunch({ testId, language, duration, live = false, ha
       </div>
       {hasPdf && (
         <div className="mt-3 rounded-xl bg-white p-4">
-          <strong className="block">Question paper PDF</strong>
-          <span className="mt-1 block text-xs leading-5 text-slate-600">Downloading the question paper does not start the test or the timer.</span>
-          <a href={`/typing/excel-efficiency/${language}/${testId}/question-paper`} className="mt-3 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white">Download Question Paper PDF</a>
+          <h3 className="font-black">Private question paper PDF</h3>
+          <p className="mt-1 text-xs text-slate-600">This test includes both the downloadable PDF and on-screen questions.</p>
+          <a href={`/typing/excel-efficiency/${language}/${testId}/question-paper`} className="mt-4 block w-full rounded-xl bg-violet-700 px-5 py-3 text-center font-black text-white">Download Question Paper PDF</a>
+          <p className="mt-2 text-xs text-slate-500">Downloading the question paper does not start the test or the timer.</p>
         </div>
       )}
       <label className="mt-5 flex gap-3 rounded-xl border border-emerald-200 bg-white p-4 text-sm font-bold">
