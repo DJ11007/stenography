@@ -7,6 +7,7 @@ export const EXCEL_SUPPORTED_COMMANDS = new Set([
   "fontSize", "fontFamily", "vAlign", "wrap", "mergeCenter", "mergeAcross", "mergeCells", "unmerge", "formatPainter", "clearFormats", "clearContents",
   "copy", "cut", "paste", "autoSum", "gridlines", "headings", "formulaBar", "printGridlines", "printHeadings", "printArea", "clearPrintArea",
   "orientation", "paperSize", "margins", "header", "footer", "pageNumber", "formula",
+  "formatCells", "rotate", "indent", "decimals", "fillDown", "fillRight", "pasteValues", "pasteFormatting", "cellStyle", "edit",
 ]);
 
 export type SheetCell = {
@@ -14,6 +15,8 @@ export type SheetCell = {
   fontColor: string | null; fillColor: string | null; border: string | null;
   numberFormat: "General" | "Number" | "Currency" | "Percentage"; align: "left" | "center" | "right" | null;
   fontSize?: number | null; fontFamily?: string | null; vAlign?: "top" | "middle" | "bottom" | null; wrap?: boolean | null;
+  // Format Cells extras: text angle (-90..90 degrees, 255 = vertical text), indent level, strikethrough, decimal places.
+  rotate?: number | null; indent?: number | null; strike?: boolean | null; decimals?: number | null;
 };
 export type HeaderFooter = { left?: string; center?: string; right?: string };
 export type PaperSize = "Letter" | "Legal" | "A4" | "A5" | "A3" | "Executive" | "Tabloid" | "B5";
@@ -41,7 +44,7 @@ export function toExcelDocumentV3(document: ExcelDocument | ExcelDocumentV2 | nu
 
 type JsonObject = Record<string, unknown>;
 const CELL_FIELDS = new Set(["value", "formula", "bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align"]);
-const OPTIONAL_CELL_FIELDS = new Set(["fontSize", "fontFamily", "vAlign", "wrap"]);
+const OPTIONAL_CELL_FIELDS = new Set(["fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals"]);
 const NUMBER_FORMATS = new Set(["General", "Number", "Currency", "Percentage"]);
 const ALIGNMENTS = new Set(["left", "center", "right"]);
 const V_ALIGNMENTS = new Set(["top", "middle", "bottom"]);
@@ -69,6 +72,10 @@ function validateCell(ref: string, cell: unknown) {
   if ("fontFamily" in cell && cell.fontFamily !== null && (typeof cell.fontFamily !== "string" || cell.fontFamily.length > 60)) throw new Error(`Invalid font at ${ref}.`);
   if ("vAlign" in cell && cell.vAlign !== null && (typeof cell.vAlign !== "string" || !V_ALIGNMENTS.has(cell.vAlign))) throw new Error(`Invalid vertical alignment at ${ref}.`);
   if ("wrap" in cell && cell.wrap !== null && typeof cell.wrap !== "boolean") throw new Error(`Invalid wrap text at ${ref}.`);
+  if ("rotate" in cell && cell.rotate !== null && (typeof cell.rotate !== "number" || !((cell.rotate >= -90 && cell.rotate <= 90) || cell.rotate === 255))) throw new Error(`Invalid text orientation at ${ref}.`);
+  if ("indent" in cell && cell.indent !== null && (typeof cell.indent !== "number" || cell.indent < 0 || cell.indent > 15)) throw new Error(`Invalid indent at ${ref}.`);
+  if ("strike" in cell && cell.strike !== null && typeof cell.strike !== "boolean") throw new Error(`Invalid strikethrough at ${ref}.`);
+  if ("decimals" in cell && cell.decimals !== null && (typeof cell.decimals !== "number" || cell.decimals < 0 || cell.decimals > 10)) throw new Error(`Invalid decimal places at ${ref}.`);
 }
 
 function validateCells(cells: unknown) {

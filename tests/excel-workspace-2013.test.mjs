@@ -90,3 +90,24 @@ test("the .xlsx reader brings in merged cells, font size, colour, underline and 
   const sql = await read("supabase/migrations/202610251700_excel_efficiency_sheet_v3_and_rule_marking.sql");
   assert.match(sql, /if unmarked = 0 and auto then/, "results are published straight after submitting when every question has rules");
 });
+
+test("Excel 2013 look: title bar, all ribbon tabs, dialog launchers, Format Cells (Ctrl+1, right-click), orientation, indent, decimals", async () => {
+  const [editor, dialog] = await Promise.all([read("app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor.tsx"), read("app/typing/excel-efficiency/[language]/[testId]/workspace/format-cells-dialog.tsx")]);
+  assert.match(editor, /Book1 - Excel/);
+  assert.match(editor, /\["HOME", "INSERT", "PAGE LAYOUT", "FORMULAS", "DATA", "REVIEW", "VIEW"\]/);
+  for (const label of ["Format Cells: Font", "Format Cells: Alignment", "Format Cells: Number", "Angle Counterclockwise", "Angle Clockwise", "Vertical Text", "Rotate Text Up", "Rotate Text Down", "Format Cell Alignment", "Increase Indent", "Decrease Indent", "Comma Style", "Increase Decimal", "Decrease Decimal", "Cell Styles", "Paste Values", "Paste Formatting", "Find & Select", "Go To...", "More Borders...", "Format Cells...", "Scale to Fit", "Workbook Views"]) assert.ok(editor.includes(label), label);
+  assert.match(editor, /if \(ctrl && key === "1"\) \{ event\.preventDefault\(\); openFormatCells\("Number"\); return; \}/);
+  assert.match(editor, /onContextMenu=\{\(event\) => openContextMenu\(event, row, col\)\}/);
+  for (const tab of ["Number", "Alignment", "Font", "Border", "Fill", "Protection"]) assert.ok(dialog.includes(`"${tab}"`), tab);
+  for (const label of ["Wrap text", "Merge cells", "Strikethrough", "Decimal places:", "Background Color:", "Degrees", "Outline", "Inside"]) assert.ok(dialog.includes(label), label);
+});
+
+test("the new cell settings (orientation, indent, strikethrough, decimals) are valid in a saved sheet and are recorded commands", async () => {
+  const model = JSON.parse(await read("tests/fixtures/excel-test1-model.json"));
+  const withExtras = { ...model, cells: { ...model.cells, I1: { value: "FEES", formula: null, bold: false, italic: false, underline: false, fontColor: null, fillColor: null, border: null, numberFormat: "Number", align: null, rotate: 45, indent: 2, strike: true, decimals: 3 } }, operations: [...model.operations, "rotate", "indent", "formatCells", "decimals", "edit", "pasteValues", "cellStyle"] };
+  assert.equal(validateExcelOperations(withExtras), withExtras);
+  assert.throws(() => validateExcelDocument({ ...withExtras, cells: { ...withExtras.cells, I1: { ...withExtras.cells.I1, rotate: 120 } } }), /orientation/);
+  assert.equal(formatCellValue(1234.5, "Number", 1), "1,234.5");
+  const sql = await read("supabase/migrations/202610251730_excel_efficiency_cell_format_extras.sql");
+  assert.match(sql, /''rotate'',''indent'',''strike'',''decimals''\]\)/);
+});

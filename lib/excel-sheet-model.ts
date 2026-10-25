@@ -7,7 +7,7 @@ export type Rect = { r1: number; c1: number; r2: number; c2: number };
 export const MAX_ROWS = 200, MAX_COLS = 26;
 export const DEFAULT_FONT = "Calibri", DEFAULT_FONT_SIZE = 11;
 export const EMPTY_CELL: SheetCell = { value: null, formula: null, bold: false, italic: false, underline: false, fontColor: null, fillColor: null, border: null, numberFormat: "General", align: null };
-export const STYLE_KEYS = ["bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align", "fontSize", "fontFamily", "vAlign", "wrap"] as const;
+export const STYLE_KEYS = ["bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align", "fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals"] as const;
 
 export function refAt(row: number, col: number) { return `${columnLetters(col)}${row}`; }
 export function parseRef(ref: string): { row: number; col: number } | null {
@@ -109,7 +109,7 @@ export function recomputeFormulas(cells: Record<string, SheetCell>): Record<stri
 /** A cell with nothing in it and no formatting is left out of the saved sheet. */
 export function isBlankCell(cell: SheetCell) {
   return cell.value === null && !cell.formula && !cell.bold && !cell.italic && !cell.underline && !cell.fontColor && !cell.fillColor && !cell.border
-    && (cell.numberFormat ?? "General") === "General" && !cell.align && !cell.fontSize && !cell.fontFamily && !cell.vAlign && !cell.wrap;
+    && (cell.numberFormat ?? "General") === "General" && !cell.align && !cell.fontSize && !cell.fontFamily && !cell.vAlign && !cell.wrap && !cell.rotate && !cell.indent && !cell.strike && cell.decimals == null;
 }
 
 /** Insert (delta 1) or delete (delta -1) a row; cells and merged ranges below move. */
@@ -188,11 +188,13 @@ export function borderCss(border: string | null | undefined): Record<string, str
 }
 
 /** Number shown in a cell for its number format. */
-export function formatCellValue(value: unknown, format: SheetCell["numberFormat"] | null | undefined): string {
+export function formatCellValue(value: unknown, format: SheetCell["numberFormat"] | null | undefined, decimals?: number | null): string {
   if (typeof value !== "number") return value == null ? "" : String(value);
-  if (format === "Currency") return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  if (format === "Percentage") return `${(value * 100).toFixed(2)}%`;
-  if (format === "Number") return value.toFixed(2);
+  const places = decimals ?? (format === "General" || !format ? null : 2);
+  if (format === "Currency") return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 })}`;
+  if (format === "Percentage") return `${(value * 100).toFixed(places ?? 2)}%`;
+  if (format === "Number") return value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 });
+  if (places !== null) return value.toFixed(places);
   return Number.isInteger(value) ? String(value) : String(Math.round(value * 1e9) / 1e9);
 }
 
