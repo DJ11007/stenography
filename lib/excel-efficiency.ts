@@ -4,7 +4,7 @@ export type ExcelLanguage = "English" | "Hindi";
 export type ExcelGradingRule = { target: string; expectedOperation: string; expectedValue: string; allocatedMarks: number; partialMarks: number | null };
 export type ExcelQuestion = { id: string; version_id: string; question_number: number; instruction: string; marks: number; section: string | null; display_order: number; is_visible: boolean; gradingRule?: ExcelGradingRule | null };
 export type ExcelVersion = { id: string; test_id: string; version_number: number; title: string; language: ExcelLanguage; description: string; instructions_markdown: string; question_count: number; maximum_marks: number; duration_options: number[]; passing_marks: number | null; working_matter_snapshot?: WorkingSheetSnapshot | null };
-export type ExcelTest = { id: string; slug: string; title: string; language: ExcelLanguage; status: string; current_version_id: string; current_version_number: number; published_at: string | null; updated_at: string };
+export type ExcelTest = { id: string; slug: string; title: string; language: ExcelLanguage; status: string; current_version_id: string; current_version_number: number; published_at: string | null; updated_at: string; is_live?: boolean };
 
 export function formatExcelDuration(seconds: number) { const minutes = seconds / 60; return `${minutes} minute${minutes === 1 ? "" : "s"}`; }
 

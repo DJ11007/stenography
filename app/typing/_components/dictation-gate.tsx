@@ -35,7 +35,7 @@ export const DICTATION_SPEEDS = [
 // not copy-typing. Rendered as a full page (same weight as ExamStart)
 // rather than an overlay, specifically so the typing textarea underneath
 // genuinely doesn't exist in the DOM until Start Typing is clicked.
-export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref, adminPreview = false, practiceNavigation, onNavigateTest }: {
+export function DictationGate({ preset, url, selectedCategories, onCategoriesChange, onStartTyping, durationSeconds, durationLocked, onDurationChange, backHref, adminPreview = false, practiceNavigation, onNavigateTest, live = false }: {
   preset: ExamPreset;
   url: string;
   selectedCategories: HalfErrorCategory[];
@@ -48,6 +48,9 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   adminPreview?: boolean;
   practiceNavigation?: PracticeNavigation;
   onNavigateTest?: (href: string) => void;
+  // A live test: the dictation plays once, at normal speed, without pausing, seeking or replaying, and
+  // the graded mistake categories are the test's own -- the same exam for every student.
+  live?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -106,9 +109,10 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (live) { if (audio.paused && !playedThrough) void audio.play(); return; }
     if (audio.paused) void audio.play(); else audio.pause();
   };
-  const seek = (fraction: number) => { const audio = audioRef.current; if (audio && duration) audio.currentTime = fraction * duration; };
+  const seek = (fraction: number) => { const audio = audioRef.current; if (!live && audio && duration) audio.currentTime = fraction * duration; };
 
   // capitalization is meaningless for Hindi (Devanagari has no case);
   // halant (viram) is meaningless for English (a Latin-script concept has
@@ -148,7 +152,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           )}
         </div>
         <h1 className="mt-5 text-3xl font-black text-slate-900">Listen to the dictation</h1>
-        <p className="mt-2 text-slate-600">Play the audio at whichever speed suits you. The passage will not be shown on screen — this is a real dictation, not copy-typing. Listen all the way to the end before typing can begin.</p>
+        <p className="mt-2 text-slate-600">{live ? null : "Play the audio at whichever speed suits you. "}The passage will not be shown on screen — this is a real dictation, not copy-typing. {live ? "This is a live test: the dictation plays once at normal speed, and it cannot be paused, replayed or skipped. " : null}Listen all the way to the end before typing can begin.</p>
 
         {!durationLocked && <label className="mt-4 block max-w-xs text-sm font-bold text-slate-800">Timer
           <select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">
@@ -172,15 +176,15 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           onError={() => { clearStallTimer(); setAudioError(true); }}
         />
         <div className="mt-6 flex flex-col items-center gap-4 rounded-2xl bg-slate-50 p-6">
-          <button type="button" onClick={togglePlay} aria-label={playing ? "Pause dictation" : "Play dictation"} className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-700 text-2xl text-white shadow-lg hover:bg-blue-800">{playing ? "⏸" : "▶"}</button>
+          <button type="button" onClick={togglePlay} disabled={live && (playing || playedThrough)} aria-label={playing ? "Pause dictation" : "Play dictation"} className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-700 text-2xl text-white shadow-lg hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">{playing ? "⏸" : "▶"}</button>
           <div className="flex w-full max-w-md items-center gap-3">
             <span className="w-12 text-right text-xs font-black text-slate-500">{formatTime(current)}</span>
-            <input type="range" min={0} max={1} step={0.001} value={duration ? current / duration : 0} onChange={(event) => seek(Number(event.target.value))} className="flex-1" aria-label="Seek dictation audio"/>
+            <input type="range" min={0} max={1} step={0.001} value={duration ? current / duration : 0} onChange={(event) => seek(Number(event.target.value))} disabled={live} className="flex-1" aria-label="Seek dictation audio"/>
             <span className="w-12 text-xs font-black text-slate-500">{formatTime(duration)}</span>
           </div>
           <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
             Speed
-            <select value={speed} onChange={(event) => setSpeed(Number(event.target.value))} className="input py-1.5">
+            <select value={live ? 1 : speed} disabled={live} onChange={(event) => setSpeed(Number(event.target.value))} className="input py-1.5">
               {DICTATION_SPEEDS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
@@ -197,7 +201,7 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           <p className="mb-3 text-xs text-slate-500">Wrong, missing, extra, and repeated words are always graded. Choose which of these finer details should also count as mistakes.</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {availableCategories.map((category) => <label key={category} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-800">
-              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggle(category)}/>
+              <input type="checkbox" checked={selectedCategories.includes(category)} disabled={live} onChange={() => toggle(category)}/>
               {categoryLabel(category)}
             </label>)}
           </div>

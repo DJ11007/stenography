@@ -30,7 +30,7 @@ test("configurable-typing-exam.tsx re-derives highlight confirmation from EXAM_C
   // Also gated on !manualUnlock -- a student can unlock highlighting along
   // with Backspace/Word calculation via the one shared unlock toggle, same
   // as the other two official-rule controls.
-  assert.match(source, /const highlightLocked = rulesLocked && categoryHighlightConfirmed && !manualUnlock;/);
+  assert.match(source, /const highlightLocked = rulesLocked && \(categoryHighlightConfirmed \|\| isLiveTest\) && !manualUnlock;/, "a live test's highlight is fixed even when the category's rule is unconfirmed");
 });
 
 test("both places that force highlightMode onto the student's settings gate on highlightLocked, not the old blanket official/managed check", async () => {

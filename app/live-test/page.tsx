@@ -43,7 +43,7 @@ export default async function LiveTestCentre({ searchParams }: { searchParams: P
     })),
     ...efficiencyTests.map((test) => ({
       id: test.id, title: test.title, slug: test.slug, description: null, language: test.language,
-      duration_seconds: test.duration_options.length ? Math.max(...test.duration_options) : 0,
+      duration_seconds: test.duration_options[0] ?? 0, // a live test runs for its set (first) duration
       live_starts_at: test.live_starts_at, live_ends_at: test.live_ends_at, results_publish_at: test.results_publish_at,
       results_delay_minutes: null, is_live: test.is_live,
       category: "Efficiency" as LiveTest["category"],

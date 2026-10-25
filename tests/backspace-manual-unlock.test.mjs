@@ -19,11 +19,12 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // not to rely on the on-screen result while unlocked.
 test("manualUnlock state exists, is only offered before the timer starts, and forces backspaceMode and wordMethod from the student's own preference when set", async () => {
   const source = await read("app/typing/_components/configurable-typing-exam.tsx");
-  assert.match(source, /const \[manualUnlock, setManualUnlock\] = useState\(false\);/);
+  assert.match(source, /const \[requestedUnlock, setManualUnlock\] = useState\(false\);/);
+  assert.match(source, /const manualUnlock = requestedUnlock && !isLiveTest;/, "never in a live test");
   assert.match(source, /const backspaceLocked = rulesLocked && !manualUnlock;/);
   assert.match(source, /const wordMethodLocked = rulesLocked && !manualUnlock;/);
-  assert.match(source, /const highlightLocked = rulesLocked && categoryHighlightConfirmed && !manualUnlock;/);
-  assert.match(source, /onManualUnlockChange=\{!timerStarted \? setManualUnlock : undefined\}/);
+  assert.match(source, /const highlightLocked = rulesLocked && \(categoryHighlightConfirmed \|\| isLiveTest\) && !manualUnlock;/);
+  assert.match(source, /onManualUnlockChange=\{!timerStarted && !isLiveTest \? setManualUnlock : undefined\}/, "the unlock button is not offered in a live test");
   const backspaceMatches = [...source.matchAll(/if \(manualUnlock\) resolved\.backspaceMode = preferences\.backspaceMode;/g)];
   assert.equal(backspaceMatches.length, 2, "expected the useEffect initializer and start() to both apply the manual unlock to backspaceMode");
   const wordMethodMatches = [...source.matchAll(/if \(manualUnlock\) resolved\.wordMethod = preferences\.wordMethod;/g)];

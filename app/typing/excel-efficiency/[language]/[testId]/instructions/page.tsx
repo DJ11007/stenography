@@ -16,7 +16,8 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
   if (!item) notFound();
   const { test, version } = item;
   const selected = Number(query.duration);
-  const duration = version.duration_options.includes(selected) ? selected : version.duration_options[0];
+  // A live test runs for its set (first) duration for everyone; the choice is for practice tests.
+  const duration = !test.is_live && version.duration_options.includes(selected) ? selected : version.duration_options[0];
   return (
     <main className="min-h-screen bg-slate-100">
       <TypingBrandHeader backHref={`/typing/excel-efficiency/${route.language}`} backLabel={`${language} Tests`} />
