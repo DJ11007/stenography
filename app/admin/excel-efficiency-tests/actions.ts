@@ -68,9 +68,10 @@ export async function saveExcelEfficiencyTest(form: FormData) {
   const errorBase = `/admin/excel-efficiency-tests?${testId ? `edit=${testId}&` : ""}error=`;
   const deliveryPdf = form.get("deliveryPdf") === "on";
   let pdfMeta: { pdf_path: string | null; pdf_file_name: string | null; pdf_size_bytes: number | null; pdf_uploaded_at: string | null } = { pdf_path: null, pdf_file_name: null, pdf_size_bytes: null, pdf_uploaded_at: null };
+  const { data: test } = testId ? await supabase.from("excel_efficiency_tests").select("current_version_id").eq("id", testId).single() : { data: null };
+  const previousVersionId = test?.current_version_id ?? null;
   if (testId && form.get("removePdf") !== "on") {
-    const { data: test } = await supabase.from("excel_efficiency_tests").select("current_version_id").eq("id", testId).single();
-    const { data: previous } = test?.current_version_id ? await supabase.from("excel_efficiency_versions").select("pdf_path,pdf_file_name,pdf_size_bytes,pdf_uploaded_at").eq("id", test.current_version_id).single() : { data: null };
+    const { data: previous } = previousVersionId ? await supabase.from("excel_efficiency_versions").select("pdf_path,pdf_file_name,pdf_size_bytes,pdf_uploaded_at").eq("id", previousVersionId).single() : { data: null };
     if (previous?.pdf_path) pdfMeta = previous;
   }
   const pdfUpload = form.get("pdfFile");
@@ -94,6 +95,12 @@ export async function saveExcelEfficiencyTest(form: FormData) {
   const gradingRules = questions.flatMap((question) => (question.gradingRule ? [{ questionNumber: question.question_number, exactTarget: question.gradingRule.target, expectedOperation: question.gradingRule.expectedOperation, expectedValue: question.gradingRule.expectedValue, allocatedMarks: question.gradingRule.allocatedMarks, partialMarks: question.gradingRule.partialMarks }] : []));
   const { error: ruleError } = await supabase.rpc("save_excel_efficiency_grading_rules", { p_version_id: savedTest?.current_version_id, p_rules: gradingRules });
   if (ruleError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but grading rules failed: ${ruleError.message}`)}`);
+  // The form carries one simple rule per question; a paper's full marking (parts, rule criteria) is kept for
+  // every question whose wording and marks did not change (migration 202610252000).
+  if (previousVersionId && savedTest?.current_version_id && savedTest.current_version_id !== previousVersionId) {
+    const { error: copyError } = await supabase.rpc("copy_excel_efficiency_grading_rules", { p_from_version: previousVersionId, p_to_version: savedTest.current_version_id });
+    if (copyError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but the previous marking could not be kept: ${copyError.message}`)}`);
+  }
   const { error: pdfError } = await supabase.rpc("set_excel_efficiency_question_paper", { p_test_id: savedId, p_delivery_pdf: deliveryPdf, p_pdf_path: pdfMeta.pdf_path, p_pdf_file_name: pdfMeta.pdf_file_name, p_pdf_size_bytes: pdfMeta.pdf_size_bytes, p_pdf_uploaded_at: pdfMeta.pdf_uploaded_at });
   if (pdfError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but the question paper PDF failed: ${pdfError.message}`)}`);
   const isLive = form.get("isLive") === "on";
