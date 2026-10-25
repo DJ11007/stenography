@@ -2,8 +2,9 @@ import { unzipSync } from "fflate";
 import { XMLParser } from "fast-xml-parser";
 import { columnLetters, columnIndex } from "./excel-formula.ts";
 
-export type SheetCell = { value: string | number | null; formula: string | null; bold: boolean; italic: boolean; underline: boolean; fontColor: string | null; fillColor: string | null; border: string | null; numberFormat: "General" | "Number" | "Currency" | "Percentage"; align: "left" | "center" | "right" };
-export type WorkingSheetSnapshot = { schemaVersion: 1; language: "English" | "Hindi"; rows: number; cols: number; cells: Record<string, SheetCell>; source?: { fileName: string; sizeBytes: number; bucket?: string; storagePath?: string } };
+export type SheetCell = { value: string | number | null; formula: string | null; bold: boolean; italic: boolean; underline: boolean; fontColor: string | null; fillColor: string | null; border: string | null; numberFormat: "General" | "Number" | "Currency" | "Percentage"; align: "left" | "center" | "right" | null; fontSize?: number | null; fontFamily?: string | null; vAlign?: "top" | "middle" | "bottom" | null; wrap?: boolean | null };
+// merges: merged ranges of the uploaded sheet ("A1:G1"), so the starting sheet looks as it does in Excel.
+export type WorkingSheetSnapshot = { schemaVersion: 1; language: "English" | "Hindi"; rows: number; cols: number; cells: Record<string, SheetCell>; merges?: string[]; source?: { fileName: string; sizeBytes: number; bucket?: string; storagePath?: string } };
 
 const MAX_XLSX_BYTES = 10 * 1024 * 1024, MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024, MAX_ROWS = 200, MAX_COLS = 26;
 // trimValues defaults to true in fast-xml-parser, which strips leading/
@@ -12,7 +13,7 @@ const MAX_XLSX_BYTES = 10 * 1024 * 1024, MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 10
 // lib/word-docx.ts for Word's <w:t> runs (e.g. "your Guru cell" split across
 // runs at a formatting boundary loses the run-boundary spaces and joins as
 // "yourGurucell"). Disabled here for the same reason.
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@", textNodeName: "#text", trimValues: false, isArray: (name) => ["row", "c", "si", "font", "fill", "xf", "sheet"].includes(name) });
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@", textNodeName: "#text", trimValues: false, isArray: (name) => ["row", "c", "si", "font", "fill", "xf", "sheet", "mergeCell"].includes(name) });
 const attr = (value: unknown, key: string) => (value && typeof value === "object" ? String((value as Record<string, unknown>)[`@${key}`] ?? "") : "");
 const text = (value: unknown): string => { if (value == null) return ""; if (typeof value === "string" || typeof value === "number") return String(value); if (Array.isArray(value)) return value.map(text).join(""); if (typeof value === "object") return text((value as Record<string, unknown>)["#text"]); return "" };
 
@@ -39,7 +40,7 @@ export function parseWorkingSheetXlsx(bytes: Uint8Array, language: "English" | "
   if (!sheetNames.length) throw new Error("XLSX contains no worksheets.");
   const sheetXml = parser.parse(decoder.decode(files[sheetNames[0]]));
   const sharedStrings: string[] = files["xl/sharedStrings.xml"] ? (() => { const parsed = parser.parse(decoder.decode(files["xl/sharedStrings.xml"])); const items = parsed?.sst?.si ?? []; return (Array.isArray(items) ? items : [items]).map((item: Record<string, unknown>) => text(item?.t ?? item?.r ?? item)) })() : [];
-  const styles = files["xl/styles.xml"] ? parseStyles(decoder.decode(files["xl/styles.xml"])) : { boldByXf: [] as boolean[], italicByXf: [] as boolean[], fillByXf: [] as (string | null)[], numberFormatByXf: [] as SheetCell["numberFormat"][] };
+  const styles = files["xl/styles.xml"] ? parseStyles(decoder.decode(files["xl/styles.xml"])) : { boldByXf: [] as boolean[], italicByXf: [] as boolean[], fillByXf: [] as (string | null)[], numberFormatByXf: [] as SheetCell["numberFormat"][], fontByXf: [] as FontStyle[], alignByXf: [] as AlignStyle[] };
 
   const rows = sheetXml?.worksheet?.sheetData?.row ?? [];
   const cells: Record<string, SheetCell> = {};
@@ -60,24 +61,39 @@ export function parseWorkingSheetXlsx(bytes: Uint8Array, language: "English" | "
       else if (type === "str" || type === "inlineStr") value = rawValue;
       else if (rawValue !== "") value = Number(rawValue);
       const styleIndex = Number(attr(cell, "s") || 0);
+      const font = styles.fontByXf[styleIndex], alignment = styles.alignByXf[styleIndex];
       cells[`${parsedRef[1].toUpperCase()}${rowNumber}`] = {
         value: typeof value === "string" ? value.slice(0, 1000) : value,
         formula: formulaText ? `=${formulaText.replace(/^=/, "")}` : null,
         bold: styles.boldByXf[styleIndex] ?? false,
         italic: styles.italicByXf[styleIndex] ?? false,
-        underline: false,
-        fontColor: null,
+        underline: font?.underline ?? false,
+        fontColor: font?.color ?? null,
         fillColor: styles.fillByXf[styleIndex] ?? null,
         border: null,
         numberFormat: styles.numberFormatByXf[styleIndex] ?? "General",
-        align: typeof value === "number" ? "right" : "left",
+        align: alignment?.horizontal ?? null,
+        ...(font?.size && font.size !== 11 ? { fontSize: font.size } : {}),
+        ...(font?.name && font.name !== "Calibri" ? { fontFamily: font.name } : {}),
+        ...(alignment?.vertical && alignment.vertical !== "bottom" ? { vAlign: alignment.vertical } : {}),
+        ...(alignment?.wrap ? { wrap: true } : {}),
       };
     }
   }
   if (!Object.keys(cells).length) throw new Error("XLSX contains no supported cell data.");
-  return { schemaVersion: 1, language, rows: Math.min(Math.max(maxRow, 1), MAX_ROWS), cols: Math.min(Math.max(maxCol, 1), MAX_COLS), cells };
+  // Merged cells of the uploaded sheet.
+  const mergeList = sheetXml?.worksheet?.mergeCells?.mergeCell ?? [];
+  const merges = (Array.isArray(mergeList) ? mergeList : [mergeList]).map((item: unknown) => attr(item, "ref").toUpperCase()).filter((ref: string) => {
+    const match = ref.match(/^([A-Z]{1,2})([0-9]{1,3}):([A-Z]{1,2})([0-9]{1,3})$/);
+    if (!match || Number(match[4]) > MAX_ROWS || columnIndex(match[3]) >= MAX_COLS) return false;
+    maxRow = Math.max(maxRow, Number(match[4])); maxCol = Math.max(maxCol, columnIndex(match[3]) + 1);
+    return true;
+  }).slice(0, 500);
+  return { schemaVersion: 1, language, rows: Math.min(Math.max(maxRow, 1), MAX_ROWS), cols: Math.min(Math.max(maxCol, 1), MAX_COLS), cells, ...(merges.length ? { merges } : {}) };
 }
 
+type FontStyle = { underline: boolean; color: string | null; size: number | null; name: string | null };
+type AlignStyle = { horizontal: "left" | "center" | "right" | null; vertical: "top" | "middle" | "bottom" | null; wrap: boolean };
 function parseStyles(xml: string) {
   const parsed = parser.parse(xml);
   const fonts = (parsed?.styleSheet?.fonts?.font ?? []) as Record<string, unknown>[];
@@ -87,7 +103,17 @@ function parseStyles(xml: string) {
   const italicByXf = cellXfs.map((xf) => Boolean(fonts[Number(attr(xf, "fontId"))]?.i !== undefined));
   const fillByXf = cellXfs.map((xf) => { const fill = fills[Number(attr(xf, "fillId"))] as Record<string, unknown> | undefined; const rgb = attr((fill?.patternFill as Record<string, unknown>)?.fgColor, "rgb"); return rgb && /^[0-9A-Fa-f]{8}$/.test(rgb) ? rgb.slice(2).toUpperCase() : null });
   const numberFormatByXf = cellXfs.map((xf) => { const id = Number(attr(xf, "numFmtId") || 0); if (id === 0) return "General" as const; if ([9, 10].includes(id)) return "Percentage" as const; if ([164, 165, 166, 167, 44].includes(id) || id >= 37 && id <= 44) return "Currency" as const; return "Number" as const });
-  return { boldByXf, italicByXf, fillByXf, numberFormatByXf };
+  const fontByXf: FontStyle[] = cellXfs.map((xf) => {
+    const font = fonts[Number(attr(xf, "fontId"))] as Record<string, unknown> | undefined;
+    const rgb = attr(font?.color, "rgb"), size = Number(attr(font?.sz, "val"));
+    return { underline: font?.u !== undefined, color: rgb && /^[0-9A-Fa-f]{8}$/.test(rgb) && rgb.slice(2).toUpperCase() !== "000000" ? rgb.slice(2).toUpperCase() : null, size: Number.isFinite(size) && size > 0 ? size : null, name: attr(font?.name, "val") || null };
+  });
+  const alignByXf: AlignStyle[] = cellXfs.map((xf) => {
+    const alignment = (xf as Record<string, unknown>).alignment;
+    const horizontal = attr(alignment, "horizontal"), vertical = attr(alignment, "vertical");
+    return { horizontal: horizontal === "left" || horizontal === "right" ? horizontal : horizontal === "center" || horizontal === "centerContinuous" ? "center" : null, vertical: vertical === "top" ? "top" : vertical === "center" ? "middle" : vertical === "bottom" ? "bottom" : null, wrap: attr(alignment, "wrapText") === "1" };
+  });
+  return { boldByXf, italicByXf, fillByXf, numberFormatByXf, fontByXf, alignByXf };
 }
 
 export function cloneWorkingSheetSnapshot(snapshot: WorkingSheetSnapshot): WorkingSheetSnapshot {

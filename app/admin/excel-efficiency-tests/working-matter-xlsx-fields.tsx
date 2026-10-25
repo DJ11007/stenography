@@ -50,7 +50,7 @@ export function WorkingMatterXlsxFields({ initialSnapshot }: { initialSnapshot: 
                     <th className="border bg-slate-50 p-1 font-black">{row}</th>
                     {colLetters.map((letter) => {
                       const cell = snapshot.cells[`${letter}${row}`];
-                      return <td key={letter} className="border p-1" style={{ fontWeight: cell?.bold ? 700 : 400, fontStyle: cell?.italic ? "italic" : "normal", backgroundColor: cell?.fillColor ? `#${cell.fillColor}` : undefined, textAlign: cell?.align }}>{cell?.formula ?? cell?.value ?? ""}</td>;
+                      return <td key={letter} className="border p-1" style={{ fontWeight: cell?.bold ? 700 : 400, fontStyle: cell?.italic ? "italic" : "normal", backgroundColor: cell?.fillColor ? `#${cell.fillColor}` : undefined, textAlign: cell?.align ?? (typeof cell?.value === "number" ? "right" : "left") }}>{cell?.formula ?? cell?.value ?? ""}</td>;
                     })}
                   </tr>
                 ))}

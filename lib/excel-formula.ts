@@ -68,7 +68,7 @@ function evaluateExpression(tokens: string[], resolve: (ref: string) => number |
   function parseFunction(name: string): number | string {
     if (next() !== "(") throw new FormulaError("Expected (");
     const args: (number | number[] | string)[] = [];
-    if (peek() !== ")") { args.push(parseAddSub()); while (peek() === ",") { next(); args.push(parseAddSub()); } }
+    if (peek() !== ")") { args.push(parseComparison()); while (peek() === ",") { next(); args.push(parseComparison()); } }
     if (next() !== ")") throw new FormulaError("Missing ) after function arguments");
     const flat = args.flatMap(arg => Array.isArray(arg) ? arg : [arg]).filter((value): value is number => typeof value === "number");
     if (name === "SUM") return flat.reduce((sum, value) => sum + value, 0);
@@ -104,7 +104,22 @@ function evaluateExpression(tokens: string[], resolve: (ref: string) => number |
     }
     return value;
   }
-  const result = parseAddSub();
+  // Comparisons (for IF): =, <>, <, >, <=, >= give 1 (TRUE) or 0 (FALSE), as Excel treats them in arithmetic.
+  function parseComparison(): number | string | number[] {
+    const left = parseAddSub();
+    const first = peek();
+    if (first !== "=" && first !== "<" && first !== ">") return left;
+    next();
+    let operator = first;
+    if ((first === "<" && (peek() === ">" || peek() === "=")) || (first === ">" && peek() === "=")) operator += next();
+    const right = parseAddSub();
+    const a = Array.isArray(left) ? left[0] ?? 0 : left, b = Array.isArray(right) ? right[0] ?? 0 : right;
+    const numeric = typeof a === "number" && typeof b === "number";
+    const x = numeric ? a : String(a).toLowerCase(), y = numeric ? b : String(b).toLowerCase();
+    const result = operator === "=" ? x === y : operator === "<>" ? x !== y : operator === "<" ? x < y : operator === ">" ? x > y : operator === "<=" ? x <= y : x >= y;
+    return result ? 1 : 0;
+  }
+  const result = parseComparison();
   if (position < tokens.length) throw new FormulaError("Unexpected trailing input");
   return Array.isArray(result) ? (result.length ? result[0] : 0) : result;
 }
@@ -113,7 +128,9 @@ export function evaluateFormula(formula: string, cells: SheetCells, depth = 0): 
   if (depth > 10) return "#REF!";
   if (!formula.startsWith("=")) return formula;
   try {
-    const tokens = tokenize(formula.slice(1));
+    // Excel accepts lower-case references and functions (=sum(i3:i4)) and absolute references ($I$3).
+    const normalized = formula.slice(1).replace(/("(?:[^"]|"")*")|[^"]+/g, (part, quoted) => quoted ? part : part.replace(/\$/g, "").toUpperCase());
+    const tokens = tokenize(normalized);
     return evaluateExpression(tokens, ref => {
       const cell = cells[ref];
       if (!cell) return null;
