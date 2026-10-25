@@ -11,3 +11,6 @@ export function withResultSummary<T extends Record<string, unknown>>(row: T): Om
   const { result_summary: summary, ...rest } = row;
   return { ...(rest as Omit<T, "result_summary">), result: summary && typeof summary === "object" ? (summary as Record<string, unknown>) : {} };
 }
+
+/** Shown on an attempt whose details were removed (only the latest 5 tests and live tests keep them; migration 202610251900). */
+export const DETAILS_REMOVED_NOTE = "Full details (passage, typed text and mistakes) are kept for your latest 5 tests and every live test. This older test keeps only its score.";

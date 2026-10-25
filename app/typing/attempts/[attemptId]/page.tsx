@@ -10,6 +10,7 @@ import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/l
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories } from "@/lib/typing-test";
 import { AttemptReviewClient } from "@/app/admin/students/attempts/[attemptId]/attempt-review-client";
 import { formatIST } from "@/lib/format-datetime";
+import { DETAILS_REMOVED_NOTE } from "@/lib/typing-result-summary";
 import { PracticeAttemptReview } from "../practice-attempt-review";
 
 export const metadata: Metadata = { title: "My Result" };
@@ -40,8 +41,9 @@ export default async function StudentAttemptReviewPage({ params }: { params: Pro
   const v = attempt.snapshot as Record<string, unknown>;
   const result = (attempt.result ?? {}) as Record<string, unknown>;
   const typedText = typeof result.typedText === "string" ? result.typedText : null;
+  const detailsRemoved = result.detailsRemoved === true;
 
-  const version: ManagedTestVersion = { id: v.id as string, testId: v.test_id as string, versionNumber: v.version_number as number, title: v.title as string, description: (v.description as string) ?? "", slug: test?.slug ?? "", language: v.language as ManagedTestVersion["language"], inputSystemId: v.input_system_id as string, mode: v.mode as ManagedTestVersion["mode"], durationSeconds: v.duration_seconds as number, passage: v.passage as string, requiredWpm: Number(v.required_wpm), requiredAccuracy: Number(v.required_accuracy), backspaceMode: v.backspace_mode as ManagedTestVersion["backspaceMode"], wordMethod: v.word_method as ManagedTestVersion["wordMethod"], highlightMode: v.highlight_mode as ManagedTestVersion["highlightMode"], visibility: v.visibility as ManagedTestVersion["visibility"], audioPath: (v.configuration as Record<string, unknown> | null)?.audio_path as string | null ?? null, examCategory: (v.configuration as Record<string, unknown> | null)?.exam_category as string | null ?? null };
+  const version: ManagedTestVersion = { id: v.id as string, testId: v.test_id as string, versionNumber: v.version_number as number, title: v.title as string, description: (v.description as string) ?? "", slug: test?.slug ?? "", language: v.language as ManagedTestVersion["language"], inputSystemId: v.input_system_id as string, mode: v.mode as ManagedTestVersion["mode"], durationSeconds: v.duration_seconds as number, passage: (v.passage as string | undefined) ?? "", requiredWpm: Number(v.required_wpm), requiredAccuracy: Number(v.required_accuracy), backspaceMode: v.backspace_mode as ManagedTestVersion["backspaceMode"], wordMethod: v.word_method as ManagedTestVersion["wordMethod"], highlightMode: v.highlight_mode as ManagedTestVersion["highlightMode"], visibility: v.visibility as ManagedTestVersion["visibility"], audioPath: (v.configuration as Record<string, unknown> | null)?.audio_path as string | null ?? null, examCategory: (v.configuration as Record<string, unknown> | null)?.exam_category as string | null ?? null };
   const examCategorySlug = typeof result.examCategorySlug === "string" ? result.examCategorySlug : undefined;
   const preset = managedVersionToPreset(version, examCategorySlug);
   const inputSystem = preset.inputSystems[0];
@@ -86,7 +88,7 @@ export default async function StudentAttemptReviewPage({ params }: { params: Pro
         {reviewData ? (
           <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={reviewData.passage} typedText={reviewData.typedText} score={reviewData.score} backspaces={reviewData.backspaces} returnHref="/student/results" returnLabel="Back to My Results" mode={version.mode === "learn" || version.mode === "practice" ? "practice" : "exam"} /></div>
         ) : (
-          <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">No detailed record available</h2><p className="mt-2 text-sm">This attempt was submitted before detailed review was added, so only the summary score below was ever saved.</p><dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3"><Field label="Net WPM" value={String(result.marksNetWpm ?? result.netWpm ?? "—")} /><Field label="Accuracy" value={result.accuracy != null ? `${result.accuracy}%` : "—"} /><Field label="Errors" value={String(Number(result.fullErrors ?? 0) + Number(result.halfErrors ?? 0))} /></dl></section>
+          <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">{detailsRemoved ? "Only the score is kept for this test" : "No detailed record available"}</h2><p className="mt-2 text-sm">{detailsRemoved ? DETAILS_REMOVED_NOTE : "This attempt was submitted before detailed review was added, so only the summary score below was ever saved."}</p><dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3"><Field label="Net WPM" value={String(result.marksNetWpm ?? result.netWpm ?? "—")} /><Field label="Accuracy" value={result.accuracy != null ? `${result.accuracy}%` : "—"} /><Field label="Errors" value={String(Number(result.fullErrors ?? 0) + Number(result.halfErrors ?? 0))} /></dl></section>
         )}
       </div>
     </main>

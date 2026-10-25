@@ -5,6 +5,7 @@ import { formatIST } from "@/lib/format-datetime";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import type { ExamPreset } from "@/lib/typing-curriculum";
 import type { calculateTypingScore } from "@/lib/typing-test";
+import { DETAILS_REMOVED_NOTE } from "@/lib/typing-result-summary";
 
 // Review of a built-in typing test attempt (practice_attempts): the test's own
 // settings and the score were saved with the attempt at submission, so this is
@@ -34,7 +35,7 @@ export function PracticeAttemptReview({ attempt, backHref, backLabel, subtitle, 
         {ready ? (
           student ? <TypingStudentProvider student={student}><div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={result.resolvedPassage as string} typedText={result.comparisonText as string} score={result.score as ReturnType<typeof calculateTypingScore>} backspaces={typeof result.backspaces === "number" ? result.backspaces : 0} returnHref={backHref} returnLabel={backLabel} mode={attempt.mode === "exam" ? "exam" : "practice"} /></div></TypingStudentProvider> : <div className="mt-6"><AttemptReviewClient preset={preset} inputSystem={inputSystem} passage={result.resolvedPassage as string} typedText={result.comparisonText as string} score={result.score as ReturnType<typeof calculateTypingScore>} backspaces={typeof result.backspaces === "number" ? result.backspaces : 0} returnHref={backHref} returnLabel={backLabel} mode={attempt.mode === "exam" ? "exam" : "practice"} /></div>
         ) : (
-          <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">No detailed record available</h2><p className="mt-2 text-sm">Net WPM {String(result.marksNetWpm ?? result.netWpm ?? "—")} · Accuracy {result.accuracy != null ? `${result.accuracy}%` : "—"}</p></section>
+          <section className="mt-6 rounded-2xl bg-amber-50 p-6 text-amber-900 shadow"><h2 className="font-black">{result.detailsRemoved === true ? "Only the score is kept for this test" : "No detailed record available"}</h2>{result.detailsRemoved === true && <p className="mt-2 text-sm">{DETAILS_REMOVED_NOTE}</p>}<p className="mt-2 text-sm">Net WPM {String(result.marksNetWpm ?? result.netWpm ?? "—")} · Accuracy {result.accuracy != null ? `${result.accuracy}%` : "—"}</p></section>
         )}
       </div>
     </main>
