@@ -5,7 +5,9 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { calculateExcelQuestionTotal, parseExcelDurationOptions, parseExcelQuestions, safeExcelSlug, validateExcelDraft, type ExcelLanguage } from "@/lib/excel-efficiency";
 import { parseWorkingSheetXlsx, validateWorkingSheetFile, type WorkingSheetSnapshot } from "@/lib/excel-sheet";
-import { safePdfName } from "@/lib/word-efficiency";
+import { safePdfName, validatePdfUpload } from "@/lib/word-efficiency";
+import { detectPdfQuestions, looksLikeKrutiDevText } from "@/lib/word-pdf-extraction";
+import { extractPdfTextPages, PdfReaderStartError } from "@/lib/word-pdf-server";
 
 const value = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 const toIsoOrNull = (raw: string) => { const parsed = raw ? new Date(raw) : null; return parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null; };
@@ -108,4 +110,33 @@ export async function deleteExcelEfficiencyTest(form: FormData) {
   if (!data) redirect("/admin/excel-efficiency-tests?error=Tests%20with%20existing%20attempts%20cannot%20be%20deleted.%20Archive%20it%20instead.");
   refresh();
   redirect("/admin/excel-efficiency-tests?deleted=1");
+}
+
+// Extract Questions from an uploaded question paper PDF (English, or Hindi typed in Kruti Dev 010), as on the
+// Word Efficiency admin page. Nothing is stored: the questions come back for the admin to check and import.
+export async function extractExcelEfficiencyPdf(form: FormData) {
+  await requireAdmin();
+  const language: ExcelLanguage = value(form, "language") === "Hindi" ? "Hindi" : "English";
+  const upload = form.get("pdfFile");
+  if (!(upload instanceof File) || !upload.size) return { ok: false, error: "Choose a PDF before extracting questions.", questions: [] };
+  const checked = validatePdfUpload(upload);
+  if (checked.errors.length) return { ok: false, error: checked.errors[0], questions: [] };
+  const bytes = new Uint8Array(await upload.arrayBuffer());
+  if (new TextDecoder("latin1").decode(bytes.slice(0, 5)) !== "%PDF-") return { ok: false, error: "Invalid PDF file signature.", questions: [] };
+  try {
+    const { pages, pageCount, convertedKrutiDev } = await extractPdfTextPages(bytes, { convertKrutiDev: language === "Hindi" });
+    if (pageCount > 100) return { ok: false, error: "PDF question papers may not exceed 100 pages.", questions: [] };
+    const text = pages.join("\n").trim();
+    if (text.length < 20) return { ok: false, error: "This PDF appears to contain scanned pages. OCR is required. You can paste question text manually.", questions: [] };
+    const krutidev = language === "Hindi" && !convertedKrutiDev && looksLikeKrutiDevText(text);
+    const questions = detectPdfQuestions(pages);
+    if (!questions.length) return { ok: false, error: krutidev ? "No numbered questions were detected. This PDF has Kruti Dev text; type or paste the questions manually." : "No numbered questions were detected. Review the PDF text or paste questions manually.", questions: [] };
+    return { ok: true, error: null, questions, note: krutidev ? "Some words in this PDF are in Kruti Dev 010, so they appear as their Kruti Dev keys. Check them before importing." : null };
+  } catch (error) {
+    if (error instanceof PdfReaderStartError) return { ok: false, error: error.message, questions: [] };
+    console.error("[Excel Efficiency PDF extraction failed]", error);
+    const message = error instanceof Error ? error.message : "";
+    if (/password|encrypted/iu.test(message)) return { ok: false, error: "This PDF is encrypted or password-protected and cannot be extracted.", questions: [] };
+    return { ok: false, error: "The PDF could not be read. Check the file and try again.", questions: [] };
+  }
 }

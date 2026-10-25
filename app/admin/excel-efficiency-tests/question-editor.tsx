@@ -21,6 +21,20 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
   useEffect(() => { if (!pendingDelete) return; const timer = window.setTimeout(() => setPendingDelete(null), 5000); return () => window.clearTimeout(timer); }, [pendingDelete]);
   const [preview, setPreview] = useState(false);
   const [dragged, setDragged] = useState<number | null>(null);
+  // Questions read from the question paper PDF (ExtractQuestionsPdf). An editor holding only one blank question is replaced.
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const extracted = (event as CustomEvent<{ questions: { number: number; text: string; section: string | null }[] }>).detail.questions;
+      setQuestions((current) => {
+        const blank = current.length === 1 && !current[0].instruction.trim() && !current[0].id;
+        const start = blank ? 0 : Math.max(0, ...current.map((item) => item.question_number ?? 0));
+        const imported = extracted.map((item, index) => ({ ...fresh(blank ? item.number : start + index + 1), instruction: item.text, section: item.section }));
+        return normalize(blank ? imported : [...current, ...imported]);
+      });
+    };
+    window.addEventListener("excel-efficiency:questions-import", receive);
+    return () => window.removeEventListener("excel-efficiency:questions-import", receive);
+  }, []);
   const summary = useMemo(() => calculateExcelQuestionSummary(questions.map((q) => ({ marks: q.marks }))), [questions]);
 
   const update = (id: string, patch: Partial<EditorQuestion>) => setQuestions((items) => items.map((item) => (item.clientId === id ? { ...item, ...patch } : item)));

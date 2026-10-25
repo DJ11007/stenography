@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_EXCEL_INSTRUCTIONS, type ExcelQuestion, type ExcelVersion } from "@/lib/excel-efficiency";
 import { deleteExcelEfficiencyTest, duplicateExcelEfficiencyTest, saveExcelEfficiencyTest, setExcelEfficiencyStatus } from "./actions";
 import { QuestionEditor } from "./question-editor";
+import { ExtractQuestionsPdf } from "./extract-questions-pdf";
 import { WorkingMatterXlsxFields } from "./working-matter-xlsx-fields";
 import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 import { formatIST } from "@/lib/format-datetime";
@@ -63,6 +64,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                 <Field label="Allowed durations in minutes (comma separated)"><input className="input" name="durationOptions" defaultValue={current?.duration_options?.map((value) => value / 60).join(", ") ?? "20"} required /></Field>
               </div>
               <WorkingMatterXlsxFields initialSnapshot={current?.working_matter_snapshot ?? null} />
+              <ExtractQuestionsPdf />
               <QuestionEditor initialQuestions={initialQuestions} />
               <fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                 <label className="flex items-center gap-2 font-black text-blue-950">
