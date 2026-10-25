@@ -28,10 +28,14 @@ test("a live test with resultsDelayMinutes set is always in \"anytime\" state, a
   const anytimeSchedule = { isLive: true, startsAt: null, endsAt: null, resultsPublishAt: null, resultsDelayMinutes: 10 };
   assert.equal(liveTestState(anytimeSchedule, new Date("2020-01-01T00:00:00.000Z")), "anytime");
   assert.equal(liveTestState(anytimeSchedule, new Date("2099-01-01T00:00:00.000Z")), "anytime");
-  // resultsDelayMinutes wins even if stray start/end/results values are
-  // also present (shouldn't happen given the DB check constraint, but the
-  // pure function itself should still behave predictably either way).
-  assert.equal(liveTestState({ ...schedule, resultsDelayMinutes: 10 }, new Date("2026-08-19T03:00:00.000Z")), "anytime");
+  // With a start/end window ("One day") the window decides instead.
+  const oneDay = { isLive: true, startsAt: "2026-08-19T04:00:00.000Z", endsAt: "2026-08-20T04:00:00.000Z", resultsPublishAt: null, resultsDelayMinutes: 15 };
+  assert.equal(liveTestState(oneDay, new Date("2026-08-19T03:00:00.000Z")), "upcoming");
+  assert.equal(liveTestState(oneDay, new Date("2026-08-19T12:00:00.000Z")), "open");
+  assert.equal(liveTestState(oneDay, new Date("2026-08-20T05:00:00.000Z")), "closed");
+  assert.deepEqual(validateLiveSchedule(oneDay), []);
+  assert.ok(validateLiveSchedule({ ...oneDay, endsAt: "2026-08-19T03:00:00.000Z" }).length);
+  assert.ok(validateLiveSchedule({ ...oneDay, endsAt: null }).length);
 });
 
 test("anytime mode validates the results delay instead of a start/end/results triple", () => {

@@ -45,17 +45,19 @@ test("lib/admin-tests.ts passes resultsDelayMinutes through to validateLiveSched
 
 test("app/admin/tests/actions.ts reads liveMode/resultsDelayMinutes from the form, nulling the scheduled fields in anytime mode and vice versa", async () => {
   const source = await read("app/admin/tests/actions.ts");
-  assert.match(source, /const liveMode = text\(formData, "liveMode"\) === "anytime" \? "anytime" : "scheduled";/);
-  assert.match(source, /startsAt: isLive && liveMode === "scheduled" \? iso\("startsAt"\) : null,/);
-  assert.match(source, /resultsDelayMinutes: isLive && liveMode === "anytime" \?/);
+  assert.match(source, /const liveMode = \(\["anytime", "day"\] as const\)\.find\(\(mode\) => mode === text\(formData, "liveMode"\)\) \?\? "scheduled";/);
+  assert.match(source, /startsAt: isLive && liveMode !== "anytime" \? iso\("startsAt"\) : null,/, "scheduled and one-day tests have a window");
+  assert.match(source, /resultsDelayMinutes: isLive && liveMode !== "scheduled" \?/, "anytime and one-day tests show results after a delay");
   assert.match(source, /results_delay_minutes: draft\.resultsDelayMinutes \?\? null/);
 });
 
 test("the admin test-manager form offers a Scheduled/Anytime mode selector and a results-delay-minutes field", async () => {
   const source = await read("app/admin/tests/test-manager.tsx");
-  assert.match(source, /const \[liveMode,setLiveMode\] = useState<"scheduled"\|"anytime">\("scheduled"\);/);
-  assert.match(source, /const \[resultsDelayMinutes,setResultsDelayMinutes\] = useState\(10\);/);
-  assert.match(source, /setLiveMode\(test\?\.results_delay_minutes != null \? "anytime" : "scheduled"\);/);
+  assert.match(source, /const \[liveMode,setLiveMode\] = useState<"scheduled"\|"day"\|"anytime">\("day"\);/, "a new live test is One day by default");
+  assert.match(source, /const \[resultsDelayMinutes,setResultsDelayMinutes\] = useState\(15\);/);
+  assert.match(source, /setLiveMode\(test\?\.is_live \? \(test\.results_delay_minutes == null \? "scheduled" : test\.live_starts_at \? "day" : "anytime"\) : "day"\);/);
+  assert.match(source, /<input type="radio" name="liveMode" value="day"/);
+  assert.match(source, /setStartsAt\(event\.target\.value\);setEndsAt\(dayLater\(event\.target\.value\)\);/, "the end follows 24 hours after the start");
   assert.match(source, /<input type="radio" name="liveMode" value="scheduled"/);
   assert.match(source, /<input type="radio" name="liveMode" value="anytime"/);
   assert.match(source, /name="resultsDelayMinutes" type="number" min=\{1\} max=\{1440\}/);
@@ -64,7 +66,7 @@ test("the admin test-manager form offers a Scheduled/Anytime mode selector and a
 test("app/tests/actions.ts's recordManagedAttempt skips the scheduled window check for an anytime test, and returns resultsDelayMinutes/submittedAt instead of a shared resultsPublishAt", async () => {
   const source = await read("app/tests/actions.ts");
   assert.match(source, /results_delay_minutes"\)\.eq\("id", payload\.testId\)/);
-  assert.match(source, /if \(test\.is_live && test\.results_delay_minutes == null\) \{/);
+  assert.match(source, /if \(test\.is_live && \(test\.results_delay_minutes == null \|\| test\.live_starts_at \|\| test\.live_ends_at\)\) \{/, "a one-day test is checked against its window");
   assert.match(source, /status: "submitted" as const, resultsPublishAt: test\.results_publish_at, resultsDelayMinutes: test\.results_delay_minutes, submittedAt: test\.results_delay_minutes != null \? new Date\(\)\.toISOString\(\) : null/);
 });
 

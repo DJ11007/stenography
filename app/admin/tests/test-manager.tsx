@@ -144,8 +144,10 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   // time, one attempt per student like the scheduled shape, but each
   // student's OWN result unlocks resultsDelayMinutes after THEIR OWN
   // submission instead of one shared resultsPublishAt for everyone.
-  const [liveMode,setLiveMode] = useState<"scheduled"|"anytime">("scheduled");
-  const [resultsDelayMinutes,setResultsDelayMinutes] = useState(10);
+  // "day": open for a window (24 hours by default), one attempt each, every result shown resultsDelayMinutes after that student submits.
+  const [liveMode,setLiveMode] = useState<"scheduled"|"day"|"anytime">("day");
+  const [resultsDelayMinutes,setResultsDelayMinutes] = useState(15);
+  const dayLater = (value:string) => value ? new Date(new Date(`${value}Z`).getTime()+86400000).toISOString().slice(0,16) : "";
   const [state,action,pending] = useActionState(saveAction,initialState);
   // Real reported bug: a 5.4MB Hindi dictation audio file consistently
   // failed to save with a bare browser-level "This page couldn't load" on
@@ -287,8 +289,8 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
     setStartsAt(localDateTime(test?.live_starts_at));
     setEndsAt(localDateTime(test?.live_ends_at));
     setResultsPublishAt(localDateTime(test?.results_publish_at));
-    setLiveMode(test?.results_delay_minutes != null ? "anytime" : "scheduled");
-    setResultsDelayMinutes(test?.results_delay_minutes ?? 10);
+    setLiveMode(test?.is_live ? (test.results_delay_minutes == null ? "scheduled" : test.live_starts_at ? "day" : "anytime") : "day");
+    setResultsDelayMinutes(test?.results_delay_minutes ?? 15);
   };
   // Hindi typing (Learn/Practice) offers Kruti Dev 010 only -- Exam/Stenography
   // keep every input system, unaffected by this restriction.
@@ -406,10 +408,18 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
           <p className="mt-1 text-xs text-blue-800">Live tests must be public. Each registered student receives one attempt.</p>
           {isLive&&<>
             <div className="mt-3 flex flex-wrap gap-4 text-sm font-black text-blue-950">
+              <label className="flex items-center gap-1.5"><input type="radio" name="liveMode" value="day" checked={liveMode==="day"} onChange={()=>setLiveMode("day")}/>One day</label>
               <label className="flex items-center gap-1.5"><input type="radio" name="liveMode" value="scheduled" checked={liveMode==="scheduled"} onChange={()=>setLiveMode("scheduled")}/>Scheduled window</label>
               <label className="flex items-center gap-1.5"><input type="radio" name="liveMode" value="anytime" checked={liveMode==="anytime"} onChange={()=>setLiveMode("anytime")}/>Anytime</label>
             </div>
-            {liveMode==="scheduled"
+            {liveMode==="day"
+              ? <div className="mt-3 grid gap-2">
+                  <p className="text-xs text-blue-800">Open from the start time to the end time (24 hours later unless you change it). Each student gets one attempt, and their own result shows this many minutes after they submit.</p>
+                  <Field label="Starts"><input className="input" name="startsAt" type="datetime-local" value={startsAt} onChange={(event)=>{setStartsAt(event.target.value);setEndsAt(dayLater(event.target.value));}}/>{startsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(startsAt)}</p>}</Field>
+                  <Field label="Ends"><input className="input" name="endsAt" type="datetime-local" value={endsAt} onChange={(event)=>setEndsAt(event.target.value)}/>{endsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(endsAt)}</p>}</Field>
+                  <Field label="Results delay (minutes after the student submits)"><input className="input" name="resultsDelayMinutes" type="number" min={1} max={1440} value={resultsDelayMinutes} onChange={(event)=>setResultsDelayMinutes(Math.max(1,Math.min(1440,Number(event.target.value)||1)))}/></Field>
+                </div>
+              : liveMode==="scheduled"
               ? <div className="mt-3 grid gap-2">
                   <p className="text-xs text-blue-800">Everyone attempts within this one window; results unlock for everyone at the publication time.</p>
                   <Field label="Starts"><input className="input" name="startsAt" type="datetime-local" value={startsAt} onChange={(event)=>setStartsAt(event.target.value)}/>{startsAt&&<p className="mt-1 text-xs font-black text-blue-900">= {scheduleReadout(startsAt)}</p>}</Field>

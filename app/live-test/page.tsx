@@ -38,6 +38,7 @@ export default async function LiveTestCentre({ searchParams }: { searchParams: P
       id: test.id, title: test.title, slug: test.slug, description: test.description, language: test.language,
       duration_seconds: test.duration_seconds, live_starts_at: test.live_starts_at, live_ends_at: test.live_ends_at,
       results_publish_at: test.results_publish_at, results_delay_minutes: test.results_delay_minutes, is_live: test.is_live,
+      results_after_submit_minutes: test.results_delay_minutes ?? null,
       category: (test.mode === "stenography" ? "Stenography" : "Typing") as LiveTest["category"],
       startHref: `/tests/${test.slug}`, resultsHref: "/live-test",
     })),

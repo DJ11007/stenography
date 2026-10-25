@@ -52,7 +52,8 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // start/end window -- it's attemptable whenever a student opens it, so
   // the scheduled-window check below only ever applies to the original
   // "everyone attempts in one shared window" live-test shape.
-  if (test.is_live && test.results_delay_minutes == null) {
+  // A "One day" live test (delay AND window) is checked against its window too.
+  if (test.is_live && (test.results_delay_minutes == null || test.live_starts_at || test.live_ends_at)) {
     const now = Date.now(); const starts = new Date(test.live_starts_at ?? "").getTime(); const ends = new Date(test.live_ends_at ?? "").getTime();
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || now < starts || now > ends) return { status: "closed" as const };
   }

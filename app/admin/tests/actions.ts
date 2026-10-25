@@ -43,7 +43,8 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   // a form submission that doesn't send liveMode at all -- an older cached
   // page, or a locked-live section that hasn't been given the selector --
   // keeps working unchanged.
-  const liveMode = text(formData, "liveMode") === "anytime" ? "anytime" : "scheduled";
+  // "day": a start/end window (24 hours by default) with each student's result shown the delay after they submit.
+  const liveMode = (["anytime", "day"] as const).find((mode) => mode === text(formData, "liveMode")) ?? "scheduled";
   const resultsDelayMinutesRaw = text(formData, "resultsDelayMinutes");
   const durationMinutes = text(formData, "durationMinutes");
   const iso = (name: string) => { const value = text(formData, name); const date = value ? new Date(value) : null; return date && Number.isFinite(date.getTime()) ? date.toISOString() : value || null; };
@@ -106,10 +107,10 @@ function parseDraft(formData: FormData): ManagedTestDraft {
     highlightMode: practiceFixedDefaults ? "character" : categoryRules?.highlightMode ?? ((["character", "word", "none"].includes(text(formData, "highlightMode")) ? text(formData, "highlightMode") : "character") as ManagedTestDraft["highlightMode"]),
     visibility: text(formData, "visibility") === "public" ? "public" : "private",
     isLive,
-    startsAt: isLive && liveMode === "scheduled" ? iso("startsAt") : null,
-    endsAt: isLive && liveMode === "scheduled" ? iso("endsAt") : null,
+    startsAt: isLive && liveMode !== "anytime" ? iso("startsAt") : null,
+    endsAt: isLive && liveMode !== "anytime" ? iso("endsAt") : null,
     resultsPublishAt: isLive && liveMode === "scheduled" ? iso("resultsPublishAt") : null,
-    resultsDelayMinutes: isLive && liveMode === "anytime" ? (Number.isInteger(Number(resultsDelayMinutesRaw)) ? Number(resultsDelayMinutesRaw) : null) : null,
+    resultsDelayMinutes: isLive && liveMode !== "scheduled" ? (Number.isInteger(Number(resultsDelayMinutesRaw)) ? Number(resultsDelayMinutesRaw) : null) : null,
     examCategory, stenoCategory,
   });
 }

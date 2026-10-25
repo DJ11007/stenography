@@ -222,11 +222,10 @@ export async function WordEfficiencyTestsPage({
                   <input type="checkbox" name="isLive" defaultChecked={editing?.is_live ?? false} />
                   Free scheduled live test
                 </label>
-                <p className="mt-1 text-xs text-blue-800">Live tests must be published. Each registered student receives one attempt; results additionally unlock at the publication time below (once you've also published grading for that attempt). The three fields below are only used when the checkbox above is checked.</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <p className="mt-1 text-xs text-blue-800">Live tests must be published. Each registered student receives one attempt, between the start and end times below, and sees their own result 15 minutes after they submit.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <Field label="Starts"><input className="input" name="startsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_starts_at)} /></Field>
                   <Field label="Ends"><input className="input" name="endsAt" type="datetime-local" defaultValue={localDateTime(editing?.live_ends_at)} /></Field>
-                  <Field label="Publish results"><input className="input" name="resultsPublishAt" type="datetime-local" defaultValue={localDateTime(editing?.results_publish_at)} /></Field>
                 </div>
               </fieldset>
               <div className="grid gap-3 sm:grid-cols-2">

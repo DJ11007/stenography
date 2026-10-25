@@ -24,7 +24,9 @@ for (const [label, pagePath, actionsPath, scheduleFn, testsSelect] of [
     assert.match(page, /name="isLive"/);
     assert.match(page, /name="startsAt" type="datetime-local"/);
     assert.match(page, /name="endsAt" type="datetime-local"/);
-    assert.match(page, /name="resultsPublishAt" type="datetime-local"/);
+    // Results show 15 minutes after each submission (migration 202610251200), so there is no publication time.
+    assert.doesNotMatch(page, /name="resultsPublishAt"/);
+    assert.match(page, /sees their own result 15 minutes after they submit/);
     assert.match(page, /test\.is_live && <span/);
   });
 
