@@ -126,3 +126,13 @@ test("Extract Questions reads a Hindi paper typed in Kruti Dev 010 as Hindi: tex
   assert.match(actions, /extractPdfTextPages\(bytes,\{convertKrutiDev:language==="Hindi"\}\)/);
   assert.match(actions, /const krutidev=language==="Hindi"&&!convertedKrutiDev&&looksLikeKrutiDevText\(text\);/, "the Kruti Dev keys note only when nothing could be converted");
 });
+
+test("Hindi papers: 'प्रश्न.1 –' numbering is detected, and the coaching footer is not added to the last question", async () => {
+  const { detectPdfQuestions } = await import("../lib/word-pdf-extraction.ts");
+  const page = ["EFFICIENCY CLASS - 1", "प्रश्न.1 - निचे दिये गये प्रथम पैराग्राफ में डॉक्यूमेन्ट शब्दों को अन्डरलाइन, स्ट्राइक थ्रू इफेक्ट", "दिजिए।", "प्रश्न.2 - पैराग्राफ 2 की फॉन्ट साईज 16 सेट किजीए।", "प्र.3 – पैराग्राफ 5 को नम्बरिंग लिस्ट दिजिए।", "BY-AJAY SIR CONT:- 7062331234", "For more updates:- Join us on Telegram & Subscribe Our Channel on YouTube", "हम आपके उज्जवल भविष्य की कामना करते हैं।"].join("\n");
+  const questions = detectPdfQuestions([page]);
+  assert.deepEqual(questions.map((item) => item.number), [1, 2, 3]);
+  assert.equal(questions[0].text, "निचे दिये गये प्रथम पैराग्राफ में डॉक्यूमेन्ट शब्दों को अन्डरलाइन, स्ट्राइक थ्रू इफेक्ट दिजिए।");
+  assert.equal(questions[2].text, "पैराग्राफ 5 को नम्बरिंग लिस्ट दिजिए।");
+  assert.deepEqual(detectPdfQuestions(["प्रश्न 1 पहला प्रश्न यहाँ है।\nप्रश्न-2 दूसरा प्रश्न यहाँ है।\n3. तीसरा प्रश्न यहाँ है।"]).map((item) => item.number), [1, 2, 3]);
+});
