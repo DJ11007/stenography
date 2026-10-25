@@ -2,7 +2,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { PAPER_SIZES, type ConditionalStyle, type ConditionalType, type HeaderFooter, type PaperSize, type SheetSettings } from "@/lib/excel-document";
-import { CONDITIONAL_STYLES } from "@/lib/excel-sheet-model";
+import { CONDITIONAL_STYLES, HIGHLIGHT_STYLES } from "@/lib/excel-sheet-model";
 
 // Excel 2013's dialog boxes for the workspace: grey body, white title bar with ? and ✕, OK / Cancel at the
 // bottom right. Each returns what the user chose; the editor applies it to the sheet.
@@ -99,7 +99,13 @@ export function SortDialog({ columns, defaultHeaders, onOk, onCancel }: { column
 }
 
 // ---------- Conditional Formatting: Highlight Cells Rules ----------
-const RULE_TEXT: Record<ConditionalType, { title: string; prompt: string; values: 0 | 1 | 2 }> = {
+const RULE_TEXT: Partial<Record<ConditionalType, { title: string; prompt: string; values: 0 | 1 | 2; rank?: boolean; percent?: boolean }>> = {
+  top: { title: "Top 10 Items", prompt: "Format cells that rank in the TOP:", values: 1, rank: true },
+  bottom: { title: "Bottom 10 Items", prompt: "Format cells that rank in the BOTTOM:", values: 1, rank: true },
+  topPercent: { title: "Top 10%", prompt: "Format cells that rank in the TOP:", values: 1, rank: true, percent: true },
+  bottomPercent: { title: "Bottom 10%", prompt: "Format cells that rank in the BOTTOM:", values: 1, rank: true, percent: true },
+  aboveAverage: { title: "Above Average", prompt: "Format cells that are ABOVE AVERAGE:", values: 0 },
+  belowAverage: { title: "Below Average", prompt: "Format cells that are BELOW AVERAGE:", values: 0 },
   greaterThan: { title: "Greater Than", prompt: "Format cells that are GREATER THAN:", values: 1 },
   lessThan: { title: "Less Than", prompt: "Format cells that are LESS THAN:", values: 1 },
   between: { title: "Between", prompt: "Format cells that are BETWEEN:", values: 2 },
@@ -110,23 +116,24 @@ const RULE_TEXT: Record<ConditionalType, { title: string; prompt: string; values
 };
 export const HIGHLIGHT_RULES: [ConditionalType, string][] = [["greaterThan", "Greater Than..."], ["lessThan", "Less Than..."], ["between", "Between..."], ["equalTo", "Equal To..."], ["textContains", "Text that Contains..."], ["duplicate", "Duplicate Values..."]];
 export function ConditionalDialog({ type, onOk, onCancel }: { type: ConditionalType; onOk: (rule: { type: ConditionalType; value?: string | number; value2?: string | number; style: ConditionalStyle }) => void; onCancel: () => void }) {
-  const text = RULE_TEXT[type];
-  const [value, setValue] = useState(""), [value2, setValue2] = useState("");
+  const text = RULE_TEXT[type] ?? RULE_TEXT.greaterThan!;
+  const [value, setValue] = useState(text.rank ? "10" : ""), [value2, setValue2] = useState("");
   const [style, setStyle] = useState<ConditionalStyle>("lightRedDarkRed");
   const [kind, setKind] = useState<"duplicate" | "unique">(type === "unique" ? "unique" : "duplicate");
   const asValue = (raw: string) => (raw.trim() !== "" && Number.isFinite(Number(raw)) ? Number(raw) : raw);
   const ready = text.values === 0 || (value.trim() !== "" && (text.values === 1 || value2.trim() !== ""));
-  const submit = () => { if (!ready) return; onOk(text.values === 0 ? { type: kind, style } : text.values === 1 ? { type, value: asValue(value), style } : { type, value: asValue(value), value2: asValue(value2), style }); };
+  const submit = () => { if (!ready) return; onOk(text.values === 0 ? { type: type === "duplicate" || type === "unique" ? kind : type, style } : text.values === 1 ? { type, value: asValue(value), style } : { type, value: asValue(value), value2: asValue(value2), style }); };
   return (
     <DialogShell title={text.title} onCancel={onCancel} width={440} footer={<><DialogButton primary onClick={submit} disabled={!ready}>OK</DialogButton><DialogButton onClick={onCancel}>Cancel</DialogButton></>}>
       <p>{text.prompt}</p>
       <div className="mt-2 flex items-center gap-2">
-        {text.values === 0 && <select aria-label="Values" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)} className={field}><option value="duplicate">Duplicate</option><option value="unique">Unique</option></select>}
+        {text.values === 0 && (type === "duplicate" || type === "unique") && <select aria-label="Values" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)} className={field}><option value="duplicate">Duplicate</option><option value="unique">Unique</option></select>}
         {text.values >= 1 && <input autoFocus aria-label="Value" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") submit(); }} className={`${field} w-28`} />}
+        {text.percent && <span>%</span>}
         {text.values === 2 && <><span>and</span><input aria-label="Second value" value={value2} onChange={(event) => setValue2(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") submit(); }} className={`${field} w-28`} /></>}
         <span>{text.values === 0 ? "values with" : "with"}</span>
         <select aria-label="Format" value={style} onChange={(event) => setStyle(event.target.value as ConditionalStyle)} className={`${field} flex-1`}>
-          {(Object.keys(CONDITIONAL_STYLES) as ConditionalStyle[]).map((key) => <option key={key} value={key}>{CONDITIONAL_STYLES[key].label}</option>)}
+          {HIGHLIGHT_STYLES.map((key) => <option key={key} value={key}>{CONDITIONAL_STYLES[key].label}</option>)}
         </select>
       </div>
     </DialogShell>
@@ -158,10 +165,10 @@ export function FindReplaceDialog({ initialTab, onFindNext, onReplace, onReplace
 }
 
 // ---------- Page Setup (Page, Margins, Header/Footer, Sheet) ----------
-export type PageSetupResult = Pick<SheetSettings, "orientation" | "paperSize" | "margins" | "printArea" | "printTitleRows" | "printTitleCols" | "printGridlines" | "printHeadings"> & { header: HeaderFooter; footer: HeaderFooter };
+export type PageSetupResult = Pick<SheetSettings, "orientation" | "paperSize" | "margins" | "printArea" | "printTitleRows" | "printTitleCols" | "printGridlines" | "printHeadings" | "scale" | "fitWidth" | "fitHeight" | "centerHorizontally" | "centerVertically"> & { header: HeaderFooter; footer: HeaderFooter };
 export function PageSetupDialog({ sheet, initialTab = "Page", onOk, onCancel, onCustomHeader }: { sheet: SheetSettings; initialTab?: "Page" | "Margins" | "Header/Footer" | "Sheet"; onOk: (result: PageSetupResult) => void; onCancel: () => void; onCustomHeader: () => void }) {
   const [tab, setTab] = useState(initialTab);
-  const [value, setValue] = useState<PageSetupResult>({ orientation: sheet.orientation, paperSize: sheet.paperSize, margins: sheet.margins, printArea: sheet.printArea, printTitleRows: sheet.printTitleRows ?? null, printTitleCols: sheet.printTitleCols ?? null, printGridlines: sheet.printGridlines, printHeadings: sheet.printHeadings, header: sheet.header, footer: sheet.footer });
+  const [value, setValue] = useState<PageSetupResult>({ orientation: sheet.orientation, paperSize: sheet.paperSize, margins: sheet.margins, printArea: sheet.printArea, printTitleRows: sheet.printTitleRows ?? null, printTitleCols: sheet.printTitleCols ?? null, printGridlines: sheet.printGridlines, printHeadings: sheet.printHeadings, header: sheet.header, footer: sheet.footer, scale: sheet.scale ?? null, fitWidth: sheet.fitWidth ?? null, fitHeight: sheet.fitHeight ?? null, centerHorizontally: Boolean(sheet.centerHorizontally), centerVertically: Boolean(sheet.centerVertically) });
   const [error, setError] = useState("");
   const set = <K extends keyof PageSetupResult>(key: K, v: PageSetupResult[K]) => setValue((current) => ({ ...current, [key]: v }));
   const submit = () => {
@@ -182,9 +189,17 @@ export function PageSetupDialog({ sheet, initialTab = "Page", onOk, onCancel, on
           <fieldset><legend className="text-[#1e5aa8]">Orientation</legend>
             <label className="mr-6 inline-flex items-center gap-1.5"><input type="radio" checked={value.orientation === "portrait"} onChange={() => set("orientation", "portrait")} /> Portrai<u>t</u></label>
             <label className="inline-flex items-center gap-1.5"><input type="radio" checked={value.orientation === "landscape"} onChange={() => set("orientation", "landscape")} /> <u>L</u>andscape</label></fieldset>
+          <fieldset className="mt-4"><legend className="text-[#1e5aa8]">Scaling</legend>
+            <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={value.fitWidth == null && value.fitHeight == null} onChange={() => setValue((v) => ({ ...v, fitWidth: null, fitHeight: null }))} /> <u>A</u>djust to: <input aria-label="Adjust to percent" type="number" min={10} max={400} value={value.scale ?? 100} onChange={(event) => setValue((v) => ({ ...v, scale: Math.min(400, Math.max(10, Number(event.target.value) || 100)), fitWidth: null, fitHeight: null }))} className={`${field} w-16`} /> % normal size</label>
+            <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={value.fitWidth != null || value.fitHeight != null} onChange={() => setValue((v) => ({ ...v, fitWidth: 1, fitHeight: 1, scale: null }))} /> <u>F</u>it to: <input aria-label="Pages wide" type="number" min={1} value={value.fitWidth ?? 1} onChange={(event) => setValue((v) => ({ ...v, fitWidth: Math.max(1, Number(event.target.value) || 1), scale: null }))} className={`${field} w-12`} /> page(s) wide by <input aria-label="Pages tall" type="number" min={1} value={value.fitHeight ?? 1} onChange={(event) => setValue((v) => ({ ...v, fitHeight: Math.max(1, Number(event.target.value) || 1), scale: null }))} className={`${field} w-12`} /> tall</label>
+          </fieldset>
           <label className="mt-4 flex items-center gap-2">Paper si<u>z</u>e:<select value={value.paperSize} onChange={(event) => set("paperSize", event.target.value as PaperSize)} className={`${field} flex-1`}>{PAPER_SIZES.map((size) => <option key={size}>{size}</option>)}</select></label>
         </>}
         {tab === "Margins" && <label className="flex items-center gap-2">Margins:<select value={value.margins} onChange={(event) => set("margins", event.target.value as PageSetupResult["margins"])} className={field}><option value="Normal">Normal (Top 0.75&quot;, Left 0.7&quot;)</option><option value="Wide">Wide (Top 1&quot;, Left 1&quot;)</option><option value="Narrow">Narrow (Top 0.75&quot;, Left 0.25&quot;)</option></select></label>}
+        {tab === "Margins" && <fieldset className="mt-4"><legend className="text-[#1e5aa8]">Center on page</legend>
+          <label className="flex items-center gap-1.5 py-0.5"><input type="checkbox" checked={Boolean(value.centerHorizontally)} onChange={(event) => set("centerHorizontally", event.target.checked)} /> Hori<u>z</u>ontally</label>
+          <label className="flex items-center gap-1.5 py-0.5"><input type="checkbox" checked={Boolean(value.centerVertically)} onChange={(event) => set("centerVertically", event.target.checked)} /> <u>V</u>ertically</label>
+        </fieldset>}
         {tab === "Header/Footer" && <>
           <p className="text-[#555]">Header:</p><p className="mt-1 border border-[#adadad] px-2 py-3 text-center">{preview(value.header)}</p>
           <p className="mt-3 text-[#555]">Footer:</p><p className="mt-1 border border-[#adadad] px-2 py-3 text-center">{preview(value.footer)}</p>

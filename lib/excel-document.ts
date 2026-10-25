@@ -13,6 +13,10 @@ export const EXCEL_SUPPORTED_COMMANDS = new Set([
   "conditionalFormat", "clearConditionalFormat", "formatAsTable", "chart", "deleteChart", "chartTitle", "protectSheet", "unprotectSheet",
   "printTitles", "pageSetup", "hideRows", "hideColumns", "unhideRows", "unhideColumns", "rowHeight", "columnWidth", "replace", "symbol",
   "insertFunction", "zoom",
+  // The complete HOME tab and the rest (migration 202610252300).
+  "underlineDouble", "superscript", "subscript", "pasteFormulas", "pasteTranspose", "pasteNoBorders", "pasteSpecial", "insertCells", "deleteCells",
+  "fillUp", "fillLeft", "fillSeries", "clearComments", "clearHyperlinks", "tabColor", "lockCell", "hyperlink", "pageBreak", "scaleToFit",
+  "defineName", "dataValidation", "textToColumns", "shrink", "currency",
 ]);
 
 export type SheetCell = {
@@ -23,11 +27,19 @@ export type SheetCell = {
   // Format Cells extras: text angle (-90..90 degrees, 255 = vertical text), indent level, strikethrough, decimal places.
   rotate?: number | null; indent?: number | null; strike?: boolean | null; decimals?: number | null;
   comment?: string | null;
+  underlineStyle?: UnderlineStyle | null; vertAlign?: "superscript" | "subscript" | null; locked?: boolean | null; hiddenFormula?: boolean | null;
+  link?: string | null; shrink?: boolean | null; currency?: CurrencySymbol | null;
 };
-export type NumberFormat = "General" | "Number" | "Currency" | "Accounting" | "ShortDate" | "LongDate" | "Time" | "Percentage" | "Text";
-export const NUMBER_FORMAT_LABELS: [NumberFormat, string][] = [["General", "General"], ["Number", "Number"], ["Currency", "Currency"], ["Accounting", "Accounting"], ["ShortDate", "Short Date"], ["LongDate", "Long Date"], ["Time", "Time"], ["Percentage", "Percentage"], ["Text", "Text"]];
-export type ConditionalType = "greaterThan" | "lessThan" | "between" | "equalTo" | "textContains" | "duplicate" | "unique";
-export type ConditionalStyle = "lightRedDarkRed" | "yellowDarkYellow" | "greenDarkGreen" | "lightRed" | "redText" | "redBorder";
+export type UnderlineStyle = "single" | "double" | "singleAccounting" | "doubleAccounting";
+export type CurrencySymbol = "₹" | "$" | "£" | "€" | "¥";
+export const CURRENCIES: [CurrencySymbol, string][] = [["₹", "₹ English (India)"], ["$", "$ English (United States)"], ["£", "£ English (United Kingdom)"], ["€", "€ Euro (€ 123)"], ["¥", "¥ Chinese (PRC)"]];
+export type NumberFormat = "General" | "Number" | "Currency" | "Accounting" | "ShortDate" | "LongDate" | "Time" | "Percentage" | "Fraction" | "Scientific" | "Text";
+export const NUMBER_FORMAT_LABELS: [NumberFormat, string][] = [["General", "General"], ["Number", "Number"], ["Currency", "Currency"], ["Accounting", "Accounting"], ["ShortDate", "Short Date"], ["LongDate", "Long Date"], ["Time", "Time"], ["Percentage", "Percentage"], ["Fraction", "Fraction"], ["Scientific", "Scientific"], ["Text", "Text"]];
+export type ConditionalType = "greaterThan" | "lessThan" | "between" | "equalTo" | "textContains" | "duplicate" | "unique" | "top" | "bottom" | "topPercent" | "bottomPercent" | "aboveAverage" | "belowAverage" | "dataBar" | "colorScale" | "iconSet";
+export type ConditionalStyle = "lightRedDarkRed" | "yellowDarkYellow" | "greenDarkGreen" | "lightRed" | "redText" | "redBorder" | "blueBar" | "greenBar" | "redBar" | "orangeBar" | "greenYellowRed" | "redYellowGreen" | "greenWhite" | "redWhite" | "arrows3" | "trafficLights3";
+export type ValidationType = "whole" | "decimal" | "list" | "date" | "textLength";
+export type ValidationOperator = "between" | "notBetween" | "equal" | "notEqual" | "greater" | "less" | "greaterOrEqual" | "lessOrEqual";
+export type DataValidation = { range: string; type: ValidationType; operator?: ValidationOperator; value1?: string; value2?: string; list?: string; message?: string; title?: string };
 export type ConditionalFormat = { range: string; type: ConditionalType; value?: string | number; value2?: string | number; style: ConditionalStyle };
 export type ChartType = "column" | "bar" | "line" | "pie";
 export type SheetChart = { id: string; type: ChartType; range: string; title: string; anchor: string };
@@ -41,6 +53,8 @@ export type SheetSettings = {
   name?: string; freeze?: string | null; filter?: string | null; filterHidden?: Record<string, (string | number)[]>; protected?: boolean;
   printTitleRows?: string | null; printTitleCols?: string | null; conditionalFormats?: ConditionalFormat[]; charts?: SheetChart[];
   hiddenRows?: number[]; hiddenCols?: number[]; colWidths?: Record<string, number>; rowHeights?: Record<string, number>;
+  tabColor?: string | null; rowBreaks?: number[]; scale?: number | null; fitWidth?: number | null; fitHeight?: number | null;
+  centerHorizontally?: boolean; centerVertically?: boolean; definedNames?: Record<string, string>; validations?: DataValidation[];
 };
 export type ExcelDocumentV2 = { schemaVersion: "2"; rows: number; cols: number; cells: Record<string, SheetCell>; operations: string[]; savedAt: string };
 export type ExcelDocument = { schemaVersion: "3"; rows: number; cols: number; cells: Record<string, SheetCell>; merges: string[]; sheet: SheetSettings; operations: string[]; savedAt: string };
@@ -61,14 +75,15 @@ export function toExcelDocumentV3(document: ExcelDocument | ExcelDocumentV2 | nu
 
 type JsonObject = Record<string, unknown>;
 const CELL_FIELDS = new Set(["value", "formula", "bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align"]);
-const OPTIONAL_CELL_FIELDS = new Set(["fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals", "comment"]);
+const OPTIONAL_CELL_FIELDS = new Set(["fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals", "comment", "underlineStyle", "vertAlign", "locked", "hiddenFormula", "link", "shrink", "currency"]);
 const NUMBER_FORMATS = new Set<string>(NUMBER_FORMAT_LABELS.map(([format]) => format));
 const ALIGNMENTS = new Set(["left", "center", "right"]);
 const V_ALIGNMENTS = new Set(["top", "middle", "bottom"]);
 const SHEET_KEYS = new Set(["gridlines", "headings", "formulaBar", "printGridlines", "printHeadings", "printArea", "orientation", "paperSize", "margins", "header", "footer", "zoom",
-  "name", "freeze", "filter", "filterHidden", "protected", "printTitleRows", "printTitleCols", "conditionalFormats", "charts", "hiddenRows", "hiddenCols", "colWidths", "rowHeights"]);
-const CONDITIONAL_TYPES = new Set(["greaterThan", "lessThan", "between", "equalTo", "textContains", "duplicate", "unique"]);
-const CONDITIONAL_STYLES = new Set(["lightRedDarkRed", "yellowDarkYellow", "greenDarkGreen", "lightRed", "redText", "redBorder"]);
+  "name", "freeze", "filter", "filterHidden", "protected", "printTitleRows", "printTitleCols", "conditionalFormats", "charts", "hiddenRows", "hiddenCols", "colWidths", "rowHeights",
+  "tabColor", "rowBreaks", "scale", "fitWidth", "fitHeight", "centerHorizontally", "centerVertically", "definedNames", "validations"]);
+const CONDITIONAL_TYPES = new Set(["greaterThan", "lessThan", "between", "equalTo", "textContains", "duplicate", "unique", "top", "bottom", "topPercent", "bottomPercent", "aboveAverage", "belowAverage", "dataBar", "colorScale", "iconSet"]);
+const CONDITIONAL_STYLES = new Set(["lightRedDarkRed", "yellowDarkYellow", "greenDarkGreen", "lightRed", "redText", "redBorder", "blueBar", "greenBar", "redBar", "orangeBar", "greenYellowRed", "redYellowGreen", "greenWhite", "redWhite", "arrows3", "trafficLights3"]);
 const CHART_TYPES = new Set(["column", "bar", "line", "pie"]);
 const object = (value: unknown): value is JsonObject => Boolean(value && typeof value === "object" && !Array.isArray(value));
 const hexColor = (value: unknown) => value === null || (typeof value === "string" && /^[0-9A-Fa-f]{6}$/.test(value));
@@ -98,6 +113,11 @@ function validateCell(ref: string, cell: unknown) {
   if ("strike" in cell && cell.strike !== null && typeof cell.strike !== "boolean") throw new Error(`Invalid strikethrough at ${ref}.`);
   if ("decimals" in cell && cell.decimals !== null && (typeof cell.decimals !== "number" || cell.decimals < 0 || cell.decimals > 10)) throw new Error(`Invalid decimal places at ${ref}.`);
   if ("comment" in cell && cell.comment !== null && (typeof cell.comment !== "string" || cell.comment.length > 500)) throw new Error(`Invalid comment at ${ref}.`);
+  if ("underlineStyle" in cell && cell.underlineStyle != null && !["single", "double", "singleAccounting", "doubleAccounting"].includes(String(cell.underlineStyle))) throw new Error(`Invalid underline at ${ref}.`);
+  if ("vertAlign" in cell && cell.vertAlign != null && !["superscript", "subscript"].includes(String(cell.vertAlign))) throw new Error(`Invalid superscript at ${ref}.`);
+  for (const key of ["locked", "hiddenFormula", "shrink"]) if (key in cell && cell[key] != null && typeof cell[key] !== "boolean") throw new Error(`Invalid protection at ${ref}.`);
+  if ("link" in cell && cell.link != null && (typeof cell.link !== "string" || cell.link.length > 500)) throw new Error(`Invalid hyperlink at ${ref}.`);
+  if ("currency" in cell && cell.currency != null && !["₹", "$", "£", "€", "¥"].includes(String(cell.currency))) throw new Error(`Invalid currency at ${ref}.`);
 }
 
 function validateCells(cells: unknown) {
@@ -134,6 +154,15 @@ function validateSheet(sheet: unknown) {
   if ("hiddenCols" in sheet && (!Array.isArray(sheet.hiddenCols) || sheet.hiddenCols.some((col) => typeof col !== "number" || col < 0 || col > 25))) throw new Error("Invalid hidden columns.");
   if ("colWidths" in sheet && (!object(sheet.colWidths) || Object.entries(sheet.colWidths).some(([col, width]) => !/^[A-Z]{1,2}$/.test(col) || typeof width !== "number" || width < 0 || width > 255))) throw new Error("Invalid column widths.");
   if ("rowHeights" in sheet && (!object(sheet.rowHeights) || Object.entries(sheet.rowHeights).some(([row, height]) => !/^[0-9]{1,3}$/.test(row) || typeof height !== "number" || height < 0 || height > 409))) throw new Error("Invalid row heights.");
+  if (sheet.tabColor != null && !hexColor(sheet.tabColor)) throw new Error("Invalid tab color.");
+  if ("rowBreaks" in sheet && (!Array.isArray(sheet.rowBreaks) || sheet.rowBreaks.length > 100 || sheet.rowBreaks.some((row) => typeof row !== "number" || row < 2 || row > 200))) throw new Error("Invalid page breaks.");
+  if (sheet.scale != null && (typeof sheet.scale !== "number" || sheet.scale < 10 || sheet.scale > 400)) throw new Error("Invalid scale.");
+  for (const key of ["fitWidth", "fitHeight"] as const) if (sheet[key] != null && (typeof sheet[key] !== "number" || (sheet[key] as number) < 1)) throw new Error("Invalid fit to pages.");
+  for (const key of ["centerHorizontally", "centerVertically"] as const) if (key in sheet && typeof sheet[key] !== "boolean") throw new Error("Invalid page centering.");
+  if ("definedNames" in sheet && (!object(sheet.definedNames) || Object.entries(sheet.definedNames).some(([name, range]) => !/^[A-Za-z_][A-Za-z0-9_.]{0,39}$/.test(name) || /^[A-Z]{1,2}[0-9]{1,3}$/i.test(name) || typeof range !== "string" || !PRINT_AREA.test(range)))) throw new Error("Invalid defined name.");
+  if ("validations" in sheet && (!Array.isArray(sheet.validations) || sheet.validations.length > 50 || sheet.validations.some((rule) => !object(rule) || Object.keys(rule).some((key) => !["range", "type", "operator", "value1", "value2", "list", "message", "title"].includes(key))
+    || typeof rule.range !== "string" || !(CELL_REF.test(rule.range) || RANGE.test(rule.range)) || !["whole", "decimal", "list", "date", "textLength"].includes(String(rule.type))
+    || ("operator" in rule && !["between", "notBetween", "equal", "notEqual", "greater", "less", "greaterOrEqual", "lessOrEqual"].includes(String(rule.operator))) || JSON.stringify(rule).length > 1000))) throw new Error("Invalid data validation.");
   for (const part of ["header", "footer"] as const) {
     if (!(part in sheet)) continue;
     const value = sheet[part];

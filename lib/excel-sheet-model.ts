@@ -7,7 +7,7 @@ export type Rect = { r1: number; c1: number; r2: number; c2: number };
 export const MAX_ROWS = 200, MAX_COLS = 26;
 export const DEFAULT_FONT = "Calibri", DEFAULT_FONT_SIZE = 11;
 export const EMPTY_CELL: SheetCell = { value: null, formula: null, bold: false, italic: false, underline: false, fontColor: null, fillColor: null, border: null, numberFormat: "General", align: null };
-export const STYLE_KEYS = ["bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align", "fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals"] as const;
+export const STYLE_KEYS = ["bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align", "fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals", "underlineStyle", "vertAlign", "shrink", "currency", "locked", "hiddenFormula"] as const;
 
 export function refAt(row: number, col: number) { return `${columnLetters(col)}${row}`; }
 export function parseRef(ref: string): { row: number; col: number } | null {
@@ -92,13 +92,13 @@ export function parseEntry(raw: string): { value: string | number | null; formul
 }
 
 /** Every formula cell's value worked out again (formulas depend on other cells). */
-export function recomputeFormulas(cells: Record<string, SheetCell>): Record<string, SheetCell> {
+export function recomputeFormulas(cells: Record<string, SheetCell>, names?: Record<string, string>): Record<string, SheetCell> {
   const plain: SheetCells = Object.fromEntries(Object.entries(cells).map(([ref, cell]) => [ref, { value: cell.value, formula: cell.formula }]));
   let changed = false;
   const next: Record<string, SheetCell> = {};
   for (const [ref, cell] of Object.entries(cells)) {
     if (!cell.formula) { next[ref] = cell; continue; }
-    const value = computedCellValue(ref, plain);
+    const value = computedCellValue(ref, plain, names);
     const stored = typeof value === "string" ? value.slice(0, 1000) : value;
     if (stored !== cell.value) changed = true;
     next[ref] = { ...cell, value: stored };
@@ -109,7 +109,8 @@ export function recomputeFormulas(cells: Record<string, SheetCell>): Record<stri
 /** A cell with nothing in it and no formatting is left out of the saved sheet. */
 export function isBlankCell(cell: SheetCell) {
   return cell.value === null && !cell.formula && !cell.bold && !cell.italic && !cell.underline && !cell.fontColor && !cell.fillColor && !cell.border
-    && (cell.numberFormat ?? "General") === "General" && !cell.align && !cell.fontSize && !cell.fontFamily && !cell.vAlign && !cell.wrap && !cell.rotate && !cell.indent && !cell.strike && cell.decimals == null && !cell.comment;
+    && (cell.numberFormat ?? "General") === "General" && !cell.align && !cell.fontSize && !cell.fontFamily && !cell.vAlign && !cell.wrap && !cell.rotate && !cell.indent && !cell.strike && cell.decimals == null && !cell.comment
+    && !cell.underlineStyle && !cell.vertAlign && cell.locked == null && !cell.hiddenFormula && !cell.link && !cell.shrink && !cell.currency;
 }
 
 /** Insert (delta 1) or delete (delta -1) a row; cells and merged ranges below move. */
@@ -158,39 +159,59 @@ export function usedExtent(cells: Record<string, SheetCell>, merges: string[], s
   return { rows: Math.min(Math.max(rows, 1), MAX_ROWS), cols: Math.min(Math.max(cols, 1), MAX_COLS) };
 }
 
-// Borders: "all" thin lines, or per side with t/r/b/l (upper case = thick), e.g. "tb" or "TRBL".
-export type BorderStyle = "all" | "outside" | "thickBox" | "bottom" | "top" | "left" | "right" | "none";
+// Borders per side: t/r/b/l thin, T/R/B/L thick, a side followed by "=" is a double line (e.g. "tb=" = thin top,
+// double bottom). Older sheets kept a CSS string.
+export type BorderStyle = "all" | "outside" | "thickBox" | "bottom" | "top" | "left" | "right" | "none"
+  | "bottomDouble" | "thickBottom" | "topBottom" | "topThickBottom" | "topDoubleBottom";
+type Side = "t" | "r" | "b" | "l";
+type SideKind = "thin" | "thick" | "double";
+const SIDE_ORDER: Side[] = ["t", "r", "b", "l"];
+function borderSides(border: string | null | undefined): Map<Side, SideKind> {
+  const sides = new Map<Side, SideKind>();
+  if (!border) return sides;
+  if (!/^([tlbrTLBR]=?)+$/.test(border)) { SIDE_ORDER.forEach((side) => sides.set(side, "thin")); return sides; }
+  for (const [, char, double] of border.matchAll(/([tlbrTLBR])(=?)/g)) sides.set(char.toLowerCase() as Side, double ? "double" : char === char.toUpperCase() ? "thick" : "thin");
+  return sides;
+}
+function borderString(sides: Map<Side, SideKind>) {
+  return SIDE_ORDER.filter((side) => sides.has(side)).map((side) => { const kind = sides.get(side); return kind === "thick" ? side.toUpperCase() : kind === "double" ? side + "=" : side; }).join("") || null;
+}
 export function applyBorder(cells: Record<string, SheetCell>, rect: Rect, style: BorderStyle): Record<string, SheetCell> {
   const next = { ...cells };
   for (let row = rect.r1; row <= rect.r2; row++) for (let col = rect.c1; col <= rect.c2; col++) {
     const ref = refAt(row, col), cell = next[ref] ?? EMPTY_CELL;
-    const sides = new Set((cell.border && /^[tlbrTLBR]+$/.test(cell.border) ? cell.border : cell.border ? "tlbr" : "").split("").filter(Boolean));
-    const edge = { t: row === rect.r1, b: row === rect.r2, l: col === rect.c1, r: col === rect.c2 };
-    const set = (side: "t" | "r" | "b" | "l", thick = false) => { sides.delete(side); sides.delete(side.toUpperCase()); sides.add(thick ? side.toUpperCase() : side); };
+    const sides = borderSides(cell.border);
+    const edge: Record<Side, boolean> = { t: row === rect.r1, b: row === rect.r2, l: col === rect.c1, r: col === rect.c2 };
+    const set = (side: Side, kind: SideKind = "thin") => { if (edge[side]) sides.set(side, kind); };
     if (style === "none") sides.clear();
-    else if (style === "all") (["t", "r", "b", "l"] as const).forEach((side) => set(side));
-    else if (style === "outside" || style === "thickBox") (Object.keys(edge) as ("t" | "r" | "b" | "l")[]).forEach((side) => { if (edge[side]) set(side, style === "thickBox"); });
-    else { const side = style[0] as "t" | "r" | "b" | "l"; if (edge[side]) set(side); }
-    const order = ["t", "r", "b", "l"];
-    const value = [...sides].sort((a, b) => order.indexOf(a.toLowerCase()) - order.indexOf(b.toLowerCase())).join("");
-    next[ref] = { ...cell, border: value || null };
+    else if (style === "all") SIDE_ORDER.forEach((side) => sides.set(side, "thin"));
+    else if (style === "outside" || style === "thickBox") SIDE_ORDER.forEach((side) => set(side, style === "thickBox" ? "thick" : "thin"));
+    else if (style === "bottomDouble") set("b", "double");
+    else if (style === "thickBottom") set("b", "thick");
+    else if (style === "topBottom") { set("t"); set("b"); }
+    else if (style === "topThickBottom") { set("t"); set("b", "thick"); }
+    else if (style === "topDoubleBottom") { set("t"); set("b", "double"); }
+    else set(style[0] as Side);
+    next[ref] = { ...cell, border: borderString(sides) };
   }
   return next;
 }
-/** CSS for a cell's border value (older sheets kept a CSS string). */
+/** CSS for a cell's border value. */
 export function borderCss(border: string | null | undefined): Record<string, string> {
   if (!border) return {};
-  if (!/^[tlbrTLBR]+$/.test(border)) return { border };
+  if (!/^([tlbrTLBR]=?)+$/.test(border)) return { border };
   const css: Record<string, string> = {};
   const names = { t: "borderTop", r: "borderRight", b: "borderBottom", l: "borderLeft" } as const;
-  for (const char of border) css[names[char.toLowerCase() as "t" | "r" | "b" | "l"]] = `${char === char.toUpperCase() ? 2 : 1}px solid #000`;
+  for (const [side, kind] of borderSides(border)) css[names[side]] = kind === "double" ? "3px double #000" : kind === "thick" ? "2px solid #000" : "1px solid #000";
   return css;
 }
 
-/** Number shown in a cell for its number format. */
-export function formatCellValue(value: unknown, format: SheetCell["numberFormat"] | null | undefined, decimals?: number | null): string {
+/** Number shown in a cell for its number format (and currency symbol for Currency / Accounting). */
+export function formatCellValue(value: unknown, format: SheetCell["numberFormat"] | null | undefined, decimals?: number | null, currency?: string | null): string {
   if (typeof value !== "number") return value == null ? "" : String(value);
   const places = decimals ?? (format === "General" || !format ? null : 2);
+  const symbol = currency ?? "₹";
+  const grouped = (n: number) => n.toLocaleString(symbol === "₹" ? "en-IN" : "en-US", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 });
   if (format === "Text") return String(value);
   if (format === "ShortDate" || format === "LongDate" || format === "Time") {
     const date = serialToDate(value);
@@ -198,10 +219,20 @@ export function formatCellValue(value: unknown, format: SheetCell["numberFormat"
     if (format === "LongDate") return date.toLocaleDateString("en-IN", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" });
     return date.toLocaleDateString("en-GB", { timeZone: "UTC" }).split("/").join("-");
   }
-  if (format === "Accounting") return `₹ ${value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 })}`;
-  if (format === "Currency") return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 })}`;
+  if (format === "Accounting") return value < 0 ? `${symbol} (${grouped(-value)})` : `${symbol} ${grouped(value)}`;
+  if (format === "Currency") return value < 0 ? `-${symbol}${grouped(-value)}` : `${symbol}${grouped(value)}`;
   if (format === "Percentage") return `${(value * 100).toFixed(places ?? 2)}%`;
   if (format === "Number") return value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 });
+  if (format === "Scientific") { const [mantissa, exponent] = value.toExponential(places ?? 2).split("e"); const e = Number(exponent); return `${mantissa}E${e < 0 ? "-" : "+"}${String(Math.abs(e)).padStart(2, "0")}`; }
+  if (format === "Fraction") {
+    // Excel's "Up to one digit" fraction: the nearest n/d with d from 1 to 9.
+    const sign = value < 0 ? "-" : "", whole = Math.floor(Math.abs(value)), rest = Math.abs(value) - whole;
+    let best = { n: 0, d: 1, error: rest };
+    for (let d = 1; d <= 9; d++) { const n = Math.round(rest * d); const error = Math.abs(rest - n / d); if (error < best.error - 1e-12) best = { n, d, error }; }
+    if (best.n === best.d) return `${sign}${whole + 1}`;
+    if (best.n === 0) return `${sign}${whole}`;
+    return `${sign}${whole ? `${whole} ` : ""}${best.n}/${best.d}`;
+  }
   if (places !== null) return value.toFixed(places);
   return Number.isInteger(value) ? String(value) : String(Math.round(value * 1e9) / 1e9);
 }
@@ -237,30 +268,59 @@ export function currentRegion(cells: Record<string, SheetCell>, row: number, col
   return rect;
 }
 
-// Conditional Formatting > Highlight Cells Rules, with Excel's preset formats.
-export const CONDITIONAL_STYLES: Record<ConditionalStyle, { label: string; fill?: string; font?: string; border?: string }> = {
+// Conditional Formatting with Excel's preset formats: Highlight Cells / Top-Bottom rules colour the cell; Data Bars,
+// Color Scales and Icon Sets draw a bar, a colour or an icon that depends on the value's place in the range.
+export const CONDITIONAL_STYLES: Record<ConditionalStyle, { label: string; fill?: string; font?: string; border?: string; bar?: string; scale?: string[]; icons?: string[] }> = {
   lightRedDarkRed: { label: "Light Red Fill with Dark Red Text", fill: "FFC7CE", font: "9C0006" },
   yellowDarkYellow: { label: "Yellow Fill with Dark Yellow Text", fill: "FFEB9C", font: "9C5700" },
   greenDarkGreen: { label: "Green Fill with Dark Green Text", fill: "C6EFCE", font: "006100" },
   lightRed: { label: "Light Red Fill", fill: "FFC7CE" },
   redText: { label: "Red Text", font: "9C0006" },
   redBorder: { label: "Red Border", border: "1px solid #C00000" },
+  blueBar: { label: "Blue Data Bar", bar: "638EC6" },
+  greenBar: { label: "Green Data Bar", bar: "63BE7B" },
+  redBar: { label: "Red Data Bar", bar: "F8696B" },
+  orangeBar: { label: "Orange Data Bar", bar: "FFB628" },
+  greenYellowRed: { label: "Green - Yellow - Red Color Scale", scale: ["F8696B", "FFEB84", "63BE7B"] },
+  redYellowGreen: { label: "Red - Yellow - Green Color Scale", scale: ["63BE7B", "FFEB84", "F8696B"] },
+  greenWhite: { label: "Green - White Color Scale", scale: ["FCFCFF", "63BE7B"] },
+  redWhite: { label: "Red - White Color Scale", scale: ["FCFCFF", "F8696B"] },
+  arrows3: { label: "3 Arrows (Colored)", icons: ["↓", "→", "↑"] },
+  trafficLights3: { label: "3 Traffic Lights", icons: ["●r", "●y", "●g"] },
 };
-/** The conditional format that applies to a cell (the first matching rule wins, as in Excel's rule order). */
-export function conditionalStyleAt(cells: Record<string, SheetCell>, rules: ConditionalFormat[] | undefined, row: number, col: number) {
+export const HIGHLIGHT_STYLES: ConditionalStyle[] = ["lightRedDarkRed", "yellowDarkYellow", "greenDarkGreen", "lightRed", "redText", "redBorder"];
+export type ConditionalLook = { fill?: string; font?: string; border?: string; bar?: { color: string; percent: number }; icon?: string };
+const mix = (a: string, b: string, t: number) => [0, 2, 4].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, "0")).join("").toUpperCase();
+/** How conditional formatting shows a cell (the first matching rule wins, as in Excel's rule order). */
+export function conditionalStyleAt(cells: Record<string, SheetCell>, rules: ConditionalFormat[] | undefined, row: number, col: number): ConditionalLook | null {
   if (!rules?.length) return null;
+  // As in Excel, a data bar, an icon and a colour scale show together with a highlight rule's format.
   const value = cells[refAt(row, col)]?.value ?? null;
+  const look: ConditionalLook = {};
+  let highlighted = false;
   for (const rule of rules) {
     const rect = parseRange(rule.range);
     if (!rect || !rectContains(rect, row, col)) continue;
-    if (conditionalMatches(rule, value, () => rectRefs(rect).map((ref) => cells[ref]?.value ?? null))) return CONDITIONAL_STYLES[rule.style];
+    const values = () => rectRefs(rect).map((ref) => cells[ref]?.value ?? null);
+    const style = CONDITIONAL_STYLES[rule.style];
+    if (rule.type === "dataBar" || rule.type === "colorScale" || rule.type === "iconSet") {
+      if (typeof value !== "number") continue;
+      const numbers = values().filter((v): v is number => typeof v === "number");
+      const min = Math.min(...numbers), max = Math.max(...numbers), t = max === min ? 1 : (value - min) / (max - min);
+      if (rule.type === "dataBar" && style.bar && !look.bar) look.bar = { color: style.bar, percent: Math.max(8, Math.round(t * 100)) };
+      if (rule.type === "colorScale" && style.scale && !look.fill) { const stops = style.scale; look.fill = stops.length === 2 ? mix(stops[0], stops[1], t) : t < 0.5 ? mix(stops[0], stops[1], t * 2) : mix(stops[1], stops[2], (t - 0.5) * 2); }
+      if (rule.type === "iconSet" && style.icons && !look.icon) look.icon = style.icons[t >= 2 / 3 ? 2 : t >= 1 / 3 ? 1 : 0];
+      continue;
+    }
+    if (!highlighted && conditionalMatches(rule, value, values)) { highlighted = true; if (style.fill) look.fill = style.fill; look.font = style.font; look.border = style.border; }
   }
-  return null;
+  return look.fill || look.font || look.border || look.bar || look.icon ? look : null;
 }
 export function conditionalMatches(rule: ConditionalFormat, value: string | number | null, rangeValues: () => (string | number | null)[]) {
   if (value === null || value === "") return false;
   const num = (v: unknown) => (typeof v === "number" ? v : v != null && String(v).trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
   const x = num(value), a = num(rule.value), b = num(rule.value2);
+  const numbers = () => rangeValues().filter((v): v is number => typeof v === "number");
   switch (rule.type) {
     case "greaterThan": return x !== null && a !== null && x > a;
     case "lessThan": return x !== null && a !== null && x < a;
@@ -268,6 +328,25 @@ export function conditionalMatches(rule: ConditionalFormat, value: string | numb
     case "equalTo": return a !== null && x !== null ? x === a : String(value).toLowerCase() === String(rule.value ?? "").toLowerCase();
     case "textContains": return String(rule.value ?? "") !== "" && String(value).toLowerCase().includes(String(rule.value).toLowerCase());
     case "duplicate": case "unique": { const key = String(value).toLowerCase(); const count = rangeValues().filter((v) => v !== null && String(v).toLowerCase() === key).length; return rule.type === "duplicate" ? count > 1 : count === 1; }
+    case "top": case "bottom": case "topPercent": case "bottomPercent": {
+      if (typeof value !== "number") return false;
+      const list = numbers().sort((p, q) => (rule.type.startsWith("top") ? q - p : p - q));
+      const n = a ?? 10, count = rule.type.endsWith("Percent") ? Math.max(1, Math.floor((list.length * n) / 100)) : n;
+      const edge = list[Math.min(list.length, Math.max(1, Math.floor(count))) - 1];
+      return edge !== undefined && (rule.type.startsWith("top") ? value >= edge : value <= edge);
+    }
+    case "aboveAverage": case "belowAverage": { if (typeof value !== "number") return false; const list = numbers(); const average = list.reduce((p, q) => p + q, 0) / (list.length || 1); return rule.type === "aboveAverage" ? value > average : value < average; }
   }
   return false;
+}
+
+/** A formula moved by rows/columns, as Excel adjusts relative references when it fills or pastes ($ parts stay). */
+export function shiftFormula(formula: string | null, dRow: number, dCol: number): string | null {
+  if (!formula || (dRow === 0 && dCol === 0)) return formula;
+  return formula.replace(/("(?:[^"]|"")*")|(?<![A-Za-z0-9_$])(\$?)([A-Za-z]{1,2})(\$?)([0-9]{1,3})(?![A-Za-z0-9_(])/g, (match, quoted: string | undefined, colAbs: string, letters: string, rowAbs: string, digits: string) => {
+    if (quoted) return match;
+    const col = colAbs ? columnIndex(letters) : columnIndex(letters) + dCol, row = rowAbs ? Number(digits) : Number(digits) + dRow;
+    if (col < 0 || row < 1) return "#REF!";
+    return `${colAbs}${columnLetters(col)}${rowAbs}${row}`;
+  });
 }

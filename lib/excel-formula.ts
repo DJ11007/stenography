@@ -257,7 +257,7 @@ function tokenize(expression: string): string[] {
   return tokens;
 }
 
-function evaluateTokens(tokens: string[], resolve: (ref: string) => Scalar): Value {
+function evaluateTokens(tokens: string[], resolve: (ref: string) => Scalar, names?: Record<string, string>): Value {
   let position = 0;
   const peek = () => tokens[position];
   const next = () => tokens[position++];
@@ -304,6 +304,21 @@ function evaluateTokens(tokens: string[], resolve: (ref: string) => Scalar): Val
     }
     if (upper === "TRUE") return true;
     if (upper === "FALSE") return false;
+    // A defined name (Formulas > Define Name) stands for its cell or range.
+    const named = names && Object.entries(names).find(([name]) => name.toUpperCase() === upper)?.[1];
+    if (named) {
+      const [start, end = start] = named.replace(/\$/g, "").toUpperCase().split(":");
+      const a = parseCellRef(start), b = parseCellRef(end);
+      if (!a || !b) fail("#REF!");
+      if (start === end) return resolve(start);
+      const rows: Scalar[][] = [];
+      for (let row = Math.min(a!.row, b!.row); row <= Math.max(a!.row, b!.row); row++) {
+        const line: Scalar[] = [];
+        for (let col = Math.min(a!.col, b!.col); col <= Math.max(a!.col, b!.col); col++) line.push(resolve(`${columnLetters(col)}${row}`));
+        rows.push(line);
+      }
+      return { kind: "range", rows };
+    }
     return fail("#NAME?");
   }
   // Moves past one function argument (up to its "," or ")"), after an error stopped it part way.
@@ -344,7 +359,7 @@ function evaluateTokens(tokens: string[], resolve: (ref: string) => Scalar): Val
   return result;
 }
 
-export function evaluateFormula(formula: string, cells: SheetCells, depth = 0): number | string {
+export function evaluateFormula(formula: string, cells: SheetCells, depth = 0, names?: Record<string, string>): number | string {
   if (depth > 20) return "#REF!";
   if (!formula.startsWith("=")) return formula;
   // Excel accepts lower-case references and functions (=sum(i3:i4)) and absolute references ($I$3).
@@ -352,14 +367,14 @@ export function evaluateFormula(formula: string, cells: SheetCells, depth = 0): 
   const resolve = (ref: string): Scalar => {
     const cell = cells[ref];
     if (!cell) return null;
-    const value = cell.formula ? evaluateFormula(cell.formula, cells, depth + 1) : cell.value;
+    const value = cell.formula ? evaluateFormula(cell.formula, cells, depth + 1, names) : cell.value;
     if (typeof value === "string" && ERROR_TEXT.test(value)) fail(value);
     if (value === "TRUE" && cell.formula) return true;
     if (value === "FALSE" && cell.formula) return false;
     return value;
   };
   try {
-    const value = scalar(evaluateTokens(tokenize(normalized), resolve));
+    const value = scalar(evaluateTokens(tokenize(normalized), resolve, names));
     if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
     if (typeof value === "number" && !Number.isFinite(value)) return "#NUM!";
     return value === null ? 0 : value;
@@ -369,9 +384,9 @@ export function evaluateFormula(formula: string, cells: SheetCells, depth = 0): 
   }
 }
 
-export function computedCellValue(ref: string, cells: SheetCells): number | string | null {
+export function computedCellValue(ref: string, cells: SheetCells, names?: Record<string, string>): number | string | null {
   const cell = cells[ref];
   if (!cell) return null;
-  if (cell.formula) return evaluateFormula(cell.formula, cells);
+  if (cell.formula) return evaluateFormula(cell.formula, cells, 0, names);
   return cell.value;
 }

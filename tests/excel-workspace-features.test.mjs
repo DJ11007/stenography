@@ -54,7 +54,7 @@ test("the workspace has the Excel 2013 commands the papers use, no longer greyed
   for (const label of ["Conditional Formatting", "Format as Table", "Row Height...", "Column Width...", "Hide Rows", "Unhide Columns", "Rename Sheet", "Custom Sort...", "Replace...", "Insert Column Chart", "Insert Pie or Doughnut Chart", "Print Titles", "Insert Function", "More Functions", "Show Formulas", "Remove Duplicates", "New Comment", "Protect Sheet", "Freeze Top Row", "Freeze First Column", "Zoom to Selection"]) assert.ok(editor.includes(label), label);
   assert.doesNotMatch(editor, /<Big label="Insert Function"[^>]*disabled title=\{off\}/);
   assert.doesNotMatch(editor, /<Big label="Freeze Panes"[^>]*disabled/);
-  assert.match(editor, /if \(sheet\.protected && op !== "unprotectSheet"\) \{ setNotice\(PROTECTED_MESSAGE\); return; \}/, "a protected sheet refuses changes");
+  assert.match(editor, /if \(sheet\.protected && op !== "unprotectSheet" && !unlockedEdit\) \{ setNotice\(PROTECTED_MESSAGE\); return; \}/, "a protected sheet refuses changes except typing in unlocked cells");
   const dialogs = await read("app/typing/excel-efficiency/[language]/[testId]/workspace/excel-dialogs.tsx");
   for (const name of ["InsertFunctionDialog", "SortDialog", "ConditionalDialog", "FindReplaceDialog", "PageSetupDialog", "SymbolDialog", "ZoomDialog", "FilterMenu"]) assert.match(dialogs, new RegExp(`export function ${name}`));
 });

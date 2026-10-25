@@ -7,12 +7,14 @@ import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
 import { NUMBER_FORMAT_LABELS, PAPER_SIZES, toExcelDocumentV3, type ChartType, type ConditionalType, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
 import {
-  EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, autoSumRange, borderCss, conditionalStyleAt, currentRegion, expandForMerges, formatCellValue, isBlankCell,
+  CONDITIONAL_STYLES, EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, autoSumRange, borderCss, conditionalStyleAt, currentRegion, expandForMerges, formatCellValue, isBlankCell,
   mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, parseRef, previewHeaderText, rangeString, recomputeFormulas, rectContains, rectRefs, refAt,
-  shiftColumns, shiftRows, unmergeRanges, usedExtent, type BorderStyle, type Rect,
+  shiftColumns, shiftFormula, shiftRows, unmergeRanges, usedExtent, type BorderStyle, type Rect,
 } from "@/lib/excel-sheet-model";
 import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
 import { ChartView } from "./excel-chart";
+import { DataValidationDialog, DefineNameDialog, GoToSpecialDialog, HyperlinkDialog, InsertDeleteCellsDialog, ManageRulesDialog, MoreColorsDialog, NameManagerDialog, PasteSpecialDialog, SeriesDialog, TextToColumnsDialog, type GoToSpecialChoice, type PasteSpecialChoice, type SeriesChoice, type ShiftChoice } from "./excel-dialogs-more";
+import { CURRENCIES, type CurrencySymbol, type DataValidation } from "@/lib/excel-document";
 
 export type { ExcelDocument } from "@/lib/excel-document";
 
@@ -39,14 +41,17 @@ const COL_WIDTH = 72, ROW_HEADER_WIDTH = 40;
 type Snapshot = { cells: Record<string, SheetCell>; merges: string[]; sheet: SheetSettings };
 type Tab = "HOME" | "INSERT" | "PAGE LAYOUT" | "FORMULAS" | "DATA" | "REVIEW" | "VIEW";
 type Clip = { rect: Rect; cells: Record<string, SheetCell>; cut: boolean };
-type InputPurpose = "rowHeight" | "columnWidth" | "comment" | "protect" | "unprotect" | "chartTitle";
+type InputPurpose = "rowHeight" | "columnWidth" | "comment" | "protect" | "unprotect" | "chartTitle" | "defaultWidth";
 type DialogState =
   | { kind: "insertFunction"; category?: "Most Recently Used" | "All" | FunctionCategory }
   | { kind: "sort"; rect: Rect; headers: boolean } | { kind: "symbol" } | { kind: "zoom" }
   | { kind: "conditional"; type: ConditionalType }
   | { kind: "find"; tab: "Find" | "Replace" }
   | { kind: "pageSetup"; tab: "Page" | "Margins" | "Header/Footer" | "Sheet" }
-  | { kind: "input"; purpose: InputPurpose; chartId?: string };
+  | { kind: "input"; purpose: InputPurpose; chartId?: string }
+  | { kind: "pasteSpecial" } | { kind: "insertCells" } | { kind: "deleteCells" } | { kind: "series" } | { kind: "goToSpecial" }
+  | { kind: "hyperlink" } | { kind: "defineName" } | { kind: "nameManager" } | { kind: "validation" } | { kind: "textToColumns" }
+  | { kind: "manageRules" } | { kind: "moreColors"; target: "font" | "fill" | "tab" };
 const PROTECTED_MESSAGE = "The cell or chart you're trying to change is on a protected sheet. To make a change, unprotect the sheet (REVIEW > Unprotect Sheet).";
 // Format as Table styles: header fill and font, banded row fill.
 const TABLE_STYLES: [string, string, string, string][] = [["Table Style Light 9", "4472C4", "FFFFFF", "FFFFFF"], ["Table Style Medium 2", "4472C4", "FFFFFF", "D9E1F2"], ["Table Style Medium 3", "ED7D31", "FFFFFF", "FCE4D6"], ["Table Style Medium 4", "A5A5A5", "FFFFFF", "EDEDED"], ["Table Style Medium 7", "70AD47", "FFFFFF", "E2EFDA"]];
@@ -102,7 +107,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
 
   // ---------- saving ----------
   const buildDocument = useCallback((c = cells, m = merges, s = sheet, ops = operations): ExcelDocument => {
-    const values = recomputeFormulas(c);
+    const values = recomputeFormulas(c, s.definedNames);
     const kept = Object.fromEntries(Object.entries(values).filter(([, cell]) => !isBlankCell(cell)));
     const extent = usedExtent(kept, m, s, baseRows, baseCols);
     return { schemaVersion: "3", rows: extent.rows, cols: extent.cols, cells: kept, merges: m, sheet: s, operations: ops.slice(0, 256), savedAt: new Date().toISOString() };
@@ -124,13 +129,15 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
 
   // ---------- changing the sheet (one undo step each) ----------
   const record = (op: string) => setOperations((current) => (current.includes(op) ? current : [...current, op]));
-  const change = (op: string, next: Partial<Snapshot>) => {
+  const change = (op: string, next: Partial<Snapshot>, unlockedEdit = false) => {
     if (submitted) return;
-    // A protected sheet refuses every change but unprotecting it, as Excel does.
-    if (sheet.protected && op !== "unprotectSheet") { setNotice(PROTECTED_MESSAGE); return; }
+    // A protected sheet refuses every change but unprotecting it and typing into unlocked cells, as Excel does.
+    if (sheet.protected && op !== "unprotectSheet" && !unlockedEdit) { setNotice(PROTECTED_MESSAGE); return; }
     undoStack.current.push({ cells, merges, sheet }); if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
-    if (next.cells) setCells(recomputeFormulas(next.cells));
+    const names = (next.sheet ?? sheet).definedNames;
+    if (next.cells) setCells(recomputeFormulas(next.cells, names));
+    else if (next.sheet && next.sheet.definedNames !== sheet.definedNames) setCells(recomputeFormulas(cells, names));
     if (next.merges) setMerges(next.merges);
     if (next.sheet) setSheet(next.sheet);
     record(op);
@@ -165,17 +172,22 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   };
 
   // ---------- typing into cells ----------
-  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected) { setNotice(PROTECTED_MESSAGE); return; } setEditing({ ref: activeCellRef, value: initial ?? (active.formula ?? (active.value == null ? "" : String(active.value))), fromBar }); };
+  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } setEditing({ ref: activeCellRef, value: initial ?? (active.formula ?? (active.value == null ? "" : String(active.value))), fromBar }); };
   useEffect(() => { if (editing && !editing.fromBar) editInputRef.current?.focus(); }, [editing?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
   const commitEdit = (move: "down" | "right" | "none" = "none") => {
     if (!editing) return;
-    const entry = parseEntry(editing.value);
     const current = cellOf(cells, editing.ref);
+    // A typed date (25-10-2026, 25/10/2026, 2026-10-25) is stored as Excel's date number with a date format.
+    const typedDate = current.numberFormat === "Text" ? null : parseDate(editing.value);
+    const entry = typedDate !== null ? { value: typedDate, formula: null } : current.numberFormat === "Text" && !editing.value.startsWith("=") ? { value: editing.value === "" ? null : editing.value, formula: null } : parseEntry(editing.value);
     if (entry.value !== current.value || entry.formula !== current.formula) {
+      // Data Validation: an entry the rule does not allow is refused with Excel's error alert.
+      const rule = validationFor(editing.ref);
+      if (rule && !passesValidation(rule, entry.value)) { setValidationAlert({ title: rule.title || "Microsoft Excel", message: rule.message || "This value doesn't match the data validation restrictions defined for this cell." }); return; }
       const fn = entry.formula?.match(/^=\s*([A-Z]+)\s*\(/i)?.[1]?.toUpperCase();
       // As in Excel, a cell given a date function shows a date (if it still has the General format).
-      const dated = fn && ["TODAY", "DATE", "NOW"].includes(fn) && (current.numberFormat ?? "General") === "General" ? { numberFormat: "ShortDate" as const } : {};
-      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry, ...dated } } });
+      const dated = (typedDate !== null || (fn && ["TODAY", "DATE", "NOW"].includes(fn))) && (current.numberFormat ?? "General") === "General" ? { numberFormat: "ShortDate" as const } : {};
+      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry, ...dated } } }, Boolean(sheet.protected && current.locked === false));
     }
     setEditing(null);
     if (move === "down") moveBy(1, 0); else if (move === "right") moveBy(0, 1);
@@ -202,7 +214,9 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     for (let i = 0; i <= height; i++) for (let j = 0; j <= width; j++) {
       const row = focus.row + i, col = focus.col + j;
       if (row > MAX_ROWS || col >= MAX_COLS) continue;
-      next[refAt(row, col)] = { ...clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] };
+      const source = clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] ?? EMPTY_CELL;
+      // Relative references move with the paste, as in Excel (a cut keeps them).
+      next[refAt(row, col)] = { ...source, formula: clip.cut ? source.formula : shiftFormula(source.formula, focus.row - clip.rect.r1, focus.col - clip.rect.c1) };
     }
     change("paste", { cells: next });
     selectRect({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) });
@@ -385,13 +399,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const indentBy = (delta: number) => { const level = Math.min(15, Math.max(0, (active.indent ?? 0) + delta)); formatSelection({ indent: level || null, align: level ? (active.align === "right" ? "right" : "left") : active.align }, "indent"); };
   const decimalsOf = (cell: SheetCell) => cell.decimals ?? (typeof cell.value === "number" && !Number.isInteger(cell.value) ? Math.min(10, String(cell.value).split(".")[1]?.length ?? 0) : cell.numberFormat && cell.numberFormat !== "General" ? 2 : 0);
   const changeDecimals = (delta: number) => formatSelection({ decimals: Math.min(10, Math.max(0, decimalsOf(active) + delta)) }, "decimals");
-  const fillRange = (direction: "down" | "right") => {
+  const fillRange = (direction: "down" | "right" | "up" | "left") => {
     const next = { ...cells };
     for (let row = selection.r1; row <= selection.r2; row++) for (let col = selection.c1; col <= selection.c2; col++) {
-      const source = direction === "down" ? refAt(selection.r1, col) : refAt(row, selection.c1);
-      if (source !== refAt(row, col)) next[refAt(row, col)] = { ...cellOf(cells, source) };
+      const sourceRow = direction === "down" ? selection.r1 : direction === "up" ? selection.r2 : row;
+      const sourceCol = direction === "right" ? selection.c1 : direction === "left" ? selection.c2 : col;
+      if (sourceRow === row && sourceCol === col) continue;
+      const source = cellOf(cells, refAt(sourceRow, sourceCol));
+      next[refAt(row, col)] = { ...source, formula: shiftFormula(source.formula, row - sourceRow, col - sourceCol) };
     }
-    change(direction === "down" ? "fillDown" : "fillRight", { cells: next });
+    change(direction === "down" ? "fillDown" : direction === "right" ? "fillRight" : direction === "up" ? "fillUp" : "fillLeft", { cells: next });
   };
   const pasteSpecial = (mode: "values" | "formatting") => {
     if (!clip) { setNotice("Copy cells first (Ctrl+C), then select where to paste."); return; }
@@ -411,6 +428,13 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     ["Title", { fontSize: 18, fontColor: "44546A", fontFamily: "Calibri Light" }], ["Heading 1", { fontSize: 15, bold: true, fontColor: "44546A", border: "B" }],
     ["Heading 2", { fontSize: 13, bold: true, fontColor: "44546A", border: "B" }], ["Total", { bold: true, border: "tB" }],
     ["Accent1", { fillColor: "4472C4", fontColor: "FFFFFF" }], ["Note", { fillColor: "FFFFCC", border: "trbl" }],
+    ["Heading 3", { fontSize: 11, bold: true, fontColor: "44546A", border: "b" }], ["Heading 4", { bold: true, fontColor: "44546A" }],
+    ["Calculation", { bold: true, fontColor: "FA7D00", fillColor: "F2F2F2", border: "trbl" }], ["Check Cell", { bold: true, fontColor: "FFFFFF", fillColor: "A5A5A5", border: "trbl" }],
+    ["Explanatory Text", { italic: true, fontColor: "7F7F7F" }], ["Input", { fontColor: "3F3F76", fillColor: "FFCC99", border: "trbl" }],
+    ["Linked Cell", { fontColor: "FA7D00", border: "b=" }], ["Output", { bold: true, fontColor: "3F3F3F", fillColor: "F2F2F2", border: "trbl" }], ["Warning Text", { fontColor: "FF0000" }],
+    ["20% - Accent1", { fillColor: "D9E1F2" }], ["40% - Accent1", { fillColor: "B4C6E7" }], ["60% - Accent1", { fillColor: "8EA9DB", fontColor: "FFFFFF" }],
+    ["Accent2", { fillColor: "ED7D31", fontColor: "FFFFFF" }], ["Accent6", { fillColor: "70AD47", fontColor: "FFFFFF" }],
+    ["Comma", { numberFormat: "Number", decimals: 2 }], ["Currency", { numberFormat: "Currency", decimals: 2 }], ["Percent", { numberFormat: "Percentage", decimals: 0 }],
   ];
   const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); setStatus("Saving…"); const result = await autosaveExcelDocument(attemptId, buildDocument()); setStatus(result.ok ? "Saved" : result.error); };
   const openContextMenu = (event: React.MouseEvent, row: number, col: number) => {
@@ -516,6 +540,14 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
 
   const setComment = (text: string) => { const trimmed = text.trim(); formatSelection({ comment: trimmed ? trimmed.slice(0, 500) : null }, trimmed ? "comment" : "deleteComment", { r1: focus.row, c1: focus.col, r2: focus.row, c2: focus.col }); closeDialog(); };
   const deleteComment = () => formatSelection({ comment: null }, "deleteComment");
+  const gotoComment = (step: 1 | -1) => {
+    const list = Object.entries(cells).filter(([, cell]) => cell.comment).map(([ref]) => parseRef(ref)!).sort((a, b) => a.row - b.row || a.col - b.col);
+    if (!list.length) { setNotice("There are no comments on this sheet."); return; }
+    const index = list.findIndex((at) => at.row > focus.row || (at.row === focus.row && at.col > focus.col));
+    const after = step === 1 ? (index < 0 ? list[0] : list[index]) : [...list].reverse().find((at) => at.row < focus.row || (at.row === focus.row && at.col < focus.col)) ?? list[list.length - 1];
+    select(after.row, after.col); setShowCommentAt(refAt(after.row, after.col));
+  };
+  const [showCommentAt, setShowCommentAt] = useState<string | null>(null);
   const protectSheet = () => { change("protectSheet", { sheet: { ...sheet, protected: true } }); closeDialog(); setNotice("The sheet is protected. REVIEW > Unprotect Sheet allows changes again."); };
   const unprotectSheet = () => { change("unprotectSheet", { sheet: { ...sheet, protected: false } }); closeDialog(); setNotice(null); };
 
@@ -624,10 +656,181 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   };
   useEffect(() => { if (!filterMenu) return; const close = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest?.("[data-xl-filter]")) setFilterMenu(null); }; window.addEventListener("mousedown", close); return () => window.removeEventListener("mousedown", close); }, [filterMenu]);
 
+  // ---------- the rest of Excel 2013's commands ----------
+  const [validationAlert, setValidationAlert] = useState<{ title: string; message: string } | null>(null);
+  const parseDate = (text: string) => {
+    const dmy = text.trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/), ymd = text.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    const [d, m, y] = dmy ? [Number(dmy[1]), Number(dmy[2]), Number(dmy[3])] : ymd ? [Number(ymd[3]), Number(ymd[2]), Number(ymd[1])] : [0, 0, 0];
+    if (!y || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  };
+  const validationFor = (ref: string) => { const at = parseRef(ref); if (!at) return null; return (sheet.validations ?? []).find((rule) => { const rect = parseRange(rule.range); return rect && rectContains(rect, at.row, at.col); }) ?? null; };
+  const passesValidation = (rule: DataValidation, value: string | number | null) => {
+    if (value === null || value === "") return true;
+    if (rule.type === "list") return (rule.list ?? "").split(",").map((item) => item.trim().toLowerCase()).includes(String(value).trim().toLowerCase());
+    const x = rule.type === "textLength" ? String(value).length : rule.type === "date" ? (typeof value === "number" ? value : parseDate(String(value))) : typeof value === "number" ? value : null;
+    if (x === null || (rule.type === "whole" && !Number.isInteger(x))) return false;
+    const toNumber = (text?: string) => (text === undefined || text.trim() === "" ? null : rule.type === "date" ? parseDate(text) : Number.isFinite(Number(text)) ? Number(text) : null);
+    const a = toNumber(rule.value1), b = toNumber(rule.value2);
+    if (a === null) return true;
+    switch (rule.operator ?? "between") {
+      case "between": return b !== null && x >= Math.min(a, b) && x <= Math.max(a, b);
+      case "notBetween": return b !== null && (x < Math.min(a, b) || x > Math.max(a, b));
+      case "equal": return x === a; case "notEqual": return x !== a;
+      case "greater": return x > a; case "less": return x < a; case "greaterOrEqual": return x >= a; case "lessOrEqual": return x <= a;
+    }
+    return true;
+  };
+  const setValidation = (rule: Omit<DataValidation, "range">) => {
+    const kept = (sheet.validations ?? []).filter((existing) => { const rect = parseRange(existing.range); return !rect || !(rect.r1 <= selection.r2 && selection.r1 <= rect.r2 && rect.c1 <= selection.c2 && selection.c1 <= rect.c2); });
+    change("dataValidation", { sheet: { ...sheet, validations: [...kept, { range: rangeString(selection), ...rule }].slice(-50) } });
+    closeDialog();
+  };
+  const clearValidation = () => { change("dataValidation", { sheet: { ...sheet, validations: (sheet.validations ?? []).filter((existing) => { const rect = parseRange(existing.range); return !rect || !(rect.r1 <= selection.r2 && selection.r1 <= rect.r2 && rect.c1 <= selection.c2 && selection.c1 <= rect.c2); }) } }); closeDialog(); };
+  const pickFromList = (value: string) => { const current = cellOf(cells, activeCellRef); change("edit", { cells: { ...cells, [activeCellRef]: { ...current, ...parseEntry(value) } } }, Boolean(sheet.protected && current.locked === false)); setListMenu(false); focusGrid(); };
+  const [listMenu, setListMenu] = useState(false);
+
+  const toggleUnderline = (style: "single" | "double") => {
+    const on = Boolean(active.underline) && (active.underlineStyle ?? "single") === style;
+    formatSelection({ underline: !on, underlineStyle: !on && style === "double" ? "double" : null }, style === "double" ? "underlineDouble" : "underline");
+  };
+  const applyCurrency = (symbol: CurrencySymbol) => formatSelection({ numberFormat: "Accounting", currency: symbol === "₹" ? null : symbol, decimals: active.decimals ?? 2 }, "currency");
+
+  const pasteSpecialApply = (choice: PasteSpecialChoice, keepNumberFormat = false) => {
+    if (!clip) { setNotice("Copy cells first (Ctrl+C), then select where to paste."); return; }
+    const next = { ...cells };
+    let widths = sheet.colWidths;
+    const height = clip.rect.r2 - clip.rect.r1, width = clip.rect.c2 - clip.rect.c1;
+    for (let i = 0; i <= height; i++) for (let j = 0; j <= width; j++) {
+      const [di, dj] = choice.transpose ? [j, i] : [i, j];
+      const row = focus.row + di, col = focus.col + dj;
+      if (row > MAX_ROWS || col >= MAX_COLS) continue;
+      const source = clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] ?? EMPTY_CELL;
+      if (choice.skipBlanks && source.value == null && !source.formula) continue;
+      const target = cellOf(next, refAt(row, col));
+      const formula = shiftFormula(source.formula, row - (clip.rect.r1 + i), col - (clip.rect.c1 + j));
+      const number = keepNumberFormat ? { numberFormat: source.numberFormat, decimals: source.decimals ?? null, currency: source.currency ?? null } : {};
+      let made: SheetCell;
+      switch (choice.what) {
+        case "all": made = { ...source, formula }; break;
+        case "allExceptBorders": made = { ...source, formula, border: target.border }; break;
+        case "formulas": made = { ...target, value: source.value, formula, ...number }; break;
+        case "values": made = { ...target, value: source.value, formula: null, ...number }; break;
+        case "formats": made = { ...target, ...styleOf(source) }; break;
+        case "comments": made = { ...target, comment: source.comment ?? null }; break;
+        default: made = target;
+      }
+      if (choice.operation !== "none" && ["all", "values", "formulas", "allExceptBorders"].includes(choice.what) && typeof source.value === "number" && typeof target.value === "number") {
+        const a = target.value, b = source.value;
+        made = { ...made, formula: null, value: choice.operation === "add" ? a + b : choice.operation === "subtract" ? a - b : choice.operation === "multiply" ? a * b : b === 0 ? a : a / b };
+      }
+      next[refAt(row, col)] = made;
+    }
+    if (choice.what === "columnWidths") { widths = { ...(sheet.colWidths ?? {}) }; for (let j = 0; j <= width; j++) { const from = sheet.colWidths?.[columnLetters(clip.rect.c1 + j)]; const to = columnLetters(Math.min(MAX_COLS - 1, focus.col + j)); if (from === undefined) delete widths[to]; else widths[to] = from; } }
+    const op = choice.transpose ? "pasteTranspose" : choice.what === "formulas" ? "pasteFormulas" : choice.what === "values" ? "pasteValues" : choice.what === "formats" ? "pasteFormatting" : choice.what === "allExceptBorders" ? "pasteNoBorders" : "pasteSpecial";
+    change(op, { cells: next, ...(widths !== sheet.colWidths ? { sheet: { ...sheet, colWidths: widths } } : {}) });
+    closeDialog();
+  };
+  const pasteAs = (what: PasteSpecialChoice["what"], options: { transpose?: boolean; keepNumberFormat?: boolean } = {}) => { setMenu(null); pasteSpecialApply({ what, operation: "none", skipBlanks: false, transpose: Boolean(options.transpose) }, Boolean(options.keepNumberFormat)); };
+
+  const shiftCells = (choice: ShiftChoice, insert: boolean) => {
+    closeDialog();
+    if (choice === "entireRow" || choice === "entireColumn") {
+      let state = { cells, merges };
+      const count = choice === "entireRow" ? selection.r2 - selection.r1 + 1 : selection.c2 - selection.c1 + 1;
+      for (let k = 0; k < count; k++) state = choice === "entireRow" ? shiftRows(state.cells, state.merges, selection.r1, insert ? 1 : -1) : shiftColumns(state.cells, state.merges, selection.c1, insert ? 1 : -1);
+      change(choice === "entireRow" ? (insert ? "insertRow" : "deleteRow") : (insert ? "insertColumn" : "deleteColumn"), state);
+      return;
+    }
+    const h = selection.r2 - selection.r1 + 1, w = selection.c2 - selection.c1 + 1, next = { ...cells };
+    const move = (fromRow: number, fromCol: number, toRow: number, toCol: number) => { const cell = cells[refAt(fromRow, fromCol)]; if (cell && fromRow >= 1 && fromCol >= 0 && fromRow <= MAX_ROWS && fromCol < MAX_COLS) next[refAt(toRow, toCol)] = cell; else delete next[refAt(toRow, toCol)]; };
+    if (choice === "shiftRight") for (let row = selection.r1; row <= selection.r2; row++) for (let col = MAX_COLS - 1; col >= selection.c1; col--) { if (col - w >= selection.c1) move(row, col - w, row, col); else delete next[refAt(row, col)]; }
+    if (choice === "shiftDown") for (let col = selection.c1; col <= selection.c2; col++) for (let row = MAX_ROWS; row >= selection.r1; row--) { if (row - h >= selection.r1) move(row - h, col, row, col); else delete next[refAt(row, col)]; }
+    if (choice === "shiftLeft") for (let row = selection.r1; row <= selection.r2; row++) for (let col = selection.c1; col < MAX_COLS; col++) move(row, col + w, row, col);
+    if (choice === "shiftUp") for (let col = selection.c1; col <= selection.c2; col++) for (let row = selection.r1; row <= MAX_ROWS; row++) move(row + h, col, row, col);
+    change(insert ? "insertCells" : "deleteCells", { cells: next, merges: unmergeRanges(merges, selection) });
+  };
+
+  const fillSeries = (choice: SeriesChoice) => {
+    closeDialog();
+    const next = { ...cells };
+    const lines = choice.direction === "columns" ? Array.from({ length: selection.c2 - selection.c1 + 1 }, (_, i) => selection.c1 + i) : Array.from({ length: selection.r2 - selection.r1 + 1 }, (_, i) => selection.r1 + i);
+    for (const line of lines) {
+      const startRef = choice.direction === "columns" ? refAt(selection.r1, line) : refAt(line, selection.c1);
+      const start = cellOf(cells, startRef).value;
+      if (typeof start !== "number") continue;
+      const length = choice.direction === "columns" ? selection.r2 - selection.r1 + 1 : selection.c2 - selection.c1 + 1;
+      for (let k = 1; k < length; k++) {
+        const value = choice.type === "linear" ? start + choice.step * k : start * choice.step ** k;
+        if (choice.stop !== null && (choice.step >= 0 ? value > choice.stop : value < choice.stop)) break;
+        const ref = choice.direction === "columns" ? refAt(selection.r1 + k, line) : refAt(line, selection.c1 + k);
+        next[ref] = { ...cellOf(next, ref), value: Math.round(value * 1e10) / 1e10, formula: null };
+      }
+    }
+    change("fillSeries", { cells: next });
+  };
+  const clearComments = () => formatSelection({ comment: null }, "clearComments");
+  const clearHyperlinks = () => formatSelection({ link: null }, "clearHyperlinks");
+
+  const goToSpecial = (choice: GoToSpecialChoice) => {
+    closeDialog();
+    const extent = usedExtent(cells, merges, sheet, baseRows, baseCols);
+    const area = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? { r1: 1, c1: 0, r2: extent.rows, c2: extent.cols - 1 } : selection;
+    const found = rectRefs(area).filter((ref) => {
+      const cell = cells[ref]; const at = parseRef(ref)!;
+      if (choice === "comments") return Boolean(cell?.comment);
+      if (choice === "constants") return Boolean(cell && cell.value !== null && !cell.formula);
+      if (choice === "formulas") return Boolean(cell?.formula);
+      if (choice === "blanks") return !cell || (cell.value === null && !cell.formula);
+      if (choice === "conditional") return (sheet.conditionalFormats ?? []).some((rule) => { const rect = parseRange(rule.range); return rect && rectContains(rect, at.row, at.col); });
+      return Boolean(validationFor(ref));
+    });
+    if (!found.length) { setNotice("No cells were found."); return; }
+    const points = found.map((ref) => parseRef(ref)!);
+    selectRect({ r1: Math.min(...points.map((p) => p.row)), c1: Math.min(...points.map((p) => p.col)), r2: Math.max(...points.map((p) => p.row)), c2: Math.max(...points.map((p) => p.col)) });
+    setNotice(`${found.length} cell${found.length === 1 ? "" : "s"} found: ${found.slice(0, 12).join(", ")}${found.length > 12 ? "…" : ""}`);
+  };
+
+  const setHyperlink = (text: string, address: string) => {
+    const current = cellOf(cells, activeCellRef);
+    change("hyperlink", { cells: { ...cells, [activeCellRef]: { ...current, value: current.formula ? current.value : text.trim() || address, link: address.slice(0, 500), fontColor: current.fontColor ?? "0563C1", underline: true } } });
+    closeDialog();
+  };
+  const removeHyperlink = () => { const current = cellOf(cells, activeCellRef); change("clearHyperlinks", { cells: { ...cells, [activeCellRef]: { ...current, link: null, fontColor: current.fontColor === "0563C1" ? null : current.fontColor, underline: current.fontColor === "0563C1" ? false : current.underline } } }); closeDialog(); };
+
+  const defineName = (name: string, range: string) => { change("defineName", { sheet: { ...sheet, definedNames: { ...(sheet.definedNames ?? {}), [name]: range } } }); closeDialog(); setNotice(`The name ${name} now refers to ${range}. Use it in formulas, e.g. =SUM(${name}).`); };
+  const deleteName = (name: string) => { const names = { ...(sheet.definedNames ?? {}) }; delete names[name]; change("defineName", { sheet: { ...sheet, definedNames: names } }); };
+
+  const textToColumns = (delimiters: string[]) => {
+    closeDialog();
+    if (selection.c1 !== selection.c2) { setNotice("Text to Columns works on one column at a time: select the cells of one column."); return; }
+    const pattern = new RegExp(`[${delimiters.map((d) => d.replace(/[\]\\^-]/g, (char) => `\\${char}`)).join("")}]+`);
+    const next = { ...cells };
+    for (let row = selection.r1; row <= selection.r2; row++) {
+      const cell = cellOf(cells, refAt(row, selection.c1));
+      if (typeof cell.value !== "string" || cell.formula) continue;
+      cell.value.split(pattern).slice(0, MAX_COLS - selection.c1).forEach((part, i) => { const ref = refAt(row, selection.c1 + i); next[ref] = { ...cellOf(next, ref), ...parseEntry(part) }; });
+    }
+    change("textToColumns", { cells: next });
+  };
+
+  const setTabColor = (hex: string | null) => { change("tabColor", { sheet: { ...sheet, tabColor: hex } }); setMenu(null); };
+  const toggleLockCell = () => { formatSelection({ locked: active.locked === false ? null : false }, "lockCell"); setMenu(null); };
+  const insertPageBreak = () => { if (focus.row < 2) { setNotice("Select a cell below row 1: the page break goes above it."); return; } change("pageBreak", { sheet: { ...sheet, rowBreaks: [...new Set([...(sheet.rowBreaks ?? []), focus.row])].sort((a, b) => a - b) } }); setMenu(null); };
+  const removePageBreak = () => { change("pageBreak", { sheet: { ...sheet, rowBreaks: (sheet.rowBreaks ?? []).filter((row) => row !== focus.row) } }); setMenu(null); };
+  const resetPageBreaks = () => { change("pageBreak", { sheet: { ...sheet, rowBreaks: [] } }); setMenu(null); };
+  const setScaleToFit = (patch: Partial<Pick<SheetSettings, "fitWidth" | "fitHeight" | "scale">>) => change("scaleToFit", { sheet: { ...sheet, ...patch } });
+  const setDefaultWidth = (width: number) => { const widths = { ...(sheet.colWidths ?? {}) }; for (let col = 0; col < MAX_COLS; col++) { const letter = columnLetters(col); if (widths[letter] === undefined || widths[letter] === sheet.colWidths?.[letter]) widths[letter] = widths[letter] ?? width; } change("columnWidth", { sheet: { ...sheet, colWidths: widths } }); };
+
   const nameBoxValue = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? activeRef : (activeMerge && activeMerge.r1 === selection.r1 && activeMerge.c1 === selection.c1 && activeMerge.r2 === selection.r2 && activeMerge.c2 === selection.c2) ? refAt(activeMerge.r1, activeMerge.c1) : rangeString(selection);
   const [nameBox, setNameBox] = useState<string | null>(null);
-  const goToName = (text: string) => { const rect = parseRange(text.trim()); if (rect) { selectRect(rect); setNotice(null); } else setNotice("Type a cell or range such as A27 or A27:L27."); setNameBox(null); focusGrid(); };
-  const formulaBarValue = editing ? editing.value : (active.formula ?? (active.value == null ? "" : String(active.value)));
+  const goToName = (text: string) => {
+    const named = Object.entries(sheet.definedNames ?? {}).find(([name]) => name.toUpperCase() === text.trim().toUpperCase())?.[1];
+    const rect = parseRange(named ?? text.trim());
+    if (rect) { selectRect(rect); setNotice(null); } else setNotice("Type a cell, a range such as A27:L27, or a defined name.");
+    setNameBox(null); focusGrid();
+  };
+  const formulaBarValue = editing ? editing.value : sheet.protected && active.hiddenFormula ? "" : (active.formula ?? (active.value == null ? "" : String(active.value)));
   const zoom = sheet.zoom || 100;
   const tallRows = useMemo(() => { const rows = new Map<number, number>(); for (const [ref, cell] of Object.entries(cells)) { if (!cell.rotate || cell.value == null) continue; const row = Number(ref.replace(/^[A-Z]+/, "")); rows.set(row, Math.max(rows.get(row) ?? 20, cell.rotate === 255 ? Math.min(160, 16 * String(cell.value).length) : Math.min(120, 8 + Math.abs(Math.sin((cell.rotate * Math.PI) / 180)) * 7 * String(cell.value).length))); } return rows; }, [cells]);
   const hiddenRowSet = useMemo(() => new Set(sheet.hiddenRows ?? []), [sheet.hiddenRows]);
@@ -663,9 +866,21 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         {tab === "HOME" && <>
           <Group label="Clipboard">
             <MenuButton id="paste" menu={menu} setMenu={setMenu} label="Paste" icon={<Icon name="paste" big />} big disabled={submitted} onMain={paste}>
+              <MenuHeading>Paste</MenuHeading>
               <MenuItem onClick={() => { paste(); setMenu(null); }}>Paste</MenuItem>
-              <MenuItem onClick={() => { pasteSpecial("values"); setMenu(null); }}>Paste Values</MenuItem>
-              <MenuItem onClick={() => { pasteSpecial("formatting"); setMenu(null); }}>Paste Formatting</MenuItem>
+              <MenuItem onClick={() => pasteAs("formulas")}>Formulas</MenuItem>
+              <MenuItem onClick={() => pasteAs("formulas", { keepNumberFormat: true })}>Formulas &amp; Number Formatting</MenuItem>
+              <MenuItem onClick={() => pasteAs("all")}>Keep Source Formatting</MenuItem>
+              <MenuItem onClick={() => pasteAs("allExceptBorders")}>No Borders</MenuItem>
+              <MenuItem onClick={() => pasteAs("columnWidths")}>Keep Source Column Widths</MenuItem>
+              <MenuItem onClick={() => pasteAs("all", { transpose: true })}>Transpose</MenuItem>
+              <MenuHeading>Paste Values</MenuHeading>
+              <MenuItem onClick={() => pasteAs("values")}>Values</MenuItem>
+              <MenuItem onClick={() => pasteAs("values", { keepNumberFormat: true })}>Values &amp; Number Formatting</MenuItem>
+              <MenuHeading>Other Paste Options</MenuHeading>
+              <MenuItem onClick={() => pasteAs("formats")}>Formatting</MenuItem>
+              <MenuSeparator />
+              <MenuItem onClick={() => { if (!clip) { setMenu(null); setNotice("Copy cells first (Ctrl+C), then select where to paste."); } else openDialog({ kind: "pasteSpecial" }); }}>Paste Special...</MenuItem>
             </MenuButton>
             <div className="flex flex-col gap-0.5">
               <Small label="Cut" icon={<Icon name="cut" />} showLabel onClick={() => copy(true)} disabled={submitted} />
@@ -686,16 +901,25 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <div className="flex items-center gap-0.5">
                 <Small label="Bold (Ctrl+B)" icon={<b className="font-serif">B</b>} active={active.bold} onClick={() => toggle("bold")} disabled={submitted} />
                 <Small label="Italic (Ctrl+I)" icon={<i className="font-serif">I</i>} active={active.italic} onClick={() => toggle("italic")} disabled={submitted} />
-                <Small label="Underline (Ctrl+U)" icon={<u className="font-serif">U</u>} active={active.underline} onClick={() => toggle("underline")} disabled={submitted} />
+                <span data-xl-menu className="relative flex">
+                  <button type="button" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => toggleUnderline(active.underlineStyle === "double" ? "double" : "single")} aria-label="Underline (Ctrl+U)" aria-pressed={active.underline} title="Underline (Ctrl+U)"
+                    className={`flex h-[22px] min-w-[20px] items-center justify-center border px-1 ${active.underline ? "border-[#2a8dd4] bg-[#cde6f7]" : "border-transparent hover:border-[#c6c6c6] hover:bg-white"} disabled:opacity-40`}><span className="font-serif underline" style={{ textDecorationStyle: active.underlineStyle === "double" ? "double" : "solid" }}>U</span></button>
+                  <button type="button" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => setMenu(menu === "underline" ? null : "underline")} aria-label="Underline options" aria-expanded={menu === "underline"} className="flex h-[22px] items-center border border-transparent px-0.5 text-[9px] hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40">▾</button>
+                  {menu === "underline" && <Menu>
+                    <MenuItem checked={active.underline && (active.underlineStyle ?? "single") === "single"} onClick={() => { toggleUnderline("single"); setMenu(null); }}><span className="font-serif underline">U</span>&nbsp; Underline</MenuItem>
+                    <MenuItem checked={active.underline && active.underlineStyle === "double"} onClick={() => { toggleUnderline("double"); setMenu(null); }}><span className="font-serif underline" style={{ textDecorationStyle: "double" }}>D</span>&nbsp; Double Underline</MenuItem>
+                  </Menu>}
+                </span>
                 <span className="mx-0.5 h-4 w-px bg-[#c6c6c6]" />
                 <MenuButton id="borders" menu={menu} setMenu={setMenu} label="Borders" icon={<Icon name="border" />} disabled={submitted}>
-                  {([["bottom", "Bottom Border"], ["top", "Top Border"], ["left", "Left Border"], ["right", "Right Border"], ["none", "No Border"], ["all", "All Borders"], ["outside", "Outside Borders"], ["thickBox", "Thick Box Border"]] as [BorderStyle, string][]).map(([style, label]) => (
+                  <MenuHeading>Borders</MenuHeading>
+                  {([["bottom", "Bottom Border"], ["top", "Top Border"], ["left", "Left Border"], ["right", "Right Border"], ["none", "No Border"], ["all", "All Borders"], ["outside", "Outside Borders"], ["thickBox", "Thick Box Border"], ["bottomDouble", "Bottom Double Border"], ["thickBottom", "Thick Bottom Border"], ["topBottom", "Top and Bottom Border"], ["topThickBottom", "Top and Thick Bottom Border"], ["topDoubleBottom", "Top and Double Bottom Border"]] as [BorderStyle, string][]).map(([style, label]) => (
                     <MenuItem key={style} onClick={() => { change("border", { cells: applyBorder(cells, selection, style) }); setMenu(null); }}>{label}</MenuItem>
                   ))}
                   <MenuItem onClick={() => openFormatCells("Border")}>More Borders...</MenuItem>
                 </MenuButton>
-                <ColorSplit id="fill" label="Fill Color" swatch={lastFill} icon={<Icon name="bucket" />} menu={menu} setMenu={setMenu} disabled={submitted} noneLabel="No Fill" onApply={() => formatSelection({ fillColor: lastFill }, "fillColor")} onPick={(hex) => { if (hex) setLastFill(hex); formatSelection({ fillColor: hex }, "fillColor"); }} />
-                <ColorSplit id="font" label="Font Color" swatch={lastFont} icon={<span className="font-serif text-[13px] font-bold">A</span>} menu={menu} setMenu={setMenu} disabled={submitted} noneLabel="Automatic" onApply={() => formatSelection({ fontColor: lastFont }, "fontColor")} onPick={(hex) => { if (hex) setLastFont(hex); formatSelection({ fontColor: hex }, "fontColor"); }} />
+                <ColorSplit id="fill" label="Fill Color" swatch={lastFill} icon={<Icon name="bucket" />} menu={menu} setMenu={setMenu} disabled={submitted} noneLabel="No Fill" onMore={() => openDialog({ kind: "moreColors", target: "fill" })} onApply={() => formatSelection({ fillColor: lastFill }, "fillColor")} onPick={(hex) => { if (hex) setLastFill(hex); formatSelection({ fillColor: hex }, "fillColor"); }} />
+                <ColorSplit id="font" label="Font Color" swatch={lastFont} icon={<span className="font-serif text-[13px] font-bold">A</span>} menu={menu} setMenu={setMenu} disabled={submitted} noneLabel="Automatic" onMore={() => openDialog({ kind: "moreColors", target: "font" })} onApply={() => formatSelection({ fontColor: lastFont }, "fontColor")} onPick={(hex) => { if (hex) setLastFont(hex); formatSelection({ fontColor: hex }, "fontColor"); }} />
               </div>
             </div>
           </Group>
@@ -736,11 +960,15 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           </Group>
           <Group label="Number" launcher={() => openFormatCells("Number")} launcherLabel="Format Cells: Number">
             <div className="flex flex-col gap-1">
-              <select aria-label="Number Format" value={active.numberFormat ?? "General"} disabled={submitted} onChange={(event) => formatSelection({ numberFormat: event.target.value as SheetCell["numberFormat"] }, "numberFormat")} className="h-[22px] w-[128px] border border-[#c6c6c6] bg-white px-1">
+              <select aria-label="Number Format" value={active.numberFormat ?? "General"} disabled={submitted} onChange={(event) => { if (event.target.value === "more") { openFormatCells("Number"); return; } formatSelection({ numberFormat: event.target.value as SheetCell["numberFormat"] }, "numberFormat"); }} className="h-[22px] w-[128px] border border-[#c6c6c6] bg-white px-1">
                 {NUMBER_FORMAT_LABELS.map(([format, label]) => <option key={format} value={format}>{label}</option>)}
+                <option value="more">More Number Formats...</option>
               </select>
               <div className="flex items-center gap-0.5">
-                <Small label="Accounting Number Format" icon={<span>₹</span>} onClick={() => formatSelection({ numberFormat: "Accounting" }, "numberFormat")} disabled={submitted} />
+                <MenuButton id="accounting" menu={menu} setMenu={setMenu} label="Accounting Number Format" icon={<span>₹</span>} disabled={submitted} onMain={() => applyCurrency(active.currency ?? "₹")}>
+                  {CURRENCIES.map(([symbol, label]) => <MenuItem key={symbol} checked={active.numberFormat === "Accounting" && (active.currency ?? "₹") === symbol} onClick={() => { applyCurrency(symbol); setMenu(null); }}>{label}</MenuItem>)}
+                  <MenuSeparator /><MenuItem onClick={() => openFormatCells("Number")}>More Accounting Formats...</MenuItem>
+                </MenuButton>
                 <Small label="Percent Style" icon={<span>%</span>} onClick={() => formatSelection({ numberFormat: "Percentage", decimals: 0 }, "numberFormat")} disabled={submitted} />
                 <Small label="Comma Style" icon={<span className="font-bold">,</span>} onClick={() => formatSelection({ numberFormat: "Number", decimals: 2 }, "numberFormat")} disabled={submitted} />
                 <Small label="Increase Decimal" icon={<span className="text-[9px] leading-none">←.0<br />.00</span>} onClick={() => changeDecimals(1)} disabled={submitted} />
@@ -752,9 +980,19 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <MenuButton id="conditional" menu={menu} setMenu={setMenu} label="Conditional Formatting" icon={<Icon name="conditional" big />} big disabled={submitted}>
               <MenuHeading>Highlight Cells Rules</MenuHeading>
               {HIGHLIGHT_RULES.map(([type, label]) => <MenuItem key={type} onClick={() => openDialog({ kind: "conditional", type })}>{label}</MenuItem>)}
+              <MenuHeading>Top/Bottom Rules</MenuHeading>
+              {([["top", "Top 10 Items..."], ["topPercent", "Top 10%..."], ["bottom", "Bottom 10 Items..."], ["bottomPercent", "Bottom 10%..."], ["aboveAverage", "Above Average..."], ["belowAverage", "Below Average..."]] as [ConditionalType, string][]).map(([type, label]) => <MenuItem key={type} onClick={() => openDialog({ kind: "conditional", type })}>{label}</MenuItem>)}
+              <MenuHeading>Data Bars</MenuHeading>
+              <div className="flex gap-1 px-3 py-1">{(["blueBar", "greenBar", "redBar", "orangeBar"] as const).map((style) => <button key={style} type="button" role="menuitem" aria-label={CONDITIONAL_STYLES[style].label} title={CONDITIONAL_STYLES[style].label} onMouseDown={(event) => event.preventDefault()} onClick={() => { addConditional({ type: "dataBar", style }); setMenu(null); }} className="grid h-7 w-7 content-center gap-0.5 border border-[#c6c6c6] p-0.5 hover:border-[#2a8dd4]">{[90, 60, 30].map((w) => <span key={w} className="block h-1.5" style={{ width: `${w}%`, background: `#${CONDITIONAL_STYLES[style].bar}` }} />)}</button>)}</div>
+              <MenuHeading>Color Scales</MenuHeading>
+              <div className="flex gap-1 px-3 py-1">{(["greenYellowRed", "redYellowGreen", "greenWhite", "redWhite"] as const).map((style) => <button key={style} type="button" role="menuitem" aria-label={CONDITIONAL_STYLES[style].label} title={CONDITIONAL_STYLES[style].label} onMouseDown={(event) => event.preventDefault()} onClick={() => { addConditional({ type: "colorScale", style }); setMenu(null); }} className="h-7 w-7 border border-[#c6c6c6] hover:border-[#2a8dd4]" style={{ background: `linear-gradient(${[...(CONDITIONAL_STYLES[style].scale ?? [])].reverse().map((c) => `#${c}`).join(",")})` }} />)}</div>
+              <MenuHeading>Icon Sets</MenuHeading>
+              {(["arrows3", "trafficLights3"] as const).map((style) => <MenuItem key={style} onClick={() => { addConditional({ type: "iconSet", style }); setMenu(null); }}>{CONDITIONAL_STYLES[style].label}</MenuItem>)}
               <MenuSeparator />
+              <MenuItem onClick={() => openDialog({ kind: "conditional", type: "greaterThan" })}>New Rule...</MenuItem>
               <MenuItem onClick={() => { clearConditional(false); setMenu(null); }}>Clear Rules from Selected Cells</MenuItem>
               <MenuItem onClick={() => { clearConditional(true); setMenu(null); }}>Clear Rules from Entire Sheet</MenuItem>
+              <MenuItem onClick={() => openDialog({ kind: "manageRules" })}>Manage Rules...</MenuItem>
             </MenuButton>
             <MenuButton id="formatTable" menu={menu} setMenu={setMenu} label="Format as Table" icon={<Icon name="table" big />} big disabled={submitted}>
               {TABLE_STYLES.map((style) => <MenuItem key={style[0]} onClick={() => { formatAsTable(style); setMenu(null); }}><span className="mr-2 inline-flex h-3 w-6 border border-slate-300" style={{ background: `linear-gradient(#${style[1]} 40%, #${style[3]} 40%)` }} />{style[0]}</MenuItem>)}
@@ -765,12 +1003,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           </Group>
           <Group label="Cells">
             <MenuButton id="insert" menu={menu} setMenu={setMenu} label="Insert" icon={<Icon name="insertCells" big />} big disabled={submitted}>
+              <MenuItem onClick={() => openDialog({ kind: "insertCells" })}>Insert Cells...</MenuItem>
               <MenuItem onClick={() => { insertRow(); setMenu(null); }}>Insert Sheet Rows</MenuItem>
               <MenuItem onClick={() => { insertColumn(); setMenu(null); }}>Insert Sheet Columns</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); setNotice("This test uses one worksheet: inserting another sheet is not needed."); }}>Insert Sheet</MenuItem>
             </MenuButton>
             <MenuButton id="delete" menu={menu} setMenu={setMenu} label="Delete" icon={<Icon name="deleteCells" big />} big disabled={submitted}>
+              <MenuItem onClick={() => openDialog({ kind: "deleteCells" })}>Delete Cells...</MenuItem>
               <MenuItem onClick={() => { deleteRow(); setMenu(null); }}>Delete Sheet Rows</MenuItem>
               <MenuItem onClick={() => { deleteColumn(); setMenu(null); }}>Delete Sheet Columns</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); setNotice("This test uses one worksheet, which cannot be deleted."); }}>Delete Sheet</MenuItem>
             </MenuButton>
             <MenuButton id="format" menu={menu} setMenu={setMenu} label="Format" icon={<Icon name="formatCells" big />} big disabled={submitted}>
               <MenuHeading>Cell Size</MenuHeading>
@@ -778,6 +1020,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <MenuItem onClick={() => { setRowHeight(null); setMenu(null); }}>AutoFit Row Height</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "input", purpose: "columnWidth" })}>Column Width...</MenuItem>
               <MenuItem onClick={() => { autoFitColumns(); setMenu(null); }}>AutoFit Column Width</MenuItem>
+              <MenuItem onClick={() => openDialog({ kind: "input", purpose: "defaultWidth" })}>Default Width...</MenuItem>
               <MenuHeading>Visibility</MenuHeading>
               <MenuItem onClick={() => { hideRows(true); setMenu(null); }}>Hide Rows</MenuItem>
               <MenuItem onClick={() => { hideColumns(true); setMenu(null); }}>Hide Columns</MenuItem>
@@ -785,8 +1028,13 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <MenuItem onClick={() => { hideColumns(false); setMenu(null); }}>Unhide Columns</MenuItem>
               <MenuHeading>Organize Sheets</MenuHeading>
               <MenuItem onClick={() => { setMenu(null); setRenamingSheet(sheetName); }}>Rename Sheet</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); setNotice("This test uses one worksheet: Move or Copy Sheet is not needed."); }}>Move or Copy Sheet...</MenuItem>
+              <div className="px-3 py-1"><p className="mb-1 text-[11px] text-[#444]">Tab Color</p><div className="grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`Tab Color ${name}`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => setTabColor(hex)} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
+                <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => setTabColor(null)} className="mt-1 w-full text-left text-[12px] hover:bg-[#d5e1f2]">No Color</button>
+                <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "moreColors", target: "tab" })} className="w-full text-left text-[12px] hover:bg-[#d5e1f2]">More Colors...</button></div>
               <MenuHeading>Protection</MenuHeading>
               <MenuItem onClick={() => openDialog({ kind: "input", purpose: sheet.protected ? "unprotect" : "protect" })}>{sheet.protected ? "Unprotect Sheet..." : "Protect Sheet..."}</MenuItem>
+              <MenuItem checked={active.locked !== false} onClick={toggleLockCell}>Lock Cell</MenuItem>
               <MenuSeparator />
               <MenuItem onClick={() => openFormatCells("Number")}>Format Cells...</MenuItem>
             </MenuButton>
@@ -795,15 +1043,21 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <div className="flex flex-col gap-0.5">
               <MenuButton id="autosum" menu={menu} setMenu={setMenu} label="AutoSum" icon={<span className="flex items-center gap-1"><span className="text-[14px] font-bold">Σ</span>AutoSum</span>} disabled={submitted} onMain={() => autoSum("SUM")}>
                 {["SUM", "AVERAGE", "COUNT", "MAX", "MIN"].map((fn) => <MenuItem key={fn} onClick={() => { autoSum(fn); setMenu(null); }}>{fn === "SUM" ? "Sum" : fn === "AVERAGE" ? "Average" : fn === "COUNT" ? "Count Numbers" : fn === "MAX" ? "Max" : "Min"}</MenuItem>)}
+                <MenuItem onClick={() => openDialog({ kind: "insertFunction" })}>More Functions...</MenuItem>
               </MenuButton>
               <MenuButton id="fill-range" menu={menu} setMenu={setMenu} label="Fill" icon={<span className="flex items-center gap-1"><span className="text-[#2a6bd4]">⬇</span>Fill</span>} disabled={submitted}>
                 <MenuItem onClick={() => { fillRange("down"); setMenu(null); }}>Down</MenuItem>
                 <MenuItem onClick={() => { fillRange("right"); setMenu(null); }}>Right</MenuItem>
+                <MenuItem onClick={() => { fillRange("up"); setMenu(null); }}>Up</MenuItem>
+                <MenuItem onClick={() => { fillRange("left"); setMenu(null); }}>Left</MenuItem>
+                <MenuItem onClick={() => openDialog({ kind: "series" })}>Series...</MenuItem>
               </MenuButton>
               <MenuButton id="clear" menu={menu} setMenu={setMenu} label="Clear" icon={<span className="flex items-center gap-1"><span className="text-[#d24726]">⌫</span>Clear</span>} disabled={submitted}>
                 <MenuItem onClick={() => { clearAll(); setMenu(null); }}>Clear All</MenuItem>
                 <MenuItem onClick={() => { clearFormats(); setMenu(null); }}>Clear Formats</MenuItem>
                 <MenuItem onClick={() => { clearContents(); setMenu(null); }}>Clear Contents</MenuItem>
+                <MenuItem onClick={() => { clearComments(); setMenu(null); }}>Clear Comments</MenuItem>
+                <MenuItem onClick={() => { clearHyperlinks(); setMenu(null); }}>Clear Hyperlinks</MenuItem>
               </MenuButton>
             </div>
             <MenuButton id="sort" menu={menu} setMenu={setMenu} label="Sort & Filter" icon={<Icon name="sort" big />} big disabled={submitted}>
@@ -813,11 +1067,19 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <MenuSeparator />
               <MenuItem checked={Boolean(sheet.filter)} onClick={() => { toggleFilter(); setMenu(null); }}>Filter</MenuItem>
               <MenuItem onClick={() => { if (sheet.filter) change("filterValues", { sheet: { ...sheet, filterHidden: {} } }); setMenu(null); }}>Clear</MenuItem>
+              <MenuItem onClick={() => { if (sheet.filter) change("filterValues", { sheet: { ...sheet, filterHidden: { ...(sheet.filterHidden ?? {}) } } }); setMenu(null); }}>Reapply</MenuItem>
             </MenuButton>
             <MenuButton id="find" menu={menu} setMenu={setMenu} label="Find & Select" icon={<Icon name="find" big />} big>
               <MenuItem onClick={() => openDialog({ kind: "find", tab: "Find" })}>Find...</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "find", tab: "Replace" })}>Replace...</MenuItem>
               <MenuItem onClick={() => { setMenu(null); setNameBox(nameBoxValue); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[aria-label="Name Box"]')?.select()); }}>Go To...</MenuItem>
+              <MenuItem onClick={() => openDialog({ kind: "goToSpecial" })}>Go To Special...</MenuItem>
+              <MenuSeparator />
+              <MenuItem onClick={() => { setMenu(null); goToSpecial("formulas"); }}>Formulas</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); goToSpecial("comments"); }}>Comments</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); goToSpecial("conditional"); }}>Conditional Formatting</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); goToSpecial("constants"); }}>Constants</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); goToSpecial("validation"); }}>Data Validation</MenuItem>
             </MenuButton>
           </Group>
         </>}
@@ -843,7 +1105,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <Big label="PivotChart" icon="📈" disabled title={off} />
           </Group>
           <Group label="Sparklines"><Big label="Line" icon="〰" disabled title={off} /><Big label="Column" icon="▮" disabled title={off} /><Big label="Win/ Loss" icon="▚" disabled title={off} /></Group>
-          <Group label="Links"><Big label="Hyperlink" icon="🔗" disabled title={off} /></Group>
+          <Group label="Links"><Big label="Hyperlink" icon="🔗" onClick={() => openDialog({ kind: "hyperlink" })} disabled={submitted} /></Group>
           <Group label="Text">
             <Big label="Text Box" icon={<Icon name="textBox" big />} disabled title={off} />
             <Big label="Header & Footer" icon={<Icon name="headerFooter" big />} onClick={() => setHeaderDialog(true)} disabled={submitted} />
@@ -869,13 +1131,20 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <MenuItem onClick={() => { setSheetOption("printArea", rangeString(selection), "printArea"); setNotice(`Print area set to ${rangeString(selection)}.`); setMenu(null); }}>Set Print Area</MenuItem>
               <MenuItem onClick={() => { setSheetOption("printArea", null, "clearPrintArea"); setMenu(null); }}>Clear Print Area</MenuItem>
             </MenuButton>
-            <Big label="Breaks" icon="⤓" disabled title={off} /><Big label="Background" icon="🏞" disabled title={off} /><Big label="Print Titles" icon="🖨" onClick={() => openDialog({ kind: "pageSetup", tab: "Sheet" })} disabled={submitted} />
+            <MenuButton id="breaks" menu={menu} setMenu={setMenu} label="Breaks" icon={<span className="text-[20px]">⤓</span>} big disabled={submitted}>
+              <MenuItem onClick={insertPageBreak}>Insert Page Break</MenuItem>
+              <MenuItem onClick={removePageBreak}>Remove Page Break</MenuItem>
+              <MenuItem onClick={resetPageBreaks}>Reset All Page Breaks</MenuItem>
+            </MenuButton><Big label="Background" icon="🏞" disabled title={off} /><Big label="Print Titles" icon="🖨" onClick={() => openDialog({ kind: "pageSetup", tab: "Sheet" })} disabled={submitted} />
           </Group>
           <Group label="Scale to Fit" launcher={() => openDialog({ kind: "pageSetup", tab: "Page" })} launcherLabel="Page Setup: Scale to Fit">
-            <div className="grid grid-cols-[52px_84px] items-center gap-x-1 gap-y-0.5 text-slate-500">
-              <span>Width:</span><span className="border border-[#c6c6c6] bg-white px-1">Automatic</span>
-              <span>Height:</span><span className="border border-[#c6c6c6] bg-white px-1">Automatic</span>
-              <span>Scale:</span><span className="border border-[#c6c6c6] bg-white px-1">100%</span>
+            <div className="grid grid-cols-[52px_92px] items-center gap-x-1 gap-y-0.5">
+              <label htmlFor="xl-fit-width">Width:</label>
+              <select id="xl-fit-width" aria-label="Scale to Fit Width" disabled={submitted} value={sheet.fitWidth ?? 0} onChange={(event) => { const pages = Number(event.target.value) || null; setScaleToFit({ fitWidth: pages, scale: pages || sheet.fitHeight ? null : sheet.scale ?? null }); }} className="h-[20px] border border-[#c6c6c6] bg-white">{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((pages) => <option key={pages} value={pages}>{pages ? `${pages} page${pages > 1 ? "s" : ""}` : "Automatic"}</option>)}</select>
+              <label htmlFor="xl-fit-height">Height:</label>
+              <select id="xl-fit-height" aria-label="Scale to Fit Height" disabled={submitted} value={sheet.fitHeight ?? 0} onChange={(event) => { const pages = Number(event.target.value) || null; setScaleToFit({ fitHeight: pages, scale: pages || sheet.fitWidth ? null : sheet.scale ?? null }); }} className="h-[20px] border border-[#c6c6c6] bg-white">{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((pages) => <option key={pages} value={pages}>{pages ? `${pages} page${pages > 1 ? "s" : ""}` : "Automatic"}</option>)}</select>
+              <label htmlFor="xl-scale">Scale:</label>
+              <input id="xl-scale" aria-label="Scale" type="number" min={10} max={400} step={5} disabled={submitted || Boolean(sheet.fitWidth || sheet.fitHeight)} value={sheet.scale ?? 100} onChange={(event) => { const value = Number(event.target.value); if (value >= 10 && value <= 400) setScaleToFit({ scale: value === 100 ? null : value }); }} className="h-[20px] w-16 border border-[#c6c6c6] bg-white px-1 disabled:text-slate-400" />
             </div>
           </Group>
           <Group label="Sheet Options" launcher={() => openDialog({ kind: "pageSetup", tab: "Sheet" })} launcherLabel="Page Setup: Sheet">
@@ -910,6 +1179,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               {FUNCTION_LIBRARY.filter((fn) => fn.category === "Statistical").map((fn) => <MenuItem key={fn.name} onClick={() => insertFunction(fn.name)}>{fn.name}</MenuItem>)}
             </MenuButton>
           </Group>
+          <Group label="Defined Names">
+            <Big label="Name Manager" icon="🏷" onClick={() => openDialog({ kind: "nameManager" })} disabled={submitted} />
+            <div className="flex flex-col gap-0.5">
+              <Small label="Define Name" icon="🏷" showLabel onClick={() => openDialog({ kind: "defineName" })} disabled={submitted} />
+              <MenuButton id="useInFormula" menu={menu} setMenu={setMenu} label="Use in Formula" icon={<span className="flex items-center gap-1">ƒ Use in Formula</span>} disabled={submitted}>
+                {Object.keys(sheet.definedNames ?? {}).map((name) => <MenuItem key={name} onClick={() => { setMenu(null); const text = editing ? `${editing.value}${name}` : `=${name}`; if (editing) setEditing({ ...editing, value: text }); else beginEdit(text); }}>{name}</MenuItem>)}
+                {!Object.keys(sheet.definedNames ?? {}).length && <p className="px-3 py-1 text-[#777]">No names defined yet</p>}
+              </MenuButton>
+            </div>
+          </Group>
           <Group label="Formula Auditing">
             <div className="flex flex-col gap-0.5">
               <Small label="Show Formulas" icon={<Icon name="showFormulas" />} showLabel active={showFormulas} onClick={() => setShowFormulas((value) => !value)} />
@@ -925,13 +1204,15 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <Big label="Filter" icon={<Icon name="filter" big />} active={Boolean(sheet.filter)} onClick={toggleFilter} disabled={submitted} />
             <div className="flex flex-col gap-0.5"><Small label="Clear" icon="✕" showLabel onClick={() => change("filterValues", { sheet: { ...sheet, filterHidden: {} } })} disabled={submitted || !sheet.filter || !Object.keys(sheet.filterHidden ?? {}).length} /></div>
           </Group>
-          <Group label="Data Tools"><Big label="Text to Columns" icon="⫼" disabled title={off} /><Big label="Remove Duplicates" icon={<Icon name="dedupe" big />} onClick={removeDuplicates} disabled={submitted} /></Group>
+          <Group label="Data Tools"><Big label="Text to Columns" icon="⫼" onClick={() => openDialog({ kind: "textToColumns" })} disabled={submitted} /><Big label="Data Validation" icon="☑" onClick={() => openDialog({ kind: "validation" })} disabled={submitted} /><Big label="Remove Duplicates" icon={<Icon name="dedupe" big />} onClick={removeDuplicates} disabled={submitted} /></Group>
         </>}
         {tab === "REVIEW" && <>
           <Group label="Proofing"><Big label="Spelling" icon="ABC✓" disabled title={off} /><Big label="Thesaurus" icon="📖" disabled title={off} /></Group>
           <Group label="Comments">
             <Big label={active.comment ? "Edit Comment" : "New Comment"} icon={<Icon name="comment" big />} onClick={() => openDialog({ kind: "input", purpose: "comment" })} disabled={submitted} />
             <Big label="Delete" icon={<Icon name="commentDelete" big />} onClick={deleteComment} disabled={submitted || !active.comment} />
+            <Big label="Previous" icon="◀💬" onClick={() => gotoComment(-1)} />
+            <Big label="Next" icon="💬▶" onClick={() => gotoComment(1)} />
             <div className="flex flex-col gap-0.5"><Small label="Show All Comments" icon="💬" showLabel active={showComments} onClick={() => setShowComments((value) => !value)} /></div>
           </Group>
           <Group label="Changes">
@@ -1035,7 +1316,12 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                       const conditional = conditionalStyleAt(cells, sheet.conditionalFormats, row, col);
                       const filterButton = filterRect && row === filterRect.r1 && col >= filterRect.c1 && col <= filterRect.c2;
                       const filtering = filterButton && Boolean(sheet.filterHidden?.[columnLetters(col)]?.length);
-                      const shown = showFormulas && cell.formula ? cell.formula : formatCellValue(cell.value, cell.numberFormat, cell.decimals);
+                      const shown = showFormulas && cell.formula && !(sheet.protected && cell.hiddenFormula) ? cell.formula : formatCellValue(cell.value, cell.numberFormat, cell.decimals, cell.currency);
+                      const listRule = isActive && !submitted ? validationFor(ref) : null;
+                      // Shrink to fit: the text gets smaller until it fits the column, as in Excel.
+                      const basePx = ((cell.fontSize ?? DEFAULT_FONT_SIZE) * 4) / 3 * (cell.vertAlign ? 0.75 : 1);
+                      const cellWidth = merged ? Array.from({ length: merged.c2 - merged.c1 + 1 }, (_, i) => colPx(merged.c1 + i)).reduce((a, b) => a + b, 0) : colPx(col);
+                      const fontPx = cell.shrink && !cell.wrap && shown ? Math.max(5, Math.min(basePx, (cellWidth - 8) / Math.max(1, shown.length * 0.55))) : basePx;
                       // As in Excel, text runs on into the next cells only while they are empty.
                       const neighbour = cells[refAt(row, col + 1)];
                       const spill = !cell.wrap && !merged && !numeric && cell.value != null && align === "left" && !filterButton && (!neighbour || (neighbour.value == null && !neighbour.formula)) && !mergeAt(merges, row, col + 1);
@@ -1045,10 +1331,12 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                         borderRight: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent", borderBottom: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent",
                         ...borderCss(cell.border),
                         ...(conditional?.border ? { border: conditional.border } : {}),
-                        ...(freeze && row === freeze.row - 1 ? { borderBottom: "1px solid #9b9b9b" } : {}), ...(freeze && col === freeze.col - 1 ? { borderRight: "1px solid #9b9b9b" } : {}),
+                        ...(freeze && row === freeze.row - 1 ? { borderBottom: "1px solid #9b9b9b" } : {}), ...(sheet.rowBreaks?.includes(row + 1) ? { borderBottom: "1px dashed #3c3c3c" } : {}), ...(freeze && col === freeze.col - 1 ? { borderRight: "1px solid #9b9b9b" } : {}),
                         textAlign: showFormulas && cell.formula ? "left" : align, verticalAlign: cell.vAlign === "middle" ? "middle" : cell.vAlign === "top" ? "top" : "bottom",
-                        fontFamily: cell.fontFamily ? `"${cell.fontFamily}", ${DEFAULT_FONT}, sans-serif` : undefined, fontSize: `${((cell.fontSize ?? DEFAULT_FONT_SIZE) * 4) / 3}px`,
-                        fontWeight: cell.bold ? 700 : undefined, fontStyle: cell.italic ? "italic" : undefined, textDecoration: [cell.underline && "underline", cell.strike && "line-through"].filter(Boolean).join(" ") || undefined, color: conditional?.font ? `#${conditional.font}` : cell.fontColor ? `#${cell.fontColor}` : undefined,
+                        fontFamily: cell.fontFamily ? `"${cell.fontFamily}", ${DEFAULT_FONT}, sans-serif` : undefined, fontSize: `${fontPx}px`,
+                        fontWeight: cell.bold ? 700 : undefined, fontStyle: cell.italic ? "italic" : undefined, textDecoration: [cell.underline && "underline", cell.strike && "line-through"].filter(Boolean).join(" ") || undefined,
+                        textDecorationStyle: cell.underlineStyle === "double" || cell.underlineStyle === "doubleAccounting" ? "double" : undefined, textUnderlineOffset: cell.underlineStyle?.includes("Accounting") ? 3 : undefined,
+                        backgroundImage: conditional?.bar ? `linear-gradient(to right, #${conditional.bar.color} 0%, #${conditional.bar.color}66 ${conditional.bar.percent}%, transparent ${conditional.bar.percent}%)` : undefined, color: conditional?.font ? `#${conditional.font}` : cell.fontColor ? `#${cell.fontColor}` : undefined,
                         paddingLeft: colHidden ? 0 : cell.indent && align === "left" ? 4 + cell.indent * 9 : undefined, paddingRight: colHidden ? 0 : filterButton ? 18 : cell.indent && align === "right" ? 4 + cell.indent * 9 : undefined,
                         whiteSpace: cell.wrap ? "normal" : "nowrap", overflow: spill ? "visible" : "hidden", height: rowHeight(row), lineHeight: 1.2, zIndex: frozenRow && frozenCol ? 16 : frozenRow || frozenCol ? 15 : spill ? 1 : undefined,
                         position: frozenRow || frozenCol ? "sticky" : "relative", top: frozenRow ? frozenTop(row) : undefined, left: frozenCol ? frozenLeft(col) : undefined,
@@ -1075,14 +1363,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                               onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit("right"); } else if (event.key === "Escape") { setEditing(null); focusGrid(); } }}
                               onBlur={() => commitEdit()} className="absolute inset-0 z-10 w-full min-w-[120px] border-2 border-[#217346] bg-white px-1 outline-none" style={{ fontSize: style.fontSize, fontFamily: style.fontFamily as string | undefined }} />
                           ) : (
-                            <span className={cell.rotate ? "inline-block" : "block"} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{shown}</span>
+                            <span className={cell.rotate ? "inline-block" : "block"} title={cell.link ? `${cell.link} - Click once to follow.` : undefined} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.vertAlign ? { position: "relative", top: cell.vertAlign === "superscript" ? "-0.4em" : "0.3em" } : {}), ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{conditional?.icon && <ConditionalIcon icon={conditional.icon} />}{shown}</span>
                           )}
+                          {listRule?.type === "list" && <button type="button" aria-label={`Pick from list for ${ref}`} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }} onClick={() => setListMenu((open) => !open)} className="absolute -right-[18px] bottom-0 z-[3] grid h-[18px] w-4 place-items-center border border-[#adadad] bg-[#f0f0f0] text-[9px]">▾</button>}
+                          {listRule?.type === "list" && listMenu && <div data-xl-list role="listbox" aria-label="Validation list" className="absolute left-0 top-full z-[45] min-w-full border border-[#7a7a7a] bg-white text-left text-[12px] shadow">{(listRule.list ?? "").split(",").map((item) => item.trim()).filter(Boolean).map((item) => <button key={item} type="button" role="option" aria-selected={String(cell.value ?? "") === item} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }} onClick={() => pickFromList(item)} className="block w-full px-1.5 py-0.5 text-left hover:bg-[#0078d7] hover:text-white">{item}</button>)}</div>}
                           {filterButton && !colHidden && <button type="button" aria-label={`Filter ${columnLetters(col)}`} title={filtering ? "Filtered" : "Filter"} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }}
                             onClick={(event) => { const box = (event.currentTarget as HTMLElement).getBoundingClientRect(); setFilterMenu({ col, x: box.left, y: box.bottom + 2 }); }}
                             className="absolute bottom-0.5 right-0.5 top-0.5 z-[2] grid w-4 place-items-center border border-[#adadad] bg-[#f0f0f0] text-[9px] leading-none text-[#444] hover:bg-white">{filtering ? "▼⏷" : "▾"}</button>}
                           {cell.comment && !colHidden && <>
                             <span aria-hidden className="absolute right-0 top-0 h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-[#c00000]" />
-                            <span role="note" className={`absolute left-full top-0 z-[40] ml-2 w-44 whitespace-pre-wrap border border-[#7a7a7a] bg-[#ffffe1] p-1.5 text-left text-[11px] font-normal not-italic text-black no-underline shadow ${showComments ? "block" : "hidden group-hover:block"}`}><b>Student:</b><br />{cell.comment}</span>
+                            <span role="note" className={`absolute left-full top-0 z-[40] ml-2 w-44 whitespace-pre-wrap border border-[#7a7a7a] bg-[#ffffe1] p-1.5 text-left text-[11px] font-normal not-italic text-black no-underline shadow ${showComments || showCommentAt === ref ? "block" : "hidden group-hover:block"}`}><b>Student:</b><br />{cell.comment}</span>
                           </>}
                         </td>
                       );
@@ -1117,7 +1407,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         {renamingSheet !== null ? (
           <input autoFocus aria-label="Sheet name" value={renamingSheet} maxLength={31} onChange={(event) => setRenamingSheet(event.target.value)} onBlur={() => renameSheet(renamingSheet)} onKeyDown={(event) => { if (event.key === "Enter") renameSheet(renamingSheet); if (event.key === "Escape") setRenamingSheet(null); }} className="w-28 border border-[#217346] bg-white px-2 text-[12px] outline-none" />
         ) : (
-          <button type="button" aria-label={`Sheet tab ${sheetName}`} title="Double-click to rename" onDoubleClick={() => { if (!submitted) setRenamingSheet(sheetName); }} className="border-x border-b-2 border-x-slate-300 border-b-[#217346] bg-white px-4 py-0.5 text-[12px] font-semibold text-[#217346]">{sheetName}</button>
+          <button type="button" aria-label={`Sheet tab ${sheetName}`} title="Double-click to rename" onDoubleClick={() => { if (!submitted) setRenamingSheet(sheetName); }} style={sheet.tabColor ? { borderBottomColor: `#${sheet.tabColor}`, boxShadow: `inset 0 -3px 0 #${sheet.tabColor}` } : undefined} className="border-x border-b-2 border-x-slate-300 border-b-[#217346] bg-white px-4 py-0.5 text-[12px] font-semibold text-[#217346]">{sheetName}</button>
         )}
         <span aria-hidden title="New sheet" className="grid w-6 place-items-center text-[14px] text-[#999]">⊕</span>
         <span className="flex items-center gap-3 px-3">
@@ -1176,6 +1466,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <ContextItem label="Sort A to Z" disabled={submitted} onSelect={() => { setContextMenu(null); sortSelection("asc"); focusGrid(); }} />
             <ContextItem label="Sort Z to A" disabled={submitted} onSelect={() => { setContextMenu(null); sortSelection("desc"); focusGrid(); }} />
             <div className="my-1 border-t border-[#e1e1e1]" />
+            <ContextItem label="Pick From Drop-down List..." disabled={submitted || validationFor(activeCellRef)?.type !== "list"} onSelect={() => { setContextMenu(null); setListMenu(true); }} />
+            <ContextItem label={active.link ? "Edit Hyperlink..." : "Hyperlink..."} disabled={submitted} onSelect={() => openDialog({ kind: "hyperlink" })} />
             <ContextItem label={active.comment ? "Edit Comment" : "Insert Comment"} disabled={submitted} onSelect={() => openDialog({ kind: "input", purpose: "comment" })} />
             {active.comment && <ContextItem label="Delete Comment" disabled={submitted} onSelect={() => { setContextMenu(null); deleteComment(); focusGrid(); }} />}
             <ContextItem label="Format Cells..." disabled={submitted} onSelect={() => { setContextMenu(null); openFormatCells("Number"); focusGrid(); }} />
@@ -1191,6 +1483,21 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {dialog?.kind === "find" && <FindReplaceDialog initialTab={dialog.tab} onFindNext={findNext} onReplace={replaceOne} onReplaceAll={replaceAll} onCancel={closeDialog} />}
       {dialog?.kind === "pageSetup" && <PageSetupDialog sheet={sheet} initialTab={dialog.tab} onCustomHeader={() => { setDialog(null); setHeaderDialog(true); }} onCancel={closeDialog}
         onOk={(result) => { const op = result.printTitleRows !== (sheet.printTitleRows ?? null) || result.printTitleCols !== (sheet.printTitleCols ?? null) ? "printTitles" : "pageSetup"; change(op, { sheet: { ...sheet, ...result } }); if (result.orientation !== sheet.orientation) record("orientation"); if (result.paperSize !== sheet.paperSize) record("paperSize"); if (result.printArea !== sheet.printArea) record(result.printArea ? "printArea" : "clearPrintArea"); closeDialog(); }} />}
+      {dialog?.kind === "pasteSpecial" && <PasteSpecialDialog onOk={(choice) => pasteSpecialApply(choice)} onCancel={closeDialog} />}
+      {dialog?.kind === "insertCells" && <InsertDeleteCellsDialog mode="insert" onOk={(choice) => shiftCells(choice, true)} onCancel={closeDialog} />}
+      {dialog?.kind === "deleteCells" && <InsertDeleteCellsDialog mode="delete" onOk={(choice) => shiftCells(choice, false)} onCancel={closeDialog} />}
+      {dialog?.kind === "series" && <SeriesDialog defaultDirection={selection.r2 - selection.r1 >= selection.c2 - selection.c1 ? "columns" : "rows"} onOk={fillSeries} onCancel={closeDialog} />}
+      {dialog?.kind === "goToSpecial" && <GoToSpecialDialog onOk={goToSpecial} onCancel={closeDialog} />}
+      {dialog?.kind === "hyperlink" && <HyperlinkDialog initialText={active.value == null ? "" : String(active.value)} initialAddress={active.link ?? ""} onOk={setHyperlink} onRemove={active.link ? removeHyperlink : undefined} onCancel={closeDialog} />}
+      {dialog?.kind === "defineName" && <DefineNameDialog refersTo={rangeString(selection).split(":").map((part) => part.replace(/^([A-Z]+)(\d+)$/, (_, letters: string, digits: string) => `$${letters}$${digits}`)).join(":")} onOk={defineName} onCancel={closeDialog} />}
+      {dialog?.kind === "nameManager" && <NameManagerDialog names={sheet.definedNames ?? {}} onDelete={deleteName} onNew={() => openDialog({ kind: "defineName" })} onCancel={closeDialog} />}
+      {dialog?.kind === "validation" && <DataValidationDialog current={validationFor(activeCellRef)} onOk={setValidation} onClear={clearValidation} onCancel={closeDialog} />}
+      {dialog?.kind === "textToColumns" && <TextToColumnsDialog onOk={textToColumns} onCancel={closeDialog} />}
+      {dialog?.kind === "manageRules" && <ManageRulesDialog rules={sheet.conditionalFormats ?? []} onDelete={(index) => change("clearConditionalFormat", { sheet: { ...sheet, conditionalFormats: (sheet.conditionalFormats ?? []).filter((_, i) => i !== index) } })} onCancel={closeDialog} />}
+      {dialog?.kind === "moreColors" && <MoreColorsDialog title={dialog.target === "font" ? "Font Color" : dialog.target === "fill" ? "Fill Color" : "Tab Color"} initial={dialog.target === "font" ? active.fontColor : dialog.target === "fill" ? active.fillColor : sheet.tabColor ?? null} onCancel={closeDialog}
+        onOk={(hex) => { closeDialog(); if (dialog.target === "font") { setLastFont(hex); formatSelection({ fontColor: hex }, "fontColor"); } else if (dialog.target === "fill") { setLastFill(hex); formatSelection({ fillColor: hex }, "fillColor"); } else setTabColor(hex); }} />}
+      {dialog?.kind === "input" && dialog.purpose === "defaultWidth" && <InputDialog title="Standard Width" label="Standard column width:" numeric min={0} max={255} initial="8.43" onOk={(value) => { closeDialog(); setDefaultWidth(Number(value)); }} onCancel={closeDialog} />}
+      <ConfirmDialog open={validationAlert !== null} title={validationAlert?.title ?? ""} message={validationAlert?.message ?? ""} confirmLabel="Retry" cancelLabel="Cancel" tone="primary" onCancel={() => { setValidationAlert(null); setEditing(null); focusGrid(); }} onConfirm={() => { setValidationAlert(null); requestAnimationFrame(() => editInputRef.current?.select()); }} />
       {dialog?.kind === "symbol" && <SymbolDialog onInsert={insertSymbol} onCancel={closeDialog} />}
       {dialog?.kind === "zoom" && <ZoomDialog value={zoom} onFitSelection={zoomToSelection} onOk={(value) => { setSheet((s) => ({ ...s, zoom: value })); closeDialog(); }} onCancel={closeDialog} />}
       {dialog?.kind === "input" && dialog.purpose === "rowHeight" && <InputDialog title="Row Height" label="Row height:" numeric min={0} max={409} initial={String(sheet.rowHeights?.[String(selection.r1)] ?? 15)} onOk={(value) => applyInput("rowHeight", value)} onCancel={closeDialog} />}
@@ -1262,7 +1569,7 @@ function MenuButton({ id, menu, setMenu, label, icon, children, disabled, big, o
     </span>
   );
 }
-function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, noneLabel, disabled }: { id: string; label: string; swatch: string; icon: React.ReactNode; menu: string | null; setMenu: (value: string | null) => void; onApply: () => void; onPick: (hex: string | null) => void; noneLabel: string; disabled?: boolean }) {
+function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, noneLabel, disabled, onMore }: { id: string; label: string; swatch: string; icon: React.ReactNode; menu: string | null; setMenu: (value: string | null) => void; onApply: () => void; onPick: (hex: string | null) => void; noneLabel: string; disabled?: boolean; onMore?: () => void }) {
   const open = menu === id;
   return (
     <span data-xl-menu className="relative flex">
@@ -1275,6 +1582,7 @@ function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, n
           <div className="mt-1 grid grid-cols-10 gap-0.5">{THEME_COLORS.flat().map((hex, index) => <button key={`${hex}-${index}`} type="button" role="menuitem" aria-label={`#${hex}`} title={`#${hex}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
           <p className="mt-2 text-[11px] font-semibold text-slate-500">Standard Colors</p>
           <div className="mt-1 grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
+          {onMore && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { setMenu(null); onMore(); }} className="mt-2 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">More Colors...</button>}
         </div>
       )}
     </span>
@@ -1335,6 +1643,12 @@ function ChartIcon({ type, small }: { type: ChartType; small?: boolean }) {
     : type === "bar" ? <>{[[5, 16], [12, 22], [19, 12]].map(([y, w]) => <rect key={y} x={3} y={y} width={w} height={5} fill="#5b9bd5" />)}<path d="M3 3 V27" stroke="#888" /></>
     : <>{[[4, 14], [11, 8], [18, 18]].map(([x, h]) => <rect key={x} x={x} y={26 - h} width={5} height={h} fill="#5b9bd5" />)}{[[7, 10], [14, 16], [21, 6]].map(([x, h]) => <rect key={x} x={x} y={26 - h} width={3} height={h} fill="#ed7d31" />)}<path d="M3 26 H28" stroke="#888" /></>;
   return <svg aria-hidden width={s} height={s} viewBox="0 0 30 30" className="shrink-0">{body}</svg>;
+}
+// Icon Sets: Excel's coloured arrows and traffic lights.
+function ConditionalIcon({ icon }: { icon: string }) {
+  if (icon.startsWith("●")) { const color = icon.endsWith("g") ? "#63BE7B" : icon.endsWith("y") ? "#FFC000" : "#F8696B"; return <span aria-hidden className="mr-1 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ background: color }} />; }
+  const color = icon === "↑" ? "#63BE7B" : icon === "→" ? "#FFC000" : "#F8696B";
+  return <span aria-hidden className="mr-1 font-bold" style={{ color }}>{icon}</span>;
 }
 function MenuHeading({ children }: { children: React.ReactNode }) {
   return <div className="bg-[#eeeeee] px-3 py-0.5 text-[11px] font-semibold text-[#444]">{children}</div>;

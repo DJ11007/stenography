@@ -25,7 +25,7 @@ test("rejects an unsafe formula string but accepts a bounded, safe one", () => {
 
 test("rejects an invalid color, number format, or alignment", () => {
   assert.throws(() => validateExcelDocument(doc({ cells: { A1: cell({ fillColor: "not-a-color" }) } })));
-  assert.throws(() => validateExcelDocument(doc({ cells: { A1: cell({ numberFormat: "Scientific" }) } })));
+  assert.throws(() => validateExcelDocument(doc({ cells: { A1: cell({ numberFormat: "Engineering" }) } })));
   assert.throws(() => validateExcelDocument(doc({ cells: { A1: cell({ align: "justify" }) } })));
 });
 

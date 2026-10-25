@@ -1,12 +1,25 @@
 "use client";
 import { useState } from "react";
-import type { SheetCell } from "@/lib/excel-document";
-import type { BorderStyle } from "@/lib/excel-sheet-model";
+import { CURRENCIES, type CurrencySymbol, type SheetCell, type UnderlineStyle } from "@/lib/excel-document";
+import { formatCellValue, type BorderStyle } from "@/lib/excel-sheet-model";
 
 // Excel 2013's Format Cells dialog (Ctrl+1, right-click > Format Cells..., the ↘ launchers of the Font,
 // Alignment and Number groups): Number, Alignment, Font, Border, Fill and Protection tabs, applied with OK.
 export type FormatCellsTab = "Number" | "Alignment" | "Font" | "Border" | "Fill" | "Protection";
 export type FormatCellsResult = { patch: Partial<SheetCell>; border: BorderStyle | null; merge: boolean | null };
+const CATEGORIES: [SheetCell["numberFormat"], string, string][] = [
+  ["General", "General", "General format cells have no specific number format."],
+  ["Number", "Number", "Number is used for general display of numbers."],
+  ["Currency", "Currency", "Currency formats are used for general monetary values."],
+  ["Accounting", "Accounting", "Accounting formats line up the currency symbols and decimal points in a column."],
+  ["ShortDate", "Date", "Date formats display date and time serial numbers as date values."],
+  ["Time", "Time", "Time formats display date and time serial numbers as time values."],
+  ["Percentage", "Percentage", "Percentage formats multiply the cell value by 100 and display the result with a percent symbol."],
+  ["Fraction", "Fraction", "Fraction formats show the number as a fraction (up to one digit)."],
+  ["Scientific", "Scientific", "Scientific formats show the number in exponential notation."],
+  ["Text", "Text", "Text format cells are treated as text even when a number is in the cell."],
+];
+const UNDERLINES: [string, string][] = [["None", "None"], ["single", "Single"], ["double", "Double"], ["singleAccounting", "Single Accounting"], ["doubleAccounting", "Double Accounting"]];
 
 const FONTS = ["Calibri Light (Headings)", "Calibri (Body)", "Agency FB", "Algerian", "Arial", "Arial Black", "Arial Narrow", "Cambria", "Comic Sans MS", "Courier New", "Georgia", "Kruti Dev 010", "Mangal", "Segoe UI", "Tahoma", "Times New Roman", "Trebuchet MS", "Verdana"];
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
@@ -16,7 +29,7 @@ const listFont = (font: string) => (font === "Calibri (Body)" ? "Calibri" : font
 
 export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: { cell: SheetCell; merged: boolean; initialTab: FormatCellsTab; onOk: (result: FormatCellsResult) => void; onCancel: () => void }) {
   const [tab, setTab] = useState<FormatCellsTab>(initialTab);
-  const [numberFormat, setNumberFormat] = useState<SheetCell["numberFormat"]>(cell.numberFormat ?? "General");
+  const [numberFormat, setNumberFormat] = useState<SheetCell["numberFormat"]>(cell.numberFormat === "LongDate" ? "ShortDate" : cell.numberFormat ?? "General");
   const [decimals, setDecimals] = useState<number>(cell.decimals ?? 2);
   const [horizontal, setHorizontal] = useState<string>(cell.align ?? "general");
   const [vertical, setVertical] = useState<string>(cell.vAlign ?? "bottom");
@@ -27,7 +40,14 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
   const [font, setFont] = useState(fontName(cell.fontFamily));
   const [style, setStyle] = useState(cell.bold && cell.italic ? "Bold Italic" : cell.bold ? "Bold" : cell.italic ? "Italic" : "Regular");
   const [size, setSize] = useState(String(cell.fontSize ?? 11));
-  const [underline, setUnderline] = useState(cell.underline ? "Single" : "None");
+  const [underline, setUnderline] = useState<string>(cell.underline ? cell.underlineStyle ?? "single" : "None");
+  const [vertAlign, setVertAlign] = useState<SheetCell["vertAlign"]>(cell.vertAlign ?? null);
+  const [shrink, setShrink] = useState(Boolean(cell.shrink));
+  const [currency, setCurrency] = useState<CurrencySymbol>(cell.currency ?? "₹");
+  const [dateKind, setDateKind] = useState<"ShortDate" | "LongDate">(cell.numberFormat === "LongDate" ? "LongDate" : "ShortDate");
+  const [locked, setLocked] = useState(cell.locked !== false);
+  const [hiddenFormula, setHiddenFormula] = useState(Boolean(cell.hiddenFormula));
+  const [lineStyle, setLineStyle] = useState<"thin" | "thick" | "double">("thin");
   const [color, setColor] = useState<string | null>(cell.fontColor ?? null);
   const [strike, setStrike] = useState(Boolean(cell.strike));
   const [border, setBorder] = useState<BorderStyle | null>(null);
@@ -37,17 +57,19 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
     const sizeNumber = Number(size);
     onOk({
       patch: {
-        numberFormat, decimals: numberFormat === "General" ? null : decimals,
+        numberFormat: numberFormat === "ShortDate" ? dateKind : numberFormat, decimals: ["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) ? null : decimals,
+        currency: numberFormat === "Currency" || numberFormat === "Accounting" ? (currency === "₹" ? null : currency) : null,
+        shrink: shrink || null, vertAlign, locked: locked ? null : false, hiddenFormula: hiddenFormula || null,
         align: horizontal === "general" ? null : (horizontal as SheetCell["align"]), vAlign: vertical === "bottom" ? null : (vertical as SheetCell["vAlign"]),
         indent: indent || null, wrap: wrap || null, rotate: rotate || null,
         fontFamily: font === "Calibri" ? null : font, bold: style.includes("Bold"), italic: style.includes("Italic"),
         fontSize: Number.isFinite(sizeNumber) && sizeNumber >= 1 && sizeNumber <= 409 && sizeNumber !== 11 ? sizeNumber : null,
-        underline: underline !== "None", fontColor: color, strike: strike || null, fillColor: fill,
+        underline: underline !== "None", underlineStyle: underline === "None" || underline === "single" ? null : (underline as UnderlineStyle), fontColor: color, strike: strike || null, fillColor: fill,
       },
-      border, merge: merge === merged ? null : merge,
+      border: border === "bottom" && lineStyle === "double" ? "bottomDouble" : border === "bottom" && lineStyle === "thick" ? "thickBottom" : border === "outside" && lineStyle === "thick" ? "thickBox" : border, merge: merge === merged ? null : merge,
     });
   };
-  const previewStyle = { fontFamily: font, fontWeight: style.includes("Bold") ? 700 : 400, fontStyle: style.includes("Italic") ? "italic" : "normal", textDecoration: [underline !== "None" && "underline", strike && "line-through"].filter(Boolean).join(" ") || undefined, color: color ? `#${color}` : undefined, fontSize: `${Math.min(28, Math.max(8, Number(size) || 11)) * 1.2}px` };
+  const previewStyle = { fontFamily: font, fontWeight: style.includes("Bold") ? 700 : 400, fontStyle: style.includes("Italic") ? "italic" : "normal", textDecoration: [underline !== "None" && "underline", strike && "line-through"].filter(Boolean).join(" ") || undefined, textDecorationStyle: underline.startsWith("double") ? ("double" as const) : undefined, verticalAlign: vertAlign === "superscript" ? "super" : vertAlign === "subscript" ? "sub" : undefined, color: color ? `#${color}` : undefined, fontSize: `${Math.min(28, Math.max(8, Number(size) || 11)) * 1.2}px` };
 
   return (
     <div role="presentation" className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/30 p-4" onMouseDown={onCancel}>
@@ -55,21 +77,23 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
         <div className="flex items-center justify-between bg-white px-3 py-1.5"><span>Format Cells</span><span className="flex gap-3"><span aria-hidden className="text-slate-400">?</span><button type="button" onClick={onCancel} aria-label="Close">✕</button></span></div>
         <div role="tablist" className="flex gap-0.5 px-2 pt-2">
           {(["Number", "Alignment", "Font", "Border", "Fill", "Protection"] as FormatCellsTab[]).map((name) => (
-            <button key={name} type="button" role="tab" aria-selected={tab === name} disabled={name === "Protection"} onClick={() => setTab(name)} className={`border border-b-0 px-3 py-1 ${tab === name ? "border-slate-400 bg-white" : "border-slate-300 bg-[#f0f0f0] text-slate-700"} disabled:text-slate-400`}>{name}</button>
+            <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => setTab(name)} className={`border border-b-0 px-3 py-1 ${tab === name ? "border-slate-400 bg-white" : "border-slate-300 bg-[#f0f0f0] text-slate-700"} disabled:text-slate-400`}>{name}</button>
           ))}
         </div>
         <div className="mx-2 min-h-[330px] border border-slate-400 bg-white p-3">
           {tab === "Number" && (
             <div className="grid grid-cols-[150px_1fr] gap-3">
               <label className="grid gap-1">Category:
-                <select size={6} aria-label="Category" value={numberFormat} onChange={(event) => setNumberFormat(event.target.value as SheetCell["numberFormat"])} className="h-40 border border-slate-400">
-                  {(["General", "Number", "Currency", "Percentage"] as const).map((value) => <option key={value} value={value}>{value}</option>)}
+                <select size={10} aria-label="Category" value={numberFormat} onChange={(event) => setNumberFormat(event.target.value as SheetCell["numberFormat"])} className="h-48 border border-slate-400">
+                  {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </label>
               <div className="grid content-start gap-2">
-                <fieldset className="border border-slate-300 p-2"><legend className="px-1">Sample</legend><span>{numberFormat === "Currency" ? `₹1,234.${"0".repeat(decimals)}`.replace(/\.$/, "") : numberFormat === "Percentage" ? `12.${"0".repeat(decimals)}%`.replace(/\.%$/, "%") : numberFormat === "Number" ? `1,234.${"0".repeat(decimals)}`.replace(/\.$/, "") : "1234"}</span></fieldset>
-                {numberFormat !== "General" && <label className="flex items-center gap-2">Decimal places: <input type="number" aria-label="Decimal places" min={0} max={10} value={decimals} onChange={(event) => setDecimals(Math.min(10, Math.max(0, Number(event.target.value) || 0)))} className="w-14 border border-slate-400 px-1" /></label>}
-                <p className="text-slate-600">{numberFormat === "General" ? "General format cells have no specific number format." : numberFormat === "Number" ? "Number is used for general display of numbers." : numberFormat === "Currency" ? "Currency formats are used for general monetary values." : "Percentage formats multiply the cell value by 100 and display the result with a percent symbol."}</p>
+                <fieldset className="border border-slate-300 p-2"><legend className="px-1">Sample</legend><span>{typeof cell.value === "number" ? formatCellValue(cell.value, numberFormat === "ShortDate" ? dateKind : numberFormat, ["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) ? null : decimals, currency) : formatCellValue(numberFormat === "ShortDate" || numberFormat === "Time" ? 46320.5 : 1234.5, numberFormat === "ShortDate" ? dateKind : numberFormat, ["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) ? null : decimals, currency)}</span></fieldset>
+                {(numberFormat === "Currency" || numberFormat === "Accounting") && <label className="flex items-center gap-2">Symbol: <select aria-label="Symbol" value={currency} onChange={(event) => setCurrency(event.target.value as CurrencySymbol)} className="border border-slate-400">{CURRENCIES.map(([symbol, label]) => <option key={symbol} value={symbol}>{label}</option>)}</select></label>}
+                {numberFormat === "ShortDate" && <label className="grid gap-1">Type:<select size={2} aria-label="Date type" value={dateKind} onChange={(event) => setDateKind(event.target.value as typeof dateKind)} className="border border-slate-400"><option value="ShortDate">25-10-2026</option><option value="LongDate">Sunday, 25 October, 2026</option></select></label>}
+                {!["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) && <label className="flex items-center gap-2">Decimal places: <input type="number" aria-label="Decimal places" min={0} max={10} value={decimals} onChange={(event) => setDecimals(Math.min(10, Math.max(0, Number(event.target.value) || 0)))} className="w-14 border border-slate-400 px-1" /></label>}
+                <p className="text-slate-600">{CATEGORIES.find(([value]) => value === numberFormat)?.[2]}</p>
               </div>
             </div>
           )}
@@ -83,7 +107,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
                 </fieldset>
                 <fieldset className="grid gap-1 border-t border-slate-300 pt-1"><legend className="pr-2">Text control</legend>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={wrap} onChange={(event) => setWrap(event.target.checked)} />Wrap text</label>
-                  <label className="flex items-center gap-2 text-slate-400"><input type="checkbox" disabled />Shrink to fit</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={shrink} onChange={(event) => setShrink(event.target.checked)} />Shrink to fit</label>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={merge} onChange={(event) => setMerge(event.target.checked)} />Merge cells</label>
                 </fieldset>
               </div>
@@ -101,14 +125,14 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
                 <label className="grid gap-1">Size:<input aria-label="Size" value={size} onChange={(event) => setSize(event.target.value)} className="border border-slate-400 px-1" /><select size={6} aria-label="Size list" value={size} onChange={(event) => setSize(event.target.value)} className="h-24 border border-slate-400">{SIZES.map((value) => <option key={value} value={String(value)}>{value}</option>)}</select></label>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-1">Underline:<select aria-label="Underline" value={underline} onChange={(event) => setUnderline(event.target.value)} className="border border-slate-400"><option>None</option><option>Single</option></select></label>
+                <label className="grid gap-1">Underline:<select aria-label="Underline" value={underline} onChange={(event) => setUnderline(event.target.value)} className="border border-slate-400">{UNDERLINES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 <label className="grid gap-1">Color:<select aria-label="Color" value={color ?? ""} onChange={(event) => setColor(event.target.value || null)} className="border border-slate-400"><option value="">Automatic</option>{COLORS.map(([hex, name]) => <option key={hex} value={hex}>{name}</option>)}</select></label>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <fieldset className="grid gap-1 border border-slate-300 p-2"><legend className="px-1">Effects</legend>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={strike} onChange={(event) => setStrike(event.target.checked)} />Strikethrough</label>
-                  <label className="flex items-center gap-2 text-slate-400"><input type="checkbox" disabled />Superscript</label>
-                  <label className="flex items-center gap-2 text-slate-400"><input type="checkbox" disabled />Subscript</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={vertAlign === "superscript"} onChange={(event) => setVertAlign(event.target.checked ? "superscript" : null)} />Superscript</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={vertAlign === "subscript"} onChange={(event) => setVertAlign(event.target.checked ? "subscript" : null)} />Subscript</label>
                 </fieldset>
                 <fieldset className="border border-slate-300 p-2"><legend className="px-1">Preview</legend><div className="grid h-14 place-items-center border border-slate-300 bg-white" style={previewStyle}>AaBbCcYyZz</div></fieldset>
               </div>
@@ -116,6 +140,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
           )}
           {tab === "Border" && (
             <div className="grid gap-3">
+              <div className="flex items-center gap-2"><span className="font-semibold">Line Style:</span>{(["thin", "thick", "double"] as const).map((kind) => <button key={kind} type="button" aria-pressed={lineStyle === kind} onClick={() => setLineStyle(kind)} className={`w-16 border px-1 py-1.5 ${lineStyle === kind ? "border-[#217346] bg-[#d5ead9]" : "border-slate-300"}`}><span className="block w-full" style={{ borderTop: kind === "double" ? "3px double #000" : kind === "thick" ? "2px solid #000" : "1px solid #000" }} /></button>)}</div>
               <p className="font-semibold">Presets</p>
               <div className="flex gap-4">
                 {([["none", "None"], ["outside", "Outline"], ["all", "Inside"]] as [BorderStyle, string][]).map(([value, label]) => (
@@ -129,7 +154,14 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
               <div className="flex flex-wrap gap-2">
                 {([["top", "Top"], ["bottom", "Bottom"], ["left", "Left"], ["right", "Right"], ["thickBox", "Thick Box"]] as [BorderStyle, string][]).map(([value, label]) => <button key={value} type="button" aria-pressed={border === value} onClick={() => setBorder(value)} className={`border px-2 py-1 ${border === value ? "border-[#217346] bg-[#d5ead9]" : "border-slate-300 bg-white"}`}>{label}</button>)}
               </div>
-              <p className="text-slate-600">The selected border style can be applied by clicking the presets or the buttons above.</p>
+              <p className="text-slate-600">Pick a line style, then a preset or a side. A double or thick line applies to the bottom border and the outline.</p>
+            </div>
+          )}
+          {tab === "Protection" && (
+            <div className="grid gap-2">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={locked} onChange={(event) => setLocked(event.target.checked)} />Locked</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hiddenFormula} onChange={(event) => setHiddenFormula(event.target.checked)} />Hidden</label>
+              <p className="text-slate-600">Locking cells or hiding formulas has no effect until you protect the worksheet (Review tab, Changes group, Protect Sheet button).</p>
             </div>
           )}
           {tab === "Fill" && (
