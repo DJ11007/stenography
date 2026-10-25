@@ -15,6 +15,8 @@ export type LiveTest = {
   live_ends_at: string | null;
   results_publish_at: string | null;
   results_delay_minutes: number | null;
+  // A scheduled test whose results unlock this many minutes after each student submits (efficiency tests).
+  results_after_submit_minutes?: number | null;
   is_live: boolean;
   // Real reported request: group live tests by Typing / Stenography /
   // Efficiency instead of mixing them together with no visual distinction
@@ -197,7 +199,7 @@ function LiveTestCard({ test, state }: { test: LiveTest; state: LiveTestState })
             ) : (<>
               <div><dt className="text-slate-400">Starts</dt><dd className="font-bold text-slate-700">{formatIST(test.live_starts_at) || "—"}</dd></div>
               <div><dt className="text-slate-400">Ends</dt><dd className="font-bold text-slate-700">{formatIST(test.live_ends_at) || "—"}</dd></div>
-              <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{formatIST(test.results_publish_at) || "—"}</dd></div>
+              <div className="col-span-2"><dt className="text-slate-400">Results</dt><dd className="font-bold text-slate-700">{test.results_after_submit_minutes != null ? `${test.results_after_submit_minutes} minutes after you submit` : formatIST(test.results_publish_at) || "—"}</dd></div>
             </>)}
             {test.description && <div className="col-span-2"><dt className="text-slate-400">Note</dt><dd className="text-slate-600">{test.description}</dd></div>}
           </dl>

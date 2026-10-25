@@ -11,7 +11,7 @@ function logRpcFailure(label: string, error: { message: string; code: string; de
 
 export type PublicLiveResult = { student_name: string; test_title: string; language: string; net_wpm: number; accuracy: number; submitted_at: string };
 export type LiveTestTopRanker = { student_id: string; student_name: string; net_wpm: number };
-export type LiveEfficiencyTest = { id: string; subject: "word" | "excel"; slug: string; title: string; language: string; is_live: boolean; live_starts_at: string | null; live_ends_at: string | null; results_publish_at: string | null; duration_options: number[] };
+export type LiveEfficiencyTest = { id: string; subject: "word" | "excel"; slug: string; title: string; language: string; is_live: boolean; live_starts_at: string | null; live_ends_at: string | null; results_publish_at: string | null; duration_options: number[]; results_delay_minutes?: number | null };
 
 export async function getPublishedLiveResults(limit = 30): Promise<PublicLiveResult[]> {
   const supabase = await createClient();

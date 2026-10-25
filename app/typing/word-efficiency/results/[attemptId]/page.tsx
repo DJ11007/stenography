@@ -6,10 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { PrintResultButton } from "./print-result-button";
 import { BackButton } from "../../../../_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
+import { formatIST } from "@/lib/format-datetime";
 
 export const metadata:Metadata={title:"Word Efficiency Result"};
 type ResultQuestion={number:number;instruction:string|null;section:string|null;maximumMarks:number;awardedMarks:number|null;partScores?:{label:string;awarded:number;maximum:number}[]|null;feedback:string|null;gradingStatus:string};
-type AttemptResult={title:string;language:string;status:"pending"|"published";submittedAt:string|null;evaluatedAt:string|null;maximumMarks:number;marksObtained:number|null;percentage:number|null;passingMarks:number|null;passed:boolean|null;overallFeedback:string|null;questions:ResultQuestion[]};
+type AttemptResult={title:string;language:string;status:"pending"|"published";submittedAt:string|null;resultsAt?:string|null;evaluatedAt:string|null;maximumMarks:number;marksObtained:number|null;percentage:number|null;passingMarks:number|null;passed:boolean|null;overallFeedback:string|null;questions:ResultQuestion[]};
 
 export default async function WordEfficiencyResultPage({params}:{params:Promise<{attemptId:string}>}){
  await requireStudent();const{attemptId}=await params;const supabase=await createClient();const{data,error}=await supabase.rpc("get_word_efficiency_attempt_result",{p_attempt_id:attemptId});if(error||!data)notFound();const result=data as AttemptResult;const catalogue=`/typing/word-efficiency/${result.language.toLowerCase()==="hindi"?"hindi":"english"}`;
@@ -22,7 +23,7 @@ function Published({result,catalogue,attemptId}:{result:AttemptResult;catalogue:
  const allGraded=result.questions.every(q=>q.awardedMarks!=null);
  const grandAwardedTotal=allGraded?result.questions.reduce((sum,q)=>sum+(q.awardedMarks??0),0):null;
  return <div>
-  {result.status!=="published"&&<p role="status" className="mb-5 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">Submitted — evaluation pending. Your document is safely submitted and cannot be edited again. Marks below show "Not graded" until your teacher publishes the evaluation.</p>}
+  {result.status!=="published"&&<p role="status" className="mb-5 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">{result.resultsAt?`Submitted. Your document is safely submitted and cannot be edited again. Your result will be shown at ${formatIST(result.resultsAt)} — open this page again then.`:"Submitted — evaluation pending. Your document is safely submitted and cannot be edited again. Marks below show \"Not graded\" until your teacher publishes the evaluation."}</p>}
   <h2 className="text-center text-xl font-black uppercase tracking-wide text-slate-500">Result Summary</h2>
   <table className="mx-auto mt-4 w-full max-w-md border-collapse overflow-hidden rounded-xl border text-sm shadow-sm"><tbody>
    <tr className="border-b"><td className="bg-slate-50 p-3 font-bold">Maximum Marks</td><td className="p-3 font-black">{result.maximumMarks}</td></tr>
