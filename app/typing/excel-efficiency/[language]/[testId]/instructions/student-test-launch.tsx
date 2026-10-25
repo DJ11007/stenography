@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { prepareExcelAttempt } from "../../../actions";
 
-export function StudentTestLaunch({ testId, language, duration, live = false, hasPdf = false, serverError }: { testId: string; language: string; duration: number; live?: boolean; hasPdf?: boolean; serverError?: string }) {
+export function StudentTestLaunch({ testId, language, duration, live = false, hasPdf = false, onscreen = true, studentToggle = true, serverError }: { testId: string; language: string; duration: number; live?: boolean; hasPdf?: boolean; onscreen?: boolean; studentToggle?: boolean; serverError?: string }) {
   const [accepted, setAccepted] = useState(false);
   const [showQuestions, setShowQuestions] = useState(true);
   return (
@@ -12,19 +12,27 @@ export function StudentTestLaunch({ testId, language, duration, live = false, ha
       {live && <input type="hidden" name="live" value="1" />}
       <input type="hidden" name="language" value={language} />
       <h2 className="font-black">Question delivery</h2>
-      <div className="mt-3 rounded-xl bg-white p-4">
-        <strong className="block">On-screen questions</strong>
-        <span className="mt-1 block text-xs leading-5 text-slate-600">Questions and navigation will be available in the spreadsheet workspace.</span>
-        <label className="mt-3 flex gap-2 text-sm font-bold">
-          <input type="checkbox" name="showQuestions" checked={showQuestions} onChange={(event) => setShowQuestions(event.target.checked)} />
-          Show questions inside the test workspace
-        </label>
-        {!showQuestions && <p className="mt-2 text-xs text-amber-700">The panel starts hidden; use Show Questions in the workspace to reopen it.</p>}
-      </div>
+      {onscreen && (
+        <div className="mt-3 rounded-xl bg-white p-4">
+          <strong className="block">On-screen questions</strong>
+          <span className="mt-1 block text-xs leading-5 text-slate-600">Questions and navigation will be available in the spreadsheet workspace.</span>
+          {studentToggle ? (
+            <>
+              <label className="mt-3 flex gap-2 text-sm font-bold">
+                <input type="checkbox" name="showQuestions" checked={showQuestions} onChange={(event) => setShowQuestions(event.target.checked)} />
+                Show questions inside the test workspace
+              </label>
+              {!showQuestions && <p className="mt-2 text-xs text-amber-700">The panel starts hidden; use Show Questions in the workspace to reopen it.</p>}
+            </>
+          ) : (
+            <p className="mt-3 text-xs font-bold text-slate-700">The questions stay on screen for the whole test.</p>
+          )}
+        </div>
+      )}
       {hasPdf && (
         <div className="mt-3 rounded-xl bg-white p-4">
           <h3 className="font-black">Private question paper PDF</h3>
-          <p className="mt-1 text-xs text-slate-600">This test includes both the downloadable PDF and on-screen questions.</p>
+          <p className="mt-1 text-xs text-slate-600">{onscreen ? "This test includes both the downloadable PDF and on-screen questions." : "The questions are only in this PDF: download it before you start."}</p>
           <a href={`/typing/excel-efficiency/${language}/${testId}/question-paper`} className="mt-4 block w-full rounded-xl bg-violet-700 px-5 py-3 text-center font-black text-white">Download Question Paper PDF</a>
           <p className="mt-2 text-xs text-slate-500">Downloading the question paper does not start the test or the timer.</p>
         </div>

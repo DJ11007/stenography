@@ -7,10 +7,14 @@ import { QuestionContent } from "@/components/efficiency/question-content";
 import { ConfirmDialog, FullscreenButton, formatClock, useExamCountdown } from "@/components/efficiency/exam-chrome";
 
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
-type Snapshot = { title: string; language: string; instructions_markdown: string; duration_seconds: number; question_count: number; maximum_marks: number; questions: Question[]; show_questions?: boolean };
+type Snapshot = { title: string; language: string; instructions_markdown: string; duration_seconds: number; question_count: number; maximum_marks: number; questions: Question[]; show_questions?: boolean; delivery_onscreen?: boolean; question_toggle?: boolean };
 
 export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, original, initialDocument }: { attemptId: string; snapshot: Snapshot; status: string; remainingSeconds: number; original: ExcelDocument; initialDocument?: ExcelDocument | null }) {
-  const [showQuestions, setShowQuestions] = useState(Boolean(snapshot.show_questions));
+  // The admin decides (migration 202610252100): no on-screen questions (PDF only), or questions the student
+  // may not hide. Attempts started before these settings keep the old behaviour (toggle allowed).
+  const onscreen = snapshot.delivery_onscreen !== false;
+  const canToggle = onscreen && snapshot.question_toggle !== false;
+  const [showQuestions, setShowQuestions] = useState(onscreen && (Boolean(snapshot.show_questions) || !canToggle));
   const { remaining, expired } = useExamCountdown(remainingSeconds);
   const router = useRouter();
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -26,7 +30,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
         </div>
         <div className="flex items-center gap-3">
           <FullscreenButton />
-          <button type="button" onClick={() => setShowQuestions((value) => !value)} className="rounded-lg bg-white/10 px-3 py-2 text-sm font-black">{showQuestions ? "Hide Questions" : "Show Questions"}</button>
+          {canToggle && <button type="button" onClick={() => setShowQuestions((value) => !value)} className="rounded-lg bg-white/10 px-3 py-2 text-sm font-black">{showQuestions ? "Hide Questions" : "Show Questions"}</button>}
           <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">{snapshot.maximum_marks} total marks</span>
           <span aria-live="polite" className="rounded-xl bg-white/10 px-4 py-2 font-mono text-xl font-black">{formatClock(remaining)}</span>
           <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-black">{submitted ? "Submitted" : "Active"}</span>

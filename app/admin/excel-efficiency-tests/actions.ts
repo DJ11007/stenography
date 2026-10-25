@@ -86,6 +86,7 @@ export async function saveExcelEfficiencyTest(form: FormData) {
     if (uploadError) redirect(`${errorBase}${encodeURIComponent(`PDF upload failed: ${uploadError.message}`)}`);
     pdfMeta = { pdf_path: path, pdf_file_name: fileName, pdf_size_bytes: bytes.byteLength, pdf_uploaded_at: new Date().toISOString() };
   }
+  if (form.get("deliveryOnscreen") !== "on" && !deliveryPdf) redirect(`${errorBase}${encodeURIComponent("Students need the questions: keep On-screen questions, or make the question paper PDF downloadable.")}`);
   if (deliveryPdf && !pdfMeta.pdf_path) redirect(`${errorBase}${encodeURIComponent("Choose the question paper PDF, or untick \"Students can download the question paper PDF\".")}`);
   const databaseQuestions = questions.map(({ gradingRule: _gradingRule, ...question }) => ({ number: question.question_number, instruction: question.instruction, marks: question.marks, section: question.section, display_order: question.display_order, is_visible: question.is_visible }));
   const payload = { title: draft.title, slug: safeExcelSlug(value(form, "slug") || draft.title), language, description: value(form, "description"), instructions_markdown: draft.instructions, question_count: draft.questionCount, maximum_marks: draft.maximumMarks, duration_options: durations, passing_marks: passing ?? "", questions: databaseQuestions, publish: value(form, "intent") === "publish", working_matter_snapshot: workingMatter };
@@ -103,6 +104,9 @@ export async function saveExcelEfficiencyTest(form: FormData) {
   }
   const { error: pdfError } = await supabase.rpc("set_excel_efficiency_question_paper", { p_test_id: savedId, p_delivery_pdf: deliveryPdf, p_pdf_path: pdfMeta.pdf_path, p_pdf_file_name: pdfMeta.pdf_file_name, p_pdf_size_bytes: pdfMeta.pdf_size_bytes, p_pdf_uploaded_at: pdfMeta.pdf_uploaded_at });
   if (pdfError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but the question paper PDF failed: ${pdfError.message}`)}`);
+  // On-screen questions and whether the student may hide/show them (migration 202610252100).
+  const { error: displayError } = await supabase.rpc("set_excel_efficiency_question_display", { p_test_id: savedId, p_onscreen: form.get("deliveryOnscreen") === "on", p_student_toggle: form.get("studentQuestionToggle") === "on" });
+  if (displayError) redirect(`/admin/excel-efficiency-tests?edit=${savedId}&error=${encodeURIComponent(`Test version saved, but the question delivery failed: ${displayError.message}`)}`);
   const isLive = form.get("isLive") === "on";
   const { error: scheduleError } = await supabase.rpc("set_excel_efficiency_live_schedule", { p_test_id: savedId, p_is_live: isLive, p_starts_at: isLive ? toIsoOrNull(value(form, "startsAt")) : null, p_ends_at: isLive ? toIsoOrNull(value(form, "endsAt")) : null, p_results_publish_at: isLive ? toIsoOrNull(value(form, "resultsPublishAt")) : null });
   if (scheduleError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but live schedule failed: ${scheduleError.message}`)}`);

@@ -70,7 +70,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                 <Field label="Allowed durations in minutes (comma separated)"><input className="input" name="durationOptions" defaultValue={current?.duration_options?.map((value) => value / 60).join(", ") ?? "20"} required /></Field>
               </div>
               <WorkingMatterXlsxFields initialSnapshot={current?.working_matter_snapshot ?? null} />
-              <DeliveryPdfFields subject="excel" defaultOnscreen defaultPdf={Boolean(current?.delivery_pdf)} existingPdf={editing && current?.pdf_path ? { testId: editing.id, fileName: current.pdf_file_name ?? "question-paper.pdf", sizeBytes: current.pdf_size_bytes ?? null, pageCount: null, uploadedAt: current.pdf_uploaded_at ?? null } : null} />
+              <DeliveryPdfFields subject="excel" defaultOnscreen={(current as { delivery_onscreen?: boolean } | undefined)?.delivery_onscreen !== false} defaultStudentToggle={(current as { student_question_toggle?: boolean } | undefined)?.student_question_toggle !== false} defaultPdf={Boolean(current?.delivery_pdf)} existingPdf={editing && current?.pdf_path ? { testId: editing.id, fileName: current.pdf_file_name ?? "question-paper.pdf", sizeBytes: current.pdf_size_bytes ?? null, pageCount: null, uploadedAt: current.pdf_uploaded_at ?? null } : null} />
               <QuestionEditor initialQuestions={initialQuestions} />
               <fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                 <label className="flex items-center gap-2 font-black text-blue-950">
@@ -159,7 +159,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                                 <span className="transition-transform group-open:rotate-180" aria-hidden>▾</span> More
                               </summary>
                               <div className="mt-3 border-t pt-3">
-                                <p className="text-xs text-slate-500">{test.language} · Version {test.current_version_number} · {version?.delivery_pdf ? "On-screen + PDF" : "On-screen"} · updated {formatIST(test.updated_at)}</p>
+                                <p className="text-xs text-slate-500">{test.language} · Version {test.current_version_number} · {(version as { delivery_onscreen?: boolean } | undefined)?.delivery_onscreen === false ? "PDF only" : version?.delivery_pdf ? "On-screen + PDF" : "On-screen"} · updated {formatIST(test.updated_at)}</p>
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                   <form action={duplicateExcelEfficiencyTest}><input type="hidden" name="testId" value={test.id} /><button className="w-full rounded-lg bg-cyan-50 px-3 py-2 text-sm font-bold text-cyan-800">Duplicate</button></form>
                                   {test.status === "archived" ? <Status id={test.id} status="unpublished" label="Restore / Unarchive" /> : test.status === "published" ? <Status id={test.id} status="unpublished" label="Unpublish" /> : <Status id={test.id} status="published" label="Publish" />}
