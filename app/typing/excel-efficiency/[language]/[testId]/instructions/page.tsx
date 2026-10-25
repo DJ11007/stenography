@@ -16,15 +16,17 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
   if (!item) notFound();
   const { test, version } = item;
   const selected = Number(query.duration);
-  // A live test runs for its set (first) duration for everyone; the choice is for practice tests.
-  const duration = !test.is_live && version.duration_options.includes(selected) ? selected : version.duration_options[0];
+  // Opened from the Live Test page (?live=1) it is the live attempt: its set (first) duration. From the Efficiency
+  // section the same test is practice, any time, with the duration choice.
+  const live = Boolean(test.is_live) && query.live === "1";
+  const duration = !live && version.duration_options.includes(selected) ? selected : version.duration_options[0];
   return (
     <main className="min-h-screen bg-slate-100">
       <TypingBrandHeader backHref={`/typing/excel-efficiency/${route.language}`} backLabel={`${language} Tests`} />
       <section className="mx-auto max-w-5xl px-4 py-10">
         <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-xl">
           <header className="bg-slate-950 p-6 text-white sm:p-8">
-            <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-300">Instructions · Timer not started</p>
+            <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-300">{live ? "Live test · one attempt · " : ""}Instructions · Timer not started</p>
             <h1 className="mt-2 text-3xl font-black">{version.title}</h1>
             <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Meta label="Language" value={language} />
@@ -46,7 +48,7 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
                 <li>The timer starts only when you press Start Test.</li>
               </ul>
             </section>
-            <StudentTestLaunch testId={test.id} language={route.language} duration={duration} serverError={query.error} />
+            <StudentTestLaunch testId={test.id} language={route.language} duration={duration} live={live} serverError={query.error} />
           </div>
         </div>
       </section>

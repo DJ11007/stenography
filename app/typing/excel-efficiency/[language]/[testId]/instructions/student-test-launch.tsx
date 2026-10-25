@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { prepareExcelAttempt } from "../../../actions";
 
-export function StudentTestLaunch({ testId, language, duration, serverError }: { testId: string; language: string; duration: number; serverError?: string }) {
+export function StudentTestLaunch({ testId, language, duration, live = false, serverError }: { testId: string; language: string; duration: number; live?: boolean; serverError?: string }) {
   const [accepted, setAccepted] = useState(false);
   const [showQuestions, setShowQuestions] = useState(true);
   return (
     <form action={prepareExcelAttempt} className="h-fit rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
       <input type="hidden" name="testId" value={testId} />
       <input type="hidden" name="duration" value={duration} />
+      {live && <input type="hidden" name="live" value="1" />}
       <input type="hidden" name="language" value={language} />
       <h2 className="font-black">Question delivery</h2>
       <div className="mt-3 rounded-xl bg-white p-4">

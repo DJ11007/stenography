@@ -10,9 +10,11 @@ export async function prepareExcelAttempt(form: FormData) {
   const testId = String(form.get("testId") ?? "");
   const duration = Number(form.get("duration"));
   const language = String(form.get("language") === "hindi" ? "hindi" : "english");
+  // Started from the Live Test page: the live attempt. Otherwise practice, even while the test is live.
+  const live = form.get("live") === "1";
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("prepare_excel_efficiency_attempt", { p_test_id: testId, p_duration_seconds: duration, p_show_questions: form.get("showQuestions") === "on" });
-  if (error || !data) redirect(`/typing/excel-efficiency/${language}/${testId}/instructions?duration=${duration}&error=${encodeURIComponent(error?.message ?? "Unable to prepare attempt")}`);
+  const { data, error } = await supabase.rpc("prepare_excel_efficiency_attempt", { p_test_id: testId, p_duration_seconds: duration, p_show_questions: form.get("showQuestions") === "on", p_live: live });
+  if (error || !data) redirect(`/typing/excel-efficiency/${language}/${testId}/instructions?duration=${duration}${live ? "&live=1" : ""}&error=${encodeURIComponent(error?.message ?? "Unable to prepare attempt")}`);
   redirect(`/typing/excel-efficiency/${language}/${testId}/workspace?attempt=${data}`);
 }
 
