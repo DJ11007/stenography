@@ -15,19 +15,21 @@ begin
  end if;
  if exists (select 1 from public.excel_efficiency_attempts where version_id = p_to_version) then raise exception 'grading rules are immutable after an attempt is prepared'; end if;
 
- create temporary table if not exists pg_temp.excel_rule_question_map (old_id uuid, new_id uuid) on commit drop;
- delete from pg_temp.excel_rule_question_map;
- insert into pg_temp.excel_rule_question_map
- select o.id, n.id from public.excel_efficiency_questions o
+ -- Questions with the same number, wording and marks in both versions (no temporary table: Supabase refuses a
+ -- DELETE without a WHERE clause, which a scratch-table reset needs).
+ delete from public.excel_efficiency_grading_rules r
+ using public.excel_efficiency_questions o, public.excel_efficiency_questions n
+ where r.version_id = p_to_version and r.question_id = n.id
+  and o.version_id = p_from_version and n.version_id = p_to_version and n.question_number = o.question_number
+  and btrim(n.instruction) = btrim(o.instruction) and n.marks = o.marks
+  and exists (select 1 from public.excel_efficiency_grading_rules x where x.question_id = o.id);
+ insert into public.excel_efficiency_grading_rules(version_id, question_id, exact_target, expected_operation, expected_value, allocated_marks, partial_marks, additional_criteria, part_label)
+ select p_to_version, n.id, r.exact_target, r.expected_operation, r.expected_value, r.allocated_marks, r.partial_marks, r.additional_criteria, r.part_label
+ from public.excel_efficiency_grading_rules r
+ join public.excel_efficiency_questions o on o.id = r.question_id
  join public.excel_efficiency_questions n on n.version_id = p_to_version and n.question_number = o.question_number
   and btrim(n.instruction) = btrim(o.instruction) and n.marks = o.marks
- where o.version_id = p_from_version and exists (select 1 from public.excel_efficiency_grading_rules r where r.question_id = o.id);
-
- delete from public.excel_efficiency_grading_rules r using pg_temp.excel_rule_question_map m where r.version_id = p_to_version and r.question_id = m.new_id;
- insert into public.excel_efficiency_grading_rules(version_id, question_id, exact_target, expected_operation, expected_value, allocated_marks, partial_marks, additional_criteria, part_label)
- select p_to_version, m.new_id, r.exact_target, r.expected_operation, r.expected_value, r.allocated_marks, r.partial_marks, r.additional_criteria, r.part_label
- from public.excel_efficiency_grading_rules r join pg_temp.excel_rule_question_map m on m.old_id = r.question_id
- where r.version_id = p_from_version;
+ where r.version_id = p_from_version and o.version_id = p_from_version;
  get diagnostics copied = row_count;
  return copied;
 end $function$;
