@@ -70,7 +70,8 @@ test("pause stops movement and input while resume restores the active position",
 });
 
 test("selected English, Hindi Unicode, and Kruti Dev fonts and language metadata remain active", () => {
-  assert.equal(workspace.match(/fontFamily: inputSystem\.fontStack/g)?.length, 2);
+  // The input system's font, or Courier New when an English student picks it (lib/typing-font-preferences.ts).
+  assert.equal(workspace.match(/fontFamily: typingFontFamily\(fontPreferences, inputSystem\.script, inputSystem\.fontStack\)/g)?.length, 2);
   // 2 in the on-screen panels (original passage, typing textarea) + 1 in the
   // Print / PDF window's own lang attribute.
   assert.equal(workspace.match(/inputSystem\.language === "Hindi" \? "hi" : "en"/g)?.length, 3);

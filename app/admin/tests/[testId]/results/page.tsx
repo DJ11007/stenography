@@ -1,3 +1,4 @@
+import { TYPING_RESULT_SUMMARY, withResultSummary } from "@/lib/typing-result-summary";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -28,7 +29,8 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
   if (!test) notFound();
   const { data: version } = test.current_version_id ? await supabase.from("test_versions").select("required_wpm,required_accuracy").eq("id", test.current_version_id).maybeSingle() : { data: null };
 
-  const { data: attempts } = await supabase.from("test_attempts").select("id,student_id,result,started_at,submitted_at").eq("test_id", testId).order("submitted_at", { ascending: false }).limit(1000);
+  const { data: attemptRows } = await supabase.from("test_attempts").select(`id,student_id,started_at,submitted_at,${TYPING_RESULT_SUMMARY}`).eq("test_id", testId).order("submitted_at", { ascending: false }).limit(1000);
+  const attempts = (attemptRows ?? []).map((row) => withResultSummary(row as unknown as Record<string, unknown>) as unknown as { id: string; student_id: string; result: unknown; started_at: string; submitted_at: string | null });
   const rows = attempts ?? [];
   const studentIds = [...new Set(rows.map((row) => row.student_id))];
   const { data: students } = studentIds.length ? await supabase.from("profiles").select("id,full_name,email").in("id", studentIds) : { data: [] };

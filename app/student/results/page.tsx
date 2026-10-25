@@ -1,3 +1,4 @@
+import { TYPING_RESULT_SUMMARY, withResultSummary } from "@/lib/typing-result-summary";
 import Link from "next/link";
 import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -10,13 +11,14 @@ type AttemptRow = { id: string; test_id: string | null; result: ResultData; star
 
 export default async function StudentResultsPage() {
   const { user } = await requireStudent(); const supabase = await createClient();
-  const primary = await supabase.from("test_attempts").select("id,test_id,result,started_at,submitted_at,is_live_attempt").eq("student_id", user.id).order("submitted_at", { ascending: false });
+  const primary = await supabase.from("test_attempts").select(`id,test_id,started_at,submitted_at,is_live_attempt,${TYPING_RESULT_SUMMARY}`).eq("student_id", user.id).order("submitted_at", { ascending: false });
   let data = primary.data;
   const error = primary.error;
-  if (error) { const fallback = await supabase.from("test_attempts").select("id,test_id,result,started_at,submitted_at").eq("student_id", user.id).order("submitted_at", { ascending: false }); data = fallback.data?.map((row) => ({ ...row, is_live_attempt: false })) ?? []; }
+  if (error) { const fallback = await supabase.from("test_attempts").select(`id,test_id,started_at,submitted_at,${TYPING_RESULT_SUMMARY}`).eq("student_id", user.id).order("submitted_at", { ascending: false }); data = (fallback.data ?? []).map((row) => ({ ...(row as unknown as Record<string, unknown>), is_live_attempt: false })) as unknown as typeof data; }
   // Built-in tests (a category's Official Pattern, own matters, ...) are saved in practice_attempts.
-  const { data: practice } = await supabase.from("practice_attempts").select("id,title,result,started_at,submitted_at").eq("student_id", user.id).order("submitted_at", { ascending: false });
-  const attempts = [...((data ?? []) as AttemptRow[]), ...(practice ?? []).map((row) => ({ ...row, test_id: null, is_live_attempt: false }) as AttemptRow)].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at)); const ids = [...new Set(attempts.flatMap((attempt) => attempt.test_id ? [attempt.test_id] : []))];
+  const { data: practiceRows } = await supabase.from("practice_attempts").select(`id,title,started_at,submitted_at,${TYPING_RESULT_SUMMARY}`).eq("student_id", user.id).order("submitted_at", { ascending: false });
+  const practice = (practiceRows ?? []).map((row) => withResultSummary(row as unknown as Record<string, unknown>));
+  const attempts = [...((data ?? []).map((row) => withResultSummary(row as unknown as Record<string, unknown>)) as unknown as AttemptRow[]), ...(practice ?? []).map((row) => ({ ...row, test_id: null, is_live_attempt: false }) as AttemptRow)].sort((a, b) => b.submitted_at.localeCompare(a.submitted_at)); const ids = [...new Set(attempts.flatMap((attempt) => attempt.test_id ? [attempt.test_id] : []))];
   const { data: tests } = ids.length ? await supabase.from("tests").select("id,title,slug").in("id", ids) : { data: [] };
   // Word / Excel efficiency tests (this page used to list typing tests only).
   const efficiency = (await studentAttemptHistory(supabase, user.id)).filter((item) => item.kind === "word" || item.kind === "excel");

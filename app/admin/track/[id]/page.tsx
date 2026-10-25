@@ -1,3 +1,4 @@
+import { TYPING_RESULT_SUMMARY, withResultSummary } from "@/lib/typing-result-summary";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -28,11 +29,12 @@ export default async function AdminTrackStudentPage({ params }: { params: Promis
   // practice_attempts and are listed with the rest.
   const managedAttempts: { id: string; test_id: string | null; result: unknown; started_at: string; submitted_at: string | null; is_live_attempt: boolean; title?: string; builtIn?: boolean }[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data: page } = await supabase.from("test_attempts").select("id,test_id,result,started_at,submitted_at,is_live_attempt").eq("student_id", id).order("started_at", { ascending: false }).range(from, from + 999);
-    managedAttempts.push(...(page ?? []));
+    const { data: page } = await supabase.from("test_attempts").select(`id,test_id,started_at,submitted_at,is_live_attempt,${TYPING_RESULT_SUMMARY}`).eq("student_id", id).order("started_at", { ascending: false }).range(from, from + 999);
+    managedAttempts.push(...(page ?? []).map((row) => withResultSummary(row as unknown as Record<string, unknown>) as unknown as (typeof managedAttempts)[number]));
     if (!page || page.length < 1000) break;
   }
-  const { data: practiceAttempts } = await supabase.from("practice_attempts").select("id,title,mode,result,started_at,submitted_at").eq("student_id", id).order("started_at", { ascending: false });
+  const { data: practiceRows } = await supabase.from("practice_attempts").select(`id,title,mode,started_at,submitted_at,${TYPING_RESULT_SUMMARY}`).eq("student_id", id).order("started_at", { ascending: false });
+  const practiceAttempts = (practiceRows ?? []).map((row) => withResultSummary(row as unknown as Record<string, unknown>) as unknown as { id: string; title: string; mode: string; result: unknown; started_at: string; submitted_at: string | null });
   const typingAttempts = [...managedAttempts, ...(practiceAttempts ?? []).map((row) => ({ id: row.id, test_id: null, result: row.result, started_at: row.started_at, submitted_at: row.submitted_at, is_live_attempt: false, title: row.title, builtIn: true, mode: row.mode }))].sort((a, b) => b.started_at.localeCompare(a.started_at));
   const typingTestIds = [...new Set(managedAttempts.flatMap((a) => a.test_id ? [a.test_id] : []))];
   const { data: typingTests } = typingTestIds.length ? await supabase.from("tests").select("id,title,mode").in("id", typingTestIds) : { data: [] };

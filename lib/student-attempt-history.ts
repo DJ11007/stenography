@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { TYPING_RESULT_SUMMARY, withResultSummary } from "./typing-result-summary";
 
 // One list of everything a student has attempted -- typing tests set up in
 // admin (test_attempts), built-in typing tests (practice_attempts) and Word /
@@ -22,17 +23,20 @@ function efficiency(row: Row, kind: "word" | "excel"): AttemptHistoryItem {
 export async function studentAttemptHistory(supabase: SupabaseClient, studentId: string, limit?: number): Promise<AttemptHistoryItem[]> {
   const cap = limit ?? 5000;
   const [typing, practice, word, excel] = await Promise.all([
-    supabase.from("test_attempts").select("id,test_id,result,submitted_at,is_live_attempt").eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(Math.min(cap, 1000)),
-    supabase.from("practice_attempts").select("id,title,mode,result,submitted_at").eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(Math.min(cap, 1000)),
+    supabase.from("test_attempts").select(`id,test_id,submitted_at,is_live_attempt,${TYPING_RESULT_SUMMARY}`).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(Math.min(cap, 1000)),
+    supabase.from("practice_attempts").select(`id,title,mode,submitted_at,${TYPING_RESULT_SUMMARY}`).eq("student_id", studentId).order("submitted_at", { ascending: false }).limit(Math.min(cap, 1000)),
     supabase.from("word_efficiency_attempts").select("id,status,snapshot,result,started_at,submitted_at,result_published_at").eq("student_id", studentId).order("started_at", { ascending: false }).limit(Math.min(cap, 1000)),
     supabase.from("excel_efficiency_attempts").select("id,status,snapshot,result,started_at,submitted_at,result_published_at").eq("student_id", studentId).order("started_at", { ascending: false }).limit(Math.min(cap, 1000)),
   ]);
-  const testIds = [...new Set((typing.data ?? []).map(row => row.test_id as string))];
+  // Only the summary numbers of each typing result are read (see lib/typing-result-summary.ts).
+  const typingRows = (typing.data ?? []).map(row => withResultSummary(row as unknown as Record<string, unknown>)) as unknown as { id: string; test_id: string; submitted_at: string; is_live_attempt: boolean; result: Row }[];
+  const practiceRows = (practice.data ?? []).map(row => withResultSummary(row as unknown as Record<string, unknown>)) as unknown as { id: string; title: string; mode: string; submitted_at: string; result: Row }[];
+  const testIds = [...new Set(typingRows.map(row => row.test_id))];
   const { data: tests } = testIds.length ? await supabase.from("tests").select("id,title").in("id", testIds) : { data: [] as { id: string; title: string }[] };
   const titles = new Map((tests ?? []).map(test => [test.id, test.title]));
   const items: AttemptHistoryItem[] = [
-    ...(typing.data ?? []).map(row => ({ id: row.id, kind: "typing" as const, title: titles.get(row.test_id) ?? "Typing test", at: row.submitted_at, score: wpm((row.result ?? {}) as Row), detail: row.is_live_attempt ? "Live test" : "Typing test", href: `/typing/attempts/${row.id}` })),
-    ...(practice.data ?? []).map(row => ({ id: row.id, kind: "built-in" as const, title: row.title, at: row.submitted_at, score: wpm((row.result ?? {}) as Row), detail: "Built-in typing test", href: `/typing/attempts/${row.id}` })),
+    ...typingRows.map(row => ({ id: row.id, kind: "typing" as const, title: titles.get(row.test_id) ?? "Typing test", at: row.submitted_at, score: wpm((row.result ?? {}) as Row), detail: row.is_live_attempt ? "Live test" : "Typing test", href: `/typing/attempts/${row.id}` })),
+    ...practiceRows.map(row => ({ id: row.id, kind: "built-in" as const, title: row.title, at: row.submitted_at, score: wpm((row.result ?? {}) as Row), detail: "Built-in typing test", href: `/typing/attempts/${row.id}` })),
     ...(word.data ?? []).map(row => efficiency(row, "word")),
     ...(excel.data ?? []).map(row => efficiency(row, "excel")),
   ];
