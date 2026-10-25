@@ -43,3 +43,14 @@ test("students download the Excel question paper from the instructions page; sto
   assert.match(sql, /create policy "Students read current published Excel PDF"/);
   assert.match(sql, /if not public\.is_aal2_admin\(\) then raise exception 'not authorized'; end if;/);
 });
+
+test("the Excel admin list is the Word page's Managed tests: English and Hindi apart, search, + Create English / Hindi Test, ▾ More", async () => {
+  const page = await read("app/admin/excel-efficiency-tests/page.tsx");
+  assert.match(page, /const view = editing \|\| params\.new \? "design" : "manage";/);
+  assert.match(page, /href="\/admin\/excel-efficiency-tests\?new=1&language=English"[^>]*>\+ Create English Test</);
+  assert.match(page, /href="\/admin\/excel-efficiency-tests\?new=1&language=Hindi"[^>]*>\+ Create Hindi Test</);
+  assert.match(page, /\(\["English", "Hindi"\] as const\)\.map\(\(language\) =>/);
+  assert.match(page, /<SearchableList placeholder=\{`Search \$\{language\} tests`\}/);
+  assert.match(page, /<span className="transition-transform group-open:rotate-180" aria-hidden>▾<\/span> More/);
+  assert.match(page, /defaultValue=\{current\?\.language \?\? newLanguage\}/);
+});

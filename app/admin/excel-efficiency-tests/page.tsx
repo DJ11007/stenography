@@ -11,6 +11,7 @@ import { DeliveryPdfFields } from "../word-efficiency-tests/delivery-pdf-fields"
 import { WorkingMatterXlsxFields } from "./working-matter-xlsx-fields";
 import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 import { formatIST } from "@/lib/format-datetime";
+import { SearchableList } from "../word-efficiency-tests/searchable-list";
 
 export const metadata: Metadata = { title: "Excel Efficiency Tests | Admin" };
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
@@ -30,19 +31,24 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   const gradingRuleMap = new Map((gradingRules ?? []).map((rule) => [rule.question_id, rule]));
   const initialQuestions: ExcelQuestion[] = (questions ?? []).map((question) => { const rule = gradingRuleMap.get(question.id); return { id: question.id, version_id: current?.id ?? "", question_number: question.question_number, instruction: question.instruction, marks: Number(question.marks), section: question.section, display_order: question.display_order, is_visible: question.is_visible, gradingRule: rule ? { target: rule.exact_target, expectedOperation: rule.expected_operation, expectedValue: JSON.stringify(rule.expected_value), allocatedMarks: Number(rule.allocated_marks), partialMarks: rule.partial_marks == null ? null : Number(rule.partial_marks) } : null }; });
   const selectedAttempts = editing ? (attempts ?? []).filter((attempt) => attempt.test_id === editing.id) : [];
+  // As on the Word page: the list of tests ("Managed tests", English and Hindi apart) and, from Edit or
+  // + Create English / Hindi Test, the test's own form.
+  const view = editing || params.new ? "design" : "manage";
+  const newLanguage = params.language === "Hindi" ? "Hindi" : "English";
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-[1500px]">
-        <BackButton href="/admin" label="Admin dashboard" />
+        <BackButton href={view === "design" ? "/admin/excel-efficiency-tests" : "/admin"} label={view === "design" ? "Managed tests" : "Admin dashboard"} />
         <header className="mt-4 rounded-3xl bg-gradient-to-r from-slate-950 to-emerald-900 p-7 text-white">
           <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-300">Administrator · MFA protected</p>
-          <h1 className="mt-2 text-3xl font-black">Excel Efficiency Tests</h1>
+          <h1 className="mt-2 text-3xl font-black">{view === "design" ? (editing ? `Edit ${editing.title}` : `Create ${newLanguage} Excel Efficiency Test`) : "Excel Efficiency Tests"}</h1>
           <p className="mt-2 text-slate-300">Manage immutable questions, individual marks, instructions, duration choices, and the starting spreadsheet.</p>
         </header>
         {params.error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 font-bold text-red-800">{params.error}</p>}
         {params.saved && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">A new immutable test version was saved.</p>}
         {params.deleted && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">The test and all database records were permanently deleted.</p>}
-        <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(420px,.85fr)]">
+        <div className="mt-6 grid gap-6">
+          {view === "design" && (
           <section className="rounded-3xl bg-white p-5 shadow sm:p-7">
             <h2 className="text-2xl font-black">{editing ? `Edit ${editing.title}` : "Create Excel Efficiency test"}</h2>
             <ExamPatternReference subject="Excel" />
@@ -51,7 +57,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Test title"><input className="input" name="title" defaultValue={current?.title ?? ""} required /></Field>
                 <Field label="Language">
-                  <select className="input" name="language" defaultValue={current?.language ?? "English"}>
+                  <select className="input" name="language" defaultValue={current?.language ?? newLanguage}>
                     <option>English</option>
                     <option>Hindi</option>
                   </select>
@@ -84,49 +90,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
             </form>
             {current && <section className="mt-8 rounded-2xl bg-slate-50 p-5"><h3 className="font-black">Instruction preview</h3><div className="mt-3"><SafeInstructions markdown={current.instructions_markdown} /></div></section>}
           </section>
-          <section>
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-black">Managed tests</h2>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-black shadow">{tests?.length ?? 0}</span>
-            </div>
-            {error ? (
-              <p className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">Database error: {error.message}</p>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {(tests ?? []).map((test) => {
-                  const version = map.get(test.current_version_id);
-                  const count = (attempts ?? []).filter((attempt) => attempt.test_id === test.id).length;
-                  const hasAttempts = count > 0;
-                  return (
-                    <article key={test.id} className="rounded-2xl bg-white p-5 shadow">
-                      <div className="flex justify-between gap-3">
-                        <div>
-                          <h3 className="font-black">{test.title}</h3>
-                          <p className="mt-1 text-sm text-slate-500">{test.language} · Version {test.current_version_number} · {version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks</p>
-                        </div>
-                        <span className="flex h-fit shrink-0 items-center gap-1.5">
-                          {test.is_live && <span title={`${formatIST(test.live_starts_at)} → ${formatIST(test.live_ends_at)} · results ${formatIST(test.results_publish_at)}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black capitalize">{test.status}</span>
-                        </span>
-                      </div>
-                      <p className="mt-3 text-xs text-slate-500">{count} attempt{count === 1 ? "" : "s"} · On-screen delivery</p>
-                      <div className="mt-4 grid grid-cols-2 gap-2">
-                        <Link href={`?edit=${test.id}`} className="rounded-lg bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-800">Edit / Preview</Link>
-                        <Link href={`?edit=${test.id}#attempts`} className="rounded-lg bg-violet-50 px-3 py-2 text-center text-sm font-bold text-violet-800">View Attempts</Link>
-                        <form action={duplicateExcelEfficiencyTest}><input type="hidden" name="testId" value={test.id} /><button className="w-full rounded-lg bg-cyan-50 px-3 py-2 text-sm font-bold text-cyan-800">Duplicate</button></form>
-                        {test.status === "archived" ? <Status id={test.id} status="unpublished" label="Restore / Unarchive" /> : test.status === "published" ? <Status id={test.id} status="unpublished" label="Unpublish" /> : <Status id={test.id} status="published" label="Publish" />}
-                        <Status id={test.id} status="archived" label="Archive" />
-                        <form action={deleteExcelEfficiencyTest} onSubmit={hasAttempts ? (event) => event.preventDefault() : undefined}>
-                          <input type="hidden" name="testId" value={test.id} />
-                          <button disabled={hasAttempts} title={hasAttempts ? "Tests with existing attempts cannot be deleted — archive it instead." : "Permanently delete this test"} className="w-full rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">Delete</button>
-                        </form>
-                      </div>
-                    </article>
-                  );
-                })}
-                {!tests?.length && <p className="rounded-2xl border border-dashed bg-white p-8 text-center text-slate-500">No Excel Efficiency tests yet.</p>}
-              </div>
-            )}
+          )}
+          {view === "design" && (
             <section id="attempts" className="mt-6 rounded-2xl bg-white p-5 shadow">
               <h2 className="font-black">Attempts and results</h2>
               {editing ? (
@@ -146,7 +111,76 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                 <p className="mt-2 text-sm">Select a test to inspect attempts and results.</p>
               )}
             </section>
+          )}
+          {view === "manage" && (
+          <section>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-2xl font-black">Managed tests</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black shadow">{tests?.length ?? 0}</span>
+                <Link href="/admin/excel-efficiency-tests?new=1&language=English" className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white shadow hover:bg-blue-600">+ Create English Test</Link>
+                <Link href="/admin/excel-efficiency-tests?new=1&language=Hindi" className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-black text-white shadow hover:bg-orange-500">+ Create Hindi Test</Link>
+              </div>
+            </div>
+            {error ? (
+              <p className="mt-4 rounded-xl bg-red-50 p-4 text-red-800">Database error: {error.message}</p>
+            ) : (
+              // English and Hindi tests in separate sections, each test one compact row: Edit and Attempts stay on
+              // the row, and ▾ More opens the details and the rest (Duplicate, Publish, Archive, Delete).
+              <div className="mt-4 grid gap-5 xl:grid-cols-2">
+                {(["English", "Hindi"] as const).map((language) => {
+                  const languageTests = (tests ?? []).filter((test) => (test.language === "Hindi" ? "Hindi" : "English") === language);
+                  return (
+                    <section key={language} data-test-language={language} className={`rounded-2xl border-t-4 bg-white/60 p-4 shadow-sm ${language === "Hindi" ? "border-orange-500" : "border-blue-600"}`}>
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h3 className="text-lg font-black">{language} Efficiency Tests</h3>
+                        <span className={`rounded-full px-3 py-1 text-xs font-black ${language === "Hindi" ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"}`}>{languageTests.length}</span>
+                      </div>
+                      <SearchableList placeholder={`Search ${language} tests`} emptyLabel={`No ${language} Excel Efficiency tests yet.`} maxHeightClassName="max-h-[460px]" items={languageTests.map((test) => {
+                        const version = map.get(test.current_version_id);
+                        const count = (attempts ?? []).filter((attempt) => attempt.test_id === test.id).length;
+                        const hasAttempts = count > 0;
+                        return { key: test.id, searchText: `${test.title} ${test.language} ${test.status}`, node: (
+                          <article className="rounded-xl bg-white px-4 py-3 shadow-sm">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                              <div className="min-w-[13rem] flex-1">
+                                <h4 className="truncate font-black">{test.title}</h4>
+                                <p className="text-xs text-slate-500">{version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks · {count} attempt{count === 1 ? "" : "s"}</p>
+                              </div>
+                              {test.is_live && <span title={`${formatIST(test.live_starts_at)} → ${formatIST(test.live_ends_at)}`} className="cursor-help rounded-full bg-red-100 px-2 py-1 text-[10px] font-black text-red-700">LIVE</span>}
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-black capitalize ${test.status === "published" ? "bg-emerald-100 text-emerald-800" : test.status === "archived" ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-800"}`}>{test.status}</span>
+                              <div className="flex items-center gap-1.5">
+                                <Link href={`?edit=${test.id}`} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-800">Edit</Link>
+                                <Link href={`?edit=${test.id}#attempts`} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-800">Attempts</Link>
+                              </div>
+                            </div>
+                            <details className="group mt-2">
+                              <summary aria-label={`More for ${test.title}: details, delete and other actions`} title="More: details, delete and other actions" className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                                <span className="transition-transform group-open:rotate-180" aria-hidden>▾</span> More
+                              </summary>
+                              <div className="mt-3 border-t pt-3">
+                                <p className="text-xs text-slate-500">{test.language} · Version {test.current_version_number} · {version?.delivery_pdf ? "On-screen + PDF" : "On-screen"} · updated {formatIST(test.updated_at)}</p>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <form action={duplicateExcelEfficiencyTest}><input type="hidden" name="testId" value={test.id} /><button className="w-full rounded-lg bg-cyan-50 px-3 py-2 text-sm font-bold text-cyan-800">Duplicate</button></form>
+                                  {test.status === "archived" ? <Status id={test.id} status="unpublished" label="Restore / Unarchive" /> : test.status === "published" ? <Status id={test.id} status="unpublished" label="Unpublish" /> : <Status id={test.id} status="published" label="Publish" />}
+                                  <Status id={test.id} status="archived" label="Archive" />
+                                  <form action={deleteExcelEfficiencyTest}>
+                                    <input type="hidden" name="testId" value={test.id} />
+                                    <button disabled={hasAttempts} title={hasAttempts ? "Tests with existing attempts cannot be deleted — archive it instead." : "Permanently delete this test"} className="w-full rounded-lg bg-red-50 px-3 py-2 text-sm font-bold text-red-800 disabled:cursor-not-allowed disabled:opacity-50">Delete</button>
+                                  </form>
+                                </div>
+                              </div>
+                            </details>
+                          </article>
+                        ) };
+                      })} />
+                    </section>
+                  );
+                })}
+              </div>
+            )}
           </section>
+          )}
         </div>
       </div>
     </main>
