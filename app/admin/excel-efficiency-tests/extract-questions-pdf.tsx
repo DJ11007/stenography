@@ -4,9 +4,11 @@ import { useRef, useState, useTransition } from "react";
 import type { ExtractedWordQuestion } from "@/lib/word-pdf-extraction";
 import { extractExcelEfficiencyPdf } from "./actions";
 
-// Upload the question paper PDF, check the questions found in it, and put them in the question editor
-// below (as on the Word Efficiency admin page). The PDF itself is not saved with the test.
-export function ExtractQuestionsPdf() {
+// The question paper PDF, as on the Word Efficiency admin page: it is saved with the test for students to download
+// (when ticked), and its numbered questions can be read into the question editor below.
+export function ExtractQuestionsPdf({ defaultDeliveryPdf = false, existingPdf = null }: { defaultDeliveryPdf?: boolean; existingPdf?: { fileName: string; sizeBytes: number | null } | null }) {
+  const [deliveryPdf, setDeliveryPdf] = useState(defaultDeliveryPdf);
+  const [removeExisting, setRemoveExisting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ExtractedWordQuestion[]>([]);
@@ -37,11 +39,13 @@ export function ExtractQuestionsPdf() {
 
   return (
     <fieldset className="rounded-2xl border-2 border-dashed border-emerald-300 bg-emerald-50/40 p-4">
-      <legend className="px-2 font-black">Extract Questions from the question paper (PDF)</legend>
-      <p className="text-sm text-slate-600">Upload the question paper PDF (English, or Hindi in Kruti Dev 010). The numbered questions are read out for you to check and add to the question editor below.</p>
+      <legend className="px-2 font-black">Question paper PDF</legend>
+      <label className="flex items-start gap-3 text-sm font-bold"><input type="checkbox" name="deliveryPdf" checked={deliveryPdf} onChange={(event) => setDeliveryPdf(event.target.checked)} className="mt-0.5" /><span>Students can download the question paper PDF<span className="block font-normal text-slate-600">Shown on the test&apos;s instructions page. The questions also stay on screen in the workspace.</span></span></label>
+      {existingPdf && <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-white p-3 text-sm"><span className="font-black">Current PDF: {existingPdf.fileName}</span>{existingPdf.sizeBytes ? <span className="text-slate-500">{Math.round(existingPdf.sizeBytes / 1024).toLocaleString("en-IN")} KB</span> : null}<label className="flex items-center gap-2 font-bold text-red-700"><input type="checkbox" name="removePdf" checked={removeExisting} onChange={(event) => setRemoveExisting(event.target.checked)} />Remove it</label></div>}
+      <p className="mt-3 text-sm text-slate-600">{existingPdf ? "Choose a new PDF to replace it." : "Choose the question paper PDF (English, or Hindi in Kruti Dev 010)."} Extract Questions reads its numbered questions into the question editor below.</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {/* No name: the PDF is only read here, never sent with the test form. */}
-        <input ref={inputRef} type="file" accept=".pdf,application/pdf" aria-label="Question paper PDF" className="input max-w-md" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview([]); setMessage(null); }} />
+        {/* Saved with the test when the form is saved (pdfFile); Extract Questions only reads it. */}
+        <input ref={inputRef} type="file" name="pdfFile" accept=".pdf,application/pdf" aria-label="Question paper PDF" className="input max-w-md" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview([]); setMessage(null); }} />
         <button type="button" onClick={extract} disabled={pending} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-black text-white disabled:opacity-60">{pending ? "Reading the PDF…" : "Extract Questions"}</button>
       </div>
       {message && <p role={message.error ? "alert" : "status"} className={`mt-3 rounded-lg p-3 text-sm font-bold ${message.error ? "bg-red-50 text-red-700" : "bg-white text-emerald-900"}`}>{message.text}</p>}

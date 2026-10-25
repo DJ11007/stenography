@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { prepareExcelAttempt } from "../../../actions";
 
-export function StudentTestLaunch({ testId, language, duration, live = false, serverError }: { testId: string; language: string; duration: number; live?: boolean; serverError?: string }) {
+export function StudentTestLaunch({ testId, language, duration, live = false, hasPdf = false, serverError }: { testId: string; language: string; duration: number; live?: boolean; hasPdf?: boolean; serverError?: string }) {
   const [accepted, setAccepted] = useState(false);
   const [showQuestions, setShowQuestions] = useState(true);
   return (
@@ -21,6 +21,13 @@ export function StudentTestLaunch({ testId, language, duration, live = false, se
         </label>
         {!showQuestions && <p className="mt-2 text-xs text-amber-700">The panel starts hidden; use Show Questions in the workspace to reopen it.</p>}
       </div>
+      {hasPdf && (
+        <div className="mt-3 rounded-xl bg-white p-4">
+          <strong className="block">Question paper PDF</strong>
+          <span className="mt-1 block text-xs leading-5 text-slate-600">Downloading the question paper does not start the test or the timer.</span>
+          <a href={`/typing/excel-efficiency/${language}/${testId}/question-paper`} className="mt-3 block rounded-xl bg-violet-700 px-4 py-3 text-center font-black text-white">Download Question Paper PDF</a>
+        </div>
+      )}
       <label className="mt-5 flex gap-3 rounded-xl border border-emerald-200 bg-white p-4 text-sm font-bold">
         <input type="checkbox" name="accepted" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} required />
         I have read and understood the instructions.

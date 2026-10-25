@@ -64,7 +64,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                 <Field label="Allowed durations in minutes (comma separated)"><input className="input" name="durationOptions" defaultValue={current?.duration_options?.map((value) => value / 60).join(", ") ?? "20"} required /></Field>
               </div>
               <WorkingMatterXlsxFields initialSnapshot={current?.working_matter_snapshot ?? null} />
-              <ExtractQuestionsPdf />
+              <ExtractQuestionsPdf defaultDeliveryPdf={Boolean(current?.delivery_pdf)} existingPdf={current?.pdf_path ? { fileName: current.pdf_file_name ?? "question-paper.pdf", sizeBytes: current.pdf_size_bytes ?? null } : null} />
               <QuestionEditor initialQuestions={initialQuestions} />
               <fieldset className="rounded-xl border border-blue-200 bg-blue-50 p-3">
                 <label className="flex items-center gap-2 font-black text-blue-950">

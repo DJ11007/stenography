@@ -19,6 +19,7 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
   // Opened from the Live Test page (?live=1) it is the live attempt: its set (first) duration. From the Efficiency
   // section the same test is practice, any time, with the duration choice.
   const live = Boolean(test.is_live) && query.live === "1";
+  const hasPdf = Boolean(version.delivery_pdf && version.pdf_path);
   const duration = !live && version.duration_options.includes(selected) ? selected : version.duration_options[0];
   return (
     <main className="min-h-screen bg-slate-100">
@@ -44,11 +45,11 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
               <h2 className="mt-7 text-xl font-black">Technical requirements</h2>
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700">
                 <li>Use a modern browser and a stable internet connection.</li>
-                <li>Questions and the spreadsheet workspace are delivered on-screen only — there is no PDF question paper for this test.</li>
+                {hasPdf ? <li>Questions are on screen in the spreadsheet workspace, and the question paper PDF can be downloaded here.</li> : <li>Questions and the spreadsheet workspace are delivered on-screen only — there is no PDF question paper for this test.</li>}
                 <li>The timer starts only when you press Start Test.</li>
               </ul>
             </section>
-            <StudentTestLaunch testId={test.id} language={route.language} duration={duration} live={live} serverError={query.error} />
+            <StudentTestLaunch testId={test.id} language={route.language} duration={duration} live={live} hasPdf={hasPdf} serverError={query.error} />
           </div>
         </div>
       </section>

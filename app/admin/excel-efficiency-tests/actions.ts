@@ -63,6 +63,29 @@ export async function saveExcelEfficiencyTest(form: FormData) {
   const draft = { title: value(form, "title"), language, instructions: value(form, "instructions"), durations, questionCount: questions.length, maximumMarks: calculateExcelQuestionTotal(questions), passingMarks: passing, questions, hasWorkingMatter: Boolean(workingMatter) };
   const errors = validateExcelDraft(draft);
   if (errors.length) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(errors[0])}`);
+  // The question paper PDF students download (as for Word Efficiency). Saving makes a new version, so the
+  // previous version's PDF is kept unless a new one is uploaded or Remove is ticked.
+  const errorBase = `/admin/excel-efficiency-tests?${testId ? `edit=${testId}&` : ""}error=`;
+  const deliveryPdf = form.get("deliveryPdf") === "on";
+  let pdfMeta: { pdf_path: string | null; pdf_file_name: string | null; pdf_size_bytes: number | null; pdf_uploaded_at: string | null } = { pdf_path: null, pdf_file_name: null, pdf_size_bytes: null, pdf_uploaded_at: null };
+  if (testId && form.get("removePdf") !== "on") {
+    const { data: test } = await supabase.from("excel_efficiency_tests").select("current_version_id").eq("id", testId).single();
+    const { data: previous } = test?.current_version_id ? await supabase.from("excel_efficiency_versions").select("pdf_path,pdf_file_name,pdf_size_bytes,pdf_uploaded_at").eq("id", test.current_version_id).single() : { data: null };
+    if (previous?.pdf_path) pdfMeta = previous;
+  }
+  const pdfUpload = form.get("pdfFile");
+  if (pdfUpload instanceof File && pdfUpload.size) {
+    const checked = validatePdfUpload(pdfUpload);
+    if (checked.errors.length) redirect(`${errorBase}${encodeURIComponent(checked.errors[0])}`);
+    const bytes = new Uint8Array(await pdfUpload.arrayBuffer());
+    if (new TextDecoder("latin1").decode(bytes.slice(0, 5)) !== "%PDF-") redirect(`${errorBase}Invalid%20PDF%20file%20signature.`);
+    const fileName = safePdfName(checked.name);
+    const path = `${testId ?? crypto.randomUUID()}/${crypto.randomUUID()}-${fileName}`;
+    const { error: uploadError } = await supabase.storage.from("excel-efficiency-pdfs").upload(path, bytes, { contentType: "application/pdf", upsert: false });
+    if (uploadError) redirect(`${errorBase}${encodeURIComponent(`PDF upload failed: ${uploadError.message}`)}`);
+    pdfMeta = { pdf_path: path, pdf_file_name: fileName, pdf_size_bytes: bytes.byteLength, pdf_uploaded_at: new Date().toISOString() };
+  }
+  if (deliveryPdf && !pdfMeta.pdf_path) redirect(`${errorBase}${encodeURIComponent("Choose the question paper PDF, or untick \"Students can download the question paper PDF\".")}`);
   const databaseQuestions = questions.map(({ gradingRule: _gradingRule, ...question }) => ({ number: question.question_number, instruction: question.instruction, marks: question.marks, section: question.section, display_order: question.display_order, is_visible: question.is_visible }));
   const payload = { title: draft.title, slug: safeExcelSlug(value(form, "slug") || draft.title), language, description: value(form, "description"), instructions_markdown: draft.instructions, question_count: draft.questionCount, maximum_marks: draft.maximumMarks, duration_options: durations, passing_marks: passing ?? "", questions: databaseQuestions, publish: value(form, "intent") === "publish", working_matter_snapshot: workingMatter };
   const { data: savedId, error } = await supabase.rpc("save_excel_efficiency_test", { p_test_id: testId, p_payload: payload });
@@ -71,6 +94,8 @@ export async function saveExcelEfficiencyTest(form: FormData) {
   const gradingRules = questions.flatMap((question) => (question.gradingRule ? [{ questionNumber: question.question_number, exactTarget: question.gradingRule.target, expectedOperation: question.gradingRule.expectedOperation, expectedValue: question.gradingRule.expectedValue, allocatedMarks: question.gradingRule.allocatedMarks, partialMarks: question.gradingRule.partialMarks }] : []));
   const { error: ruleError } = await supabase.rpc("save_excel_efficiency_grading_rules", { p_version_id: savedTest?.current_version_id, p_rules: gradingRules });
   if (ruleError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but grading rules failed: ${ruleError.message}`)}`);
+  const { error: pdfError } = await supabase.rpc("set_excel_efficiency_question_paper", { p_test_id: savedId, p_delivery_pdf: deliveryPdf, p_pdf_path: pdfMeta.pdf_path, p_pdf_file_name: pdfMeta.pdf_file_name, p_pdf_size_bytes: pdfMeta.pdf_size_bytes, p_pdf_uploaded_at: pdfMeta.pdf_uploaded_at });
+  if (pdfError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but the question paper PDF failed: ${pdfError.message}`)}`);
   const isLive = form.get("isLive") === "on";
   const { error: scheduleError } = await supabase.rpc("set_excel_efficiency_live_schedule", { p_test_id: savedId, p_is_live: isLive, p_starts_at: isLive ? toIsoOrNull(value(form, "startsAt")) : null, p_ends_at: isLive ? toIsoOrNull(value(form, "endsAt")) : null, p_results_publish_at: isLive ? toIsoOrNull(value(form, "resultsPublishAt")) : null });
   if (scheduleError) redirect(`/admin/excel-efficiency-tests?error=${encodeURIComponent(`Test version saved, but live schedule failed: ${scheduleError.message}`)}`);
