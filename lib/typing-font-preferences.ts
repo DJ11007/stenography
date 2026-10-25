@@ -8,7 +8,17 @@ export type TypingFontPreferences = {
   originalSize: number;
   typingSize: number;
   linked: boolean;
+  // English only: some exams show the passage in Courier New, so a student can practise in it.
+  englishFont?: EnglishTypingFont;
 };
+
+export type EnglishTypingFont = "default" | "courier";
+export const COURIER_FONT_STACK = '"Courier New", Courier, monospace';
+
+// The passage and typing-area font: Courier New when an English student chose it, else the input system's own.
+export function typingFontFamily(preferences: TypingFontPreferences, script: TypingScript, fontStack: string) {
+  return script === "Latin" && preferences.englishFont === "courier" ? COURIER_FONT_STACK : fontStack;
+}
 
 export function defaultTypingFontPreferences(script: TypingScript = "Latin"): TypingFontPreferences {
   return script === "Devanagari"
@@ -28,6 +38,7 @@ export function parseTypingFontPreferences(value: unknown, script: TypingScript 
     originalSize: isValidTypingFontSize(candidate.originalSize) ? candidate.originalSize : defaults.originalSize,
     typingSize: isValidTypingFontSize(candidate.typingSize) ? candidate.typingSize : defaults.typingSize,
     linked: typeof candidate.linked === "boolean" ? candidate.linked : defaults.linked,
+    ...(candidate.englishFont === "courier" ? { englishFont: "courier" as const } : {}),
   };
 }
 

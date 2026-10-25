@@ -14,7 +14,7 @@ const EXAM_PATH = "app/typing/_components/configurable-typing-exam.tsx";
 // toolbar shortcuts for the exact same state, not new behavior.
 test("the toolbar offers quick -A/+A buttons for the typing area's font size, reusing the same changeTypingFontSize helper as the Settings popup", async () => {
   const editor = await read(EXAM_PATH);
-  assert.match(editor, /import \{ changeTypingFontSize, defaultTypingFontPreferences, MAX_TYPING_FONT_SIZE, MIN_TYPING_FONT_SIZE, type TypingFontPreferences \} from "@\/lib\/typing-font-preferences";/);
+  assert.match(editor, /import \{ changeTypingFontSize, defaultTypingFontPreferences, typingFontFamily, MAX_TYPING_FONT_SIZE, MIN_TYPING_FONT_SIZE, type TypingFontPreferences \} from "@\/lib\/typing-font-preferences";/);
   assert.match(editor, /onClick=\{\(\) => setFontPreferences\(changeTypingFontSize\(fontPreferences, "typing", -1\)\)\}/);
   assert.match(editor, /onClick=\{\(\) => setFontPreferences\(changeTypingFontSize\(fontPreferences, "typing", 1\)\)\}/);
   assert.match(editor, />-A<\/button>/);

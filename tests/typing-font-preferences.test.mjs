@@ -28,3 +28,19 @@ test("font preference storage separates scripts and legacy encoding", () => {
   assert.notEqual(typingFontStorageKey("Latin", "unicode"), typingFontStorageKey("Devanagari", "unicode"));
   assert.notEqual(typingFontStorageKey("Devanagari", "unicode"), typingFontStorageKey("Devanagari", "krutidev-legacy"));
 });
+
+// Requested: some exams show the English passage in Courier New, so students can choose it in typing Settings.
+test("English students can switch the passage and typing area to Courier New, and the choice is kept", async () => {
+  const { typingFontFamily, COURIER_FONT_STACK } = await import("../lib/typing-font-preferences.ts");
+  const prefs = parseTypingFontPreferences({ originalSize: 20, typingSize: 18, linked: false, englishFont: "courier" }, "Latin");
+  assert.equal(prefs.englishFont, "courier");
+  assert.equal(typingFontFamily(prefs, "Latin", "Arial"), COURIER_FONT_STACK);
+  assert.equal(typingFontFamily(prefs, "Devanagari", "Mangal"), "Mangal", "Hindi keeps its own font");
+  assert.equal(typingFontFamily(parseTypingFontPreferences({ englishFont: "comic" }, "Latin"), "Latin", "Arial"), "Arial");
+  const { readFile } = await import("node:fs/promises");
+  const [controls, exam] = await Promise.all(["app/typing/_components/font-size-controls.tsx", "app/typing/_components/configurable-typing-exam.tsx"].map((path) => readFile(new URL(`../${path}`, import.meta.url), "utf8")));
+  assert.match(controls, /\{script === "Latin" && <label/);
+  assert.match(controls, /<option value="courier"[^>]*>Courier New<\/option>/);
+  assert.equal(exam.split("fontFamily: typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack)").length - 1, 2, "the passage and the typing area");
+  assert.doesNotMatch(exam, /fontFamily: inputSystem\.fontStack/);
+});
