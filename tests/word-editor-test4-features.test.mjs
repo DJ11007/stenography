@@ -159,3 +159,12 @@ test("subscript / superscript are saved: <sub>/<sup> from the ribbon count, also
   assert.match(editor, /vertical=nearestVerticalAlign\(parent,element\),underlineNode=/);
   assert.doesNotMatch(editor, /subscript:style\?\.verticalAlign==="sub"/);
 });
+
+test("Home > Copy / Cut keep the selection with its formatting and Home > Paste puts it back, without waiting on the browser's clipboard permission", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /const rememberCopy=\(range:Range\)=>\{const box=document\.createElement\("div"\);box\.appendChild\(range\.cloneContents\(\)\);/);
+  assert.match(editor, /root\.addEventListener\("copy",onCopy\);root\.addEventListener\("cut",onCopy\);/, "Ctrl+C / Ctrl+X too");
+  assert.match(editor, /text=await Promise\.race\(\[navigator\.clipboard\.readText\(\),new Promise<null>\(resolve=>setTimeout\(\(\)=>resolve\(null\),400\)\)\]\)/);
+  assert.match(editor, /if\(own&&\(text===null\|\|flat\(text\)===flat\(own\.text\)\)\)\{document\.execCommand\("insertHTML",false,own\.html\);setMessage\("Pasted\."\);/);
+  assert.doesNotMatch(editor, /setMessage\(`\$\{action==="cut"\?"Cut":"Copy"\} failed\.`\)/);
+});
