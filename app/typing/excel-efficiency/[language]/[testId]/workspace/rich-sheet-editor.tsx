@@ -1,16 +1,18 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { columnLetters } from "@/lib/excel-formula";
+import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
 import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
-import { PAPER_SIZES, toExcelDocumentV3, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
+import { NUMBER_FORMAT_LABELS, PAPER_SIZES, toExcelDocumentV3, type ChartType, type ConditionalType, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
 import {
-  EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, autoSumRange, borderCss, expandForMerges, formatCellValue, isBlankCell,
-  mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, previewHeaderText, rangeString, recomputeFormulas, rectContains, rectRefs, refAt,
+  EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, autoSumRange, borderCss, conditionalStyleAt, currentRegion, expandForMerges, formatCellValue, isBlankCell,
+  mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, parseRef, previewHeaderText, rangeString, recomputeFormulas, rectContains, rectRefs, refAt,
   shiftColumns, shiftRows, unmergeRanges, usedExtent, type BorderStyle, type Rect,
 } from "@/lib/excel-sheet-model";
+import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
+import { ChartView } from "./excel-chart";
 
 export type { ExcelDocument } from "@/lib/excel-document";
 
@@ -37,6 +39,22 @@ const COL_WIDTH = 72, ROW_HEADER_WIDTH = 40;
 type Snapshot = { cells: Record<string, SheetCell>; merges: string[]; sheet: SheetSettings };
 type Tab = "HOME" | "INSERT" | "PAGE LAYOUT" | "FORMULAS" | "DATA" | "REVIEW" | "VIEW";
 type Clip = { rect: Rect; cells: Record<string, SheetCell>; cut: boolean };
+type InputPurpose = "rowHeight" | "columnWidth" | "comment" | "protect" | "unprotect" | "chartTitle";
+type DialogState =
+  | { kind: "insertFunction"; category?: "Most Recently Used" | "All" | FunctionCategory }
+  | { kind: "sort"; rect: Rect; headers: boolean } | { kind: "symbol" } | { kind: "zoom" }
+  | { kind: "conditional"; type: ConditionalType }
+  | { kind: "find"; tab: "Find" | "Replace" }
+  | { kind: "pageSetup"; tab: "Page" | "Margins" | "Header/Footer" | "Sheet" }
+  | { kind: "input"; purpose: InputPurpose; chartId?: string };
+const PROTECTED_MESSAGE = "The cell or chart you're trying to change is on a protected sheet. To make a change, unprotect the sheet (REVIEW > Unprotect Sheet).";
+// Format as Table styles: header fill and font, banded row fill.
+const TABLE_STYLES: [string, string, string, string][] = [["Table Style Light 9", "4472C4", "FFFFFF", "FFFFFF"], ["Table Style Medium 2", "4472C4", "FFFFFF", "D9E1F2"], ["Table Style Medium 3", "ED7D31", "FFFFFF", "FCE4D6"], ["Table Style Medium 4", "A5A5A5", "FFFFFF", "EDEDED"], ["Table Style Medium 7", "70AD47", "FFFFFF", "E2EFDA"]];
+const FUNCTION_MENUS: [string, FunctionCategory][] = [["Financial", "Financial"], ["Logical", "Logical"], ["Text", "Text"], ["Date & Time", "Date & Time"], ["Lookup & Reference", "Lookup & Reference"], ["Math & Trig", "Math & Trig"]];
+const DEFAULT_ROW_PX = 20;
+// Excel column width (characters of the default font) to screen pixels, and row height (points) to pixels.
+const widthToPx = (width: number) => (width <= 0 ? 0 : Math.round(width * 7 + 5));
+const pointsToPx = (points: number) => Math.round((points * 4) / 3);
 
 const cellOf = (cells: Record<string, SheetCell>, ref: string): SheetCell => cells[ref] ?? EMPTY_CELL;
 const styleOf = (cell: SheetCell) => Object.fromEntries(STYLE_KEYS.map((key) => [key, cell[key] ?? null])) as Partial<SheetCell>;
@@ -108,6 +126,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const record = (op: string) => setOperations((current) => (current.includes(op) ? current : [...current, op]));
   const change = (op: string, next: Partial<Snapshot>) => {
     if (submitted) return;
+    // A protected sheet refuses every change but unprotecting it, as Excel does.
+    if (sheet.protected && op !== "unprotectSheet") { setNotice(PROTECTED_MESSAGE); return; }
     undoStack.current.push({ cells, merges, sheet }); if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
     if (next.cells) setCells(recomputeFormulas(next.cells));
@@ -145,7 +165,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   };
 
   // ---------- typing into cells ----------
-  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; setEditing({ ref: activeCellRef, value: initial ?? (active.formula ?? (active.value == null ? "" : String(active.value))), fromBar }); };
+  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected) { setNotice(PROTECTED_MESSAGE); return; } setEditing({ ref: activeCellRef, value: initial ?? (active.formula ?? (active.value == null ? "" : String(active.value))), fromBar }); };
   useEffect(() => { if (editing && !editing.fromBar) editInputRef.current?.focus(); }, [editing?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
   const commitEdit = (move: "down" | "right" | "none" = "none") => {
     if (!editing) return;
@@ -153,7 +173,9 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     const current = cellOf(cells, editing.ref);
     if (entry.value !== current.value || entry.formula !== current.formula) {
       const fn = entry.formula?.match(/^=\s*([A-Z]+)\s*\(/i)?.[1]?.toUpperCase();
-      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry } } });
+      // As in Excel, a cell given a date function shows a date (if it still has the General format).
+      const dated = fn && ["TODAY", "DATE", "NOW"].includes(fn) && (current.numberFormat ?? "General") === "General" ? { numberFormat: "ShortDate" as const } : {};
+      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry, ...dated } } });
     }
     setEditing(null);
     if (move === "down") moveBy(1, 0); else if (move === "right") moveBy(0, 1);
@@ -226,14 +248,36 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const deleteRow = () => { const shifted = shiftRows(cells, merges, selection.r1, -1); change("deleteRow", shifted); };
   const insertColumn = () => { const shifted = shiftColumns(cells, merges, selection.c1, 1); change("insertColumn", shifted); };
   const deleteColumn = () => { const shifted = shiftColumns(cells, merges, selection.c1, -1); change("deleteColumn", shifted); };
-  const sortSelection = (direction: "asc" | "desc") => {
-    if (selection.r1 === selection.r2) { setNotice("Select the rows to sort first."); return; }
-    const rows = Array.from({ length: selection.r2 - selection.r1 + 1 }, (_, i) => selection.r1 + i);
-    const key = (row: number) => cellOf(cells, refAt(row, selection.c1)).value;
-    const ordered = [...rows].sort((a, b) => { const x = key(a), y = key(b); const result = typeof x === "number" && typeof y === "number" ? x - y : String(x ?? "").localeCompare(String(y ?? "")); return direction === "asc" ? result : -result; });
+  /** Sort the rows of a range by one column; a header row stays where it is. Blanks go last, as in Excel. */
+  const sortRows = (rect: Rect, column: number, descending: boolean, headers: boolean, op: string) => {
+    const first = headers ? rect.r1 + 1 : rect.r1;
+    if (first >= rect.r2) { setNotice("There is nothing to sort: select two or more rows of data."); return; }
+    const rows = Array.from({ length: rect.r2 - first + 1 }, (_, i) => first + i);
+    const key = (row: number) => cellOf(cells, refAt(row, column)).value;
+    const ordered = [...rows].sort((a, b) => {
+      const x = key(a), y = key(b);
+      if (x === null || x === "") return y === null || y === "" ? 0 : 1;
+      if (y === null || y === "") return -1;
+      const result = typeof x === "number" && typeof y === "number" ? x - y : typeof x === "number" ? -1 : typeof y === "number" ? 1 : String(x).localeCompare(String(y), undefined, { sensitivity: "base" });
+      return descending ? -result : result;
+    });
     const next = { ...cells };
-    ordered.forEach((fromRow, index) => { for (let col = selection.c1; col <= selection.c2; col++) next[refAt(rows[index], col)] = cellOf(cells, refAt(fromRow, col)); });
-    change(direction === "asc" ? "sortAscending" : "sortDescending", { cells: next });
+    ordered.forEach((fromRow, index) => { for (let col = rect.c1; col <= rect.c2; col++) { const cell = cells[refAt(fromRow, col)]; if (cell) next[refAt(rows[index], col)] = cell; else delete next[refAt(rows[index], col)]; } });
+    change(op, { cells: next });
+  };
+  /** The range a Sort or Filter works on: the selection, or the data around the active cell. */
+  const dataRange = () => (selection.r1 === selection.r2 && selection.c1 === selection.c2 ? currentRegion(cells, focus.row, focus.col) : selection);
+  // Excel guesses a header row when the first row is text and the next row holds numbers or the filter is on.
+  const looksLikeHeaders = (rect: Rect) => {
+    if (sheet.filter) { const filter = parseRange(sheet.filter); if (filter && filter.r1 === rect.r1) return true; }
+    const firstRow = Array.from({ length: rect.c2 - rect.c1 + 1 }, (_, i) => cellOf(cells, refAt(rect.r1, rect.c1 + i)).value);
+    const secondRow = Array.from({ length: rect.c2 - rect.c1 + 1 }, (_, i) => cellOf(cells, refAt(rect.r1 + 1, rect.c1 + i)).value);
+    return rect.r2 > rect.r1 && firstRow.every((value) => value === null || typeof value === "string") && firstRow.some((value) => value !== null) && secondRow.some((value) => typeof value === "number");
+  };
+  const sortSelection = (direction: "asc" | "desc") => {
+    const rect = dataRange();
+    const column = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? focus.col : rect.c1;
+    sortRows(rect, column, direction === "desc", looksLikeHeaders(rect), direction === "asc" ? "sortAscending" : "sortDescending");
   };
   const autoSum = (fn = "SUM") => {
     const range = autoSumRange(cells, focus.row, focus.col);
@@ -250,6 +294,13 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     // Ctrl+V is left to the paste event (onPaste), which also brings in text copied from elsewhere.
     if (ctrl && key.toLowerCase() === "v") return;
     if (ctrl && key === "1") { event.preventDefault(); openFormatCells("Number"); return; }
+    if (ctrl && key.toLowerCase() === "f") { event.preventDefault(); openDialog({ kind: "find", tab: "Find" }); return; }
+    if (ctrl && key.toLowerCase() === "h") { event.preventDefault(); if (!submitted) openDialog({ kind: "find", tab: "Replace" }); return; }
+    if (ctrl && event.shiftKey && key.toLowerCase() === "l") { event.preventDefault(); if (!submitted) toggleFilter(); return; }
+    if (ctrl && (key === "`" || key === "~")) { event.preventDefault(); setShowFormulas((value) => !value); return; }
+    if (event.shiftKey && key === "F2") { event.preventDefault(); if (!submitted) openDialog({ kind: "input", purpose: "comment" }); return; }
+    if (event.shiftKey && key === "F3") { event.preventDefault(); if (!submitted) openDialog({ kind: "insertFunction" }); return; }
+    if (selectedChart && (key === "Delete" || key === "Backspace")) { event.preventDefault(); if (!submitted) deleteChart(selectedChart); return; }
     if (ctrl && key.toLowerCase() === "s") { event.preventDefault(); void saveNow(); return; }
     if (ctrl && ["b", "i", "u", "c", "x", "z", "y", "a"].includes(key.toLowerCase())) {
       event.preventDefault();
@@ -370,13 +421,225 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   };
   useEffect(() => { if (!contextMenu) return; const close = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest?.("[data-xl-context]")) setContextMenu(null); }; window.addEventListener("mousedown", close); return () => window.removeEventListener("mousedown", close); }, [contextMenu]);
 
+  // ---------- dialogs, filter, charts, comments, protection, freeze panes, hiding, sizes ----------
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [filterMenu, setFilterMenu] = useState<{ col: number; x: number; y: number } | null>(null);
+  const [selectedChart, setSelectedChart] = useState<string | null>(null);
+  const [showFormulas, setShowFormulas] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [renamingSheet, setRenamingSheet] = useState<string | null>(null);
+  const openDialog = (next: DialogState) => { setMenu(null); setContextMenu(null); setDialog(next); };
+  const closeDialog = () => { setDialog(null); focusGrid(); };
+  const openSort = () => { const rect = dataRange(); openDialog({ kind: "sort", rect, headers: looksLikeHeaders(rect) }); };
+  const sheetName = sheet.name || "Sheet1";
+  const wholeRows = selection.c1 === 0 && selection.c2 === displayCols - 1, wholeCols = selection.r1 === 1 && selection.r2 >= displayRows;
+
+  const toggleFilter = () => {
+    if (sheet.filter) { change("filter", { sheet: { ...sheet, filter: null, filterHidden: {} } }); setNotice(null); return; }
+    const rect = dataRange();
+    if (rect.r1 === rect.r2) { setNotice("Select a cell in your data (a header row with data below it), then press Filter."); return; }
+    change("filter", { sheet: { ...sheet, filter: rangeString({ ...rect, r1: rect.r1, r2: rect.r2 }), filterHidden: {} } });
+  };
+  const filterRect = sheet.filter ? parseRange(sheet.filter) : null;
+  const filterValues = (col: number) => {
+    if (!filterRect) return [];
+    const values = new Set<string>();
+    for (let row = filterRect.r1 + 1; row <= filterRect.r2; row++) { const value = cellOf(cells, refAt(row, col)).value; values.add(value == null ? "" : formatCellValue(value, cellOf(cells, refAt(row, col)).numberFormat, cellOf(cells, refAt(row, col)).decimals)); }
+    return [...values].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  };
+  const applyFilterValues = (col: number, hidden: string[]) => {
+    const letter = columnLetters(col);
+    const next = { ...(sheet.filterHidden ?? {}) };
+    if (hidden.length) next[letter] = hidden; else delete next[letter];
+    change("filterValues", { sheet: { ...sheet, filterHidden: next } });
+    setFilterMenu(null);
+  };
+  const filteredOut = useMemo(() => {
+    const hiddenRows = new Set<number>();
+    if (!filterRect || !sheet.filterHidden) return hiddenRows;
+    for (const [letter, values] of Object.entries(sheet.filterHidden)) {
+      const col = columnIndex(letter), hide = new Set(values.map(String));
+      for (let row = filterRect.r1 + 1; row <= filterRect.r2; row++) { const cell = cellOf(cells, refAt(row, col)); const text = cell.value == null ? "" : formatCellValue(cell.value, cell.numberFormat, cell.decimals); if (hide.has(text)) hiddenRows.add(row); }
+    }
+    return hiddenRows;
+  }, [cells, sheet.filter, sheet.filterHidden]); // eslint-disable-line react-hooks/exhaustive-deps -- filterRect comes from sheet.filter
+
+  const removeDuplicates = () => {
+    const rect = dataRange();
+    const headers = looksLikeHeaders(rect), first = headers ? rect.r1 + 1 : rect.r1;
+    const seen = new Set<string>(), keep: number[] = [];
+    for (let row = first; row <= rect.r2; row++) { const key = Array.from({ length: rect.c2 - rect.c1 + 1 }, (_, i) => String(cellOf(cells, refAt(row, rect.c1 + i)).value ?? "").toLowerCase()).join("\u0001"); if (!seen.has(key)) { seen.add(key); keep.push(row); } }
+    const removed = rect.r2 - first + 1 - keep.length;
+    if (!removed) { setNotice("No duplicate values found."); return; }
+    const next = { ...cells };
+    for (let row = first; row <= rect.r2; row++) for (let col = rect.c1; col <= rect.c2; col++) delete next[refAt(row, col)];
+    keep.forEach((fromRow, index) => { for (let col = rect.c1; col <= rect.c2; col++) { const cell = cells[refAt(fromRow, col)]; if (cell) next[refAt(first + index, col)] = cell; } });
+    // A filter over the same rows shrinks with them, as an Excel table does.
+    const filter = sheet.filter ? parseRange(sheet.filter) : null;
+    const nextSheet = filter && filter.r1 <= rect.r1 && filter.r2 === rect.r2 ? { ...sheet, filter: rangeString({ ...filter, r2: Math.max(filter.r1 + 1, first + keep.length - 1) }) } : sheet;
+    change("removeDuplicates", { cells: next, sheet: nextSheet });
+    setNotice(`${removed} duplicate value${removed === 1 ? "" : "s"} found and removed; ${keep.length} unique value${keep.length === 1 ? "" : "s"} remain.`);
+  };
+
+  const addConditional = (rule: { type: ConditionalType; value?: string | number; value2?: string | number; style: NonNullable<SheetSettings["conditionalFormats"]>[number]["style"] }) => {
+    change("conditionalFormat", { sheet: { ...sheet, conditionalFormats: [...(sheet.conditionalFormats ?? []), { range: rangeString(selection), ...rule }].slice(-50) } });
+    closeDialog();
+  };
+  const clearConditional = (entireSheet: boolean) => {
+    const rules = (sheet.conditionalFormats ?? []).filter((rule) => { if (entireSheet) return false; const rect = parseRange(rule.range); return !rect || !(rect.r1 <= selection.r2 && selection.r1 <= rect.r2 && rect.c1 <= selection.c2 && selection.c1 <= rect.c2); });
+    change("clearConditionalFormat", { sheet: { ...sheet, conditionalFormats: rules } });
+  };
+  const formatAsTable = (style: (typeof TABLE_STYLES)[number]) => {
+    const rect = dataRange();
+    if (rect.r1 === rect.r2) { setNotice("Select the data (with its header row) to format as a table."); return; }
+    const [, header, headerFont, band] = style;
+    let next = { ...cells };
+    for (let row = rect.r1; row <= rect.r2; row++) for (let col = rect.c1; col <= rect.c2; col++) {
+      const ref = refAt(row, col), cell = cellOf(next, ref);
+      next[ref] = row === rect.r1 ? { ...cell, bold: true, fillColor: header, fontColor: headerFont } : { ...cell, fillColor: (row - rect.r1) % 2 === 0 ? band : "FFFFFF" };
+    }
+    next = applyBorder(next, rect, "all");
+    change("formatAsTable", { cells: next, sheet: { ...sheet, filter: rangeString(rect), filterHidden: {} } });
+  };
+
+  const insertChart = (type: ChartType) => {
+    const rect = dataRange();
+    if (rect.r1 === rect.r2 && rect.c1 === rect.c2) { setNotice("Select the data for the chart (for example the names and their values), then insert the chart."); return; }
+    const id = `chart${(sheet.charts ?? []).reduce((most, chart) => Math.max(most, Number(chart.id.replace(/D/g, "")) || 0), 0) + 1}`;
+    const anchor = refAt(Math.max(1, rect.r1), Math.min(MAX_COLS - 1, rect.c2 + 2));
+    const title = rect.c2 > rect.c1 && typeof cellOf(cells, refAt(rect.r1, rect.c2)).value === "string" && rect.c2 - rect.c1 === 1 ? String(cellOf(cells, refAt(rect.r1, rect.c2)).value) : "Chart Title";
+    change("chart", { sheet: { ...sheet, charts: [...(sheet.charts ?? []), { id, type, range: rangeString(rect), title, anchor }].slice(-10) } });
+    setSelectedChart(id);
+  };
+  const updateChart = (id: string, patch: Partial<NonNullable<SheetSettings["charts"]>[number]>, op: string) => change(op, { sheet: { ...sheet, charts: (sheet.charts ?? []).map((chart) => (chart.id === id ? { ...chart, ...patch } : chart)) } });
+  const deleteChart = (id: string) => { change("deleteChart", { sheet: { ...sheet, charts: (sheet.charts ?? []).filter((chart) => chart.id !== id) } }); setSelectedChart(null); };
+
+  const setComment = (text: string) => { const trimmed = text.trim(); formatSelection({ comment: trimmed ? trimmed.slice(0, 500) : null }, trimmed ? "comment" : "deleteComment", { r1: focus.row, c1: focus.col, r2: focus.row, c2: focus.col }); closeDialog(); };
+  const deleteComment = () => formatSelection({ comment: null }, "deleteComment");
+  const protectSheet = () => { change("protectSheet", { sheet: { ...sheet, protected: true } }); closeDialog(); setNotice("The sheet is protected. REVIEW > Unprotect Sheet allows changes again."); };
+  const unprotectSheet = () => { change("unprotectSheet", { sheet: { ...sheet, protected: false } }); closeDialog(); setNotice(null); };
+
+  const freezeAt = (ref: string | null, op: "freezePanes" | "unfreezePanes") => { change(op, { sheet: { ...sheet, freeze: ref } }); setMenu(null); };
+  const freeze = sheet.freeze ? parseRef(sheet.freeze) : null;
+
+  const hideRows = (hide: boolean) => {
+    const rows = new Set(sheet.hiddenRows ?? []);
+    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { if (hide) rows.add(row); else rows.delete(row); }
+    if (!hide && selection.r1 === selection.r2) { rows.delete(selection.r1 - 1); rows.delete(selection.r1 + 1); }
+    change(hide ? "hideRows" : "unhideRows", { sheet: { ...sheet, hiddenRows: [...rows].sort((a, b) => a - b) } });
+  };
+  const hideColumns = (hide: boolean) => {
+    const cols = new Set(sheet.hiddenCols ?? []);
+    for (let col = selection.c1; col <= selection.c2; col++) { if (hide) cols.add(col); else cols.delete(col); }
+    if (!hide && selection.c1 === selection.c2) { cols.delete(selection.c1 - 1); cols.delete(selection.c1 + 1); }
+    change(hide ? "hideColumns" : "unhideColumns", { sheet: { ...sheet, hiddenCols: [...cols].sort((a, b) => a - b) } });
+  };
+  const setRowHeight = (points: number | null) => {
+    const heights = { ...(sheet.rowHeights ?? {}) };
+    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { if (points === null) delete heights[String(row)]; else heights[String(row)] = Math.round(points * 100) / 100; }
+    change("rowHeight", { sheet: { ...sheet, rowHeights: heights } });
+  };
+  const setColumnWidth = (width: number | null) => {
+    const widths = { ...(sheet.colWidths ?? {}) };
+    for (let col = selection.c1; col <= selection.c2; col++) { if (width === null) delete widths[columnLetters(col)]; else widths[columnLetters(col)] = Math.round(width * 100) / 100; }
+    change("columnWidth", { sheet: { ...sheet, colWidths: widths } });
+  };
+  // AutoFit: the widest entry in each selected column, in characters of the default font.
+  const autoFitColumns = () => {
+    const widths = { ...(sheet.colWidths ?? {}) };
+    for (let col = selection.c1; col <= selection.c2; col++) {
+      let longest = 0;
+      for (const [ref, cell] of Object.entries(cells)) { const at = parseRef(ref); if (at?.col === col && cell.value != null && !mergeAt(merges, at.row, col)) longest = Math.max(longest, formatCellValue(cell.value, cell.numberFormat, cell.decimals).length * ((cell.fontSize ?? DEFAULT_FONT_SIZE) / DEFAULT_FONT_SIZE) * (cell.bold ? 1.1 : 1)); }
+      widths[columnLetters(col)] = Math.min(255, Math.max(2, Math.ceil(longest + 1)));
+    }
+    change("columnWidth", { sheet: { ...sheet, colWidths: widths } });
+  };
+  const applyInput = (purpose: InputPurpose, value: string, chartId?: string) => {
+    if (purpose === "rowHeight") setRowHeight(Number(value));
+    else if (purpose === "columnWidth") setColumnWidth(Number(value));
+    else if (purpose === "comment") { setComment(value); return; }
+    else if (purpose === "protect") { protectSheet(); return; }
+    else if (purpose === "unprotect") { unprotectSheet(); return; }
+    else if (purpose === "chartTitle" && chartId) updateChart(chartId, { title: value.slice(0, 255) }, "chartTitle");
+    closeDialog();
+  };
+  const renameSheet = (name: string) => {
+    const trimmed = name.trim();
+    setRenamingSheet(null);
+    if (!trimmed || trimmed === sheetName) return;
+    if (trimmed.length > 31 || /[[\]:*?/\\]/.test(trimmed)) { setNotice("A sheet name can have up to 31 characters and cannot contain : \\ / ? * [ or ]."); return; }
+    change("renameSheet", { sheet: { ...sheet, name: trimmed } });
+  };
+
+  // Find and Replace work on the shown text of cells (and the formula of formula cells, as Excel's default "Look in: Formulas").
+  const findMatch = (text: string, find: string, options: FindOptions) => {
+    const a = options.matchCase ? text : text.toLowerCase(), b = options.matchCase ? find : find.toLowerCase();
+    return options.entireCell ? a === b : a.includes(b);
+  };
+  const cellText = (cell: SheetCell) => cell.formula ?? (cell.value == null ? "" : String(cell.value));
+  const findNext = (find: string, options: FindOptions) => {
+    const refs = Object.keys(cells).map((ref) => ({ ref, at: parseRef(ref)! })).filter(({ at }) => at).sort((x, y) => x.at.row - y.at.row || x.at.col - y.at.col);
+    const after = refs.filter(({ at }) => at.row > focus.row || (at.row === focus.row && at.col > focus.col));
+    const hit = [...after, ...refs].find(({ ref }) => findMatch(cellText(cells[ref]), find, options));
+    if (!hit) return `We couldn't find what you were looking for.`;
+    select(hit.at.row, hit.at.col);
+    return "";
+  };
+  const replaceIn = (text: string, find: string, replacement: string, options: FindOptions) => {
+    if (options.entireCell) return findMatch(text, find, options) ? replacement : text;
+    return text.replace(new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), options.matchCase ? "g" : "gi"), replacement);
+  };
+  const replaceAll = (find: string, replacement: string, options: FindOptions) => {
+    const next = { ...cells }; let count = 0;
+    for (const [ref, cell] of Object.entries(cells)) {
+      const text = cellText(cell);
+      if (!text || !findMatch(text, find, options)) continue;
+      next[ref] = { ...cell, ...parseEntry(replaceIn(text, find, replacement, options)) }; count++;
+    }
+    if (!count) return "We couldn't find anything to replace.";
+    change("replace", { cells: next });
+    return `All done. We made ${count} replacement${count === 1 ? "" : "s"}.`;
+  };
+  const replaceOne = (find: string, replacement: string, options: FindOptions) => {
+    const cell = cellOf(cells, activeCellRef), text = cellText(cell);
+    if (text && findMatch(text, find, options)) { change("replace", { cells: { ...cells, [activeCellRef]: { ...cell, ...parseEntry(replaceIn(text, find, replacement, options)) } } }); }
+    return findNext(find, options);
+  };
+  const insertSymbol = (symbol: string) => { const cell = cellOf(cells, activeCellRef); if (cell.formula) { setNotice("Insert a symbol into a cell with text, not a formula."); return; } change("symbol", { cells: { ...cells, [activeCellRef]: { ...cell, value: `${cell.value ?? ""}${symbol}` } } }); closeDialog(); };
+  const insertFunction = (name: string) => {
+    closeDialog();
+    const info = FUNCTION_LIBRARY.find((fn) => fn.name === name);
+    record("insertFunction");
+    beginEdit(`=${name}(`);
+    if (info) setNotice(`${info.syntax} — ${info.description} Type the arguments, then press Enter.`);
+  };
+  const zoomToSelection = () => {
+    const box = gridRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const width = Array.from({ length: selection.c2 - selection.c1 + 1 }, (_, i) => colPx(selection.c1 + i)).reduce((a, b) => a + b, 0) + ROW_HEADER_WIDTH;
+    const height = Array.from({ length: selection.r2 - selection.r1 + 1 }, (_, i) => rowHeight(selection.r1 + i)).reduce((a, b) => a + b, 0) + 24;
+    const zoomed = Math.max(10, Math.min(400, Math.floor(Math.min(box.width / width, box.height / height) * 100)));
+    change("zoom", { sheet: { ...sheet, zoom: zoomed } });
+    closeDialog();
+  };
+  useEffect(() => { if (!filterMenu) return; const close = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest?.("[data-xl-filter]")) setFilterMenu(null); }; window.addEventListener("mousedown", close); return () => window.removeEventListener("mousedown", close); }, [filterMenu]);
+
   const nameBoxValue = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? activeRef : (activeMerge && activeMerge.r1 === selection.r1 && activeMerge.c1 === selection.c1 && activeMerge.r2 === selection.r2 && activeMerge.c2 === selection.c2) ? refAt(activeMerge.r1, activeMerge.c1) : rangeString(selection);
   const [nameBox, setNameBox] = useState<string | null>(null);
   const goToName = (text: string) => { const rect = parseRange(text.trim()); if (rect) { selectRect(rect); setNotice(null); } else setNotice("Type a cell or range such as A27 or A27:L27."); setNameBox(null); focusGrid(); };
   const formulaBarValue = editing ? editing.value : (active.formula ?? (active.value == null ? "" : String(active.value)));
   const zoom = sheet.zoom || 100;
   const tallRows = useMemo(() => { const rows = new Map<number, number>(); for (const [ref, cell] of Object.entries(cells)) { if (!cell.rotate || cell.value == null) continue; const row = Number(ref.replace(/^[A-Z]+/, "")); rows.set(row, Math.max(rows.get(row) ?? 20, cell.rotate === 255 ? Math.min(160, 16 * String(cell.value).length) : Math.min(120, 8 + Math.abs(Math.sin((cell.rotate * Math.PI) / 180)) * 7 * String(cell.value).length))); } return rows; }, [cells]);
-  const rowHeight = (row: number) => tallRows.get(row) ?? 20;
+  const hiddenRowSet = useMemo(() => new Set(sheet.hiddenRows ?? []), [sheet.hiddenRows]);
+  const hiddenColSet = useMemo(() => new Set(sheet.hiddenCols ?? []), [sheet.hiddenCols]);
+  const rowHidden = (row: number) => hiddenRowSet.has(row) || filteredOut.has(row);
+  const rowHeight = (row: number) => { if (rowHidden(row)) return 0; const set = sheet.rowHeights?.[String(row)]; return set !== undefined ? pointsToPx(set) : tallRows.get(row) ?? DEFAULT_ROW_PX; };
+  const colPx = (col: number) => { if (hiddenColSet.has(col)) return 0; const set = sheet.colWidths?.[columnLetters(col)]; return set !== undefined ? widthToPx(set) : COL_WIDTH; };
+  const headerRowPx = sheet.headings ? 20 : 0, headerColPx = sheet.headings ? ROW_HEADER_WIDTH : 0;
+  // Freeze Panes: rows above and columns left of sheet.freeze stay put while the rest scrolls.
+  const frozenTop = (row: number) => { let top = headerRowPx; for (let r = 1; r < row; r++) top += rowHeight(r); return top; };
+  const frozenLeft = (col: number) => { let left = headerColPx; for (let c = 0; c < col; c++) left += colPx(c); return left; };
+  const cellOrigin = (ref: string) => { const at = parseRef(ref); return at ? { left: frozenLeft(at.col), top: frozenTop(at.row) } : { left: 0, top: 0 }; };
 
   const off = "Not needed for this test";
   const ribbon = (
@@ -474,10 +737,10 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           <Group label="Number" launcher={() => openFormatCells("Number")} launcherLabel="Format Cells: Number">
             <div className="flex flex-col gap-1">
               <select aria-label="Number Format" value={active.numberFormat ?? "General"} disabled={submitted} onChange={(event) => formatSelection({ numberFormat: event.target.value as SheetCell["numberFormat"] }, "numberFormat")} className="h-[22px] w-[128px] border border-[#c6c6c6] bg-white px-1">
-                {(["General", "Number", "Currency", "Percentage"] as const).map((format) => <option key={format} value={format}>{format}</option>)}
+                {NUMBER_FORMAT_LABELS.map(([format, label]) => <option key={format} value={format}>{label}</option>)}
               </select>
               <div className="flex items-center gap-0.5">
-                <Small label="Accounting Number Format" icon={<span>₹</span>} onClick={() => formatSelection({ numberFormat: "Currency" }, "numberFormat")} disabled={submitted} />
+                <Small label="Accounting Number Format" icon={<span>₹</span>} onClick={() => formatSelection({ numberFormat: "Accounting" }, "numberFormat")} disabled={submitted} />
                 <Small label="Percent Style" icon={<span>%</span>} onClick={() => formatSelection({ numberFormat: "Percentage", decimals: 0 }, "numberFormat")} disabled={submitted} />
                 <Small label="Comma Style" icon={<span className="font-bold">,</span>} onClick={() => formatSelection({ numberFormat: "Number", decimals: 2 }, "numberFormat")} disabled={submitted} />
                 <Small label="Increase Decimal" icon={<span className="text-[9px] leading-none">←.0<br />.00</span>} onClick={() => changeDecimals(1)} disabled={submitted} />
@@ -486,8 +749,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             </div>
           </Group>
           <Group label="Styles">
-            <Big label="Conditional Formatting" icon={<Icon name="conditional" big />} disabled title={off} />
-            <Big label="Format as Table" icon={<Icon name="table" big />} disabled title={off} />
+            <MenuButton id="conditional" menu={menu} setMenu={setMenu} label="Conditional Formatting" icon={<Icon name="conditional" big />} big disabled={submitted}>
+              <MenuHeading>Highlight Cells Rules</MenuHeading>
+              {HIGHLIGHT_RULES.map(([type, label]) => <MenuItem key={type} onClick={() => openDialog({ kind: "conditional", type })}>{label}</MenuItem>)}
+              <MenuSeparator />
+              <MenuItem onClick={() => { clearConditional(false); setMenu(null); }}>Clear Rules from Selected Cells</MenuItem>
+              <MenuItem onClick={() => { clearConditional(true); setMenu(null); }}>Clear Rules from Entire Sheet</MenuItem>
+            </MenuButton>
+            <MenuButton id="formatTable" menu={menu} setMenu={setMenu} label="Format as Table" icon={<Icon name="table" big />} big disabled={submitted}>
+              {TABLE_STYLES.map((style) => <MenuItem key={style[0]} onClick={() => { formatAsTable(style); setMenu(null); }}><span className="mr-2 inline-flex h-3 w-6 border border-slate-300" style={{ background: `linear-gradient(#${style[1]} 40%, #${style[3]} 40%)` }} />{style[0]}</MenuItem>)}
+            </MenuButton>
             <MenuButton id="cellStyles" menu={menu} setMenu={setMenu} label="Cell Styles" icon={<Icon name="cellStyles" big />} big disabled={submitted}>
               {CELL_STYLES.map(([name, patch]) => <MenuItem key={name} onClick={() => { formatSelection(patch, "cellStyle"); setMenu(null); }}>{name}</MenuItem>)}
             </MenuButton>
@@ -502,6 +773,21 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <MenuItem onClick={() => { deleteColumn(); setMenu(null); }}>Delete Sheet Columns</MenuItem>
             </MenuButton>
             <MenuButton id="format" menu={menu} setMenu={setMenu} label="Format" icon={<Icon name="formatCells" big />} big disabled={submitted}>
+              <MenuHeading>Cell Size</MenuHeading>
+              <MenuItem onClick={() => openDialog({ kind: "input", purpose: "rowHeight" })}>Row Height...</MenuItem>
+              <MenuItem onClick={() => { setRowHeight(null); setMenu(null); }}>AutoFit Row Height</MenuItem>
+              <MenuItem onClick={() => openDialog({ kind: "input", purpose: "columnWidth" })}>Column Width...</MenuItem>
+              <MenuItem onClick={() => { autoFitColumns(); setMenu(null); }}>AutoFit Column Width</MenuItem>
+              <MenuHeading>Visibility</MenuHeading>
+              <MenuItem onClick={() => { hideRows(true); setMenu(null); }}>Hide Rows</MenuItem>
+              <MenuItem onClick={() => { hideColumns(true); setMenu(null); }}>Hide Columns</MenuItem>
+              <MenuItem onClick={() => { hideRows(false); setMenu(null); }}>Unhide Rows</MenuItem>
+              <MenuItem onClick={() => { hideColumns(false); setMenu(null); }}>Unhide Columns</MenuItem>
+              <MenuHeading>Organize Sheets</MenuHeading>
+              <MenuItem onClick={() => { setMenu(null); setRenamingSheet(sheetName); }}>Rename Sheet</MenuItem>
+              <MenuHeading>Protection</MenuHeading>
+              <MenuItem onClick={() => openDialog({ kind: "input", purpose: sheet.protected ? "unprotect" : "protect" })}>{sheet.protected ? "Unprotect Sheet..." : "Protect Sheet..."}</MenuItem>
+              <MenuSeparator />
               <MenuItem onClick={() => openFormatCells("Number")}>Format Cells...</MenuItem>
             </MenuButton>
           </Group>
@@ -523,8 +809,14 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <MenuButton id="sort" menu={menu} setMenu={setMenu} label="Sort & Filter" icon={<Icon name="sort" big />} big disabled={submitted}>
               <MenuItem onClick={() => { sortSelection("asc"); setMenu(null); }}>Sort A to Z</MenuItem>
               <MenuItem onClick={() => { sortSelection("desc"); setMenu(null); }}>Sort Z to A</MenuItem>
+              <MenuItem onClick={() => openSort()}>Custom Sort...</MenuItem>
+              <MenuSeparator />
+              <MenuItem checked={Boolean(sheet.filter)} onClick={() => { toggleFilter(); setMenu(null); }}>Filter</MenuItem>
+              <MenuItem onClick={() => { if (sheet.filter) change("filterValues", { sheet: { ...sheet, filterHidden: {} } }); setMenu(null); }}>Clear</MenuItem>
             </MenuButton>
             <MenuButton id="find" menu={menu} setMenu={setMenu} label="Find & Select" icon={<Icon name="find" big />} big>
+              <MenuItem onClick={() => openDialog({ kind: "find", tab: "Find" })}>Find...</MenuItem>
+              <MenuItem onClick={() => openDialog({ kind: "find", tab: "Replace" })}>Replace...</MenuItem>
               <MenuItem onClick={() => { setMenu(null); setNameBox(nameBoxValue); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[aria-label="Name Box"]')?.select()); }}>Go To...</MenuItem>
             </MenuButton>
           </Group>
@@ -532,7 +824,24 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         {tab === "INSERT" && <>
           <Group label="Tables"><Big label="PivotTable" icon={<Icon name="table" big />} disabled title={off} /><Big label="Recommended PivotTables" icon={<Icon name="table" big />} disabled title={off} /><Big label="Table" icon={<Icon name="table" big />} disabled title={off} /></Group>
           <Group label="Illustrations"><Big label="Pictures" icon="🖼" disabled title={off} /><Big label="Online Pictures" icon="🌐" disabled title={off} /><div className="flex flex-col gap-0.5"><Small label="Shapes" icon="◇" showLabel onClick={() => undefined} disabled /><Small label="SmartArt" icon="▣" showLabel onClick={() => undefined} disabled /><Small label="Screenshot" icon="📷" showLabel onClick={() => undefined} disabled /></div></Group>
-          <Group label="Charts"><Big label="Recommended Charts" icon="📊" disabled title={off} /><Big label="PivotChart" icon="📈" disabled title={off} /></Group>
+          <Group label="Charts">
+            <Big label="Recommended Charts" icon={<ChartIcon type="column" />} onClick={() => insertChart("column")} disabled={submitted} />
+            <div className="grid grid-cols-2 gap-0.5">
+              <MenuButton id="chart-column" menu={menu} setMenu={setMenu} label="Insert Column Chart" icon={<ChartIcon type="column" small />} disabled={submitted}>
+                <MenuHeading>2-D Column</MenuHeading><MenuItem onClick={() => { insertChart("column"); setMenu(null); }}>Clustered Column</MenuItem>
+              </MenuButton>
+              <MenuButton id="chart-bar" menu={menu} setMenu={setMenu} label="Insert Bar Chart" icon={<ChartIcon type="bar" small />} disabled={submitted}>
+                <MenuHeading>2-D Bar</MenuHeading><MenuItem onClick={() => { insertChart("bar"); setMenu(null); }}>Clustered Bar</MenuItem>
+              </MenuButton>
+              <MenuButton id="chart-line" menu={menu} setMenu={setMenu} label="Insert Line Chart" icon={<ChartIcon type="line" small />} disabled={submitted}>
+                <MenuHeading>2-D Line</MenuHeading><MenuItem onClick={() => { insertChart("line"); setMenu(null); }}>Line with Markers</MenuItem>
+              </MenuButton>
+              <MenuButton id="chart-pie" menu={menu} setMenu={setMenu} label="Insert Pie or Doughnut Chart" icon={<ChartIcon type="pie" small />} disabled={submitted}>
+                <MenuHeading>2-D Pie</MenuHeading><MenuItem onClick={() => { insertChart("pie"); setMenu(null); }}>Pie</MenuItem>
+              </MenuButton>
+            </div>
+            <Big label="PivotChart" icon="📈" disabled title={off} />
+          </Group>
           <Group label="Sparklines"><Big label="Line" icon="〰" disabled title={off} /><Big label="Column" icon="▮" disabled title={off} /><Big label="Win/ Loss" icon="▚" disabled title={off} /></Group>
           <Group label="Links"><Big label="Hyperlink" icon="🔗" disabled title={off} /></Group>
           <Group label="Text">
@@ -540,13 +849,14 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <Big label="Header & Footer" icon={<Icon name="headerFooter" big />} onClick={() => setHeaderDialog(true)} disabled={submitted} />
             <div className="flex flex-col gap-0.5"><Small label="WordArt" icon="A" showLabel onClick={() => undefined} disabled /><Small label="Signature Line" icon="✎" showLabel onClick={() => undefined} disabled /><Small label="Object" icon="▢" showLabel onClick={() => undefined} disabled /></div>
           </Group>
-          <Group label="Symbols"><div className="flex flex-col gap-0.5"><Small label="Equation" icon="π" showLabel onClick={() => undefined} disabled /><Small label="Symbol" icon="Ω" showLabel onClick={() => undefined} disabled /></div></Group>
+          <Group label="Symbols"><div className="flex flex-col gap-0.5"><Small label="Equation" icon="π" showLabel onClick={() => undefined} disabled /><Small label="Symbol" icon="Ω" showLabel onClick={() => openDialog({ kind: "symbol" })} disabled={submitted} /></div></Group>
         </>}
         {tab === "PAGE LAYOUT" && <>
           <Group label="Themes"><Big label="Themes" icon="Aa" disabled title={off} /></Group>
-          <Group label="Page Setup">
+          <Group label="Page Setup" launcher={() => openDialog({ kind: "pageSetup", tab: "Page" })} launcherLabel="Page Setup">
             <MenuButton id="margins" menu={menu} setMenu={setMenu} label="Margins" icon={<Icon name="margins" big />} big disabled={submitted}>
               {(["Normal", "Wide", "Narrow"] as const).map((value) => <MenuItem key={value} checked={sheet.margins === value} onClick={() => { setSheetOption("margins", value, "margins"); setMenu(null); }}>{value}</MenuItem>)}
+              <MenuSeparator /><MenuItem onClick={() => openDialog({ kind: "pageSetup", tab: "Margins" })}>Custom Margins...</MenuItem>
             </MenuButton>
             <MenuButton id="orientation" menu={menu} setMenu={setMenu} label="Orientation" icon={<Icon name="orientation" big />} big disabled={submitted}>
               <MenuItem checked={sheet.orientation === "portrait"} onClick={() => { setSheetOption("orientation", "portrait", "orientation"); setMenu(null); }}>Portrait</MenuItem>
@@ -559,16 +869,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               <MenuItem onClick={() => { setSheetOption("printArea", rangeString(selection), "printArea"); setNotice(`Print area set to ${rangeString(selection)}.`); setMenu(null); }}>Set Print Area</MenuItem>
               <MenuItem onClick={() => { setSheetOption("printArea", null, "clearPrintArea"); setMenu(null); }}>Clear Print Area</MenuItem>
             </MenuButton>
-            <Big label="Breaks" icon="⤓" disabled title={off} /><Big label="Background" icon="🏞" disabled title={off} /><Big label="Print Titles" icon="🖨" disabled title={off} />
+            <Big label="Breaks" icon="⤓" disabled title={off} /><Big label="Background" icon="🏞" disabled title={off} /><Big label="Print Titles" icon="🖨" onClick={() => openDialog({ kind: "pageSetup", tab: "Sheet" })} disabled={submitted} />
           </Group>
-          <Group label="Scale to Fit">
+          <Group label="Scale to Fit" launcher={() => openDialog({ kind: "pageSetup", tab: "Page" })} launcherLabel="Page Setup: Scale to Fit">
             <div className="grid grid-cols-[52px_84px] items-center gap-x-1 gap-y-0.5 text-slate-500">
               <span>Width:</span><span className="border border-[#c6c6c6] bg-white px-1">Automatic</span>
               <span>Height:</span><span className="border border-[#c6c6c6] bg-white px-1">Automatic</span>
               <span>Scale:</span><span className="border border-[#c6c6c6] bg-white px-1">100%</span>
             </div>
           </Group>
-          <Group label="Sheet Options">
+          <Group label="Sheet Options" launcher={() => openDialog({ kind: "pageSetup", tab: "Sheet" })} launcherLabel="Page Setup: Sheet">
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 px-1">
               <span>Gridlines</span><span>Headings</span>
               <Check label="View" ariaLabel="Gridlines: View" checked={sheet.gridlines} disabled={submitted} onChange={(value) => setSheetOption("gridlines", value, "gridlines")} />
@@ -581,26 +891,53 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         </>}
         {tab === "FORMULAS" && <>
           <Group label="Function Library">
-            <Big label="Insert Function" icon={<span className="font-serif italic">fx</span>} disabled title={off} />
+            <Big label="Insert Function" icon={<span className="font-serif italic">fx</span>} onClick={() => openDialog({ kind: "insertFunction" })} disabled={submitted} />
             <MenuButton id="fx-autosum" menu={menu} setMenu={setMenu} label="AutoSum" icon={<span className="text-[22px] font-bold leading-none">Σ</span>} big disabled={submitted} onMain={() => autoSum("SUM")}>
               {["SUM", "AVERAGE", "COUNT", "MAX", "MIN"].map((fn) => <MenuItem key={fn} onClick={() => { autoSum(fn); setMenu(null); }}>{fn === "SUM" ? "Sum" : fn === "AVERAGE" ? "Average" : fn === "COUNT" ? "Count Numbers" : fn === "MAX" ? "Max" : "Min"}</MenuItem>)}
             </MenuButton>
-            {["Recently Used", "Financial", "Logical", "Text", "Date & Time", "Lookup & Reference", "Math & Trig"].map((label) => <Big key={label} label={label} icon="📒" disabled title={off} />)}
+            <MenuButton id="fx-recent" menu={menu} setMenu={setMenu} label="Recently Used" icon={<Icon name="fnBook" big />} big disabled={submitted}>
+              {["SUM", "AVERAGE", "IF", "COUNT", "MAX", "MIN", "COUNTIF", "VLOOKUP", "ROUND", "SUMIF"].map((name) => <MenuItem key={name} onClick={() => insertFunction(name)}>{name}</MenuItem>)}
+              <MenuSeparator /><MenuItem onClick={() => openDialog({ kind: "insertFunction" })}>Insert Function...</MenuItem>
+            </MenuButton>
+            {FUNCTION_MENUS.map(([label, category]) => (
+              <MenuButton key={label} id={`fx-${category}`} menu={menu} setMenu={setMenu} label={label} icon={<Icon name="fnBook" big />} big disabled={submitted}>
+                {FUNCTION_LIBRARY.filter((fn) => fn.category === category).map((fn) => <MenuItem key={fn.name} onClick={() => insertFunction(fn.name)}>{fn.name}</MenuItem>)}
+                <MenuSeparator /><MenuItem onClick={() => openDialog({ kind: "insertFunction", category })}>Insert Function...</MenuItem>
+              </MenuButton>
+            ))}
+            <MenuButton id="fx-more" menu={menu} setMenu={setMenu} label="More Functions" icon={<Icon name="fnBook" big />} big disabled={submitted}>
+              <MenuHeading>Statistical</MenuHeading>
+              {FUNCTION_LIBRARY.filter((fn) => fn.category === "Statistical").map((fn) => <MenuItem key={fn.name} onClick={() => insertFunction(fn.name)}>{fn.name}</MenuItem>)}
+            </MenuButton>
           </Group>
-          <Group label="Help"><p className="max-w-[16rem] self-center px-2 text-[11px] text-slate-500">Type a formula in a cell or the formula bar, e.g. <b>=SUM(I3:I4)</b> or <b>=I3+I4</b>. SUM, AVERAGE, COUNT, COUNTA, MAX, MIN and IF work, with + − × ÷ and $ references.</p></Group>
+          <Group label="Formula Auditing">
+            <div className="flex flex-col gap-0.5">
+              <Small label="Show Formulas" icon={<Icon name="showFormulas" />} showLabel active={showFormulas} onClick={() => setShowFormulas((value) => !value)} />
+              <Small label="Error Checking" icon="⚠" showLabel onClick={() => undefined} disabled />
+            </div>
+          </Group>
         </>}
         {tab === "DATA" && <>
           <Group label="Get External Data"><Big label="From Access" icon="🗄" disabled title={off} /><Big label="From Web" icon="🌐" disabled title={off} /><Big label="From Text" icon="🗎" disabled title={off} /></Group>
           <Group label="Sort & Filter">
             <div className="flex flex-col gap-0.5"><Small label="Sort A to Z" icon="A↓Z" onClick={() => sortSelection("asc")} disabled={submitted} /><Small label="Sort Z to A" icon="Z↓A" onClick={() => sortSelection("desc")} disabled={submitted} /></div>
-            <Big label="Sort" icon={<Icon name="sort" big />} disabled title={off} /><Big label="Filter" icon="⏷" disabled title={off} />
+            <Big label="Sort" icon={<Icon name="sort" big />} onClick={() => openSort()} disabled={submitted} />
+            <Big label="Filter" icon={<Icon name="filter" big />} active={Boolean(sheet.filter)} onClick={toggleFilter} disabled={submitted} />
+            <div className="flex flex-col gap-0.5"><Small label="Clear" icon="✕" showLabel onClick={() => change("filterValues", { sheet: { ...sheet, filterHidden: {} } })} disabled={submitted || !sheet.filter || !Object.keys(sheet.filterHidden ?? {}).length} /></div>
           </Group>
-          <Group label="Data Tools"><Big label="Text to Columns" icon="⫼" disabled title={off} /><Big label="Remove Duplicates" icon="⊟" disabled title={off} /></Group>
+          <Group label="Data Tools"><Big label="Text to Columns" icon="⫼" disabled title={off} /><Big label="Remove Duplicates" icon={<Icon name="dedupe" big />} onClick={removeDuplicates} disabled={submitted} /></Group>
         </>}
         {tab === "REVIEW" && <>
           <Group label="Proofing"><Big label="Spelling" icon="ABC✓" disabled title={off} /><Big label="Thesaurus" icon="📖" disabled title={off} /></Group>
-          <Group label="Comments"><Big label="New Comment" icon="💬" disabled title={off} /></Group>
-          <Group label="Changes"><Big label="Protect Sheet" icon="🔒" disabled title={off} /><Big label="Protect Workbook" icon="🔒" disabled title={off} /></Group>
+          <Group label="Comments">
+            <Big label={active.comment ? "Edit Comment" : "New Comment"} icon={<Icon name="comment" big />} onClick={() => openDialog({ kind: "input", purpose: "comment" })} disabled={submitted} />
+            <Big label="Delete" icon={<Icon name="commentDelete" big />} onClick={deleteComment} disabled={submitted || !active.comment} />
+            <div className="flex flex-col gap-0.5"><Small label="Show All Comments" icon="💬" showLabel active={showComments} onClick={() => setShowComments((value) => !value)} /></div>
+          </Group>
+          <Group label="Changes">
+            <Big label={sheet.protected ? "Unprotect Sheet" : "Protect Sheet"} icon={<Icon name="lock" big />} active={Boolean(sheet.protected)} onClick={() => openDialog({ kind: "input", purpose: sheet.protected ? "unprotect" : "protect" })} disabled={submitted} />
+            <Big label="Protect Workbook" icon={<Icon name="lock" big />} disabled title={off} />
+          </Group>
         </>}
         {tab === "VIEW" && <>
           <Group label="Workbook Views"><Big label="Normal" icon={<Icon name="table" big />} active onClick={() => undefined} /><Big label="Page Break Preview" icon="▤" disabled title={off} /><Big label="Page Layout" icon="🗏" disabled title={off} /><Big label="Custom Views" icon="▭" disabled title={off} /></Group>
@@ -613,11 +950,18 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             </div>
           </Group>
           <Group label="Zoom">
-            <Big label="Zoom" icon="🔍" onClick={() => setSheet((s) => ({ ...s, zoom: (s.zoom || 100) >= 150 ? 75 : (s.zoom || 100) + 25 }))} />
+            <Big label="Zoom" icon="🔍" onClick={() => openDialog({ kind: "zoom" })} />
             <Big label="100%" icon={<span className="text-[13px] font-bold">100</span>} onClick={() => setSheet((s) => ({ ...s, zoom: 100 }))} />
-            <Big label="Zoom to Selection" icon="⤢" disabled title={off} />
+            <Big label="Zoom to Selection" icon="⤢" onClick={zoomToSelection} />
           </Group>
-          <Group label="Window"><Big label="New Window" icon="🗗" disabled title={off} /><Big label="Arrange All" icon="⊞" disabled title={off} /><Big label="Freeze Panes" icon="❄" disabled title={off} /></Group>
+          <Group label="Window">
+            <Big label="New Window" icon="🗗" disabled title={off} /><Big label="Arrange All" icon="⊞" disabled title={off} />
+            <MenuButton id="freeze" menu={menu} setMenu={setMenu} label="Freeze Panes" icon={<Icon name="freeze" big />} big disabled={submitted}>
+              {freeze ? <MenuItem onClick={() => freezeAt(null, "unfreezePanes")}>Unfreeze Panes</MenuItem> : <MenuItem onClick={() => freezeAt(refAt(Math.max(1, focus.row), focus.col) === "A1" ? "A2" : refAt(focus.row, focus.col), "freezePanes")}>Freeze Panes</MenuItem>}
+              <MenuItem checked={sheet.freeze === "A2"} onClick={() => freezeAt("A2", "freezePanes")}>Freeze Top Row</MenuItem>
+              <MenuItem checked={sheet.freeze === "B1"} onClick={() => freezeAt("B1", "freezePanes")}>Freeze First Column</MenuItem>
+            </MenuButton>
+          </Group>
         </>}
       </div>
     </div>
@@ -635,7 +979,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {ribbon}
       {sheet.formulaBar && <div className="flex items-center gap-2 border-b border-slate-300 bg-white px-2 py-1">
         <input aria-label="Name Box" value={nameBox ?? nameBoxValue} onFocus={() => setNameBox(nameBoxValue)} onChange={(event) => setNameBox(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBox ?? ""); if (event.key === "Escape") { setNameBox(null); focusGrid(); } }} onBlur={() => setNameBox(null)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
-        <span className="px-1 text-[13px] italic text-slate-500">fx</span>
+        <button type="button" aria-label="Insert Function" title="Insert Function" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "insertFunction" })} className="px-1 font-serif text-[13px] italic text-slate-500 hover:bg-slate-100 disabled:opacity-50">fx</button>
         <input aria-label="Formula bar" value={formulaBarValue} disabled={submitted}
           onFocus={() => { if (!editing) beginEdit(undefined, true); }}
           onChange={(event) => setEditing((current) => ({ ref: current?.ref ?? activeCellRef, value: event.target.value, fromBar: true }))}
@@ -651,25 +995,31 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           onChange={(event) => { const text = event.target.value; event.target.value = ""; if (text && !submitted && !editing) beginEdit(text); }}
           onPaste={(event) => { event.preventDefault(); if (!submitted) pasteText(event.clipboardData.getData("text/plain")); }}
           className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0" />
-        <div style={{ zoom: zoom / 100 } as CSSProperties}>
-          <table className="border-separate border-spacing-0 text-[13px]" style={{ tableLayout: "fixed", fontFamily: DEFAULT_FONT, width: (sheet.headings ? ROW_HEADER_WIDTH : 0) + displayCols * COL_WIDTH }}>
-            <colgroup>{sheet.headings && <col style={{ width: ROW_HEADER_WIDTH }} />}{Array.from({ length: displayCols }, (_, col) => <col key={col} style={{ width: COL_WIDTH }} />)}</colgroup>
+        <div className="relative" style={{ zoom: zoom / 100 } as CSSProperties}>
+          <table className="border-separate border-spacing-0 text-[13px]" style={{ tableLayout: "fixed", fontFamily: DEFAULT_FONT, width: headerColPx + Array.from({ length: displayCols }, (_, col) => colPx(col)).reduce((a, b) => a + b, 0) }}>
+            <colgroup>{sheet.headings && <col style={{ width: ROW_HEADER_WIDTH }} />}{Array.from({ length: displayCols }, (_, col) => <col key={col} style={{ width: colPx(col) }} />)}</colgroup>
             {sheet.headings && <thead>
               <tr>
                 <th onMouseDown={(event) => { event.preventDefault(); selectRect({ r1: 1, c1: 0, r2: displayRows, c2: displayCols - 1 }); focusGrid(); }} className="sticky left-0 top-0 z-30 h-5 border-b border-r border-slate-300 bg-[#e6e6e6]" aria-label="Select all" />
                 {Array.from({ length: displayCols }, (_, col) => (
-                  <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.shiftKey) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
-                    className={`sticky top-0 z-20 h-5 border-b border-r border-slate-300 text-[11px] font-normal ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d3d3d3] text-[#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{columnLetters(col)}</th>
+                  <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.shiftKey) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
+                    onContextMenu={(event) => { event.preventDefault(); if (!(col >= selection.c1 && col <= selection.c2 && wholeCols)) { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
+                    style={{ left: freeze && col < freeze.col ? frozenLeft(col) : undefined, padding: hiddenColSet.has(col) ? 0 : undefined }}
+                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d3d3d3] text-[#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}</th>
                 ))}
               </tr>
             </thead>}
             <tbody>
               {Array.from({ length: displayRows }, (_, index) => {
                 const row = index + 1;
+                const hidden = rowHidden(row);
+                const frozenRow = Boolean(freeze && row < freeze.row);
                 return (
-                  <tr key={row}>
-                    {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.shiftKey) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
-                      className={`sticky left-0 z-10 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d3d3d3] text-[#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{row}</th>}
+                  <tr key={row} style={hidden ? { display: "none" } : undefined}>
+                    {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.shiftKey) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
+                      onContextMenu={(event) => { event.preventDefault(); if (!(row >= selection.r1 && row <= selection.r2 && wholeRows)) { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
+                      style={{ top: frozenRow ? frozenTop(row) : undefined, height: rowHeight(row) }}
+                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d3d3d3] text-[#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}</th>}
                     {Array.from({ length: displayCols }, (_, col) => {
                       const merged = mergeAt(merges, row, col);
                       if (merged && (merged.r1 !== row || merged.c1 !== col)) return null;
@@ -678,26 +1028,37 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                       const inSelection = rectContains(selection, row, col);
                       const isActive = merged ? rectContains(merged, focus.row, focus.col) : ref === activeRef;
                       const isEditing = editing?.ref === ref && !editing.fromBar;
-                      const numeric = typeof cell.value === "number";
+                      const numeric = typeof cell.value === "number" && cell.numberFormat !== "Text";
                       const align = cell.align ?? (numeric ? "right" : "left");
+                      const colHidden = hiddenColSet.has(col);
+                      const frozenCol = Boolean(freeze && col < freeze.col);
+                      const conditional = conditionalStyleAt(cells, sheet.conditionalFormats, row, col);
+                      const filterButton = filterRect && row === filterRect.r1 && col >= filterRect.c1 && col <= filterRect.c2;
+                      const filtering = filterButton && Boolean(sheet.filterHidden?.[columnLetters(col)]?.length);
+                      const shown = showFormulas && cell.formula ? cell.formula : formatCellValue(cell.value, cell.numberFormat, cell.decimals);
                       // As in Excel, text runs on into the next cells only while they are empty.
                       const neighbour = cells[refAt(row, col + 1)];
-                      const spill = !cell.wrap && !merged && !numeric && cell.value != null && align === "left" && (!neighbour || (neighbour.value == null && !neighbour.formula)) && !mergeAt(merges, row, col + 1);
+                      const spill = !cell.wrap && !merged && !numeric && cell.value != null && align === "left" && !filterButton && (!neighbour || (neighbour.value == null && !neighbour.formula)) && !mergeAt(merges, row, col + 1);
+                      const fill = conditional?.fill ?? cell.fillColor;
                       const style: CSSProperties = {
-                        backgroundColor: cell.fillColor ? `#${cell.fillColor}` : inSelection && !isActive ? "#dbe8f7" : undefined,
+                        backgroundColor: fill ? `#${fill}` : inSelection && !isActive ? "#dbe8f7" : frozenRow || frozenCol ? "#ffffff" : undefined,
                         borderRight: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent", borderBottom: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent",
                         ...borderCss(cell.border),
-                        textAlign: align, verticalAlign: cell.vAlign === "middle" ? "middle" : cell.vAlign === "top" ? "top" : "bottom",
+                        ...(conditional?.border ? { border: conditional.border } : {}),
+                        ...(freeze && row === freeze.row - 1 ? { borderBottom: "1px solid #9b9b9b" } : {}), ...(freeze && col === freeze.col - 1 ? { borderRight: "1px solid #9b9b9b" } : {}),
+                        textAlign: showFormulas && cell.formula ? "left" : align, verticalAlign: cell.vAlign === "middle" ? "middle" : cell.vAlign === "top" ? "top" : "bottom",
                         fontFamily: cell.fontFamily ? `"${cell.fontFamily}", ${DEFAULT_FONT}, sans-serif` : undefined, fontSize: `${((cell.fontSize ?? DEFAULT_FONT_SIZE) * 4) / 3}px`,
-                        fontWeight: cell.bold ? 700 : undefined, fontStyle: cell.italic ? "italic" : undefined, textDecoration: [cell.underline && "underline", cell.strike && "line-through"].filter(Boolean).join(" ") || undefined, color: cell.fontColor ? `#${cell.fontColor}` : undefined,
-                        paddingLeft: cell.indent && align === "left" ? 4 + cell.indent * 9 : undefined, paddingRight: cell.indent && align === "right" ? 4 + cell.indent * 9 : undefined,
-                        whiteSpace: cell.wrap ? "normal" : "nowrap", overflow: spill ? "visible" : "hidden", height: rowHeight(row), lineHeight: 1.2, zIndex: spill ? 1 : undefined,
+                        fontWeight: cell.bold ? 700 : undefined, fontStyle: cell.italic ? "italic" : undefined, textDecoration: [cell.underline && "underline", cell.strike && "line-through"].filter(Boolean).join(" ") || undefined, color: conditional?.font ? `#${conditional.font}` : cell.fontColor ? `#${cell.fontColor}` : undefined,
+                        paddingLeft: colHidden ? 0 : cell.indent && align === "left" ? 4 + cell.indent * 9 : undefined, paddingRight: colHidden ? 0 : filterButton ? 18 : cell.indent && align === "right" ? 4 + cell.indent * 9 : undefined,
+                        whiteSpace: cell.wrap ? "normal" : "nowrap", overflow: spill ? "visible" : "hidden", height: rowHeight(row), lineHeight: 1.2, zIndex: frozenRow && frozenCol ? 16 : frozenRow || frozenCol ? 15 : spill ? 1 : undefined,
+                        position: frozenRow || frozenCol ? "sticky" : "relative", top: frozenRow ? frozenTop(row) : undefined, left: frozenCol ? frozenLeft(col) : undefined,
                         outline: isActive ? "2px solid #217346" : undefined, outlineOffset: -2,
                       };
                       return (
                         <td key={ref} {...span} role="gridcell" aria-selected={inSelection} data-ref={ref} style={style}
-                          className="relative max-w-0 px-1"
+                          className={`group max-w-0 ${colHidden ? "" : "px-1"}`}
                           onMouseDown={(event) => {
+                            setSelectedChart(null);
                             // A right-click inside the selection keeps it (the menu then acts on all of it), as in Excel.
                             if (event.button === 2 && rectContains(selection, row, col)) return;
                             if (editing && !isEditing) commitEdit();
@@ -714,8 +1075,15 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                               onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit("right"); } else if (event.key === "Escape") { setEditing(null); focusGrid(); } }}
                               onBlur={() => commitEdit()} className="absolute inset-0 z-10 w-full min-w-[120px] border-2 border-[#217346] bg-white px-1 outline-none" style={{ fontSize: style.fontSize, fontFamily: style.fontFamily as string | undefined }} />
                           ) : (
-                            <span className={cell.rotate ? "inline-block" : "block"} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{formatCellValue(cell.value, cell.numberFormat, cell.decimals)}</span>
+                            <span className={cell.rotate ? "inline-block" : "block"} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{shown}</span>
                           )}
+                          {filterButton && !colHidden && <button type="button" aria-label={`Filter ${columnLetters(col)}`} title={filtering ? "Filtered" : "Filter"} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }}
+                            onClick={(event) => { const box = (event.currentTarget as HTMLElement).getBoundingClientRect(); setFilterMenu({ col, x: box.left, y: box.bottom + 2 }); }}
+                            className="absolute bottom-0.5 right-0.5 top-0.5 z-[2] grid w-4 place-items-center border border-[#adadad] bg-[#f0f0f0] text-[9px] leading-none text-[#444] hover:bg-white">{filtering ? "▼⏷" : "▾"}</button>}
+                          {cell.comment && !colHidden && <>
+                            <span aria-hidden className="absolute right-0 top-0 h-0 w-0 border-l-[6px] border-t-[6px] border-l-transparent border-t-[#c00000]" />
+                            <span role="note" className={`absolute left-full top-0 z-[40] ml-2 w-44 whitespace-pre-wrap border border-[#7a7a7a] bg-[#ffffe1] p-1.5 text-left text-[11px] font-normal not-italic text-black no-underline shadow ${showComments ? "block" : "hidden group-hover:block"}`}><b>Student:</b><br />{cell.comment}</span>
+                          </>}
                         </td>
                       );
                     })}
@@ -724,40 +1092,113 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
               })}
             </tbody>
           </table>
+          {(sheet.charts ?? []).map((chart) => {
+            const origin = cellOrigin(chart.anchor);
+            const isSelected = selectedChart === chart.id;
+            return (
+              <div key={chart.id} data-xl-chart className="absolute z-[18]" style={{ left: origin.left, top: origin.top }} onMouseDown={(event) => { event.stopPropagation(); setSelectedChart(chart.id); setMenu(null); }}>
+                <ChartView chart={chart} cells={cells} selected={isSelected} />
+                {isSelected && !submitted && (
+                  <div data-xl-menu className="absolute right-1 top-1 flex gap-1 border border-[#c6c6c6] bg-white/95 p-0.5 text-[11px] shadow">
+                    <button type="button" onClick={() => openDialog({ kind: "input", purpose: "chartTitle", chartId: chart.id })} className="px-2 py-0.5 hover:bg-[#d5e1f2]">Chart Title</button>
+                    <select aria-label="Change Chart Type" value={chart.type} onChange={(event) => updateChart(chart.id, { type: event.target.value as ChartType }, "chart")} className="border border-[#c6c6c6] px-1">
+                      <option value="column">Clustered Column</option><option value="bar">Clustered Bar</option><option value="line">Line with Markers</option><option value="pie">Pie</option>
+                    </select>
+                    <button type="button" onClick={() => deleteChart(chart.id)} className="px-2 py-0.5 text-[#c00000] hover:bg-[#d5e1f2]">Delete Chart</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
-      <div className="flex items-center gap-3 border-t border-slate-300 bg-[#f3f3f3] px-3 py-0.5 text-[11px] text-slate-600">
-        <span className="rounded-t border border-b-0 border-slate-300 bg-white px-3 py-0.5 font-semibold text-[#217346]">Sheet1</span>
-        <span>{editing ? "Edit" : painter ? "Format Painter" : clip ? "Select destination and press ENTER or choose Paste" : "Ready"}</span>
-        {sheet.printArea && <span>Print area: {sheet.printArea}</span>}
-        <span>{sheet.orientation === "landscape" ? "Landscape" : "Portrait"} · {sheet.paperSize}</span>
-        {(sheet.header.left || sheet.header.center || sheet.header.right) && <span>Header: {[sheet.header.left, sheet.header.center, sheet.header.right].map((part) => previewHeaderText(part)).filter(Boolean).join(" | ")}</span>}
-        <span className="ml-auto">{stats && <>{stats.average !== null && <>Average: {formatCellValue(stats.average, "General")} · </>}Count: {stats.count}{stats.average !== null && <> · Sum: {formatCellValue(stats.sum, "General")}</>}</>}</span>
-        <span>{zoom}%</span>
+      <div className="flex items-stretch border-t border-slate-300 bg-[#f3f3f3] text-[11px] text-slate-600">
+        <div className="flex items-center gap-0.5 px-1 text-[#999]" aria-hidden><span className="px-1">◀</span><span className="px-1">▶</span></div>
+        {renamingSheet !== null ? (
+          <input autoFocus aria-label="Sheet name" value={renamingSheet} maxLength={31} onChange={(event) => setRenamingSheet(event.target.value)} onBlur={() => renameSheet(renamingSheet)} onKeyDown={(event) => { if (event.key === "Enter") renameSheet(renamingSheet); if (event.key === "Escape") setRenamingSheet(null); }} className="w-28 border border-[#217346] bg-white px-2 text-[12px] outline-none" />
+        ) : (
+          <button type="button" aria-label={`Sheet tab ${sheetName}`} title="Double-click to rename" onDoubleClick={() => { if (!submitted) setRenamingSheet(sheetName); }} className="border-x border-b-2 border-x-slate-300 border-b-[#217346] bg-white px-4 py-0.5 text-[12px] font-semibold text-[#217346]">{sheetName}</button>
+        )}
+        <span aria-hidden title="New sheet" className="grid w-6 place-items-center text-[14px] text-[#999]">⊕</span>
+        <span className="flex items-center gap-3 px-3">
+          <span>{editing ? "Edit" : painter ? "Format Painter" : clip ? "Select destination and press ENTER or choose Paste" : filteredOut.size && filterRect ? `${filterRect.r2 - filterRect.r1 - filteredOut.size} of ${filterRect.r2 - filterRect.r1} records found` : "Ready"}</span>
+          {sheet.protected && <span title="Protected sheet">🔒 Protected</span>}
+          {sheet.printArea && <span>Print area: {sheet.printArea}</span>}
+          <span>{sheet.orientation === "landscape" ? "Landscape" : "Portrait"} · {sheet.paperSize}</span>
+          {(sheet.header.left || sheet.header.center || sheet.header.right) && <span>Header: {[sheet.header.left, sheet.header.center, sheet.header.right].map((part) => previewHeaderText(part, 1, 1).replace(/Sheet1/g, sheetName)).filter(Boolean).join(" | ")}</span>}
+        </span>
+        <span className="ml-auto flex items-center px-3">{stats && <>{stats.average !== null && <>Average: {formatCellValue(stats.average, "General")}&nbsp;&nbsp;&nbsp;</>}Count: {stats.count}{stats.average !== null && <>&nbsp;&nbsp;&nbsp;Sum: {formatCellValue(stats.sum, "General")}</>}</>}</span>
+        <span className="flex items-center gap-1 px-2" aria-label="Views"><span title="Normal" className="border border-[#9fb9a7] bg-[#cfe2d4] px-1">▦</span><span title="Page Layout" className="px-1 text-[#999]">▤</span><span title="Page Break Preview" className="px-1 text-[#999]">▥</span></span>
+        <span className="flex items-center gap-1 px-2">
+          <button type="button" aria-label="Zoom Out" onClick={() => setSheet((s) => ({ ...s, zoom: Math.max(10, (s.zoom || 100) - 10) }))} className="px-1 hover:text-black">−</button>
+          <input type="range" aria-label="Zoom" min={10} max={400} step={10} value={zoom} onChange={(event) => setSheet((s) => ({ ...s, zoom: Number(event.target.value) }))} className="h-1 w-24 accent-[#217346]" />
+          <button type="button" aria-label="Zoom In" onClick={() => setSheet((s) => ({ ...s, zoom: Math.min(400, (s.zoom || 100) + 10) }))} className="px-1 hover:text-black">+</button>
+          <button type="button" onClick={() => openDialog({ kind: "zoom" })} className="w-10 text-right hover:text-black">{zoom}%</button>
+        </span>
       </div>
       <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message="Submit your final sheet? You cannot edit it afterward." confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
       <ConfirmDialog open={submitProblem !== null} title="Could not submit" message={submitProblem} confirmLabel="OK" cancelLabel={null} tone="primary" onCancel={() => setSubmitProblem(null)} onConfirm={() => setSubmitProblem(null)} />
       {formatDialog && <FormatCellsDialog cell={active} merged={Boolean(activeMerge)} initialTab={formatDialog} onCancel={() => { setFormatDialog(null); focusGrid(); }} onOk={applyFormatCells} />}
       {contextMenu && (
-        <div data-xl-context role="menu" aria-label="Cell menu" className="fixed z-[85] min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] shadow-xl" style={{ left: Math.min(contextMenu.x, (typeof window === "undefined" ? 1200 : window.innerWidth) - 200), top: Math.min(contextMenu.y, (typeof window === "undefined" ? 800 : window.innerHeight) - 300) }}>
+        <div data-xl-context role="menu" aria-label="Cell menu" className="fixed z-[85] min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] shadow-xl" style={{ left: Math.min(contextMenu.x, (typeof window === "undefined" ? 1200 : window.innerWidth) - 200), top: Math.min(contextMenu.y, (typeof window === "undefined" ? 800 : window.innerHeight) - 420) }}>
           <ContextItem label="Cut" disabled={submitted} onSelect={() => { setContextMenu(null); copy(true); focusGrid(); }} />
           <ContextItem label="Copy" disabled={false} onSelect={() => { setContextMenu(null); copy(); focusGrid(); }} />
           <ContextItem label="Paste" disabled={submitted} onSelect={() => { setContextMenu(null); paste(); focusGrid(); }} />
           <ContextItem label="Paste Values" disabled={submitted} onSelect={() => { setContextMenu(null); pasteSpecial("values"); focusGrid(); }} />
           <ContextItem label="Paste Formatting" disabled={submitted} onSelect={() => { setContextMenu(null); pasteSpecial("formatting"); focusGrid(); }} />
           <div className="my-1 border-t border-[#e1e1e1]" />
-          <ContextItem label="Insert Sheet Rows" disabled={submitted} onSelect={() => { setContextMenu(null); insertRow(); focusGrid(); }} />
-          <ContextItem label="Delete Sheet Rows" disabled={submitted} onSelect={() => { setContextMenu(null); deleteRow(); focusGrid(); }} />
-          <ContextItem label="Insert Sheet Columns" disabled={submitted} onSelect={() => { setContextMenu(null); insertColumn(); focusGrid(); }} />
-          <ContextItem label="Delete Sheet Columns" disabled={submitted} onSelect={() => { setContextMenu(null); deleteColumn(); focusGrid(); }} />
-          <ContextItem label="Clear Contents" disabled={submitted} onSelect={() => { setContextMenu(null); clearContents(); focusGrid(); }} />
-          <div className="my-1 border-t border-[#e1e1e1]" />
-          <ContextItem label="Sort A to Z" disabled={submitted} onSelect={() => { setContextMenu(null); sortSelection("asc"); focusGrid(); }} />
-          <ContextItem label="Sort Z to A" disabled={submitted} onSelect={() => { setContextMenu(null); sortSelection("desc"); focusGrid(); }} />
-          <div className="my-1 border-t border-[#e1e1e1]" />
-          <ContextItem label="Format Cells..." disabled={submitted} onSelect={() => { setContextMenu(null); openFormatCells("Number"); focusGrid(); }} />
+          {wholeCols ? <>
+            <ContextItem label="Insert" disabled={submitted} onSelect={() => { setContextMenu(null); insertColumn(); focusGrid(); }} />
+            <ContextItem label="Delete" disabled={submitted} onSelect={() => { setContextMenu(null); deleteColumn(); focusGrid(); }} />
+            <ContextItem label="Clear Contents" disabled={submitted} onSelect={() => { setContextMenu(null); clearContents(); focusGrid(); }} />
+            <div className="my-1 border-t border-[#e1e1e1]" />
+            <ContextItem label="Format Cells..." disabled={submitted} onSelect={() => { setContextMenu(null); openFormatCells("Number"); }} />
+            <ContextItem label="Column Width..." disabled={submitted} onSelect={() => openDialog({ kind: "input", purpose: "columnWidth" })} />
+            <ContextItem label="Hide" disabled={submitted} onSelect={() => { setContextMenu(null); hideColumns(true); focusGrid(); }} />
+            <ContextItem label="Unhide" disabled={submitted} onSelect={() => { setContextMenu(null); hideColumns(false); focusGrid(); }} />
+          </> : wholeRows ? <>
+            <ContextItem label="Insert" disabled={submitted} onSelect={() => { setContextMenu(null); insertRow(); focusGrid(); }} />
+            <ContextItem label="Delete" disabled={submitted} onSelect={() => { setContextMenu(null); deleteRow(); focusGrid(); }} />
+            <ContextItem label="Clear Contents" disabled={submitted} onSelect={() => { setContextMenu(null); clearContents(); focusGrid(); }} />
+            <div className="my-1 border-t border-[#e1e1e1]" />
+            <ContextItem label="Format Cells..." disabled={submitted} onSelect={() => { setContextMenu(null); openFormatCells("Number"); }} />
+            <ContextItem label="Row Height..." disabled={submitted} onSelect={() => openDialog({ kind: "input", purpose: "rowHeight" })} />
+            <ContextItem label="Hide" disabled={submitted} onSelect={() => { setContextMenu(null); hideRows(true); focusGrid(); }} />
+            <ContextItem label="Unhide" disabled={submitted} onSelect={() => { setContextMenu(null); hideRows(false); focusGrid(); }} />
+          </> : <>
+            <ContextItem label="Insert Sheet Rows" disabled={submitted} onSelect={() => { setContextMenu(null); insertRow(); focusGrid(); }} />
+            <ContextItem label="Delete Sheet Rows" disabled={submitted} onSelect={() => { setContextMenu(null); deleteRow(); focusGrid(); }} />
+            <ContextItem label="Insert Sheet Columns" disabled={submitted} onSelect={() => { setContextMenu(null); insertColumn(); focusGrid(); }} />
+            <ContextItem label="Delete Sheet Columns" disabled={submitted} onSelect={() => { setContextMenu(null); deleteColumn(); focusGrid(); }} />
+            <ContextItem label="Clear Contents" disabled={submitted} onSelect={() => { setContextMenu(null); clearContents(); focusGrid(); }} />
+            <div className="my-1 border-t border-[#e1e1e1]" />
+            <ContextItem label="Filter" disabled={submitted} onSelect={() => { setContextMenu(null); toggleFilter(); focusGrid(); }} />
+            <ContextItem label="Sort A to Z" disabled={submitted} onSelect={() => { setContextMenu(null); sortSelection("asc"); focusGrid(); }} />
+            <ContextItem label="Sort Z to A" disabled={submitted} onSelect={() => { setContextMenu(null); sortSelection("desc"); focusGrid(); }} />
+            <div className="my-1 border-t border-[#e1e1e1]" />
+            <ContextItem label={active.comment ? "Edit Comment" : "Insert Comment"} disabled={submitted} onSelect={() => openDialog({ kind: "input", purpose: "comment" })} />
+            {active.comment && <ContextItem label="Delete Comment" disabled={submitted} onSelect={() => { setContextMenu(null); deleteComment(); focusGrid(); }} />}
+            <ContextItem label="Format Cells..." disabled={submitted} onSelect={() => { setContextMenu(null); openFormatCells("Number"); focusGrid(); }} />
+          </>}
         </div>
       )}
+      {filterMenu && <FilterMenu x={filterMenu.x} y={filterMenu.y} values={filterValues(filterMenu.col)} hidden={(sheet.filterHidden?.[columnLetters(filterMenu.col)] ?? []).map(String)}
+        onSort={(descending) => { const rect = filterRect; setFilterMenu(null); if (rect) sortRows(rect, filterMenu.col, descending, true, descending ? "sortDescending" : "sortAscending"); }}
+        onOk={(hidden) => applyFilterValues(filterMenu.col, hidden)} onCancel={() => setFilterMenu(null)} />}
+      {dialog?.kind === "insertFunction" && <InsertFunctionDialog initialCategory={dialog.category} onOk={insertFunction} onCancel={closeDialog} />}
+      {dialog?.kind === "sort" && <SortDialog defaultHeaders={dialog.headers} columns={Array.from({ length: dialog.rect.c2 - dialog.rect.c1 + 1 }, (_, i) => ({ index: dialog.rect.c1 + i, letter: columnLetters(dialog.rect.c1 + i), header: String(cellOf(cells, refAt(dialog.rect.r1, dialog.rect.c1 + i)).value ?? "") }))} onOk={(choice) => { closeDialog(); sortRows(dialog.rect, choice.column, choice.descending, choice.headers, "sort"); }} onCancel={closeDialog} />}
+      {dialog?.kind === "conditional" && <ConditionalDialog type={dialog.type} onOk={addConditional} onCancel={closeDialog} />}
+      {dialog?.kind === "find" && <FindReplaceDialog initialTab={dialog.tab} onFindNext={findNext} onReplace={replaceOne} onReplaceAll={replaceAll} onCancel={closeDialog} />}
+      {dialog?.kind === "pageSetup" && <PageSetupDialog sheet={sheet} initialTab={dialog.tab} onCustomHeader={() => { setDialog(null); setHeaderDialog(true); }} onCancel={closeDialog}
+        onOk={(result) => { const op = result.printTitleRows !== (sheet.printTitleRows ?? null) || result.printTitleCols !== (sheet.printTitleCols ?? null) ? "printTitles" : "pageSetup"; change(op, { sheet: { ...sheet, ...result } }); if (result.orientation !== sheet.orientation) record("orientation"); if (result.paperSize !== sheet.paperSize) record("paperSize"); if (result.printArea !== sheet.printArea) record(result.printArea ? "printArea" : "clearPrintArea"); closeDialog(); }} />}
+      {dialog?.kind === "symbol" && <SymbolDialog onInsert={insertSymbol} onCancel={closeDialog} />}
+      {dialog?.kind === "zoom" && <ZoomDialog value={zoom} onFitSelection={zoomToSelection} onOk={(value) => { setSheet((s) => ({ ...s, zoom: value })); closeDialog(); }} onCancel={closeDialog} />}
+      {dialog?.kind === "input" && dialog.purpose === "rowHeight" && <InputDialog title="Row Height" label="Row height:" numeric min={0} max={409} initial={String(sheet.rowHeights?.[String(selection.r1)] ?? 15)} onOk={(value) => applyInput("rowHeight", value)} onCancel={closeDialog} />}
+      {dialog?.kind === "input" && dialog.purpose === "columnWidth" && <InputDialog title="Column Width" label="Column width:" numeric min={0} max={255} initial={String(sheet.colWidths?.[columnLetters(selection.c1)] ?? 8.43)} onOk={(value) => applyInput("columnWidth", value)} onCancel={closeDialog} />}
+      {dialog?.kind === "input" && dialog.purpose === "comment" && <InputDialog title={active.comment ? "Edit Comment" : "New Comment"} label={`Comment on ${activeCellRef}:`} multiline initial={active.comment ?? ""} onOk={(value) => applyInput("comment", value)} onCancel={closeDialog} />}
+      {dialog?.kind === "input" && dialog.purpose === "protect" && <InputDialog title="Protect Sheet" label="Password to unprotect sheet (optional):" hint="Protect worksheet and contents of locked cells. Students' passwords are not stored; the sheet is simply protected." onOk={(value) => applyInput("protect", value)} onCancel={closeDialog} />}
+      {dialog?.kind === "input" && dialog.purpose === "unprotect" && <InputDialog title="Unprotect Sheet" label="Password:" hint="Press OK to unprotect the sheet." onOk={(value) => applyInput("unprotect", value)} onCancel={closeDialog} />}
+      {dialog?.kind === "input" && dialog.purpose === "chartTitle" && <InputDialog title="Chart Title" label="Chart title:" initial={(sheet.charts ?? []).find((chart) => chart.id === dialog.chartId)?.title ?? ""} onOk={(value) => applyInput("chartTitle", value, dialog.chartId)} onCancel={closeDialog} />}
       {headerDialog && <HeaderFooterDialog header={sheet.header} footer={sheet.footer} onCancel={() => setHeaderDialog(false)} onOk={(header, footer) => { setHeaderDialog(false); const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? ""))); change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header"); }} />}
       <footer className="flex items-center justify-between gap-3 border-t bg-slate-950 px-4 py-2 text-white">
         <p aria-live="polite" className="text-sm font-bold">Autosave: {status}</p>
@@ -843,7 +1284,7 @@ function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, n
 function Icon({ name, big }: { name: string; big?: boolean }) {
   const s = big ? 30 : 16;
   const line = (x1: number, y1: number, x2: number, y2: number, color = "#444", w = 1.4) => <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={w} />;
-  const rows = (ys: number[], widths: [number, number][]) => ys.map((y, i) => line(widths[i][0], y, widths[i][1], y));
+  const rows = (ys: number[], widths: [number, number][]) => ys.map((y, i) => <g key={i}>{line(widths[i][0], y, widths[i][1], y)}</g>);
   const content: Record<string, React.ReactNode> = {
     vTop: <>{line(2, 2, 14, 2, "#217346", 2)}{rows([5, 8, 11], [[4, 12], [4, 12], [4, 12]])}</>,
     vMiddle: <>{rows([3, 13], [[4, 12], [4, 12]])}{line(2, 8, 14, 8, "#217346", 2)}{rows([5.5, 10.5], [[4, 12], [4, 12]])}</>,
@@ -876,8 +1317,30 @@ function Icon({ name, big }: { name: string; big?: boolean }) {
     orientation: <><rect x={3} y={8} width={14} height={20} fill="#fff" stroke="#888" /><rect x={10} y={3} width={18} height={13} fill="#fff" stroke="#2a6bd4" /></>,
     size: <><rect x={8} y={3} width={16} height={24} fill="#fff" stroke="#888" /><path d="M4 8 V27 M2 10 L4 8 L6 10 M2 25 L4 27 L6 25" stroke="#2a6bd4" strokeWidth={1.2} fill="none" /></>,
     printArea: <><rect x={4} y={10} width={22} height={12} fill="#fff" stroke="#888" /><rect x={8} y={3} width={14} height={8} fill="#fff" stroke="#888" /><rect x={8} y={20} width={14} height={8} fill="#2a6bd4" opacity={0.25} stroke="#2a6bd4" /></>,
+    fnBook: <><rect x={6} y={4} width={18} height={22} rx={1} fill="#fff" stroke="#888" /><rect x={6} y={4} width={4} height={22} fill="#217346" /><text x={12} y={19} fontSize={10} fontStyle="italic" fontFamily="serif" fill="#333">fx</text></>,
+    showFormulas: <><rect x={2} y={2} width={12} height={12} fill="#fff" stroke="#888" /><text x={3.5} y={11.5} fontSize={8} fontStyle="italic" fontFamily="serif" fill="#217346">fx</text></>,
+    filter: <><path d="M5 6 H25 L17 16 V25 L13 22 V16 Z" fill="#fff" stroke="#555" strokeWidth={1.4} /></>,
+    dedupe: <><rect x={3} y={5} width={20} height={6} fill="#fff" stroke="#888" /><rect x={3} y={13} width={20} height={6} fill="#ffc7ce" stroke="#888" /><path d="M20 20 l8 8 M28 20 l-8 8" stroke="#d24726" strokeWidth={2} /></>,
+    comment: <><path d="M4 5 H26 V20 H13 L7 26 V20 H4 Z" fill="#fff8c4" stroke="#b49c3a" strokeWidth={1.3} /></>,
+    commentDelete: <><path d="M4 5 H22 V18 H12 L7 23 V18 H4 Z" fill="#fff8c4" stroke="#b49c3a" strokeWidth={1.3} /><path d="M19 18 l8 8 M27 18 l-8 8" stroke="#d24726" strokeWidth={2} /></>,
+    lock: <><rect x={7} y={13} width={16} height={13} rx={1.5} fill="#e6b84a" stroke="#8a6d1f" /><path d="M10 13 V9 a5 5 0 0 1 10 0 V13" fill="none" stroke="#666" strokeWidth={2} /></>,
+    freeze: <><rect x={3} y={4} width={24} height={22} fill="#fff" stroke="#888" /><rect x={3} y={4} width={24} height={6} fill="#bdd7ee" /><rect x={3} y={4} width={7} height={22} fill="#bdd7ee" opacity={0.8} />{line(3, 10, 27, 10, "#2a6bd4", 1.5)}{line(10, 4, 10, 26, "#2a6bd4", 1.5)}</>,
   };
   return <svg aria-hidden width={s} height={s} viewBox={big ? "0 0 30 30" : "0 0 16 16"} className="shrink-0">{content[name] ?? null}</svg>;
+}
+function ChartIcon({ type, small }: { type: ChartType; small?: boolean }) {
+  const s = small ? 16 : 30;
+  const body = type === "pie" ? <><circle cx={15} cy={15} r={11} fill="#5b9bd5" /><path d="M15 15 L15 4 A11 11 0 0 1 25.5 18 Z" fill="#ed7d31" /></>
+    : type === "line" ? <><path d="M3 24 L10 14 L17 18 L27 6" fill="none" stroke="#5b9bd5" strokeWidth={2.5} /><path d="M3 27 H27" stroke="#888" /></>
+    : type === "bar" ? <>{[[5, 16], [12, 22], [19, 12]].map(([y, w]) => <rect key={y} x={3} y={y} width={w} height={5} fill="#5b9bd5" />)}<path d="M3 3 V27" stroke="#888" /></>
+    : <>{[[4, 14], [11, 8], [18, 18]].map(([x, h]) => <rect key={x} x={x} y={26 - h} width={5} height={h} fill="#5b9bd5" />)}{[[7, 10], [14, 16], [21, 6]].map(([x, h]) => <rect key={x} x={x} y={26 - h} width={3} height={h} fill="#ed7d31" />)}<path d="M3 26 H28" stroke="#888" /></>;
+  return <svg aria-hidden width={s} height={s} viewBox="0 0 30 30" className="shrink-0">{body}</svg>;
+}
+function MenuHeading({ children }: { children: React.ReactNode }) {
+  return <div className="bg-[#eeeeee] px-3 py-0.5 text-[11px] font-semibold text-[#444]">{children}</div>;
+}
+function MenuSeparator() {
+  return <div className="my-1 border-t border-[#e1e1e1]" />;
 }
 function FontSizeBox({ value, onChange, disabled }: { value: number; onChange: (size: number) => void; disabled?: boolean }) {
   const [text, setText] = useState<string | null>(null);

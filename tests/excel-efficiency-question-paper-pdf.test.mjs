@@ -11,7 +11,7 @@ test("the Excel admin page has the Word page's Question Delivery and PDF box and
     read("app/admin/word-efficiency-tests/delivery-pdf-fields.tsx"), read("app/admin/excel-efficiency-tests/actions.ts"),
     read("app/admin/excel-efficiency-tests/page.tsx"), read("app/admin/excel-efficiency-tests/question-editor.tsx"),
     read("app/admin/excel-efficiency-tests/[testId]/pdf/route.ts")]);
-  assert.match(page, /<DeliveryPdfFields subject="excel" defaultOnscreen defaultPdf=\{Boolean\(current\?\.delivery_pdf\)\}/);
+  assert.match(page, /<DeliveryPdfFields subject="excel" defaultOnscreen=\{.*?delivery_onscreen !== false\} defaultStudentToggle=\{.*?\} defaultPdf=\{Boolean\(current\?\.delivery_pdf\)\}/);
   assert.match(box, /const extractPdf=subject==="excel"\?extractExcelEfficiencyPdf:extractWordEfficiencyPdf;/);
   assert.match(box, /new CustomEvent\(`\$\{subject\}-efficiency:questions-import`/);
   assert.match(box, /href=\{`\/admin\/\$\{subject\}-efficiency-tests\/\$\{existingPdf\.testId\}\/pdf`\}/);

@@ -26,10 +26,10 @@ test("IF evaluates the correct branch", () => {
   assert.equal(evaluateFormula("=IF(0,B1,B2)", cells), 20);
 });
 
-// Comparisons work for IF (=, <>, <, >, <=, >=), as in Excel; an unknown function still gives a controlled error.
+// Comparisons work for IF (=, <>, <, >, <=, >=), as in Excel; an unknown function gives Excel's #NAME? error.
 test("IF comparisons work, and an unsupported function produces a controlled error value instead of crashing", () => {
   assert.equal(evaluateFormula("=IF(B1>5,1,0)", cells), Number(cells.B1?.value ?? 0) > 5 ? 1 : 0);
-  assert.equal(evaluateFormula("=VLOOKUP(B1,A1:B2,2)", cells), "#ERROR!");
+  assert.equal(evaluateFormula("=NOSUCHFUNCTION(B1)", cells), "#NAME?");
 });
 
 test("a formula referencing another formula resolves transitively", () => {

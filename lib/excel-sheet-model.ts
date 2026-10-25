@@ -1,7 +1,7 @@
 // Pure helpers behind the Excel Efficiency workspace: cell references and ranges, merged cells, inserting
 // and deleting rows/columns, formula values, borders and the used part of a sheet.
-import { columnIndex, columnLetters, computedCellValue, type SheetCells } from "./excel-formula.ts";
-import type { SheetCell, SheetSettings } from "./excel-document.ts";
+import { columnIndex, columnLetters, computedCellValue, serialToDate, type SheetCells } from "./excel-formula.ts";
+import type { ConditionalFormat, ConditionalStyle, SheetCell, SheetSettings } from "./excel-document.ts";
 
 export type Rect = { r1: number; c1: number; r2: number; c2: number };
 export const MAX_ROWS = 200, MAX_COLS = 26;
@@ -109,7 +109,7 @@ export function recomputeFormulas(cells: Record<string, SheetCell>): Record<stri
 /** A cell with nothing in it and no formatting is left out of the saved sheet. */
 export function isBlankCell(cell: SheetCell) {
   return cell.value === null && !cell.formula && !cell.bold && !cell.italic && !cell.underline && !cell.fontColor && !cell.fillColor && !cell.border
-    && (cell.numberFormat ?? "General") === "General" && !cell.align && !cell.fontSize && !cell.fontFamily && !cell.vAlign && !cell.wrap && !cell.rotate && !cell.indent && !cell.strike && cell.decimals == null;
+    && (cell.numberFormat ?? "General") === "General" && !cell.align && !cell.fontSize && !cell.fontFamily && !cell.vAlign && !cell.wrap && !cell.rotate && !cell.indent && !cell.strike && cell.decimals == null && !cell.comment;
 }
 
 /** Insert (delta 1) or delete (delta -1) a row; cells and merged ranges below move. */
@@ -191,6 +191,14 @@ export function borderCss(border: string | null | undefined): Record<string, str
 export function formatCellValue(value: unknown, format: SheetCell["numberFormat"] | null | undefined, decimals?: number | null): string {
   if (typeof value !== "number") return value == null ? "" : String(value);
   const places = decimals ?? (format === "General" || !format ? null : 2);
+  if (format === "Text") return String(value);
+  if (format === "ShortDate" || format === "LongDate" || format === "Time") {
+    const date = serialToDate(value);
+    if (format === "Time") return date.toLocaleTimeString("en-IN", { timeZone: "UTC", hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true }).toUpperCase();
+    if (format === "LongDate") return date.toLocaleDateString("en-IN", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return date.toLocaleDateString("en-GB", { timeZone: "UTC" }).split("/").join("-");
+  }
+  if (format === "Accounting") return `₹ ${value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 })}`;
   if (format === "Currency") return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 })}`;
   if (format === "Percentage") return `${(value * 100).toFixed(places ?? 2)}%`;
   if (format === "Number") return value.toLocaleString("en-IN", { minimumFractionDigits: places ?? 2, maximumFractionDigits: places ?? 2 });
@@ -211,4 +219,55 @@ export function autoSumRange(cells: Record<string, SheetCell>, row: number, col:
 /** Header/footer codes shown as Excel shows them on a printed page. */
 export function previewHeaderText(text: string | undefined, page = 1, pages = 1) {
   return (text ?? "").replace(/&\[Page\]/gi, String(page)).replace(/&\[Pages\]/gi, String(pages)).replace(/&\[Date\]/gi, new Date().toLocaleDateString("en-IN")).replace(/&\[Time\]/gi, new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })).replace(/&\[File\]/gi, "Book1").replace(/&\[Tab\]/gi, "Sheet1");
+}
+
+/** Excel's current region: the block of filled cells around a cell, bounded by empty rows and columns. */
+export function currentRegion(cells: Record<string, SheetCell>, row: number, col: number): Rect {
+  const filled = (r: number, c: number) => { const cell = cells[refAt(r, c)]; return Boolean(cell && (cell.value !== null || cell.formula)); };
+  let rect: Rect = { r1: row, c1: col, r2: row, c2: col }, grew = true;
+  while (grew) {
+    grew = false;
+    const rowHas = (r: number) => { for (let c = Math.max(0, rect.c1 - 1); c <= Math.min(MAX_COLS - 1, rect.c2 + 1); c++) if (filled(r, c)) return true; return false; };
+    const colHas = (c: number) => { for (let r = Math.max(1, rect.r1 - 1); r <= Math.min(MAX_ROWS, rect.r2 + 1); r++) if (filled(r, c)) return true; return false; };
+    if (rect.r1 > 1 && rowHas(rect.r1 - 1)) { rect = { ...rect, r1: rect.r1 - 1 }; grew = true; }
+    if (rect.r2 < MAX_ROWS && rowHas(rect.r2 + 1)) { rect = { ...rect, r2: rect.r2 + 1 }; grew = true; }
+    if (rect.c1 > 0 && colHas(rect.c1 - 1)) { rect = { ...rect, c1: rect.c1 - 1 }; grew = true; }
+    if (rect.c2 < MAX_COLS - 1 && colHas(rect.c2 + 1)) { rect = { ...rect, c2: rect.c2 + 1 }; grew = true; }
+  }
+  return rect;
+}
+
+// Conditional Formatting > Highlight Cells Rules, with Excel's preset formats.
+export const CONDITIONAL_STYLES: Record<ConditionalStyle, { label: string; fill?: string; font?: string; border?: string }> = {
+  lightRedDarkRed: { label: "Light Red Fill with Dark Red Text", fill: "FFC7CE", font: "9C0006" },
+  yellowDarkYellow: { label: "Yellow Fill with Dark Yellow Text", fill: "FFEB9C", font: "9C5700" },
+  greenDarkGreen: { label: "Green Fill with Dark Green Text", fill: "C6EFCE", font: "006100" },
+  lightRed: { label: "Light Red Fill", fill: "FFC7CE" },
+  redText: { label: "Red Text", font: "9C0006" },
+  redBorder: { label: "Red Border", border: "1px solid #C00000" },
+};
+/** The conditional format that applies to a cell (the first matching rule wins, as in Excel's rule order). */
+export function conditionalStyleAt(cells: Record<string, SheetCell>, rules: ConditionalFormat[] | undefined, row: number, col: number) {
+  if (!rules?.length) return null;
+  const value = cells[refAt(row, col)]?.value ?? null;
+  for (const rule of rules) {
+    const rect = parseRange(rule.range);
+    if (!rect || !rectContains(rect, row, col)) continue;
+    if (conditionalMatches(rule, value, () => rectRefs(rect).map((ref) => cells[ref]?.value ?? null))) return CONDITIONAL_STYLES[rule.style];
+  }
+  return null;
+}
+export function conditionalMatches(rule: ConditionalFormat, value: string | number | null, rangeValues: () => (string | number | null)[]) {
+  if (value === null || value === "") return false;
+  const num = (v: unknown) => (typeof v === "number" ? v : v != null && String(v).trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
+  const x = num(value), a = num(rule.value), b = num(rule.value2);
+  switch (rule.type) {
+    case "greaterThan": return x !== null && a !== null && x > a;
+    case "lessThan": return x !== null && a !== null && x < a;
+    case "between": return x !== null && a !== null && b !== null && x >= Math.min(a, b) && x <= Math.max(a, b);
+    case "equalTo": return a !== null && x !== null ? x === a : String(value).toLowerCase() === String(rule.value ?? "").toLowerCase();
+    case "textContains": return String(rule.value ?? "") !== "" && String(value).toLowerCase().includes(String(rule.value).toLowerCase());
+    case "duplicate": case "unique": { const key = String(value).toLowerCase(); const count = rangeValues().filter((v) => v !== null && String(v).toLowerCase() === key).length; return rule.type === "duplicate" ? count > 1 : count === 1; }
+  }
+  return false;
 }
