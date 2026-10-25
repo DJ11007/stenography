@@ -152,3 +152,10 @@ test("Font > Advanced: By is open while Spacing/Position is Normal, and a typed 
   assert.doesNotMatch(dialogs, /disabled=\{spacingMode === "normal"\}|disabled=\{positionMode === "normal"\}/);
   assert.match(ribbon, /function defaultSwatch\(id:string\)\{return\(\{fontColor:"#ff0000",/);
 });
+
+test("subscript / superscript are saved: <sub>/<sup> from the ribbon count, also with italic or bold inside (they were never saved)", async () => {
+  const editor = await read(EDITOR);
+  assert.match(editor, /function nearestVerticalAlign\(from:Element,block:Element\)\{for\(let at:Element\|null=from;at&&at!==block;at=at\.parentElement\)\{if\(at\.tagName==="SUB"\)return "sub";if\(at\.tagName==="SUP"\)return "super";/);
+  assert.match(editor, /vertical=nearestVerticalAlign\(parent,element\),underlineNode=/);
+  assert.doesNotMatch(editor, /subscript:style\?\.verticalAlign==="sub"/);
+});
