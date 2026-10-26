@@ -167,8 +167,10 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   };
   const selectRect = (rect: Rect) => { setAnchor({ row: rect.r1, col: rect.c1 }); setFocus({ row: rect.r2, col: rect.c2 }); };
   const moveBy = (dRow: number, dCol: number, extend = false) => {
-    let row = focus.row + dRow, col = focus.col + dCol;
-    const merged = mergeAt(merges, focus.row, focus.col);
+    // A plain arrow moves from the active cell (Excel: after A27:L27, Down goes to A28); Shift+arrow moves the far end.
+    const from = extend ? focus : anchor;
+    let row = from.row + dRow, col = from.col + dCol;
+    const merged = mergeAt(merges, from.row, from.col);
     if (merged && !extend) { if (dRow > 0) row = merged.r2 + 1; if (dCol > 0) col = merged.c2 + 1; if (dRow < 0) row = merged.r1 - 1; if (dCol < 0) col = merged.c1 - 1; }
     const target = mergeAt(merges, row, col);
     if (target && !extend) { row = target.r1; col = target.c1; }
@@ -846,6 +848,27 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   // Freeze Panes: rows above and columns left of sheet.freeze stay put while the rest scrolls.
   const frozenTop = (row: number) => { let top = headerRowPx; for (let r = 1; r < row; r++) top += rowHeight(r); return top; };
   const frozenLeft = (col: number) => { let left = headerColPx; for (let c = 0; c < col; c++) left += colPx(c); return left; };
+  // Keep the active cell in view, as Excel does: after the Name Box (A27:L27 shows A27), Go To, or arrow keys.
+  // A new anchor scrolls to the anchor; extending with Shift scrolls to the moving end. Frozen and header areas
+  // stay on screen, so they are not counted as visible room.
+  const lastScrolled = useRef({ anchor: "", focus: "" });
+  useEffect(() => {
+    const grid = gridRef.current;
+    const anchorKey = `${anchor.row}:${anchor.col}`, focusKey = `${focus.row}:${focus.col}`;
+    const target = anchorKey !== lastScrolled.current.anchor ? anchor : focusKey !== lastScrolled.current.focus ? focus : null;
+    lastScrolled.current = { anchor: anchorKey, focus: focusKey };
+    if (!grid || !target) return;
+    const cell = grid.querySelector<HTMLElement>(`[data-ref="${columnLetters(target.col)}${target.row}"]`);
+    if (!cell) return;
+    const scale = zoom / 100, view = grid.getBoundingClientRect(), box = cell.getBoundingClientRect();
+    const frozenRows = freeze && target.row >= freeze.row, frozenCols = freeze && target.col >= freeze.col;
+    const top = view.top + (freeze && freeze.row > 1 && frozenRows ? frozenTop(freeze.row) : headerRowPx) * scale;
+    const left = view.left + (freeze && freeze.col > 0 && frozenCols ? frozenLeft(freeze.col) : headerColPx) * scale;
+    const inFrozenRows = freeze && target.row < freeze.row, inFrozenCols = freeze && target.col < freeze.col;
+    if (!inFrozenRows) { if (box.top < top) grid.scrollTop -= top - box.top; else if (box.bottom > view.top + grid.clientHeight) grid.scrollTop += Math.min(box.bottom - (view.top + grid.clientHeight), box.top - top); }
+    if (!inFrozenCols) { if (box.left < left) grid.scrollLeft -= left - box.left; else if (box.right > view.left + grid.clientWidth) grid.scrollLeft += Math.min(box.right - (view.left + grid.clientWidth), box.left - left); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new selection scrolls, not every re-render
+  }, [anchor, focus]);
   const cellOrigin = (ref: string) => { const at = parseRef(ref); return at ? { left: frozenLeft(at.col), top: frozenTop(at.row) } : { left: 0, top: 0 }; };
 
   const off = "Not needed for this test";
