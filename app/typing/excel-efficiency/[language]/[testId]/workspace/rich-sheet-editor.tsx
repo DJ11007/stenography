@@ -88,6 +88,9 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const [lastFont, setLastFont] = useState("FF0000"), [lastFill, setLastFill] = useState("FFFF00");
   const undoStack = useRef<Snapshot[]>([]), redoStack = useRef<Snapshot[]>([]);
   const dragging = useRef(false);
+  // Where a Format Painter drag began: read on mouse-up, so a quick click paints only the clicked cell even
+  // before the new selection has rendered.
+  const paintStart = useRef<{ row: number; col: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   // The grid listens through a hidden text box, as Google Sheets does: typed text arrives whether it comes as
@@ -1351,12 +1354,12 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                             if (event.button === 2 && rectContains(selection, row, col)) return;
                             if (editing && !isEditing) commitEdit();
                             focusGrid();
-                            if (painter) { dragging.current = true; select(row, col); return; }
+                            if (painter) { dragging.current = true; paintStart.current = { row, col }; select(row, col); return; }
                             dragging.current = true;
                             select(row, col, event.shiftKey);
                           }}
                           onMouseEnter={() => { if (dragging.current) setFocus({ row, col }); }}
-                          onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(anchor, { row, col }), merges)); } }}
+                          onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (
                             <input ref={editInputRef} aria-label={`Edit ${ref}`} value={editing.value} onChange={(event) => setEditing({ ref, value: event.target.value, fromBar: false })}
