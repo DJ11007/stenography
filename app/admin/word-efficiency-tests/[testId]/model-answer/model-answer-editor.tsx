@@ -154,62 +154,61 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
     return <p className="mt-6 rounded-2xl bg-amber-50 p-5 text-sm font-bold text-amber-900">Add at least one question to this test (in the question editor) before authoring a model answer.</p>;
   }
 
+  // One compact bar (the admin asked for the paper to get the space): question buttons in one row, each
+  // marked graded (green tick) or not graded (red cross); the chosen question's text with its marks; Reset.
+  // Only a failed save shows a message line.
   return (
-    <div className="mt-6">
-      <div className="rounded-3xl bg-white p-5 shadow">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Questions</p>
-          <button
-            type="button"
-            disabled={resetting || !hasProgress}
-            onClick={handleReset}
-            title={hasProgress ? "Clear every saved answer and start this paper over" : "Nothing to reset yet"}
-            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {resetting ? "Resetting…" : "Reset"}
-          </button>
-        </div>
-        <div className="mt-2 flex items-start gap-2">
-        <div className="flex min-w-0 flex-1 flex-wrap gap-2">
-          {questions.map((question) => {
-            const status = answeredNumbers.has(question.number) ? "answered" : activeNumber === question.number ? "active" : "pending";
-            return (
-              <button
-                key={question.id}
-                type="button"
-                disabled={!ready}
-                onClick={() => selectQuestion(question.number)}
-                aria-pressed={activeNumber === question.number}
-                className={`rounded-full px-4 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50 ${status === "answered" ? "bg-green-100 text-green-800" : status === "active" ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-              >
-                Q{question.number}{status === "answered" ? " ✓" : ""} · {question.marks} marks
-              </button>
-            );
-          })}
-        </div>
+    <div className="mt-2">
+      <div className="rounded-2xl bg-white px-3 py-2 shadow">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+            {questions.map((question) => {
+              const graded = (assignments[question.number] ?? []).length > 0;
+              const current = activeNumber === question.number;
+              return (
+                <button
+                  key={question.id}
+                  type="button"
+                  disabled={!ready}
+                  onClick={() => selectQuestion(question.number)}
+                  aria-pressed={current}
+                  aria-label={`Question ${question.number}, ${question.marks} marks, ${graded ? "graded" : "not graded"}`}
+                  title={`Q${question.number} · ${question.marks} marks · ${graded ? "graded" : "not graded"}`}
+                  className={`flex h-7 flex-none items-center gap-1 rounded-md border px-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${current ? "border-blue-700 bg-blue-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}
+                >
+                  Q{question.number}
+                  <span aria-hidden className={`text-[13px] leading-none ${current ? (graded ? "text-green-300" : "text-red-300") : graded ? "text-green-600" : "text-red-600"}`}>{graded ? "✓" : "✗"}</span>
+                </button>
+              );
+            })}
+          </div>
           <button
             type="button"
             onClick={() => setShowQuestion((open) => !open)}
             aria-expanded={showQuestion}
             aria-label={showQuestion ? "Hide the question text" : "Show the question text"}
             title={showQuestion ? "Hide the question text" : "Show the question text"}
-            className="flex h-9 w-9 flex-none items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
           >
-            <svg viewBox="0 0 24 24" aria-hidden className={`h-5 w-5 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+            <svg viewBox="0 0 24 24" aria-hidden className={`h-4 w-4 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          <button
+            type="button"
+            disabled={resetting || !hasProgress}
+            onClick={handleReset}
+            title={hasProgress ? "Clear every saved answer and start this paper over" : "Nothing to reset yet"}
+            className="h-7 flex-none rounded-md border border-red-200 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {resetting ? "Resetting…" : "Reset"}
           </button>
         </div>
-        {!ready && <p className="mt-3 text-sm text-slate-500">Loading the question paper…</p>}
+        {!ready && <p className="mt-1 text-xs text-slate-500">Loading the question paper…</p>}
         {active && showQuestion && (
-          <div className="mt-4 rounded-2xl bg-blue-50 p-4">
-            <p className="text-xs font-black uppercase tracking-wide text-blue-700">Answering Question {active.number} · {active.marks} marks</p>
-            <p className="mt-1 text-sm text-blue-900">{active.instruction}</p>
-            <p className="mt-2 text-xs text-blue-700">Type the correct answer directly into the paper below, then click <strong>Save answer for Q{active.number}</strong>.</p>
-          </div>
+          <p className="mt-1.5 text-sm text-slate-900"><span className="font-black text-blue-800">Q{active.number}.</span> {active.instruction} <span className="whitespace-nowrap text-[11px] font-bold text-slate-500">({active.marks} marks)</span></p>
         )}
-        {!active && ready && <p className="mt-4 rounded-2xl bg-green-50 p-4 text-sm font-bold text-green-900">Every question has a saved answer. Click any question above to review or redo it.</p>}
-        {message && <p role={message.ok ? "status" : "alert"} className={`mt-4 rounded-xl p-3 text-sm font-bold ${message.ok ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"}`}>{message.text}</p>}
+        {message && !message.ok && <p role="alert" className="mt-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-900">{message.text}</p>}
       </div>
-      <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow">
+      <section className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow">
         <RichDocumentEditor
           attemptId={versionId}
           original={original}

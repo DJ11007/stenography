@@ -230,7 +230,7 @@ test("table row/column edits target the cursor position and delete/spacing handl
   assert.match(editor,/const cell=anchor\?\.closest\("td,th"\)/);
   assert.match(editor,/table\.insertRow\(action==="add-row-above"\?rowIndex:rowIndex\+1\)/);
   assert.match(editor,/deleteTable:\(\)=>tableActionAtCursor\("remove-table"\)/);
-  assert.match(editor,/paragraphSpacing:\(\)=>setDialog\(\{kind:"lineSpacingOptions"/);
+  assert.match(editor,/paragraphSpacing:\(\)=>\{if\(allowed\("paragraphDialog"\)\)map\.paragraphDialog\(\);else setDialog\(\{kind:"lineSpacingOptions"/);
 });
 
 test("Insert Table offers a grid picker with a numeric dialog fallback, and a Table Tools bar exposes row/column/table commands at the cursor",async()=>{

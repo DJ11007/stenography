@@ -40,16 +40,9 @@ export default async function ModelAnswerPage({ params }: { params: Promise<{ te
   const gradingRuleMap = new Map((gradingRules ?? []).map((rule) => [rule.question_id, rule]));
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-8">
+    <main className="min-h-screen bg-slate-100 px-3 py-3">
       <div className="mx-auto max-w-[1600px]">
         <BackButton href={`/admin/word-efficiency-tests/design?edit=${test.id}`} label={test.title} />
-        <header className="mt-4 rounded-3xl bg-gradient-to-r from-slate-950 to-blue-900 p-7 text-white">
-          <p className="text-xs font-black uppercase tracking-[.18em] text-cyan-300">Administrator · Model Answer</p>
-          <h1 className="mt-2 text-3xl font-black">Solve the Question Paper</h1>
-          <p className="mt-2 max-w-3xl text-slate-300">
-            Work through the questions below one at a time, in order. Click a question, type the correct answer directly into the paper, then click Save for that question before moving to the next one. Once a question is saved here, every student&apos;s submission is graded against it automatically — no manual marking needed for that question.
-          </p>
-        </header>
         <ModelAnswerEditor
           versionId={version.id}
           original={version.working_matter_snapshot}
