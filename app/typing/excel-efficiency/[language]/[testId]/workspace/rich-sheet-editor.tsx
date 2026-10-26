@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
@@ -848,6 +849,24 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const cellOrigin = (ref: string) => { const at = parseRef(ref); return at ? { left: frozenLeft(at.col), top: frozenTop(at.row) } : { left: 0, top: 0 }; };
 
   const off = "Not needed for this test";
+  // Fit the ribbon to the screen width, as Excel does on smaller screens (re-measured on resize and tab change).
+  const ribbonOuter = useRef<HTMLDivElement>(null);
+  const ribbonInner = useRef<HTMLDivElement>(null);
+  const [ribbonZoom, setRibbonZoom] = useState(1);
+  useLayoutEffect(() => {
+    const outer = ribbonOuter.current, inner = ribbonInner.current;
+    if (!outer || !inner) return;
+    const fit = () => {
+      const previous = inner.style.zoom; inner.style.zoom = "1";
+      const natural = inner.scrollWidth, room = outer.clientWidth - 8;
+      inner.style.zoom = previous;
+      const next = natural > room ? Math.max(0.7, Math.floor((room / natural) * 100) / 100) : 1;
+      setRibbonZoom((old) => (old === next ? old : next));
+    };
+    fit();
+    const observer = new ResizeObserver(fit); observer.observe(outer);
+    return () => observer.disconnect();
+  }, [tab]);
   const ribbon = (
     <div className="select-none border-b border-[#d4d4d4] bg-[#f3f3f3] text-[12px] text-[#262626]">
       <div className="flex h-7 items-center gap-1 border-b border-[#e1e1e1] bg-white px-2">
@@ -865,7 +884,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             className={`px-3 py-1 text-[12px] ${tab === name ? "border border-b-0 border-[#d4d4d4] bg-[#f3f3f3] text-[#217346]" : "border border-transparent text-[#444] hover:text-[#217346]"}`}>{name}</button>
         ))}
       </div>
-      <div role="toolbar" aria-label="Spreadsheet controls" className="flex min-h-[98px] items-stretch overflow-x-auto overflow-y-hidden px-1 pb-0.5 pt-1 [scrollbar-width:thin]">
+      <div ref={ribbonOuter} role="toolbar" aria-label="Spreadsheet controls" className="min-h-[98px] overflow-x-auto overflow-y-hidden px-1 pb-0.5 pt-1 [scrollbar-width:thin]">
+      <div ref={ribbonInner} className="flex w-max items-stretch" style={{ zoom: ribbonZoom }}>
         {tab === "HOME" && <>
           <Group label="Clipboard">
             <MenuButton id="paste" menu={menu} setMenu={setMenu} label="Paste" icon={<Icon name="paste" big />} big disabled={submitted} onMain={paste}>
@@ -1248,6 +1268,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           </Group>
         </>}
       </div>
+      </div>
     </div>
   );
 
@@ -1545,8 +1566,31 @@ function Small({ label, icon, onClick, onDoubleClick, active, disabled, showLabe
   return <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick} onDoubleClick={onDoubleClick} aria-label={label} aria-pressed={active} title={label}
     className={`flex h-[22px] min-w-[22px] items-center justify-center gap-1 whitespace-nowrap border px-1 ${active ? "border-[#2a8dd4] bg-[#cde6f7]" : "border-transparent hover:border-[#c6c6c6] hover:bg-white"} disabled:opacity-40`}>{icon}{showLabel && <span>{label}</span>}</button>;
 }
+function Popover({ children, className, label, role = "menu" }: { children: React.ReactNode; className: string; label?: string; role?: string }) {
+  const marker = useRef<HTMLSpanElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
+  useLayoutEffect(() => {
+    const anchor = (marker.current?.parentElement?.closest("[data-xl-menu]") ?? marker.current?.parentElement) as HTMLElement | null;
+    if (!anchor) return;
+    const measure = () => {
+      const box = anchor.getBoundingClientRect(), width = panel.current?.offsetWidth ?? 200;
+      const left = Math.max(4, Math.min(box.left, window.innerWidth - width - 4));
+      setPlace({ left, top: box.bottom + 2, maxHeight: Math.max(160, window.innerHeight - box.bottom - 10) });
+    };
+    measure();
+    window.addEventListener("resize", measure); window.addEventListener("scroll", measure, true);
+    return () => { window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+  }, []);
+  return <>
+    <span ref={marker} hidden />
+    {typeof document !== "undefined" && createPortal(
+      <div ref={panel} data-xl-menu role={role} aria-label={label} className={`fixed z-[80] overflow-y-auto ${className}`} style={{ left: place?.left ?? -9999, top: place?.top ?? -9999, maxHeight: place?.maxHeight }}>{children}</div>,
+      document.body)}
+  </>;
+}
 function Menu({ children }: { children: React.ReactNode }) {
-  return <div role="menu" className="absolute left-0 top-full z-50 mt-0.5 min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] shadow-lg">{children}</div>;
+  return <Popover className="min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg">{children}</Popover>;
 }
 function MenuItem({ children, onClick, checked }: { children: React.ReactNode; onClick: () => void; checked?: boolean }) {
   return <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={onClick} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-[#d5e1f2] ${checked ? "font-semibold text-[#217346]" : ""}`}><span className="w-3">{checked ? "✓" : ""}</span>{children}</button>;
@@ -1580,14 +1624,14 @@ function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, n
       <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onApply} aria-label={label} title={label} className="flex h-[22px] flex-col items-center justify-center border border-transparent px-1 hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40"><span className="leading-none">{icon}</span><span className="mt-0.5 h-[3px] w-4" style={{ backgroundColor: `#${swatch}` }} /></button>
       <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => setMenu(open ? null : id)} aria-label={`${label} palette`} aria-expanded={open} className="flex h-[22px] items-center border border-transparent px-0.5 text-[9px] hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40">▾</button>
       {open && (
-        <div role="menu" aria-label={`${label} palette`} className="absolute left-0 top-full z-50 mt-0.5 w-56 border border-[#c6c6c6] bg-white p-2 shadow-lg">
+        <Popover label={`${label} palette`} className="w-56 border border-[#c6c6c6] bg-white p-2 text-[#262626] shadow-lg">
           <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(null); setMenu(null); }} className="mb-1 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">{noneLabel}</button>
           <p className="text-[11px] font-semibold text-slate-500">Theme Colors</p>
           <div className="mt-1 grid grid-cols-10 gap-0.5">{THEME_COLORS.flat().map((hex, index) => <button key={`${hex}-${index}`} type="button" role="menuitem" aria-label={`#${hex}`} title={`#${hex}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
           <p className="mt-2 text-[11px] font-semibold text-slate-500">Standard Colors</p>
           <div className="mt-1 grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
           {onMore && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { setMenu(null); onMore(); }} className="mt-2 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">More Colors...</button>}
-        </div>
+        </Popover>
       )}
     </span>
   );
