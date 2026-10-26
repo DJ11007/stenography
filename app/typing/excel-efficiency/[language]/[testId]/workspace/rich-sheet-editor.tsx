@@ -1662,11 +1662,27 @@ function MenuSeparator() {
 }
 function FontSizeBox({ value, onChange, disabled }: { value: number; onChange: (size: number) => void; disabled?: boolean }) {
   const [text, setText] = useState<string | null>(null);
+  // Excel's own size list under the box. Not a <datalist>: the browser drew that list at the page's top-left
+  // inside the scrolling ribbon. Fixed position, so the ribbon's overflow does not clip it.
+  const [list, setList] = useState<{ left: number; top: number } | null>(null);
+  const boxRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!list) return;
+    const close = (event: Event) => { if (!boxRef.current?.contains(event.target as Node)) setList(null); };
+    // Follow the box when the ribbon or page scrolls (clicking it can scroll the ribbon); scrolling the list itself does not move it.
+    const follow = (event: Event) => { if (boxRef.current?.contains(event.target as Node)) return; const box = boxRef.current?.getBoundingClientRect(); if (box) setList((old) => old && (old.left !== box.left || old.top !== box.bottom) ? { left: box.left, top: box.bottom } : old); };
+    document.addEventListener("mousedown", close); window.addEventListener("resize", follow); window.addEventListener("scroll", follow, true);
+    return () => { document.removeEventListener("mousedown", close); window.removeEventListener("resize", follow); window.removeEventListener("scroll", follow, true); };
+  }, [list]);
   const apply = (raw: string) => { const size = Number(raw); if (Number.isFinite(size) && size >= 1 && size <= 409) onChange(Math.round(size * 2) / 2); setText(null); };
+  const toggle = () => { if (list) { setList(null); return; } const box = boxRef.current?.getBoundingClientRect(); if (box) setList({ left: box.left, top: box.bottom }); };
   return (
-    <span className="flex">
-      <input aria-label="Font Size" list="xl-font-sizes" disabled={disabled} value={text ?? String(value)} onChange={(event) => { setText(event.target.value); if (FONT_SIZES.includes(Number(event.target.value))) apply(event.target.value); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(text ?? String(value)); } }} onBlur={() => { if (text !== null) apply(text); }} className="h-[22px] w-12 border border-[#c6c6c6] bg-white px-1 text-[12px]" />
-      <datalist id="xl-font-sizes">{FONT_SIZES.map((size) => <option key={size} value={size} />)}</datalist>
+    <span ref={boxRef} className="flex">
+      <input aria-label="Font Size" disabled={disabled} value={text ?? String(value)} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(text ?? String(value)); setList(null); } if (event.key === "Escape") setList(null); }} onBlur={() => { if (text !== null) apply(text); }} className="h-[22px] w-9 border border-r-0 border-[#c6c6c6] bg-white px-1 text-[12px]" />
+      <button type="button" aria-label="Font Size list" aria-haspopup="listbox" aria-expanded={Boolean(list)} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={toggle} className="h-[22px] w-4 border border-[#c6c6c6] bg-white text-[9px] text-slate-600 hover:bg-[#d5e1f2] disabled:opacity-40">▾</button>
+      {list && <div role="listbox" aria-label="Font sizes" className="fixed z-[90] max-h-72 w-[52px] overflow-y-auto border border-[#c6c6c6] bg-white py-0.5 text-[12px] shadow-lg" style={{ left: list.left, top: list.top }}>
+        {FONT_SIZES.map((size) => <button key={size} type="button" role="option" aria-selected={size === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { apply(String(size)); setList(null); }} className={`block w-full px-2 py-0.5 text-left hover:bg-[#d5e1f2] ${size === value ? "bg-[#cde6f7]" : ""}`}>{size}</button>)}
+      </div>}
     </span>
   );
 }
