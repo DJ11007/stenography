@@ -8,6 +8,7 @@ import { DEFAULT_EXCEL_INSTRUCTIONS, type ExcelQuestion, type ExcelVersion } fro
 import { deleteExcelEfficiencyTest, duplicateExcelEfficiencyTest, saveExcelEfficiencyTest, setExcelEfficiencyStatus } from "./actions";
 import { QuestionEditor } from "./question-editor";
 import { DeliveryPdfFields } from "../word-efficiency-tests/delivery-pdf-fields";
+import { ClearMatterDrafts } from "../word-efficiency-tests/clear-matter-drafts";
 import { WorkingMatterXlsxFields } from "./working-matter-xlsx-fields";
 import { ExamPatternReference } from "@/components/efficiency/exam-pattern-reference";
 import { formatIST } from "@/lib/format-datetime";
@@ -45,7 +46,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
           <p className="mt-2 text-slate-300">Manage immutable questions, individual marks, instructions, duration choices, and the starting spreadsheet.</p>
         </header>
         {params.error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 font-bold text-red-800">{params.error}</p>}
-        {params.saved && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">A new immutable test version was saved.</p>}
+        {params.saved && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">A new immutable test version was saved.<ClearMatterDrafts /></p>}
         {params.deleted && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">The test and all database records were permanently deleted.</p>}
         <div className="mt-6 grid gap-6">
           {view === "design" && (

@@ -75,7 +75,8 @@ export async function saveExcelEfficiencyTest(form: FormData) {
     if (previous?.pdf_path) pdfMeta = previous;
   }
   const pdfUpload = form.get("pdfFile");
-  if (pdfUpload instanceof File && pdfUpload.size) {
+  // Stored only for students to download (never read for questions), so only when that box is ticked.
+  if (deliveryPdf && pdfUpload instanceof File && pdfUpload.size) {
     const checked = validatePdfUpload(pdfUpload);
     if (checked.errors.length) redirect(`${errorBase}${encodeURIComponent(checked.errors[0])}`);
     const bytes = new Uint8Array(await pdfUpload.arrayBuffer());

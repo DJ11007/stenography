@@ -14,7 +14,8 @@ const KEEP: Record<string, Record<string, string[] | "all">> = {
     editing: "all",
   },
   Insert: { tables: ["insertTable"] },
-  View: { show: ["ruler"], zoom: ["zoom100", "onePage", "twoPages"] },
+  // Word 2013's whole VIEW tab (Views, Show, Zoom): views only change how the page is shown, never the document.
+  View: { views: "all", show: "all", zoom: "all" },
 };
 export const DESIGNER_FONTS = ["Calibri (Body)", "Arial", "Times New Roman", "Mangal"];
 

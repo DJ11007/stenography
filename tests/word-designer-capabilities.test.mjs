@@ -23,3 +23,9 @@ test("the designer capabilities pass the editor's own validator and use only fon
  for(const font of DESIGNER_FONTS)assert.ok(APPROVED_WORD_FONTS.includes(font));
  assert.deepEqual(caps.fonts,DESIGNER_FONTS);
 });
+
+test("the document designer has Word 2013's whole VIEW tab: Views, Show and Zoom",()=>{
+ const on=enabled(designerCapabilities());
+ const view=WORD_EDITOR_RIBBON.find(tab=>tab.id==="View");
+ for(const group of view.groups)for(const option of group.options)assert.ok(on.includes(`View.${group.id}.${option.id}`),`View.${group.id}.${option.id}`);
+});
