@@ -17,7 +17,7 @@ test("Excel question delivery: admin settings, enforced when the attempt starts 
   assert.match(box, /name="studentQuestionToggle" defaultChecked=\{defaultStudentToggle\}/);
   assert.match(action, /rpc\("set_excel_efficiency_question_display", \{ p_test_id: savedId, p_onscreen: form\.get\("deliveryOnscreen"\) === "on", p_student_toggle: form\.get\("studentQuestionToggle"\) === "on" \}\)/);
   assert.match(launch, /\{studentToggle \? \(/);
-  assert.match(workspace, /\{canToggle && <button/);
+  assert.match(workspace, /onToggle=\{canToggle \?/);
   assert.match(sql, /when not v\.delivery_onscreen then false when not v\.student_question_toggle then true else coalesce\(p_show_questions,true\) end/);
   assert.match(sql, /Students need the questions/);
 });

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
@@ -64,7 +64,7 @@ const pointsToPx = (points: number) => Math.round((points * 4) / 3);
 const cellOf = (cells: Record<string, SheetCell>, ref: string): SheetCell => cells[ref] ?? EMPTY_CELL;
 const styleOf = (cell: SheetCell) => Object.fromEntries(STYLE_KEYS.map((key) => [key, cell[key] ?? null])) as Partial<SheetCell>;
 
-export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false }: { attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean }) {
+export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar }: { attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode }) {
   const router = useRouter();
   const start = useMemo(() => toExcelDocumentV3(initialDocument) ?? toExcelDocumentV3(original)!, []); // eslint-disable-line react-hooks/exhaustive-deps -- the starting sheet only
   // The saved sheet never has fewer rows/columns than the starting sheet.
@@ -1261,6 +1261,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         </div>
       </div>}
       {ribbon}
+      {questionBar}
       {sheet.formulaBar && <div className="flex items-center gap-2 border-b border-slate-300 bg-white px-2 py-1">
         <input aria-label="Name Box" value={nameBox ?? nameBoxValue} onFocus={() => setNameBox(nameBoxValue)} onChange={(event) => setNameBox(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBox ?? ""); if (event.key === "Escape") { setNameBox(null); focusGrid(); } }} onBlur={() => setNameBox(null)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
         <button type="button" aria-label="Insert Function" title="Insert Function" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "insertFunction" })} className="px-1 font-serif text-[13px] italic text-slate-500 hover:bg-slate-100 disabled:opacity-50">fx</button>

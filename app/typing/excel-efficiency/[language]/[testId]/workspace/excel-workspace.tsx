@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { RichSheetEditor, type ExcelDocument } from "./rich-sheet-editor";
 import { BackButton } from "@/app/_components/back-button";
-import { QuestionContent } from "@/components/efficiency/question-content";
+import { QuestionBar } from "@/components/efficiency/question-bar";
 import { ConfirmDialog, FullscreenButton, formatClock, useExamCountdown } from "@/components/efficiency/exam-chrome";
 
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
@@ -18,6 +18,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
   const { remaining, expired } = useExamCountdown(remainingSeconds);
   const router = useRouter();
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [current, setCurrent] = useState(0);
   const questions = snapshot.questions ?? [];
   const catalogueHref = `/typing/excel-efficiency/${snapshot.language.toLowerCase() === "hindi" ? "hindi" : "english"}`;
   const submitted = status === "submitted" || status === "completed";
@@ -30,30 +31,14 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
         </div>
         <div className="flex items-center gap-3">
           <FullscreenButton />
-          {canToggle && <button type="button" onClick={() => setShowQuestions((value) => !value)} className="rounded-lg bg-white/10 px-3 py-2 text-sm font-black">{showQuestions ? "Hide Questions" : "Show Questions"}</button>}
           <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">{snapshot.maximum_marks} total marks</span>
           <span aria-live="polite" className="rounded-xl bg-white/10 px-4 py-2 font-mono text-xl font-black">{formatClock(remaining)}</span>
           <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-black">{submitted ? "Submitted" : "Active"}</span>
         </div>
       </header>
-      <div className={`grid h-[calc(100dvh-4rem)] min-h-0 ${showQuestions ? "lg:grid-cols-[minmax(300px,34%)_minmax(0,1fr)]" : "grid-cols-1"}`}>
-        {showQuestions && (
-          <aside className="min-h-0 overflow-y-auto border-r border-slate-200 bg-white p-4 sm:p-5">
-            <div className="flex items-center justify-between"><h2 className="font-black">Question paper</h2><span className="text-xs font-bold text-slate-500">{questions.length} questions</span></div>
-            <p className="mt-1 text-xs text-slate-500">Complete each task directly in the spreadsheet.</p>
-            <nav aria-label="Complete question paper" className="mt-4 flex w-full flex-col gap-3" lang={snapshot.language === "Hindi" ? "hi" : "en"}>
-              {questions.map((item) => (
-                <div key={item.id} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <span className="block text-sm font-black text-emerald-800">Question {item.number}</span>
-                  {item.section && <span className="mt-1 block text-xs font-bold text-slate-500">{item.section}</span>}
-                  <QuestionContent className="mt-2 text-slate-900" text={item.instruction} />
-                  <span className="mt-2 block text-xs font-bold text-slate-500">{item.marks} marks</span>
-                </div>
-              ))}
-            </nav>
-          </aside>
-        )}
-        <RichSheetEditor attemptId={attemptId} original={original} initialDocument={initialDocument} locked={submitted} autoSubmit={expired} />
+      <div className="h-[calc(100dvh-4rem)] min-h-0">
+        <RichSheetEditor attemptId={attemptId} original={original} initialDocument={initialDocument} locked={submitted} autoSubmit={expired}
+          questionBar={onscreen ? <QuestionBar questions={questions} current={current} onSelect={setCurrent} language={snapshot.language} collapsed={!showQuestions} onToggle={canToggle ? () => setShowQuestions((value) => !value) : undefined} /> : null} />
       </div>
       <ConfirmDialog open={leaveOpen} title="Leave the test?" message="Your progress is saved automatically, but the timer keeps running while you are away." confirmLabel="Leave test" cancelLabel="Stay" onCancel={() => setLeaveOpen(false)} onConfirm={() => { setLeaveOpen(false); router.push(catalogueHref); }} />
     </main>
