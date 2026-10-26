@@ -17,3 +17,10 @@ test("a reopened table cell keeps a font whose name ends in digits (Kruti Dev 01
   const apply = format.slice(format.indexOf("export function applyCellFormat"), format.indexOf("/** Shape check"));
   assert.match(apply, /span\.style\.fontFamily = `"\$\{format\.fontFamily\.replace\(/);
 });
+
+test("a reopened paragraph keeps its shading (background colour) and hyphenation", async () => {
+  const editor = await readFile("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", "utf8");
+  const snapshot = editor.slice(editor.indexOf("function renderSnapshot"), editor.indexOf("function renderStructuredSnapshot"));
+  assert.match(snapshot, /if\(typeof block\.attrs\.backgroundColor==="string"\)html\.style\.backgroundColor=block\.attrs\.backgroundColor;/);
+  assert.match(snapshot, /if\(typeof block\.attrs\.hyphens==="string"\)html\.style\.hyphens=block\.attrs\.hyphens;/);
+});
