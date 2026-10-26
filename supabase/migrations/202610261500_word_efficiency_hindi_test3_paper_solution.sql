@@ -33,9 +33,11 @@ insert into word_solution values
 ('766b80e8-41d9-4a21-be3a-f675cd128b0d', 6, $t$तीसरे पैराग्राफ में क्लिक करें → HOME → **Shading ▾** → **Light Green**।
 
 जाँच: पूरे तीसरे पैराग्राफ का बैकग्राउंड हल्का हरा।$t$),
-('766b80e8-41d9-4a21-be3a-f675cd128b0d', 7, $t$तीसरे पैराग्राफ में हर "document" शब्द (कुल 3) के लिए:
-1. शब्द पर डबल-क्लिक करके सेलेक्ट करें।
-2. HOME → **Text Highlight Color ▾** → **Red**।
+('766b80e8-41d9-4a21-be3a-f675cd128b0d', 7, $t$1. पहले हाइलाइट का रंग चुनें: कुछ भी सेलेक्ट किए बिना HOME → **Text Highlight Color ▾** → **Red**। (Replace का Highlight हमेशा यही चुना हुआ रंग लगाता है; पहले से यह पीला होता है।)
+2. तीसरा पैराग्राफ सेलेक्ट करें।
+3. HOME → **Replace** (Ctrl+H) → Find what **document**, Replace with **document**।
+4. **Replace with** बॉक्स में क्लिक करें → **More >>** → **Format ▾** → **Highlight** (बॉक्स के नीचे "Format: Highlight" दिखेगा)।
+5. **Replace All** → "3 replacements" का संदेश → **Close**।
 
 जाँच: तीसरे पैराग्राफ के तीनों "document" लाल रंग से हाइलाइट।$t$),
 ('766b80e8-41d9-4a21-be3a-f675cd128b0d', 8, $t$1. तीसरे पैराग्राफ के आख़िरी अक्षर के बाद क्लिक करें।
