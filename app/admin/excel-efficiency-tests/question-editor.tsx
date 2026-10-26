@@ -56,8 +56,8 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
   return (
     <section className="rounded-2xl border border-slate-200 p-4 sm:p-5">
       <input type="hidden" name="questions" value={JSON.stringify(serialized)} />
-      <input type="hidden" name="questionCount" value={summary.questionCount} />
-      <input type="hidden" name="maximumMarks" value={summary.maximumMarks} />
+      <input type="hidden" name="questionCount" value={shown(summary.questionCount)} />
+      <input type="hidden" name="maximumMarks" value={shown(summary.maximumMarks)} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h3 className="text-lg font-black">Question editor</h3><p className="text-sm text-slate-500">Marks are assigned per question. The test total is calculated automatically.</p></div>
         <div className="flex gap-2"><button type="button" onClick={() => setPreview(true)} className="rounded-lg bg-violet-100 px-3 py-2 text-sm font-bold text-violet-800">Preview Question Paper</button><button type="button" onClick={add} className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-bold text-white">Add Question</button></div>
@@ -108,7 +108,7 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
         <div role="dialog" aria-modal="true" aria-label="Question paper preview" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4">
           <section className="max-h-[90dvh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-6">
             <div className="flex justify-between"><h3 className="text-xl font-black">Question Paper Preview · {summary.maximumMarks} marks</h3><button type="button" onClick={() => setPreview(false)} className="font-black">Close</button></div>
-            <div className="mt-5 space-y-4">{questions.map((question) => <article key={question.clientId} className="rounded-xl border p-4"><h4 className="font-black">Question {question.question_number} · {question.marks} marks</h4>{question.section && <p className="text-xs font-bold text-blue-700">{question.section}</p>}{question.is_visible ? <div className="mt-2"><QuestionContent text={question.instruction} /></div> : <p className="mt-2">See Question {question.question_number} in the workspace — {question.marks} marks</p>}</article>)}</div>
+            <div className="mt-5 space-y-4">{questions.map((question) => <article key={question.clientId} className="rounded-xl border p-4"><h4 className="font-black">Question {question.question_number} · {Number.isFinite(question.marks) ? `${question.marks} marks` : "no marks yet"}</h4>{question.section && <p className="text-xs font-bold text-blue-700">{question.section}</p>}{question.is_visible ? <div className="mt-2"><QuestionContent text={question.instruction} /></div> : <p className="mt-2">See Question {question.question_number} in the workspace — {question.marks} marks</p>}</article>)}</div>
           </section>
         </div>
       )}
@@ -118,4 +118,6 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
 // The start of a question for its one-line view: the formatting marks and table/list syntax left out.
 function questionPreview(text: string) { return text.replace(/\*\*|__|==|\+\+|\*/g, "").replace(/\|/g, " ").replace(/^\s*(?:[-*]|\d+[.)])\s+/gm, "").replace(/\s+/g, " ").trim().slice(0, 160); }
 function Label({ text, children }: { text: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm font-bold text-slate-700"><span>{text}</span>{children}</label>; }
-function Summary({ label, value }: { label: string; value: number }) { return <div className="rounded-xl bg-blue-50 p-3"><dt className="text-xs font-bold text-blue-700">{label}</dt><dd className="mt-1 text-xl font-black">{value}</dd></div>; }
+// While a question has no marks yet (just imported, or its box emptied), a total is not a number: show 0.
+const shown = (value: number) => (Number.isFinite(value) ? value : 0);
+function Summary({ label, value }: { label: string; value: number }) { return <div className="rounded-xl bg-blue-50 p-3"><dt className="text-xs font-bold text-blue-700">{label}</dt><dd className="mt-1 text-xl font-black">{shown(value)}</dd></div>; }
