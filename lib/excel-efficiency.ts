@@ -2,7 +2,7 @@ import type { WorkingSheetSnapshot } from "./excel-sheet.ts";
 
 export type ExcelLanguage = "English" | "Hindi";
 export type ExcelGradingRule = { target: string; expectedOperation: string; expectedValue: string; allocatedMarks: number; partialMarks: number | null };
-export type ExcelQuestion = { id: string; version_id: string; question_number: number; instruction: string; marks: number; section: string | null; display_order: number; is_visible: boolean; gradingRule?: ExcelGradingRule | null };
+export type ExcelQuestion = { id: string; version_id: string; question_number: number; instruction: string; marks: number; section: string | null; display_order: number; is_visible: boolean; gradingRule?: ExcelGradingRule | null; solution?: string | null; solution_image?: string | null };
 export type ExcelVersion = { id: string; test_id: string; version_number: number; title: string; language: ExcelLanguage; description: string; instructions_markdown: string; question_count: number; maximum_marks: number; duration_options: number[]; passing_marks: number | null; working_matter_snapshot?: WorkingSheetSnapshot | null; delivery_pdf?: boolean; delivery_onscreen?: boolean; student_question_toggle?: boolean; pdf_path?: string | null; pdf_file_name?: string | null; pdf_size_bytes?: number | null; pdf_uploaded_at?: string | null };
 export type ExcelTest = { id: string; slug: string; title: string; language: ExcelLanguage; status: string; current_version_id: string; current_version_number: number; published_at: string | null; updated_at: string; is_live?: boolean };
 
@@ -33,7 +33,10 @@ export function safeExcelSlug(value: string) { return value.toLowerCase().trim()
 export function parseExcelQuestions(value: string): ExcelQuestion[] {
   try {
     const parsed = JSON.parse(value) as Partial<ExcelQuestion & { number: number }>[];
-    if (Array.isArray(parsed)) return parsed.map((question, index) => ({ ...(question.id ? { id: question.id } : {}), id: question.id ?? "", version_id: "", question_number: Number((question as { number?: number }).number ?? question.question_number), instruction: String(question.instruction ?? "").trim(), marks: question.marks === null || question.marks === undefined || Number.isNaN(question.marks) ? Number.NaN : Number(question.marks), section: String(question.section ?? "").trim() || null, display_order: Number(question.display_order ?? index + 1), is_visible: question.is_visible !== false, ...(question.gradingRule && typeof question.gradingRule === "object" ? { gradingRule: question.gradingRule } : {}) }));
+    if (Array.isArray(parsed)) return parsed.map((question, index) => ({ ...(question.id ? { id: question.id } : {}), id: question.id ?? "", version_id: "", question_number: Number((question as { number?: number }).number ?? question.question_number), instruction: String(question.instruction ?? "").trim(), marks: question.marks === null || question.marks === undefined || Number.isNaN(question.marks) ? Number.NaN : Number(question.marks), section: String(question.section ?? "").trim() || null, display_order: Number(question.display_order ?? index + 1), is_visible: question.is_visible !== false, ...(question.gradingRule && typeof question.gradingRule === "object" ? { gradingRule: question.gradingRule } : {}),
+      // Paper solution: steps text and one screenshot (a resized image data URI).
+      solution: typeof question.solution === "string" && question.solution.trim() ? question.solution.trim().slice(0, 8000) : null,
+      solution_image: typeof question.solution_image === "string" && question.solution_image.length <= 700000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(question.solution_image) ? question.solution_image : null }));
   } catch { /* fall through to line-based parsing */ }
   return [];
 }

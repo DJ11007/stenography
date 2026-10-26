@@ -51,7 +51,7 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
   const applyBulk = (selectedOnly: boolean) => { const marks = Number(bulkMarks); if (!Number.isFinite(marks) || marks <= 0 || marks > MAX_EXCEL_QUESTION_MARKS) { setBulkNote({ text: `Enter marks between 0.01 and ${MAX_EXCEL_QUESTION_MARKS}.` }); return; } const targets = selectedOnly ? questions.filter((item) => item.selected) : questions; if (!targets.length) { setBulkNote({ text: "Tick at least one question first (the tick box at the start of each question)." }); return; } const before = questions; setQuestions((items) => items.map((item) => (!selectedOnly || item.selected ? { ...item, marks } : item))); setBulkNote({ text: `Set ${targets.length} question${targets.length === 1 ? "" : "s"} to ${marks} mark${marks === 1 ? "" : "s"} each.`, undo: before }); };
   const distribute = () => { const total = Number(bulkMarks); const count = questions.length; if (!Number.isFinite(total) || total <= 0 || !count) { setBulkNote({ text: "Enter the total marks in the box first." }); return; } const each = Math.floor((total / count) * 100) / 100; const last = Math.round((total - each * (count - 1)) * 100) / 100; if (each <= 0 || last > MAX_EXCEL_QUESTION_MARKS) { setBulkNote({ text: "That total can't be shared across these questions." }); return; } const before = questions; setQuestions((items) => items.map((item, index) => ({ ...item, marks: index === items.length - 1 ? last : each }))); setBulkNote({ text: last === each ? `Shared ${total} marks equally: ${each} mark${each === 1 ? "" : "s"} for each of ${count} questions.` : `Shared ${total} marks: ${each} for each question, ${last} for the last one so the total is exactly ${total}.`, undo: before }); };
 
-  const serialized = questions.map((question) => ({ id: question.id || undefined, number: question.question_number, instruction: question.instruction, marks: Number.isFinite(question.marks) ? question.marks : null, section: question.section, display_order: question.display_order, is_visible: question.is_visible, gradingRule: question.gradingRule }));
+  const serialized = questions.map((question) => ({ id: question.id || undefined, number: question.question_number, instruction: question.instruction, marks: Number.isFinite(question.marks) ? question.marks : null, section: question.section, display_order: question.display_order, is_visible: question.is_visible, solution: question.solution ?? null, solution_image: question.solution_image ?? null, gradingRule: question.gradingRule }));
 
   return (
     <section className="rounded-2xl border border-slate-200 p-4 sm:p-5">
@@ -96,6 +96,7 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
                     <label className="flex items-center gap-2 self-end pb-3 text-sm font-bold"><input type="checkbox" checked={question.is_visible} onChange={(event) => update(question.clientId, { is_visible: event.target.checked })} />Visible on screen</label>
                   </div>
                   <Label text="Question instruction/text — write or paste from Word/Excel; tables and lists are supported"><QuestionContentEditor ariaLabel={`Question ${question.question_number} instruction`} required={question.is_visible} value={question.instruction} onChange={(value) => update(question.clientId, { instruction: value })} typing={typing} onTypingChange={setTyping} /></Label>
+                  <SolutionFields question={question} typing={typing} onTypingChange={setTyping} onChange={(patch) => update(question.clientId, patch)} />
                   {/* As on the Word page there is no grading-rule form here; a question's gradingRule is kept as it is. */}
                   {index > 0 && <button type="button" onClick={() => update(question.clientId, { marks: questions[index - 1].marks })} className="mt-3 text-sm font-bold text-blue-700">Copy marks from previous question</button>}
                 </>
@@ -118,6 +119,41 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
 // The start of a question for its one-line view: the formatting marks and table/list syntax left out.
 function questionPreview(text: string) { return text.replace(/\*\*|__|==|\+\+|\*/g, "").replace(/\|/g, " ").replace(/^\s*(?:[-*]|\d+[.)])\s+/gm, "").replace(/\s+/g, " ").trim().slice(0, 160); }
 function Label({ text, children }: { text: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm font-bold text-slate-700"><span>{text}</span>{children}</label>; }
+// Paper solution for this question: steps (same text format as questions) and one screenshot, shown to students
+// from their result page (migration 202610261000). The image is resized here so it stays small.
+function SolutionFields({ question, typing, onTypingChange, onChange }: { question: EditorQuestion; typing: QuestionTypingLanguage; onTypingChange: (value: QuestionTypingLanguage) => void; onChange: (patch: Partial<EditorQuestion>) => void }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  const pick = (file: File | null) => {
+    setProblem(null);
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { setProblem("Choose a PNG, JPG or WebP picture."); return; }
+    const url = URL.createObjectURL(file), image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, 1000 / image.width), canvas = document.createElement("canvas");
+      canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      const data = canvas.toDataURL("image/jpeg", 0.82);
+      if (data.length > 690000) { setProblem("This picture is too large even after resizing; crop it and try again."); return; }
+      onChange({ solution_image: data });
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); setProblem("This picture could not be read."); };
+    image.src = url;
+  };
+  return (
+    <fieldset className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+      <legend className="px-1 text-sm font-black text-emerald-900">Paper solution (shown to students after they submit)</legend>
+      <QuestionContentEditor ariaLabel={`Question ${question.question_number} solution steps`} required={false} value={question.solution ?? ""} onChange={(value) => onChange({ solution: value })} typing={typing} onTypingChange={onTypingChange} />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="cursor-pointer rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-bold text-emerald-900">{question.solution_image ? "Replace screenshot" : "Add screenshot"}<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { pick(event.target.files?.[0] ?? null); event.target.value = ""; }} /></label>
+        {question.solution_image && <button type="button" onClick={() => onChange({ solution_image: null })} className="text-sm font-bold text-red-700">Remove screenshot</button>}
+        {problem && <span role="alert" className="text-sm font-bold text-red-700">{problem}</span>}
+      </div>
+      {question.solution_image && <img src={question.solution_image} alt={`Solution screenshot for question ${question.question_number}`} className="mt-3 max-h-72 rounded-lg border border-emerald-200" />}
+    </fieldset>
+  );
+}
+
 // While a question has no marks yet (just imported, or its box emptied), a total is not a number: show 0.
 const shown = (value: number) => (Number.isFinite(value) ? value : 0);
 function Summary({ label, value }: { label: string; value: number }) { return <div className="rounded-xl bg-blue-50 p-3"><dt className="text-xs font-bold text-blue-700">{label}</dt><dd className="mt-1 text-xl font-black">{shown(value)}</dd></div>; }
