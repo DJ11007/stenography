@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PrintResultButton } from "./print-result-button";
+import { SolutionLinkBox, type SolutionStatus } from "@/components/efficiency/paper-solution";
 import { BackButton } from "../../../../_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
 import { formatIST } from "@/lib/format-datetime";
@@ -13,11 +14,13 @@ type ResultQuestion={number:number;instruction:string|null;section:string|null;m
 type AttemptResult={title:string;language:string;status:"pending"|"published";submittedAt:string|null;resultsAt?:string|null;evaluatedAt:string|null;maximumMarks:number;marksObtained:number|null;percentage:number|null;passingMarks:number|null;passed:boolean|null;overallFeedback:string|null;questions:ResultQuestion[]};
 
 export default async function WordEfficiencyResultPage({params}:{params:Promise<{attemptId:string}>}){
- await requireStudent();const{attemptId}=await params;const supabase=await createClient();const{data,error}=await supabase.rpc("get_word_efficiency_attempt_result",{p_attempt_id:attemptId});if(error||!data)notFound();const result=data as AttemptResult;const catalogue=`/typing/word-efficiency/${result.language.toLowerCase()==="hindi"?"hindi":"english"}`;
- return <main className="min-h-screen bg-slate-100 px-4 py-10 print:bg-white print:p-0"><section className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl print:max-w-none print:rounded-none print:shadow-none"><header className="bg-gradient-to-r from-slate-950 to-blue-900 p-7 text-white print:bg-white print:p-0 print:text-black"><BackButton href={catalogue} label="Test catalogue" dark className="print:hidden"/><p className="mt-3 text-xs font-black uppercase tracking-[.2em] text-cyan-300 print:text-slate-600">Word Efficiency evaluation</p><h1 className="mt-2 text-3xl font-black">{result.status==="published"?"Test result":"Test submitted successfully"}</h1><p className="mt-2 text-slate-300 print:text-slate-700">{result.title}</p></header><div className="p-6 sm:p-8 print:p-0 print:pt-5"><Published result={result} catalogue={catalogue} attemptId={attemptId}/></div></section></main>;
+ await requireStudent();const{attemptId}=await params;const supabase=await createClient();const{data,error}=await supabase.rpc("get_word_efficiency_attempt_result",{p_attempt_id:attemptId});if(error||!data)notFound();
+ // Paper solution (migration 202610261200): offered once the result is published and the live window is closed.
+ const{data:solutionStatus}=await supabase.rpc("word_efficiency_solution_status",{p_attempt_id:attemptId});const solution=(solutionStatus??{}) as SolutionStatus;const result=data as AttemptResult;const catalogue=`/typing/word-efficiency/${result.language.toLowerCase()==="hindi"?"hindi":"english"}`;
+ return <main className="min-h-screen bg-slate-100 px-4 py-10 print:bg-white print:p-0"><section className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl print:max-w-none print:rounded-none print:shadow-none"><header className="bg-gradient-to-r from-slate-950 to-blue-900 p-7 text-white print:bg-white print:p-0 print:text-black"><BackButton href={catalogue} label="Test catalogue" dark className="print:hidden"/><p className="mt-3 text-xs font-black uppercase tracking-[.2em] text-cyan-300 print:text-slate-600">Word Efficiency evaluation</p><h1 className="mt-2 text-3xl font-black">{result.status==="published"?"Test result":"Test submitted successfully"}</h1><p className="mt-2 text-slate-300 print:text-slate-700">{result.title}</p></header><div className="p-6 sm:p-8 print:p-0 print:pt-5"><Published result={result} catalogue={catalogue} attemptId={attemptId} solution={solution}/></div></section></main>;
 }
 
-function Published({result,catalogue,attemptId}:{result:AttemptResult;catalogue:string;attemptId:string}){
+function Published({result,catalogue,attemptId,solution}:{result:AttemptResult;catalogue:string;attemptId:string;solution:SolutionStatus}){
  const groups=groupBySection(result.questions);const sectioned=groups.length>1||groups[0]?.section!=null;
  const grandMaxTotal=result.questions.reduce((sum,q)=>sum+q.maximumMarks,0);
  const allGraded=result.questions.every(q=>q.awardedMarks!=null);
@@ -35,6 +38,7 @@ function Published({result,catalogue,attemptId}:{result:AttemptResult;catalogue:
   {result.overallFeedback&&<section className="mt-6 rounded-2xl bg-blue-50 p-5"><h2 className="font-black">Teacher feedback</h2><p className="mt-2 whitespace-pre-wrap text-slate-700">{result.overallFeedback}</p></section>}
   <h2 className="mt-8 text-center text-xl font-black uppercase tracking-wide text-slate-500">Detailed Result</h2>
   <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">S.No.</th><th className="p-3">Question instruction</th><th className="p-3">Maximum marks</th><th className="p-3">Marks obtained</th><th className="p-3">Teacher feedback</th></tr></thead><tbody>{groups.map((group,index)=><SectionRows key={index} group={group} sectioned={sectioned}/>)}<tr className="border-t-2 border-slate-400 bg-slate-100 font-black"><td className="p-3" colSpan={2}>Grand Total</td><td className="p-3">{grandMaxTotal}</td><td className="p-3">{grandAwardedTotal==null?"Not graded":grandAwardedTotal}</td><td className="p-3"/></tr></tbody></table></div>
+  <SolutionLinkBox status={solution} href={`/typing/word-efficiency/results/${attemptId}/solution`}/>
   <div className="mt-7 flex flex-wrap gap-3"><PrintResultButton/><Link href={`/typing/word-efficiency/results/${attemptId}/document`} className="print:hidden rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">View your answer</Link><Link href={catalogue} className="print:hidden rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Return to test catalogue</Link></div>
  </div>;
 }

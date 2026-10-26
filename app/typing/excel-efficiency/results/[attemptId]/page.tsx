@@ -6,6 +6,7 @@ import { requireStudent } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BackButton } from "../../../../_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
+import { SolutionLinkBox, type SolutionStatus } from "@/components/efficiency/paper-solution";
 
 export const metadata: Metadata = { title: "Excel Efficiency Result" };
 type ResultQuestion = { number: number; instruction: string | null; section: string | null; maximumMarks: number; awardedMarks: number | null; partScores?: { label: string; awarded: number; maximum: number }[] | null; feedback: string | null; gradingStatus: string };
@@ -20,7 +21,7 @@ export default async function ExcelEfficiencyResultPage({ params }: { params: Pr
   const result = data as AttemptResult;
   // Paper solution (migration 202610261000): offered once the result is published and the live window is closed.
   const { data: solutionStatus } = await supabase.rpc("excel_efficiency_solution_status", { p_attempt_id: attemptId });
-  const solution = (solutionStatus ?? {}) as { available?: boolean; reason?: string; opensAt?: string };
+  const solution = (solutionStatus ?? {}) as SolutionStatus;
   const catalogue = `/typing/excel-efficiency/${result.language.toLowerCase() === "hindi" ? "hindi" : "english"}`;
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-10 print:bg-white print:p-0">
@@ -37,7 +38,7 @@ export default async function ExcelEfficiencyResultPage({ params }: { params: Pr
   );
 }
 
-function Published({ result, catalogue, attemptId, solution }: { result: AttemptResult; catalogue: string; attemptId: string; solution: { available?: boolean; reason?: string; opensAt?: string } }) {
+function Published({ result, catalogue, attemptId, solution }: { result: AttemptResult; catalogue: string; attemptId: string; solution: SolutionStatus }) {
   const groups = groupBySection(result.questions);
   const sectioned = groups.length > 1 || groups[0]?.section != null;
   const grandMaxTotal = result.questions.reduce((sum, q) => sum + q.maximumMarks, 0);
@@ -57,16 +58,7 @@ function Published({ result, catalogue, attemptId, solution }: { result: Attempt
       {result.overallFeedback && <section className="mt-6 rounded-2xl bg-emerald-50 p-5"><h2 className="font-black">Teacher feedback</h2><p className="mt-2 whitespace-pre-wrap text-slate-700">{result.overallFeedback}</p></section>}
       <h2 className="mt-8 text-center text-xl font-black uppercase tracking-wide text-slate-500">Detailed Result</h2>
       <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">S.No.</th><th className="p-3">Question instruction</th><th className="p-3">Maximum marks</th><th className="p-3">Marks obtained</th><th className="p-3">Teacher feedback</th></tr></thead><tbody>{groups.map((group, index) => <SectionRows key={index} group={group} sectioned={sectioned} />)}<tr className="border-t-2 border-slate-400 bg-slate-100 font-black"><td className="p-3" colSpan={2}>Grand Total</td><td className="p-3">{grandMaxTotal}</td><td className="p-3">{grandAwardedTotal == null ? "Not graded" : grandAwardedTotal}</td><td className="p-3" /></tr></tbody></table></div>
-      {solution.reason !== "none" && solution.reason !== "not found" && (
-        <section aria-labelledby="paper-solution" className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 print:hidden">
-          <h2 id="paper-solution" className="text-lg font-black text-emerald-950">Paper solution</h2>
-          {solution.available ? <>
-            <p className="mt-1 text-sm text-emerald-900">See how each question is solved, step by step with screenshots, and compare it with your answers.</p>
-            <Link href={`/typing/excel-efficiency/results/${attemptId}/solution`} className="mt-4 inline-block rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">View paper solution</Link>
-          </> : solution.reason === "live" ? <p className="mt-1 text-sm text-emerald-900">The solution opens when the live test ends{solution.opensAt ? ` (${formatIST(solution.opensAt)})` : ""}, so that it cannot help students who are still taking it.</p>
-          : <p className="mt-1 text-sm text-emerald-900">The solution opens with your result.</p>}
-        </section>
-      )}
+      <SolutionLinkBox status={solution} href={`/typing/excel-efficiency/results/${attemptId}/solution`} />
       <div className="mt-7 flex flex-wrap gap-3"><Link href={catalogue} className="rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">Return to test catalogue</Link></div>
     </div>
   );

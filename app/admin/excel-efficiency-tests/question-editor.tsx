@@ -5,6 +5,7 @@ import { calculateExcelQuestionSummary, MAX_EXCEL_QUESTION_MARKS, type ExcelQues
 import type { ExtractedWordQuestion } from "@/lib/word-pdf-extraction";
 import { QuestionContentEditor, type QuestionTypingLanguage } from "@/components/efficiency/question-content-editor";
 import { QuestionContent } from "@/components/efficiency/question-content";
+import { SolutionFields } from "@/components/efficiency/solution-fields";
 
 // The same question editor as on the Word Efficiency admin page: one line per question (tick box, number,
 // start of the text, marks) that ▾ opens for editing, Select all, bulk marks and Distribute, and the
@@ -96,7 +97,7 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
                     <label className="flex items-center gap-2 self-end pb-3 text-sm font-bold"><input type="checkbox" checked={question.is_visible} onChange={(event) => update(question.clientId, { is_visible: event.target.checked })} />Visible on screen</label>
                   </div>
                   <Label text="Question instruction/text — write or paste from Word/Excel; tables and lists are supported"><QuestionContentEditor ariaLabel={`Question ${question.question_number} instruction`} required={question.is_visible} value={question.instruction} onChange={(value) => update(question.clientId, { instruction: value })} typing={typing} onTypingChange={setTyping} /></Label>
-                  <SolutionFields question={question} typing={typing} onTypingChange={setTyping} onChange={(patch) => update(question.clientId, patch)} />
+                  <SolutionFields number={question.question_number} solution={question.solution} image={question.solution_image} typing={typing} onTypingChange={setTyping} onChange={(patch) => update(question.clientId, patch)} />
                   {/* As on the Word page there is no grading-rule form here; a question's gradingRule is kept as it is. */}
                   {index > 0 && <button type="button" onClick={() => update(question.clientId, { marks: questions[index - 1].marks })} className="mt-3 text-sm font-bold text-blue-700">Copy marks from previous question</button>}
                 </>
@@ -119,41 +120,6 @@ export function QuestionEditor({ initialQuestions }: { initialQuestions: ExcelQu
 // The start of a question for its one-line view: the formatting marks and table/list syntax left out.
 function questionPreview(text: string) { return text.replace(/\*\*|__|==|\+\+|\*/g, "").replace(/\|/g, " ").replace(/^\s*(?:[-*]|\d+[.)])\s+/gm, "").replace(/\s+/g, " ").trim().slice(0, 160); }
 function Label({ text, children }: { text: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm font-bold text-slate-700"><span>{text}</span>{children}</label>; }
-// Paper solution for this question: steps (same text format as questions) and one screenshot, shown to students
-// from their result page (migration 202610261000). The image is resized here so it stays small.
-function SolutionFields({ question, typing, onTypingChange, onChange }: { question: EditorQuestion; typing: QuestionTypingLanguage; onTypingChange: (value: QuestionTypingLanguage) => void; onChange: (patch: Partial<EditorQuestion>) => void }) {
-  const [problem, setProblem] = useState<string | null>(null);
-  const pick = (file: File | null) => {
-    setProblem(null);
-    if (!file) return;
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { setProblem("Choose a PNG, JPG or WebP picture."); return; }
-    const url = URL.createObjectURL(file), image = new Image();
-    image.onload = () => {
-      const scale = Math.min(1, 1000 / image.width), canvas = document.createElement("canvas");
-      canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
-      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      const data = canvas.toDataURL("image/jpeg", 0.82);
-      if (data.length > 690000) { setProblem("This picture is too large even after resizing; crop it and try again."); return; }
-      onChange({ solution_image: data });
-    };
-    image.onerror = () => { URL.revokeObjectURL(url); setProblem("This picture could not be read."); };
-    image.src = url;
-  };
-  return (
-    <fieldset className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-      <legend className="px-1 text-sm font-black text-emerald-900">Paper solution (shown to students after they submit)</legend>
-      <QuestionContentEditor ariaLabel={`Question ${question.question_number} solution steps`} required={false} value={question.solution ?? ""} onChange={(value) => onChange({ solution: value })} typing={typing} onTypingChange={onTypingChange} />
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <label className="cursor-pointer rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-bold text-emerald-900">{question.solution_image ? "Replace screenshot" : "Add screenshot"}<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { pick(event.target.files?.[0] ?? null); event.target.value = ""; }} /></label>
-        {question.solution_image && <button type="button" onClick={() => onChange({ solution_image: null })} className="text-sm font-bold text-red-700">Remove screenshot</button>}
-        {problem && <span role="alert" className="text-sm font-bold text-red-700">{problem}</span>}
-      </div>
-      {question.solution_image && <img src={question.solution_image} alt={`Solution screenshot for question ${question.question_number}`} className="mt-3 max-h-72 rounded-lg border border-emerald-200" />}
-    </fieldset>
-  );
-}
-
 // While a question has no marks yet (just imported, or its box emptied), a total is not a number: show 0.
 const shown = (value: number) => (Number.isFinite(value) ? value : 0);
 function Summary({ label, value }: { label: string; value: number }) { return <div className="rounded-xl bg-blue-50 p-3"><dt className="text-xs font-bold text-blue-700">{label}</dt><dd className="mt-1 text-xl font-black">{shown(value)}</dd></div>; }

@@ -61,7 +61,7 @@ export async function WordEfficiencyTestsPage({
     ? await supabase
         .from("word_efficiency_questions")
         .select(
-          "id,question_number,instruction,marks,section,display_order,is_visible",
+          "id,question_number,instruction,marks,section,display_order,is_visible,solution,solution_image",
         )
         .eq("version_id", current.id)
         .order("display_order")
@@ -77,6 +77,8 @@ export async function WordEfficiencyTestsPage({
       section: question.section,
       display_order: question.display_order,
       is_visible: question.is_visible,
+      solution: question.solution ?? null,
+      solution_image: question.solution_image ?? null,
       gradingRule:rule?{target:rule.exact_target,expectedOperation:rule.expected_operation,expectedValue:JSON.stringify(rule.expected_value),allocatedMarks:Number(rule.allocated_marks),partialMarks:rule.partial_marks==null?null:Number(rule.partial_marks)}:null,
     })},
   );

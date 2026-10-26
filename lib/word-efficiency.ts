@@ -1,9 +1,10 @@
+import { cleanSolution } from "./efficiency-solution.ts";
 export type WordLanguage="English"|"Hindi";
 export type WordDelivery="onscreen"|"pdf";
 export const MAX_WORD_QUESTION_MARKS=1000;
 export type WordGradingCriterion={target:string;expectedValue:string};
 export type WordGradingRule={target:string;expectedOperation:string;expectedValue:string;allocatedMarks:number;partialMarks:number|null;additionalCriteria?:WordGradingCriterion[]};
-export type WordQuestion={id?:string;source_fingerprint?:string;number:number;instruction:string;marks:number;section:string|null;display_order:number;is_visible:boolean;gradingRule?:WordGradingRule|null};
+export type WordQuestion={id?:string;source_fingerprint?:string;number:number;instruction:string;marks:number;section:string|null;display_order:number;is_visible:boolean;gradingRule?:WordGradingRule|null;solution?:string|null;solution_image?:string|null};
 export type WordVersion={id:string;test_id:string;version_number:number;title:string;language:WordLanguage;description:string;instructions_markdown:string;delivery_onscreen:boolean;delivery_pdf:boolean;delivery_realfile:boolean;question_count:number;maximum_marks:number;duration_options:number[];passing_marks:number|null;pdf_path:string|null;pdf_file_name:string|null;pdf_size_bytes:number|null;pdf_page_count:number|null;pdf_uploaded_at:string|null;working_matter_snapshot?:import("./word-docx").WorkingMatterSnapshot|null;editor_capabilities?:Record<string,unknown>|null};
 export type WordTest={id:string;slug:string;title:string;language:WordLanguage;status:string;current_version_id:string;current_version_number:number;published_at:string|null;updated_at:string;is_live?:boolean};
 
@@ -13,7 +14,7 @@ export function parseDurationOptions(value:string){const values=[...new Set(valu
 export function parseWordQuestions(value:string):WordQuestion[]{
   try{
     const parsed=JSON.parse(value) as Partial<WordQuestion>[];
-    if(Array.isArray(parsed))return parsed.map((question,index)=>({...(question.id?{id:question.id}:{}),...(question.source_fingerprint?{source_fingerprint:question.source_fingerprint}:{}),number:Number(question.number),instruction:String(question.instruction??"").trim(),marks:question.marks===null||question.marks===undefined?Number.NaN:Number(question.marks),section:String(question.section??"").trim()||null,display_order:Number(question.display_order??index+1),is_visible:question.is_visible!==false,...(question.gradingRule&&typeof question.gradingRule==="object"?{gradingRule:question.gradingRule}: {})}));
+    if(Array.isArray(parsed))return parsed.map((question,index)=>({...(question.id?{id:question.id}:{}),...(question.source_fingerprint?{source_fingerprint:question.source_fingerprint}:{}),number:Number(question.number),instruction:String(question.instruction??"").trim(),marks:question.marks===null||question.marks===undefined?Number.NaN:Number(question.marks),section:String(question.section??"").trim()||null,display_order:Number(question.display_order??index+1),is_visible:question.is_visible!==false,...(question.gradingRule&&typeof question.gradingRule==="object"?{gradingRule:question.gradingRule}: {}),...cleanSolution(question)}));
   }catch{}
   return value.replace(/\r\n?/g,"\n").split("\n").filter(line=>line.trim()).map((line,index)=>{const[marksText,...instruction]=line.split("|");return{number:index+1,marks:Number(marksText),instruction:instruction.join("|").trim(),section:null,display_order:index+1,is_visible:true}})
 }
