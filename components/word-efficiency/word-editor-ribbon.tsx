@@ -17,6 +17,8 @@ import { WordPalette } from "./word-table-tools";
 
 type Props = {
   capabilities: HierarchicalEditorCapabilities;
+  // Show a shown tab's tools that are switched off greyed out (as Word does), instead of leaving them out.
+  showUnavailable?: boolean;
   activeTab: WordEditorTab;
   onTabChange: (tab: WordEditorTab) => void;
   preview?: boolean;
@@ -62,7 +64,7 @@ const PAGE_WIDTH_OPTION: RibbonOption = { id: "pageWidth", label: "Page Width", 
 const GROUP_LAUNCHER_OPTION_IDS: Record<string, string> = { font: "fontDialog", paragraph: "paragraphDialog" };
 function GroupLauncherIcon() { return <svg viewBox="0 0 11 11" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M1.5 1.5v3M1.5 1.5h3M1.5 1.5 9.5 9.5"/><path d="M9.5 5.5v4h-4"/></svg>; }
 
-export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily, extraTabs = [], activeExtraTab = null, onExtraTabSelect, customPanels }: Props) {
+export function WordEditorRibbon({ capabilities, showUnavailable = false, activeTab, onTabChange, preview = false, activeOption, onCommand, onFontChange, onFontSizeChange, onColorChange, onUnderlineChange, onValueCommand, currentFontFamily, extraTabs = [], activeExtraTab = null, onExtraTabSelect, customPanels }: Props) {
   const activeExtra = extraTabs.find(tab => tab.id === activeExtraTab) ?? null;
   const extraTabActive = Boolean(activeExtra);
   const visibleTabs = WORD_EDITOR_RIBBON.filter(tab => capabilities.tabs[tab.id].enabled);
@@ -70,7 +72,7 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
   const definition = WORD_EDITOR_RIBBON.find(tab => tab.id === selectedTab);
   const groups = definition?.groups.map(group => {
     const configured = capabilities.tabs[definition.id].groups[group.id];
-    let options = group.options.filter(option => configured.options[option.id]);
+    let options = showUnavailable ? group.options.map(option => configured.options[option.id] ? option : { ...option, unsupported: "Not available while designing the working document" }) : group.options.filter(option => configured.options[option.id]);
     // Undo/Redo live on the title bar's Quick Access Toolbar, as in Word 2013.
     if (definition.id === "Home" && group.id === "clipboard") options = options.filter(option => option.id !== "undo" && option.id !== "redo");
     if (definition.id === "Home" && group.id === "font" && CLEAR_FORMAT_DEPENDENCIES.every(id => configured.options[id])) options.splice(5, 0, CLEAR_FORMAT_OPTION);
@@ -81,7 +83,7 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
       options = options.filter(item => item.id !== launcherId);
     }
     return { ...group, options: definition.id === "View" ? expandViewOptions(group.id, options) : options, launcher };
-  }).filter(group => capabilities.tabs[definition.id].groups[group.id].enabled && group.options.length > 0) ?? [];
+  }).filter(group => (showUnavailable || capabilities.tabs[definition.id].groups[group.id].enabled) && group.options.length > 0) ?? [];
 
   // Fit the groups to the width that is actually available. On a small PC screen the groups used
   // to run off the right edge behind a horizontal scrollbar, hiding some groups and the dialog
@@ -154,6 +156,8 @@ export function WordEditorRibbon({ capabilities, activeTab, onTabChange, preview
 
 function RibbonControl({ option, capabilities, preview, active, onCommand, onFontChange, onFontSizeChange, onColorChange,onUnderlineChange,onValueCommand,currentFontFamily }: { option: RibbonOption; capabilities: HierarchicalEditorCapabilities; preview: boolean; active: boolean; onCommand?: (id: string) => void; onFontChange?: (font: string) => void; onFontSizeChange?: (size: number) => void; onColorChange?: (id: string, color: string) => void;onUnderlineChange?:(style:string,color?:string)=>void;onValueCommand?:(id:string,value:string)=>void;currentFontFamily?:string }) {
   const[swatch,setSwatch]=useState(()=>defaultSwatch(option.id));
+  // A greyed-out tool (showUnavailable): drawn like Word's disabled buttons, whatever kind of control it is.
+  if(option.unsupported==="Not available while designing the working document")return <button type="button" className="word-ribbon-tool" aria-label={option.label} aria-description={option.unsupported} disabled title={option.unsupported}><RibbonIcon id={option.id}/><span>{option.label}{option.menu&&<i aria-hidden>▾</i>}</span></button>;
   if (option.id === "fontName") return <FontGallery fonts={capabilities.fonts} preview={preview} onChange={onFontChange} currentFontFamily={currentFontFamily}/>;
   if (option.id === "fontSize") return <FontSizeBox label={option.label} preview={preview} min={capabilities.fontSizeMin} max={capabilities.fontSizeMax} onChange={size => { if (!preview) window.dispatchEvent(new CustomEvent("word-editor-font-size", { detail: size })); else onFontSizeChange?.(size); }}/>;
   if (["highlightColor", "fontColor", "shading"].includes(option.id)) return <ColorSplitButton option={option} preview={preview} swatch={swatch} setSwatch={setSwatch} onChange={onColorChange}/>;

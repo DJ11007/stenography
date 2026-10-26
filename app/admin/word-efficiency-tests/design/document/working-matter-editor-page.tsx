@@ -74,6 +74,7 @@ export function WorkingMatterEditorPage({ target, language, title, initialSnapsh
             attemptId={`working-matter-${target}`}
             original={original}
             capabilities={capabilities}
+            showUnavailableTools
             locked={false}
             mode="authoring"
             oneTimeSubmit={false}
