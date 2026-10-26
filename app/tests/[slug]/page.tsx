@@ -4,7 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
 import { liveTestState } from "@/lib/live-tests";
 import { formatIST } from "@/lib/format-datetime";
-import { ConfigurableTypingExam } from "@/app/typing/_components/configurable-typing-exam";
+import { ConfigurableTypingExam, type PracticeNavigation } from "@/app/typing/_components/configurable-typing-exam";
+import { getAllExamExercises } from "@/lib/exam-category-navigator-server";
+import { getExamCategory } from "@/lib/exam-categories";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { FreeExamLimitPaywall } from "@/app/typing/exams/_components/free-exam-limit-paywall";
 
@@ -85,8 +87,19 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   // connection independently compounds it under concurrent load.
   if(version.audioPath)preset.audioUrl=`/typing/stenography-audio/${version.audioPath.split("/").map(encodeURIComponent).join("/")}`;
   if(version.pdfPath){const{data:signed}=await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath,3600);preset.pdfUrl=signed?.signedUrl??null;}
+  // Exam Simulator exercises: Previous / test list / Next in the test bar (as in Take Tests), so a student
+  // changes test without going back through the category pages. Live tests stay on their own.
+  const category=viewAs?getExamCategory(viewAs):undefined;
+  let navigation:PracticeNavigation|undefined;
+  if(test.mode==="exam"&&!test.is_live){
+    const exercises=await getAllExamExercises(test.language==="Hindi"?"Hindi":"English");
+    const hrefFor=(exerciseSlug:string)=>`/tests/${encodeURIComponent(exerciseSlug)}${category?`?viewAs=${encodeURIComponent(category.slug)}`:""}`;
+    const index=exercises.findIndex(item=>item.slug===test.slug);
+    if(index>=0)navigation={currentIndex:index,total:exercises.length,items:exercises.map((item,position)=>({title:item.title,href:hrefFor(item.slug),label:`Test ${position+1} of ${exercises.length}`})),previousHref:index>0?hrefFor(exercises[index-1].slug):null,nextHref:index<exercises.length-1?hrefFor(exercises[index+1].slug):null};
+  }
+  const backHref=category?`/typing/exams/category/${category.slug}/${test.language==="Hindi"?"hindi":"english"}`:undefined;
   return <TypingStudentProvider student={studentIdentity}>
-    <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at,resultsDelayMinutes:test.results_delay_minutes}} adminPreview={isAdmin}/>
+    <ConfigurableTypingExam preset={preset} mode={version.mode==="learn"||version.mode==="practice"?"practice":"exam"} customPreset managedTest={{testId:test.id,versionId:v.id,mode:version.mode,isLive:Boolean(test.is_live),resultsPublishAt:test.results_publish_at,resultsDelayMinutes:test.results_delay_minutes}} adminPreview={isAdmin} practiceNavigation={navigation} backHref={backHref}/>
   </TypingStudentProvider>;
 }
 

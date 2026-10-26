@@ -32,3 +32,12 @@ export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilt
  const items:ExamCategoryNavigatorItem[]=(data??[]).map(test=>({id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at}));
  return{items:sortExamCategoryNavigatorItems(items,oldest?"ascending":"descending"),total,...bounds};
 }
+
+// Every published exam exercise of one language, in the category page's default (oldest, serial-number)
+// order, for the Previous / test list / Next bar inside an Exam Simulator test (app/tests/[slug]).
+export async function getAllExamExercises(language:"English"|"Hindi"){
+ const supabase=await createClient();
+ const{data,error}=await supabase.from("tests").select("id,slug,title,published_at").eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",language).order("published_at",{ascending:true}).order("id",{ascending:true}).limit(1000);
+ if(error){console.error("Exam exercise list query failed",{code:error.code,message:error.message});return[];}
+ return sortExamCategoryNavigatorItems((data??[]).map(test=>({id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at})),"ascending");
+}
