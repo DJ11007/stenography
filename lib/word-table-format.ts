@@ -118,7 +118,9 @@ export function applyCellFormat(cell: HTMLTableCellElement, format: CellFormat |
   const document = cell.ownerDocument;
   const span = document.createElement("span");
   if (format.fontSize) span.style.fontSize = `${format.fontSize}pt`;
-  if (format.fontFamily) span.style.fontFamily = format.fontFamily;
+  // Quoted: an unquoted name ending in digits ("Kruti Dev 010") is not valid CSS and was silently dropped,
+  // so a reopened Hindi table showed (and then saved) its Kruti Dev text in the default font.
+  if (format.fontFamily) span.style.fontFamily = `"${format.fontFamily.replace(/["\\]/g, "")}"`;
   if (format.bold) span.style.fontWeight = "700";
   if (format.italic) span.style.fontStyle = "italic";
   if (format.color) span.style.color = `#${format.color}`;
