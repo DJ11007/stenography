@@ -44,7 +44,7 @@ const COMMON_BLOCK_ATTRS = new Set(["marginLeft", "marginRight", "lineHeight", "
 export const WORD_LIST_STYLES = new Set(["bullet", "bullet-disc", "bullet-circle", "bullet-square", "bullet-diamond", "bullet-arrow", "bullet-check", "decimal", "decimal-paren", "upper-roman", "upper-alpha", "lower-alpha-paren", "lower-alpha", "lower-roman", "multilevel-decimal", "multilevel-paren", "multilevel-outline", "multilevel-bullet"]);
 const ATTRS: Record<string, Set<string>> = {
   paragraph: new Set([...COMMON_BLOCK_ATTRS, "lineNumbers", "dropCap", "specialIndentMode", "specialIndentAmount", "dropCapLines", "dropCapDistance", "dropCapMargin"]),
-  "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle", "listLevel", "specialIndentMode", "specialIndentAmount"]),
+  "list-item": new Set([...COMMON_BLOCK_ATTRS, "listStyle", "listLevel", "specialIndentMode", "specialIndentAmount", "dropCap", "dropCapLines", "dropCapDistance", "dropCapMargin"]),
   table: new Set(["rows", "tableLayout", "cellFormats", ...TABLE_SETTING_KEYS]), image: new Set(["src", "alt", "width", "height", "localAsset"]),
   "page-break": new Set(["kind"]), "section-break": new Set(["kind"]),
   "cover-page": new Set(COMMON_BLOCK_ATTRS), header: new Set(COMMON_BLOCK_ATTRS), footer: new Set(COMMON_BLOCK_ATTRS),

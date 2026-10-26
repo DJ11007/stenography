@@ -1,0 +1,8 @@
+VLC version 0.9.8a Grishenko
+Compiled by jb@Sasmira.
+Compiler: gcc version 4.2.1-sjlj (mingw32-2)
+Based upon Git commit [66ddb162fe]
+This program comes with NO WARRANTY, to the extent permitted by law.
+You may redistribute it under the terms of the GNU General Public License;
+see the file named COPYING for details.
+Written by the VideoLAN team; see the AUTHORS file.

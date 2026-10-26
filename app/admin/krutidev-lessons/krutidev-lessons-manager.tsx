@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { detectHindiTextFormat, krutiDevToUnicode, krutiDevTypingTarget } from "@/lib/hindi-font-converter";
+import { krutiDevExerciseJoiner, krutiDevExerciseUnits } from "@/lib/krutidev-lesson-units";
 import { deleteKrutiDevExercise, saveKrutiDevExercise, type KrutiDevLessonActionState } from "./actions";
 
 type Row = {
@@ -46,6 +47,20 @@ const KD = '"Kruti Dev 010", "Nirmala UI", sans-serif';
 // worst overhang measured at every font size tested (24px-80px).
 const KD_LEADING_PAD = "0.4em";
 
+// Real reported bug: getKrutiDevExercises (lib/krutidev-tutor-server.ts)
+// resolves a Key drill's format per LINE and a Word set's per
+// WHITESPACE-separated word, not once over the whole field (see
+// krutiDevExerciseUnits' own comment in lib/krutidev-lesson-units.ts for
+// the full story) -- so that's what a student actually sees. This
+// editor's own live preview used to run krutiDevTypingTarget over the
+// whole liveContent as one blob instead, which drifted from that real
+// per-unit resolution the moment a field mixed formats (a real Hindi
+// majority elsewhere in the field made a newly-added Kruti-Dev-typed line
+// misclassify as Unicode and get corrupted). unitsFor/joinerFor below are
+// gone -- krutiDevExerciseUnits/krutiDevExerciseJoiner (shared with the
+// student page and the admin row list, so all three can never drift
+// apart again) replace them directly.
+
 function Feedback({ state }: { state: KrutiDevLessonActionState }) {
   if (!state.error && !state.success) return null;
   return <p role="status" className={`mt-2 text-sm font-bold ${state.error ? "text-red-700" : "text-green-700"}`}>{state.error ?? state.success}</p>;
@@ -63,6 +78,7 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
   const [liveContent, setLiveContent] = useState("");
   const [saveState, saveAction, savePending] = useActionState(saveKrutiDevExercise, initial);
   const [deleteState, deleteAction] = useActionState(deleteKrutiDevExercise, initial);
+  const editingKind = editing ? editing.kind : null;
 
   // Real reported bug (previous fix, since revised -- see below): this
   // Content field expects real Unicode Hindi text (the bundled seed data
@@ -92,27 +108,46 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
   // vice versa. This guarantees the admin's live preview, the saved
   // content, and what the student actually sees are always byte-for-byte
   // identical, with no schema change needed.
+  // detectedFormat/isKrutiDevInput still describe the WHOLE field -- used
+  // only for the textarea's own font (a native <textarea> can only ever
+  // show ONE font, so mixed-format content can't be displayed correctly
+  // there no matter what; this is still the best available single guess).
+  // Everything that must actually be CORRECT -- the Student preview, the
+  // mixed-content warning, and the Save-blocking check -- is computed
+  // per-unit below instead, matching how the real student page resolves
+  // each line/word independently.
   const detectedFormat = detectHindiTextFormat(liveContent);
   const isKrutiDevInput = liveContent.trim() !== "" && detectedFormat !== "unicode";
+
+  const units = useMemo(() => (editingKind ? krutiDevExerciseUnits(editingKind, liveContent) : []), [editingKind, liveContent]);
+  const unitFormats = useMemo(() => units.map((unit) => detectHindiTextFormat(unit)), [units]);
+  const hasBrokenUnit = unitFormats.includes("mixed");
+  const hasKrutiDevUnit = unitFormats.some((format) => format !== "unicode");
+  const hasMultipleFormats = new Set(unitFormats).size > 1;
 
   // Purely informational -- lets the admin sanity-check what raw
   // keystrokes actually mean in real Hindi (catching a mistyped
   // keystroke, the original bug report). This decode never touches what
-  // gets stored or what the student sees -- it's a read-only hint.
+  // gets stored or what the student sees -- it's a read-only hint. Runs
+  // per-unit too, joined back together, so it stays meaningful for
+  // multi-line content instead of reading the whole mixed blob as one
+  // (real) word.
   const readsAs = useMemo(() => {
-    if (!isKrutiDevInput) return null;
+    if (!hasKrutiDevUnit) return null;
     try {
-      return krutiDevToUnicode(liveContent);
+      return units.map((unit, i) => (unitFormats[i] === "unicode" ? unit : krutiDevToUnicode(unit))).join(editingKind && krutiDevExerciseJoiner(editingKind) === " " ? " " : " / ");
     } catch {
       return null;
     }
-  }, [liveContent, isKrutiDevInput]);
+  }, [units, unitFormats, hasKrutiDevUnit, editingKind]);
 
-  const livePreview = useMemo(() => (liveContent.trim() ? krutiDevTypingTarget(liveContent) : ""), [liveContent]);
+  const livePreview = useMemo(() => units.map((unit) => krutiDevTypingTarget(unit)).join(editingKind ? krutiDevExerciseJoiner(editingKind) : "\n"), [units, editingKind]);
 
   const contentNote = liveContent.trim()
-    ? detectedFormat === "mixed"
-      ? { tone: "warn" as const, message: "This looks like a mix of Kruti Dev keys and Hindi Unicode text -- fix this before saving, since it won't render correctly either way." }
+    ? hasBrokenUnit
+      ? { tone: "warn" as const, message: "One of these lines/words looks like a mix of Kruti Dev keys and Hindi Unicode text -- fix it before saving, since it won't render correctly either way." }
+      : hasMultipleFormats
+      ? { tone: "info" as const, message: "This mixes Hindi words and Kruti Dev keystrokes across different lines/words -- each is saved and shown exactly as typed, resolved independently (matching how students actually see it), even though this box can only show one font at a time. Check the Student preview below for the accurate, per-line view." }
       : isKrutiDevInput
       ? { tone: "info" as const, message: readsAs ? `Detected Kruti Dev keystrokes -- saved exactly as typed. Reads as real Hindi: "${readsAs}".` : "Detected Kruti Dev keystrokes -- saved exactly as typed." }
       : null
@@ -120,7 +155,6 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
 
   const groups: Row["kind"][] = ["key-lesson", "word-set", "paragraph"];
   const draft = editing && "id" in editing ? editing : null;
-  const editingKind = editing ? editing.kind : null;
 
   // Close the editor once a save succeeds (the list revalidates on the server).
   useEffect(() => {
@@ -240,7 +274,7 @@ export function KrutiDevLessonsManager({ rows, dbReady = true }: { rows: Row[]; 
             </label>
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={savePending || detectedFormat === "mixed"} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
+            <button type="submit" disabled={savePending || hasBrokenUnit} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60">{savePending ? "Saving…" : "Save"}</button>
             <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-black hover:bg-slate-50">Cancel</button>
           </div>
           <Feedback state={saveState} />

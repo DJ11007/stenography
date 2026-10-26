@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { krutiDevExerciseUnits } from "@/lib/krutidev-lesson-units";
 import { KEY_LESSONS, PARAGRAPHS, WORD_SETS } from "./krutidev-tutor-content";
 
 export type RawKrutiDevExercises = {
@@ -30,14 +31,14 @@ export async function getKrutiDevExercises(): Promise<RawKrutiDevExercises> {
       id: row.id,
       title: row.title,
       focusKeys: (row.focus_keys ?? "").split(/\s+/).filter(Boolean),
-      drills: row.content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      drills: krutiDevExerciseUnits("key-lesson", row.content),
     }));
   const wordSets = rows
     .filter((row) => row.kind === "word-set")
-    .map((row) => ({ id: row.id, title: row.title, words: row.content.split(/\s+/).filter(Boolean) }));
+    .map((row) => ({ id: row.id, title: row.title, words: krutiDevExerciseUnits("word-set", row.content) }));
   const paragraphs = rows
     .filter((row) => row.kind === "paragraph")
-    .map((row) => ({ id: row.id, title: row.title, text: row.content.trim() }));
+    .map((row) => ({ id: row.id, title: row.title, text: krutiDevExerciseUnits("paragraph", row.content)[0] ?? "" }));
 
   return {
     lessons: lessons.length ? lessons : KEY_LESSONS.map((l) => ({ id: l.id, title: l.title, focusKeys: l.focusKeys, drills: l.drills })),

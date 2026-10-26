@@ -2,17 +2,22 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { krutiDevTypingTarget } from "@/lib/hindi-font-converter";
+import { krutiDevExerciseJoiner, krutiDevExerciseUnits, type KrutiDevExerciseKind } from "@/lib/krutidev-lesson-units";
 import { KEY_LESSONS, PARAGRAPHS, WORD_SETS } from "@/lib/krutidev-tutor-content";
 import { BackButton } from "../../_components/back-button";
 import { KrutiDevLessonsManager } from "./krutidev-lessons-manager";
 
-// What students actually see: content may be authored either as Unicode
-// Hindi or as raw Kruti Dev keystrokes directly (krutiDevTypingTarget
-// detects which and only converts genuinely Unicode content -- see that
-// function's own comment in lib/hindi-font-converter.ts), rendered in the
-// Kruti Dev 010 font on the card.
-function withKrutiDevPreview<T extends { content: string }>(row: T) {
-  return { ...row, krutidev: krutiDevTypingTarget(row.content) };
+// What students actually see: the student-facing tutor page resolves a
+// Key drill's format per LINE and a Word set's per WHITESPACE-separated
+// WORD, not once for the whole field (see krutiDevExerciseUnits' own
+// comment for why) -- so this row-list preview must do the same, not run
+// krutiDevTypingTarget over the whole field as one blob, or a lesson
+// mixing real Hindi words with a newly-added Kruti-Dev-typed line would
+// preview wrong here even though students see it correctly.
+function withKrutiDevPreview<T extends { content: string; kind: KrutiDevExerciseKind }>(row: T) {
+  const units = krutiDevExerciseUnits(row.kind, row.content);
+  const krutidev = units.map((unit) => krutiDevTypingTarget(unit)).join(krutiDevExerciseJoiner(row.kind));
+  return { ...row, krutidev };
 }
 
 export const metadata: Metadata = { title: "Kruti Dev Typing Tutor | Admin" };

@@ -28,7 +28,7 @@ test("Drop Cap is a real gallery (None/Dropped/In margin) plus a Drop Cap Option
   assert.match(menus, />Drop Cap Options…</);
   const editor = await read(EDITOR);
   assert.match(editor, /dialog\.kind==="dropCapOptions"&&<DropCapDialog2013/);
-  assert.match(editor, /const dropCapParagraph=\(\)=>selectedBlocks\(\)\.find\(block=>block\.tagName==="P"\)\?\?null/);
+  assert.match(editor, /const dropCapParagraph=\(\)=>selectedBlocks\(\)\.find\(block=>block\.tagName==="P"\|\|block\.tagName==="LI"\)\?\?null/);
   assert.match(editor, /const applyDropCap=\(mode:string,fontFamily:string,lines:string,distance:string\)=>\{/);
   assert.match(editor, /Place the cursor in a paragraph with text to apply Drop Cap\./);
 });
