@@ -177,3 +177,33 @@ export async function extractExcelEfficiencyPdf(form: FormData) {
     return { ok: false, error: "The PDF could not be read. Check the file and try again.", questions: [] };
   }
 }
+
+// ---------- Model Answer (the admin solves the paper in the sheet; rules are built from what was changed) ----------
+// As on the Word page, the save actions do NOT call requireAdmin(): the sheet autosaves the model answer after every
+// change, and requireAdmin() makes three extra network round trips that could bounce the admin to the sign-in page
+// mid-edit. The database functions check is_aal2_admin() themselves and answer with a plain error instead.
+export async function saveExcelEfficiencyModelAnswer(versionId: string, document: unknown): Promise<{ ok: boolean; error: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_excel_efficiency_model_answer", { p_version_id: versionId, p_document: document });
+  if (error) return { ok: false, error: process.env.NODE_ENV === "development" ? `Save failed: ${error.message}` : "Save failed." };
+  return { ok: true, error: "" };
+}
+
+// The rules of one question (a share of its marks for each thing it asks: see lib/excel-document-diff.ts). Other
+// questions' rules are left as they are.
+export async function saveExcelEfficiencyQuestionRules(versionId: string, questionNumber: number, rules: { allocatedMarks: number; partLabel: string | null; additionalCriteria: unknown[] }[]): Promise<{ ok: boolean; error: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_excel_efficiency_question_rules", { p_version_id: versionId, p_question_number: questionNumber, p_rules: rules });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/admin/excel-efficiency-tests");
+  return { ok: true, error: "" };
+}
+
+export async function resetExcelEfficiencyModelAnswer(versionId: string): Promise<{ ok: boolean; error: string }> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("reset_excel_efficiency_model_answer", { p_version_id: versionId });
+  if (error) return { ok: false, error: process.env.NODE_ENV === "development" ? `Reset failed: ${error.message}` : "Reset failed." };
+  revalidatePath("/admin/excel-efficiency-tests");
+  return { ok: true, error: "" };
+}

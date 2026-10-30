@@ -7,7 +7,7 @@ export const EXCEL_SUPPORTED_COMMANDS = new Set([
   "fontSize", "fontFamily", "vAlign", "wrap", "mergeCenter", "mergeAcross", "mergeCells", "unmerge", "formatPainter", "clearFormats", "clearContents",
   "copy", "cut", "paste", "autoSum", "gridlines", "headings", "formulaBar", "printGridlines", "printHeadings", "printArea", "clearPrintArea",
   "orientation", "paperSize", "margins", "header", "footer", "pageNumber", "formula",
-  "formatCells", "rotate", "indent", "decimals", "fillDown", "fillRight", "pasteValues", "pasteFormatting", "cellStyle", "edit",
+  "formatCells", "rotate", "indent", "decimals", "fillDown", "fillRight", "autoFill", "pasteValues", "pasteFormatting", "cellStyle", "edit",
   // The fuller Excel 2013 workspace (migration 202610252200).
   "comment", "deleteComment", "renameSheet", "freezePanes", "unfreezePanes", "filter", "filterValues", "sort", "removeDuplicates",
   "conditionalFormat", "clearConditionalFormat", "formatAsTable", "chart", "deleteChart", "chartTitle", "protectSheet", "unprotectSheet",

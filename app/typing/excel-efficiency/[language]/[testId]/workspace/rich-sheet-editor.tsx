@@ -16,6 +16,7 @@ import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, Inpu
 import { ChartView } from "./excel-chart";
 import { DataValidationDialog, DefineNameDialog, GoToSpecialDialog, HyperlinkDialog, InsertDeleteCellsDialog, ManageRulesDialog, MoreColorsDialog, NameManagerDialog, PasteSpecialDialog, SeriesDialog, TextToColumnsDialog, type GoToSpecialChoice, type PasteSpecialChoice, type SeriesChoice, type ShiftChoice } from "./excel-dialogs-more";
 import { CURRENCIES, type CurrencySymbol, type DataValidation } from "@/lib/excel-document";
+import { autoFill, autoFillDownLastRow, fillDirectionFor, fillExtension, type FillDirection } from "@/lib/excel-autofill";
 
 export type { ExcelDocument } from "@/lib/excel-document";
 
@@ -65,7 +66,12 @@ const pointsToPx = (points: number) => Math.round((points * 4) / 3);
 const cellOf = (cells: Record<string, SheetCell>, ref: string): SheetCell => cells[ref] ?? EMPTY_CELL;
 const styleOf = (cell: SheetCell) => Object.fromEntries(STYLE_KEYS.map((key) => [key, cell[key] ?? null])) as Partial<SheetCell>;
 
-export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar }: { attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode }) {
+type SaveAction = (id: string, document: unknown) => Promise<{ ok: boolean; error: string }>;
+
+// mode "authoring": the admin solves the paper on the Model Answer page. The same sheet, but its autosave and its
+// button save the model answer (autosaveAction / submitAction), the button can be pressed again and again
+// (oneTimeSubmit false) and nothing is locked or sent to a results page.
+export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar, mode = "attempt", autosaveAction, submitAction, submitLabel = "Submit", submitConfirmMessage = "Submit your final sheet? You cannot edit it afterward.", oneTimeSubmit = true, onReady }: { attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode; mode?: "attempt" | "authoring"; autosaveAction?: SaveAction; submitAction?: SaveAction; submitLabel?: string; submitConfirmMessage?: string | null; oneTimeSubmit?: boolean; onReady?: (document: ExcelDocument) => void }) {
   const router = useRouter();
   const start = useMemo(() => toExcelDocumentV3(initialDocument) ?? toExcelDocumentV3(original)!, []); // eslint-disable-line react-hooks/exhaustive-deps -- the starting sheet only
   // The saved sheet never has fewer rows/columns than the starting sheet.
@@ -89,6 +95,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const [lastFont, setLastFont] = useState("FF0000"), [lastFill, setLastFill] = useState("FFFF00");
   const undoStack = useRef<Snapshot[]>([]), redoStack = useRef<Snapshot[]>([]);
   const dragging = useRef(false);
+  // The fill handle (the small square at the corner of the selection) being dragged: what was selected, and where the mouse is.
+  const [fillDrag, setFillDrag] = useState<{ source: Rect; target: { row: number; col: number } } | null>(null);
   // Where a Format Painter drag began: read on mouse-up, so a quick click paints only the clicked cell even
   // before the new selection has rendered.
   const paintStart = useRef<{ row: number; col: number } | null>(null);
@@ -109,6 +117,37 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const displayRows = useMemo(() => { const extent = usedExtent(cells, merges, sheet, baseRows, baseCols); return Math.min(MAX_ROWS, Math.max(50, extent.rows + 25, focus.row + 10)); }, [cells, merges, sheet, focus.row, baseRows, baseCols]);
   const displayCols = MAX_COLS;
 
+  // ---------- the fill handle (AutoFill) ----------
+  // How far a fill reaches: the direction (the longer way out of the selection) and how many rows or columns it adds.
+  const fillPlan = (source: Rect, target: { row: number; col: number }): { direction: FillDirection; count: number } | null => {
+    const direction = fillDirectionFor(source, target);
+    if (!direction) return null;
+    const count = direction === "down" ? target.row - source.r2 : direction === "up" ? source.r1 - target.row : direction === "right" ? target.col - source.c2 : source.c1 - target.col;
+    return count > 0 ? { direction, count } : null;
+  };
+  const fillPreview = useMemo(() => {
+    if (!fillDrag) return null;
+    const plan = fillPlan(fillDrag.source, fillDrag.target);
+    return plan ? fillExtension(fillDrag.source, plan.direction, plan.count) : null;
+  }, [fillDrag]); // eslint-disable-line react-hooks/exhaustive-deps -- fillPlan only reads its arguments
+  const finishFill = (source: Rect, direction: FillDirection, count: number) => {
+    const extension = fillExtension(source, direction, count);
+    if (!extension) return;
+    change("autoFill", { cells: autoFill(cells, source, direction, count) });
+    selectRect({ r1: Math.min(source.r1, extension.r1), c1: Math.min(source.c1, extension.c1), r2: Math.max(source.r2, extension.r2), c2: Math.max(source.c2, extension.c2) });
+  };
+  // Mouse released after dragging the handle. Registered again after every render so it sees the latest sheet.
+  useEffect(() => {
+    if (!fillDrag) return;
+    const release = () => {
+      const plan = fillPlan(fillDrag.source, fillDrag.target);
+      setFillDrag(null);
+      if (plan) finishFill(fillDrag.source, plan.direction, plan.count);
+    };
+    window.addEventListener("mouseup", release);
+    return () => window.removeEventListener("mouseup", release);
+  });
+
   // ---------- saving ----------
   const buildDocument = useCallback((c = cells, m = merges, s = sheet, ops = operations): ExcelDocument => {
     const values = recomputeFormulas(c, s.definedNames);
@@ -122,11 +161,14 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(async () => {
       setStatus("Saving…");
-      const result = await autosaveExcelDocument(attemptId, buildDocument());
+      const result = await (autosaveAction ?? autosaveExcelDocument)(attemptId, buildDocument());
       setStatus(result.ok ? "Saved" : result.error);
     }, 800);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [revision]); // eslint-disable-line react-hooks/exhaustive-deps -- saves after each change
+
+  // The Model Answer page needs the sheet as it first looks (before anything is changed) as its checkpoint.
+  useEffect(() => { onReady?.(buildDocument()); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on first render
 
   // Development only: lets the local test page read the sheet as it would be saved.
   useEffect(() => { if (process.env.NODE_ENV !== "production") (window as unknown as { __excelDocument?: () => ExcelDocument }).__excelDocument = () => buildDocument(); });
@@ -354,11 +396,12 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     setStatus("Submitting…"); setFinalSubmitting(true);
     const fail = (message: string) => { setStatus(message); setFinalSubmitting(false); submitting.current = false; if (!auto) setSubmitProblem(message); return false; };
     try {
-      const result = await submitExcelDocument(attemptId, finalDocument);
+      const result = await (submitAction ?? submitExcelDocument)(attemptId, finalDocument);
       if (!result.ok) {
         if (/already submitted/i.test(result.error)) { submittedRef.current = true; setSubmitted(true); router.push(`/typing/excel-efficiency/results/${attemptId}`); return true; }
         return fail(result.error);
       }
+      if (!oneTimeSubmit) { setStatus("Saved"); setFinalSubmitting(false); submitting.current = false; return true; }
       submittedRef.current = true; setSubmitted(true); setStatus("Test submitted successfully");
       router.push(`/typing/excel-efficiency/results/${attemptId}`);
       return true;
@@ -442,7 +485,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     ["Accent2", { fillColor: "ED7D31", fontColor: "FFFFFF" }], ["Accent6", { fillColor: "70AD47", fontColor: "FFFFFF" }],
     ["Comma", { numberFormat: "Number", decimals: 2 }], ["Currency", { numberFormat: "Currency", decimals: 2 }], ["Percent", { numberFormat: "Percentage", decimals: 0 }],
   ];
-  const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); setStatus("Saving…"); const result = await autosaveExcelDocument(attemptId, buildDocument()); setStatus(result.ok ? "Saved" : result.error); };
+  const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); setStatus("Saving…"); const result = await (autosaveAction ?? autosaveExcelDocument)(attemptId, buildDocument()); setStatus(result.ok ? "Saved" : result.error); };
   const openContextMenu = (event: React.MouseEvent, row: number, col: number) => {
     event.preventDefault();
     if (!rectContains(selection, row, col)) select(row, col);
@@ -1300,7 +1343,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {finalSubmitting && <div role="status" aria-live="assertive" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4">
         <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-2xl">
           <span className="mx-auto flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-cyan-100 text-3xl" aria-hidden>⏳</span>
-          <h2 className="mt-5 text-2xl font-black text-slate-900">Submitting your sheet…</h2>
+          <h2 className="mt-5 text-2xl font-black text-slate-900">{mode === "authoring" ? "Saving your answer…" : "Submitting your sheet…"}</h2>
           <p className="mt-3 leading-7 text-slate-600">Please don&apos;t close this page or click Submit again. This can take a few moments -- your sheet is safe.</p>
         </div>
       </div>}
@@ -1375,7 +1418,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                       const spill = !cell.wrap && !merged && !numeric && cell.value != null && align === "left" && !filterButton && (!neighbour || (neighbour.value == null && !neighbour.formula)) && !mergeAt(merges, row, col + 1);
                       const fill = conditional?.fill ?? cell.fillColor;
                       const style: CSSProperties = {
-                        backgroundColor: fill ? `#${fill}` : inSelection && !isActive ? "#dbe8f7" : frozenRow || frozenCol ? "#ffffff" : undefined,
+                        backgroundColor: fill ? `#${fill}` : fillPreview && rectContains(fillPreview, row, col) ? "#e2efda" : inSelection && !isActive ? "#dbe8f7" : frozenRow || frozenCol ? "#ffffff" : undefined,
                         borderRight: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent", borderBottom: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent",
                         ...borderCss(cell.border),
                         ...(conditional?.border ? { border: conditional.border } : {}),
@@ -1403,7 +1446,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                             dragging.current = true;
                             select(row, col, event.shiftKey);
                           }}
-                          onMouseEnter={() => { if (dragging.current) setFocus({ row, col }); }}
+                          onMouseEnter={() => { if (dragging.current) setFocus({ row, col }); else if (fillDrag) setFillDrag({ ...fillDrag, target: { row, col } }); }}
                           onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (
@@ -1412,6 +1455,16 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                               onBlur={() => commitEdit()} className="absolute inset-0 z-10 w-full min-w-[120px] border-2 border-[#217346] bg-white px-1 outline-none" style={{ fontSize: style.fontSize, fontFamily: style.fontFamily as string | undefined }} />
                           ) : (
                             <span className={cell.rotate ? "inline-block" : "block"} title={cell.link ? `${cell.link} - Click once to follow.` : undefined} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.vertAlign ? { position: "relative", top: cell.vertAlign === "superscript" ? "-0.4em" : "0.3em" } : {}), ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{conditional?.icon && <ConditionalIcon icon={conditional.icon} />}{shown}</span>
+                          )}
+                          {!submitted && !isEditing && !colHidden && !painter && (merged ? merged.r2 === selection.r2 && merged.c2 === selection.c2 : row === selection.r2 && col === selection.c2) && (
+                            <span data-fill-handle title="Fill handle: drag to fill, double-click to fill down" aria-hidden
+                              onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); focusGrid(); setFillDrag({ source: selection, target: { row, col } }); }}
+                              onDoubleClick={(event) => {
+                                event.stopPropagation();
+                                const last = autoFillDownLastRow(cells, selection);
+                                if (last !== null) finishFill(selection, "down", last - selection.r2);
+                              }}
+                              className="absolute bottom-0 right-0 z-[6] h-[7px] w-[7px] cursor-crosshair border border-white bg-[#217346]" />
                           )}
                           {listRule?.type === "list" && <button type="button" aria-label={`Pick from list for ${ref}`} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }} onClick={() => setListMenu((open) => !open)} className="absolute -right-[18px] bottom-0 z-[3] grid h-[18px] w-4 place-items-center border border-[#adadad] bg-[#f0f0f0] text-[9px]">▾</button>}
                           {listRule?.type === "list" && listMenu && <div data-xl-list role="listbox" aria-label="Validation list" className="absolute left-0 top-full z-[45] min-w-full border border-[#7a7a7a] bg-white text-left text-[12px] shadow">{(listRule.list ?? "").split(",").map((item) => item.trim()).filter(Boolean).map((item) => <button key={item} type="button" role="option" aria-selected={String(cell.value ?? "") === item} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }} onClick={() => pickFromList(item)} className="block w-full px-1.5 py-0.5 text-left hover:bg-[#0078d7] hover:text-white">{item}</button>)}</div>}
@@ -1474,7 +1527,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           <button type="button" onClick={() => openDialog({ kind: "zoom" })} className="w-10 text-right hover:text-black">{zoom}%</button>
         </span>
       </div>
-      <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message="Submit your final sheet? You cannot edit it afterward." confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
+      <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message={submitConfirmMessage ?? ""} confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
       <ConfirmDialog open={submitProblem !== null} title="Could not submit" message={submitProblem} confirmLabel="OK" cancelLabel={null} tone="primary" onCancel={() => setSubmitProblem(null)} onConfirm={() => setSubmitProblem(null)} />
       {formatDialog && <FormatCellsDialog cell={active} merged={Boolean(activeMerge)} initialTab={formatDialog} onCancel={() => { setFormatDialog(null); focusGrid(); }} onOk={applyFormatCells} />}
       {contextMenu && (
@@ -1557,7 +1610,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {headerDialog && <HeaderFooterDialog header={sheet.header} footer={sheet.footer} onCancel={() => setHeaderDialog(false)} onOk={(header, footer) => { setHeaderDialog(false); const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? ""))); change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header"); }} />}
       <footer className="flex items-center justify-between gap-3 border-t bg-slate-950 px-4 py-2 text-white">
         <p aria-live="polite" className="text-sm font-bold">Autosave: {status}</p>
-        <button type="button" disabled={submitted} onClick={() => { if (editing) commitEdit(); if (!submitted) setConfirmSubmitOpen(true); }} className="rounded-xl bg-red-600 px-5 py-2.5 font-black text-white outline-none hover:bg-red-500 disabled:bg-slate-500">Submit</button>
+        <button type="button" disabled={submitted} onClick={() => { if (editing) commitEdit(); if (submitted) return; if (submitConfirmMessage === null) void submitNow(false); else setConfirmSubmitOpen(true); }} className="rounded-xl bg-red-600 px-5 py-2.5 font-black text-white outline-none hover:bg-red-500 disabled:bg-slate-500">{submitLabel}</button>
       </footer>
     </div>
   );

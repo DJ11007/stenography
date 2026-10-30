@@ -19,7 +19,7 @@ test("applying a per-side border clears the other sides first (so switching from
 test("a saved border (per-side keyword or legacy raw CSS) round-trips: makeBlock captures it from the dataset marker, renderSnapshot restores the correct sides and re-attaches the marker", async () => {
   const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   assert.match(editor, /if\(html\?\.dataset\.borderKind\)attrs\.border=html\.dataset\.borderKind;/);
-  assert.match(editor, /if\(typeof block\.attrs\.border==="string"\)\{applyBorderStyle\(html,block\.attrs\.border\);if\(BORDER_SIDE_KEYWORDS\.has\(block\.attrs\.border\)\)html\.dataset\.borderKind=block\.attrs\.border\}/);
+  assert.match(editor, /if\(typeof block\.attrs\.border==="string"\)\{applyBorderStyle\(html,block\.attrs\.border\);if\(isBorderSideKind\(block\.attrs\.border\)\)html\.dataset\.borderKind=block\.attrs\.border\}/);
 });
 
 test("border values remain plain, length-bounded strings, so this change needed no schema or capability migration on either the client or Postgres validator", async () => {

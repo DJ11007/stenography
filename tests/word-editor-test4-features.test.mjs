@@ -43,10 +43,12 @@ test("a header/footer in Word's left/centre/right positions saves as tab charact
   assert.equal(zones.length, 3);
   assert.deepEqual(zones.map(zone => zone.textContent), ["1", "", "SAMRADHI CLASSES"]);
   assert.equal(zones[2].style.textAlign, "right");
-  assert.equal(zones[2].firstElementChild.style.fontSize, "30pt", "the text keeps its formatting");
+  // The centre and right positions start with an invisible tab marker (data-hf-tab, no text); the text follows it.
+  const rightText = zones[2].querySelector("span:not([data-hf-tab])");
+  assert.equal(rightText.style.fontSize, "30pt", "the text keeps its formatting");
   assert.equal(zones[0].firstElementChild.getAttribute("data-field"), "page-number|current|left", "a field is never split");
   // Saving walks the same positions back: the right-hand text is in position 2.
-  assert.equal(headerFooterZone(zones[2].firstChild.firstChild ?? zones[2].firstChild, footer), 2);
+  assert.equal(headerFooterZone(rightText.firstChild, footer), 2);
   assert.equal(headerFooterZone(zones[0].firstChild, footer), 0);
   // A plain footer without tabs is left alone.
   document.body.innerHTML = `<div id="page2"><footer data-block-type="footer"><span>Plain</span></footer></div>`;
@@ -135,7 +137,7 @@ test("pages: a table is split between rows at a page break, as in Word, and page
   assert.match(editor, /Read before the row is marked: getComputedStyle is live/);
   assert.match(editor, /void fonts\.ready\.then\(redo\);fonts\.addEventListener\("loadingdone",redo\);/);
   assert.match(css, /\.word-document-page tr\[data-page-push\] > td, \.word-document-page tr\[data-page-push\] > th \{\n  padding-top: calc\(var\(--page-push-mt\) \+ var\(--page-push-pad, 0px\)\) !important;/);
-  assert.match(css, /#fff 0 var\(--page-push-white\), #d4d4d4 var\(--page-push-white\) var\(--page-push-gap\), #fff var\(--page-push-gap\) var\(--page-push-mt\)/, "the paper, the grey gap and the next sheet's margin");
+  assert.match(css, /var\(--page-paper-fill, transparent\) 0 var\(--page-push-white\), var\(--page-gap-fill, transparent\) var\(--page-push-white\) var\(--page-push-gap\), var\(--page-paper-fill, transparent\) var\(--page-push-gap\) var\(--page-push-mt\)/, "the paper, the grey gap and the next sheet's margin");
 });
 
 test("Home > Font applies Kruti Dev 010 to selected text (the browser's fontName wrote a <font face> it then dropped)", async () => {

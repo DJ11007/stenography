@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { RichDocumentEditor } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor";
-import { diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion } from "@/lib/word-document-diff";
+import { compressRunCriteria, diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion } from "@/lib/word-document-diff";
 import { generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
 import type { WorkingMatterSnapshot } from "@/lib/word-docx";
 
-type Question = { id: string; number: number; instruction: string; marks: number; existingCriteria: ModelAnswerCriterion[] };
+type KeptRule = { exactTarget: string; expectedOperation: string; expectedValue: string; allocatedMarks: number; partialMarks: number | null; partLabel: string | null; additionalCriteria: unknown[] };
+type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean; keptRules: KeptRule[]; existingCriteria: ModelAnswerCriterion[] };
 type Criterion = ModelAnswerCriterion;
 
 // Redesigned per the admin's own feedback on the earlier version of this
@@ -35,7 +36,7 @@ function countParagraphs(document: unknown): number | null {
   return Array.isArray(blocks) ? blocks.length : null;
 }
 
-export function ModelAnswerEditor({ versionId, original, initialDocument, capabilities, questions }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; capabilities: unknown; questions: Question[] }) {
+export function ModelAnswerEditor({ versionId, original, initialDocument, questions }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; questions: Question[] }) {
   // The question that starts active (first one with no existing grading
   // rule) needs a checkpoint -- the document as it stood before THIS
   // question's edits -- exactly like selectQuestion seeds one for every
@@ -43,7 +44,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   // below can use it without an effect (an effect only runs after the
   // first paint, too late to matter for a value only ever read at submit
   // time -- but wrong in a subtler way too: see handleReady's comment).
-  const initialActiveNumber = questions.find((question) => question.existingCriteria.length === 0)?.number ?? null;
+  const initialActiveNumber = questions.find((question) => !question.graded)?.number ?? null;
   const [latestDocument, setLatestDocument] = useState<unknown>(initialDocument ?? null);
   // If a document was already saved (any question answered in an earlier
   // session, including ones with no grading rule of their own yet), THAT
@@ -53,10 +54,12 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
   // saved yet, so there's no initialDocument to seed from).
   const [checkpoints, setCheckpoints] = useState<Record<number, unknown>>(() => (initialDocument != null && initialActiveNumber !== null ? { [initialActiveNumber]: initialDocument } : {}));
   const [assignments, setAssignments] = useState<Record<number, Criterion[]>>(() => Object.fromEntries(questions.map((question) => [question.number, question.existingCriteria])));
-  const [answeredNumbers, setAnsweredNumbers] = useState<Set<number>>(() => new Set(questions.filter((question) => question.existingCriteria.length > 0).map((question) => question.number)));
+  const [answeredNumbers, setAnsweredNumbers] = useState<Set<number>>(() => new Set(questions.filter((question) => question.graded).map((question) => question.number)));
   const [activeNumber, setActiveNumber] = useState<number | null>(initialActiveNumber);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [resetting, setResetting] = useState(false);
+  // Questions answered on this page since it opened: their saved rules are rebuilt; the others keep rules this page cannot rebuild.
+  const [touched, setTouched] = useState<Set<number>>(new Set());
   const [showQuestion, setShowQuestion] = useState(true);
 
   const ready = latestDocument !== null;
@@ -132,7 +135,11 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
     const criteria: Criterion[] = changes.map((change) => ({ target: change.target, savedValue: change.expectedValue, caseOnly: change.caseOnly }));
     const nextAssignments = { ...assignments, [activeNumber]: criteria };
     setAssignments(nextAssignments);
-    const payload = questions.map((question) => ({ questionNumber: question.number, allocatedMarks: question.marks, criteria: modelAnswerRuleCriteria(cleanDocument, nextAssignments[question.number] ?? []) }));
+    const nextTouched = new Set(touched).add(activeNumber);
+    setTouched(nextTouched);
+    const payload = questions.map((question) => question.keptRules.length && !nextTouched.has(question.number)
+      ? { questionNumber: question.number, keep: question.keptRules }
+      : { questionNumber: question.number, allocatedMarks: question.marks, criteria: compressRunCriteria(cleanDocument, modelAnswerRuleCriteria(cleanDocument, nextAssignments[question.number] ?? [])) });
     const ruleResult = await generateWordEfficiencyGradingRulesFromModelAnswer(versionId, payload);
     if (!ruleResult.ok) return { ok: false, error: ruleResult.error };
     const nextAnswered = new Set(answeredNumbers);
@@ -163,7 +170,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
             {questions.map((question) => {
-              const graded = (assignments[question.number] ?? []).length > 0;
+              const graded = (assignments[question.number] ?? []).length > 0 || (question.keptRules.length > 0 && !touched.has(question.number));
               const current = activeNumber === question.number;
               return (
                 <button
@@ -213,7 +220,9 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, capabi
           attemptId={versionId}
           original={original}
           initialDocument={initialDocument}
-          capabilities={capabilities}
+          // Every tool, whatever the test lets students use: the model answer must be solvable the way the paper asks
+          // (tables, headers and footers, page setup...) even for a test that restricts what students may do.
+          capabilities={null}
           locked={false}
           mode="authoring"
           oneTimeSubmit={false}

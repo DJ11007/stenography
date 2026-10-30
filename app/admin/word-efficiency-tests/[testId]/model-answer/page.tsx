@@ -33,11 +33,13 @@ export default async function ModelAnswerPage({ params }: { params: Promise<{ te
   const supabase = await createClient();
   const { data: test } = await supabase.from("word_efficiency_tests").select("id,title,current_version_id").eq("id", testId).maybeSingle();
   if (!test?.current_version_id) notFound();
-  const { data: version } = await supabase.from("word_efficiency_versions").select("id,working_matter_snapshot,model_answer_snapshot,editor_capabilities").eq("id", test.current_version_id).maybeSingle();
+  const { data: version } = await supabase.from("word_efficiency_versions").select("id,working_matter_snapshot,model_answer_snapshot").eq("id", test.current_version_id).maybeSingle();
   if (!version) notFound();
   const { data: questions } = await supabase.from("word_efficiency_questions").select("id,question_number,instruction,marks").eq("version_id", version.id).order("display_order");
-  const { data: gradingRules } = await supabase.from("word_efficiency_grading_rules").select("question_id,exact_target,expected_operation,expected_value,allocated_marks,additional_criteria").eq("version_id", version.id);
-  const gradingRuleMap = new Map((gradingRules ?? []).map((rule) => [rule.question_id, rule]));
+  const { data: gradingRules } = await supabase.from("word_efficiency_grading_rules").select("question_id,exact_target,expected_operation,expected_value,allocated_marks,partial_marks,additional_criteria,part_label").eq("version_id", version.id);
+  // A question can have several rules (its parts), so every row is kept, not one per question.
+  const rulesByQuestion = new Map<string, NonNullable<typeof gradingRules>>();
+  for (const rule of gradingRules ?? []) rulesByQuestion.set(rule.question_id, [...(rulesByQuestion.get(rule.question_id) ?? []), rule]);
 
   return (
     <main className="min-h-screen bg-slate-100 px-3 py-3">
@@ -47,10 +49,13 @@ export default async function ModelAnswerPage({ params }: { params: Promise<{ te
           versionId={version.id}
           original={version.working_matter_snapshot}
           initialDocument={version.model_answer_snapshot}
-          capabilities={version.editor_capabilities}
           questions={(questions ?? []).map((question) => {
-            const rule = gradingRuleMap.get(question.id);
-            return { id: question.id, number: question.question_number, instruction: question.instruction, marks: Number(question.marks), existingCriteria: rule ? existingModelAnswerCriteria(rule) : [] };
+            const rules = rulesByQuestion.get(question.id) ?? [];
+            // Rules this page cannot rebuild from the finished answer (a "rule" criterion -- words, text, table... -- or a rule
+            // of another kind, with its part marks) are sent back unchanged whenever another question is saved.
+            const hand = rules.some((rule) => rule.expected_operation !== "model-answer-match-v2" || (Array.isArray(rule.additional_criteria) && (rule.additional_criteria as { rule?: unknown }[]).some((criterion) => criterion && typeof criterion === "object" && "rule" in criterion)));
+            const keptRules = hand ? rules.map((rule) => ({ exactTarget: rule.exact_target, expectedOperation: rule.expected_operation, expectedValue: JSON.stringify(rule.expected_value ?? null), allocatedMarks: Number(rule.allocated_marks), partialMarks: rule.partial_marks === null ? null : Number(rule.partial_marks), partLabel: rule.part_label, additionalCriteria: Array.isArray(rule.additional_criteria) ? rule.additional_criteria : [] })) : [];
+            return { id: question.id, number: question.question_number, instruction: question.instruction, marks: Number(question.marks), graded: rules.length > 0, keptRules, existingCriteria: rules.length && !hand ? existingModelAnswerCriteria(rules[0]) : [] };
           })}
         />
       </div>

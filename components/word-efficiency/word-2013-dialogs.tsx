@@ -6,6 +6,7 @@ import { WORD_FONT_SIZE_LIST, wordFontSize } from "@/lib/word-font-sizes";
 import { DEFAULT_ENGINE_OPTIONS, describeFormat, findWhatError, type FindEngineOptions, type FindFormat } from "@/lib/word-find-engine";
 import { colorName, mixColors } from "@/lib/word-colors";
 import { PAPER_SIZES, type PageSetupValues } from "@/lib/word-page-setup";
+import { MAX_BORDER_DISTANCE, defaultBorderDistance, defaultBorderOptions, normalizeBorderOptions, type BorderMeasure, type PageBorderOptions } from "@/lib/word-page-border";
 import { TABLE_COLORS, WordPalette } from "./word-table-tools";
 
 // Word 2013-style dialogs: Find and Replace (with Special / Format / search options),
@@ -1204,6 +1205,8 @@ export type BordersShadingValues = {
   pageSetting: "none" | "box" | "shadow" | "3d" | "custom"; pageStyle: "solid" | "double" | "dotted" | "dashed" | "wave" | "doubleWave"; pageColor: string; pageWidth: number;
   /** Page Border sides (Word: click the preview or its buttons; e.g. bottom and right only). */
   pageEdges?: { top: boolean; bottom: boolean; left: boolean; right: boolean };
+  /** Page Border > Options: Measure from, the four distances, Surround header / footer (lib/word-page-border.ts). */
+  pageOptions?: PageBorderOptions;
 };
 const EDGE_PRESETS: Record<"none" | "box" | "all" | "grid", BorderEdges> = {
   none: { top: false, bottom: false, left: false, right: false, insideH: false, insideV: false, diagonalDown: false, diagonalUp: false },
@@ -1231,6 +1234,39 @@ function PaletteSelect13({ value, onChange, label, autoLabel, width = "100%" }: 
 }
 const colorLabel = (hex: string) => TABLE_COLORS.find(color => color.hex === hex.toUpperCase())?.name ?? `#${hex.toUpperCase()}`;
 
+// Word 2013's Border and Shading Options (Borders and Shading > Page Border > Options...): the distance of the
+// border from each side, Measure from (Edge of page | Text) and, from the text, whether the header and the footer
+// are surrounded. Switching Measure from gives the distances that mode's defaults (24 pt from the edge, 4 pt from
+// the text) while they are still the old mode's defaults, as Word does.
+function PageBorderOptionsDialog2013({ values: initial, onSubmit }: { values: PageBorderOptions; onSubmit: (values: PageBorderOptions) => void }) {
+  const [values, setValues] = useState<PageBorderOptions>(() => normalizeBorderOptions(initial));
+  const set = (patch: Partial<PageBorderOptions>) => setValues(current => ({ ...current, ...patch }));
+  const text = values.measure === "text";
+  const changeMeasure = (measure: BorderMeasure) => setValues(current => {
+    const before = defaultBorderDistance(current.measure), distance = defaultBorderDistance(measure);
+    const untouched = [current.top, current.right, current.bottom, current.left].every(value => value === before);
+    return { ...current, measure, ...(untouched ? { top: distance, right: distance, bottom: distance, left: distance } : {}) };
+  });
+  const distance = (key: "top" | "bottom" | "left" | "right", label: ReactNode, name: string) => <div className="w13-row"><span style={{ width: 52 }}>{label}</span><Number13 label={`${name} distance`} value={values[key]} onChange={value => set({ [key]: Math.round(value ?? 0) } as Partial<PageBorderOptions>)} unit="pt" min={0} max={MAX_BORDER_DISTANCE} step={1} decimals={0} width={78} /></div>;
+  return (
+    <Window13 title="Border and Shading Options" width={360}>
+      <Group13>Margin</Group13>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginLeft: 12 }}>
+        {distance("top", <><u>T</u>op:</>, "Top")}{distance("left", <><u>L</u>eft:</>, "Left")}
+        {distance("bottom", <><u>B</u>ottom:</>, "Bottom")}{distance("right", <><u>R</u>ight:</>, "Right")}
+      </div>
+      <Group13>Measure from</Group13>
+      <div className="w13-row" style={{ marginLeft: 12 }}><select className="w13-select" aria-label="Measure from" style={{ width: 150 }} value={values.measure} onChange={event => changeMeasure(event.target.value as BorderMeasure)}><option value="page">Edge of page</option><option value="text">Text</option></select></div>
+      <Group13>Options</Group13>
+      <div style={{ display: "grid", gap: 6, marginLeft: 12 }}>
+        <Check13 checked={text && values.surroundHeader} disabled={!text} onChange={on => set({ surroundHeader: on })} title={text ? undefined : "Available when the border is measured from the text."}>Surround <u>h</u>eader</Check13>
+        <Check13 checked={text && values.surroundFooter} disabled={!text} onChange={on => set({ surroundFooter: on })} title={text ? undefined : "Available when the border is measured from the text."}>Surround <u>f</u>ooter</Check13>
+      </div>
+      <OkCancel13 onOk={() => onSubmit(normalizeBorderOptions(values))} />
+    </Window13>
+  );
+}
+
 // Word 2013's Borders and Shading dialog. mode "table" borders table cells (Setting: None, Box,
 // All, Grid, Custom; inside and diagonal edges); mode "paragraph" is the dialog Home > Borders
 // opens for text (Setting: None, Box, Shadow, 3-D, Custom; top/bottom/left/right; Apply to:
@@ -1240,6 +1276,7 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
   const allSides = { top: true, bottom: true, left: true, right: true }, noSides = { top: false, bottom: false, left: false, right: false };
   const [values, setValues] = useState<BordersShadingValues>(() => ({ ...initial, pageEdges: initial.pageEdges ?? (initial.pageSetting === "none" ? noSides : allSides) }));
   const [tab, setTab] = useState<string>(initialTab);
+  const [pageOptionsOpen, setPageOptionsOpen] = useState(false);
   const set = (patch: Partial<BordersShadingValues>) => setValues(current => ({ ...current, ...patch }));
   const toggle = (edge: BorderEdgeKey) => setValues(current => ({ ...current, setting: "custom", edges: { ...current.edges, [edge]: !current.edges[edge] } }));
   const pageEdges = values.pageEdges ?? allSides;
@@ -1346,7 +1383,7 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
             </div>
             <div style={{ marginTop: 8 }}>Apply t<u>o</u>:</div>
             <select className="w13-select" style={{ width: "100%" }} aria-label="Page border apply to" value="document" onChange={() => undefined}><option value="document">Whole document</option></select>
-            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 6 }}><Button13 disabled title="The page border's distance from the text is fixed in this exam editor."><u>O</u>ptions…</Button13></div>
+            <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 6 }}><Button13 disabled={values.pageSetting === "none"} onClick={() => setPageOptionsOpen(true)} title={values.pageSetting === "none" ? "Choose a border Setting first." : "Where the border sits: measured from the edge of the page or from the text, and how far."}><u>O</u>ptions…</Button13></div>
           </div>
         </div>}
         {tab === "shading" && <div style={{ display: "grid", gridTemplateColumns: "1fr 210px", gap: 18 }}>
@@ -1367,6 +1404,7 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
         </div>}
       </div>
       <OkCancel13 left={paragraph ? <span /> : <Button13 disabled title="Horizontal lines are not part of this exam editor.">Hori<u>z</u>ontal Line…</Button13>} onOk={() => onSubmit(values)} />
+      {pageOptionsOpen && <SubDialog13 onClose={() => setPageOptionsOpen(false)}><PageBorderOptionsDialog2013 values={values.pageOptions ?? defaultBorderOptions("page")} onSubmit={options => { set({ pageOptions: options }); setPageOptionsOpen(false); }} /></SubDialog13>}
     </Window13>
   );
 }

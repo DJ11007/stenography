@@ -68,7 +68,7 @@ test("the Model Answer page loads test/version/questions/existing grading rules 
 // The critical regression guard: the confusing UI must not come back.
 test("the Model Answer editor shows a question stepper and one Save button, and never renders a detected-changes list or a per-change assign-to-question control", async () => {
   const editor = await read("app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx");
-  assert.match(editor, /import \{ diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion \} from "@\/lib\/word-document-diff";/);
+  assert.match(editor, /import \{ compressRunCriteria, diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion \} from "@\/lib\/word-document-diff";/);
   assert.match(editor, /import \{ generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer \} from "\.\.\/\.\.\/actions";/);
   assert.match(editor, /selectQuestion/);
   assert.match(editor, /submitLabel=\{active \? `Save answer for Q\$\{active\.number\}` : "Save Model Answer"\}/);
@@ -83,7 +83,9 @@ test("saving an answer diffs against that question's checkpoint and regenerates 
   assert.match(editor, /const cleanDocument = stripBlankParagraphs\(document\);/);
   assert.match(editor, /const changes = diffWordDocuments\(before, cleanDocument\);/);
   // Every question's expected values come from the finished document, not the moment it was saved.
-  assert.match(editor, /questions\.map\(\(question\) => \(\{ questionNumber: question\.number, allocatedMarks: question\.marks, criteria: modelAnswerRuleCriteria\(cleanDocument, nextAssignments\[question\.number\] \?\? \[\]\) \}\)\)/);
+  // (a question whose rules this page cannot rebuild is sent back as it was -- see word-efficiency-model-answer-words-rule-runtime.test.mjs)
+  assert.match(editor, /allocatedMarks: question\.marks, criteria: compressRunCriteria\(cleanDocument, modelAnswerRuleCriteria\(cleanDocument, nextAssignments\[question\.number\] \?\? \[\]\)\) \}\);/);
+  assert.match(editor, /questions\.map\(\(question\) => question\.keptRules\.length && !nextTouched\.has\(question\.number\)/);
   assert.match(editor, /generateWordEfficiencyGradingRulesFromModelAnswer\(versionId, payload\)/);
 });
 

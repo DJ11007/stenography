@@ -95,13 +95,17 @@ export async function saveWordEfficiencyModelAnswer(versionId:string,document:un
 // additionalCriteria (the primary target/value just repeat the first one, for
 // display) and each may list alternative accepted values and ask for a
 // case-insensitive text match -- see the 202610141200 migration.
-export async function generateWordEfficiencyGradingRulesFromModelAnswer(versionId:string,assignments:{questionNumber:number;allocatedMarks:number;criteria:{target:string;expectedValue:unknown;alternatives:unknown[];ignoreCase:boolean;kind?:string;place?:number}[]}[]){
+type KeptWordRule={exactTarget:string;expectedOperation:string;expectedValue:string;allocatedMarks:number;partialMarks:number|null;partLabel:string|null;additionalCriteria:unknown[]};
+export async function generateWordEfficiencyGradingRulesFromModelAnswer(versionId:string,assignments:({questionNumber:number;keep:KeptWordRule[]}|{questionNumber:number;allocatedMarks:number;criteria:({target:string;expectedValue:unknown;alternatives:unknown[];ignoreCase:boolean;kind?:string;place?:number}|{rule:string;[key:string]:unknown})[]})[]){
  const supabase=await createClient();
- const rules=assignments.filter(assignment=>assignment.criteria.length>0).map(assignment=>{
-  const[primary]=assignment.criteria;
-  return{questionNumber:assignment.questionNumber,exactTarget:primary.target,expectedOperation:"model-answer-match-v2",expectedValue:JSON.stringify(primary.expectedValue??null),allocatedMarks:assignment.allocatedMarks,partialMarks:null,additionalCriteria:assignment.criteria.map(criterion=>({target:criterion.target,expectedValue:JSON.stringify(criterion.expectedValue??null),alternatives:criterion.alternatives,ignoreCase:criterion.ignoreCase,...(criterion.kind!==undefined&&criterion.place!==undefined?{kind:criterion.kind,place:criterion.place}:{})}))};
+ // A question whose rules this page cannot rebuild (rule criteria, part marks) is sent back as it was.
+ const kept=assignments.flatMap(assignment=>"keep" in assignment?assignment.keep.map(rule=>({questionNumber:assignment.questionNumber,exactTarget:rule.exactTarget,expectedOperation:rule.expectedOperation,expectedValue:rule.expectedValue,allocatedMarks:rule.allocatedMarks,partialMarks:rule.partialMarks,partLabel:rule.partLabel,additionalCriteria:rule.additionalCriteria.map(criterion=>criterion&&typeof criterion==="object"&&"rule" in criterion?criterion:{...(criterion as Record<string,unknown>),expectedValue:JSON.stringify((criterion as {expectedValue?:unknown}).expectedValue??null)})})):[]);
+ const rules=assignments.filter((assignment):assignment is Exclude<typeof assignment,{keep:KeptWordRule[]}>=>"criteria" in assignment&&assignment.criteria.length>0).map(assignment=>{
+  // The first criterion that has a target is the rule's primary one (shown in lists); a question made only of "rule" criteria has none.
+  const primary=assignment.criteria.find((criterion):criterion is Extract<typeof criterion,{target:string}>=>"target" in criterion);
+  return{questionNumber:assignment.questionNumber,exactTarget:primary?.target??"rule",expectedOperation:"model-answer-match-v2",expectedValue:JSON.stringify(primary?.expectedValue??null),allocatedMarks:assignment.allocatedMarks,partialMarks:null,additionalCriteria:assignment.criteria.map(criterion=>"rule" in criterion?criterion:({target:criterion.target,expectedValue:JSON.stringify(criterion.expectedValue??null),alternatives:criterion.alternatives,ignoreCase:criterion.ignoreCase,...(criterion.kind!==undefined&&criterion.place!==undefined?{kind:criterion.kind,place:criterion.place}:{})}))};
  });
- const{error}=await supabase.rpc("save_word_efficiency_grading_rules",{p_version_id:versionId,p_rules:rules});
+ const{error}=await supabase.rpc("save_word_efficiency_grading_rules",{p_version_id:versionId,p_rules:[...rules,...kept]});
  if(error)return{ok:false,error:error.message};
  revalidatePath("/admin/word-efficiency-tests");
  return{ok:true,error:""};

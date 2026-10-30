@@ -19,6 +19,8 @@
 // cell edits, list item text, margins) without needing a full tree-edit
 // distance algorithm.
 
+import { defaultBorderDistance, pageBorderDistance, pageBorderMeasure, parsePageBorder } from "./word-page-border.ts";
+
 export type WordDetectedChange = {
   /** The same target-path syntax word_efficiency_grading_target_value already resolves. */
   target: string;
@@ -95,6 +97,11 @@ export function stripBlankParagraphs<T>(document: T): T {
 export function wordTargetValue(document: unknown, target: string): unknown {
   const parts = target.split(".");
   if (parts[0] === "pageLayout") {
+    // Derived values the server also computes from pageLayout.border (borderSides: 202610191300; the rest: 202610291200).
+    if (parts.length === 2 && ["borderSides", "borderMeasure", "borderDistance"].includes(parts[1])) {
+      const border = isObject(document) && isObject(document.pageLayout) ? (document.pageLayout.border as string | null | undefined) : null;
+      return parts[1] === "borderSides" ? pageBorderSides(border) : parts[1] === "borderMeasure" ? pageBorderMeasure(border) : pageBorderDistance(border);
+    }
     let value: unknown = isObject(document) ? document.pageLayout : undefined;
     for (const part of parts.slice(1)) value = isObject(value) ? value[part] : undefined;
     return value ?? null;
@@ -114,6 +121,7 @@ export function wordTargetValue(document: unknown, target: string): unknown {
   }
   return value ?? null;
 }
+
 
 const RUN_FIELDS = ["text", "bold", "italic", "underline", "underlineStyle", "underlineColor", "underlineThickness", "underlineWordsOnly", "strike", "doubleStrike", "superscript", "subscript", "smallCaps", "allCaps", "hidden", "outline", "emboss", "fontFamily", "fontSize", "color", "highlight", "field", "charScale", "charSpacing", "charPosition", "kerningEnabled", "kerningMin"] as const;
 // Newer optional boolean run fields (smallCaps/allCaps/hidden, added after
@@ -314,7 +322,16 @@ export function diffWordDocuments(before: unknown, after: unknown): WordDetected
     if (equalValue(beforeLayout[field] ?? null, afterLayout[field] ?? null)) continue;
     // A page border is marked by its sides only (server target pageLayout.borderSides): the line
     // style, colour and width a student picks are not what "bottom and right border" asks for.
-    if (field === "border") { const sides = pageBorderSides(afterLayout.border); changes.push({ target: "pageLayout.borderSides", expectedValue: sides, label: sides ? `Page border on ${sides.split(",").join(", ")}` : "Page border removed", blockPosition: 0 }); continue; }
+    if (field === "border") { const sides = pageBorderSides(afterLayout.border); changes.push({ target: "pageLayout.borderSides", expectedValue: sides, label: sides ? `Page border on ${sides.split(",").join(", ")}` : "Page border removed", blockPosition: 0 });
+      // Page Border > Options: only what differs from Word's defaults is asked (a border measured from the text, or
+      // with other distances than 24 pt from the edge / 4 pt from the text), so "apply a green page border" is not
+      // marked on the measure the student happened to leave.
+      const options = sides ? parsePageBorder(afterLayout.border as string)?.options : null;
+      if (options?.measure === "text") changes.push({ target: "pageLayout.borderMeasure", expectedValue: "text", label: "Page border measured from the text", blockPosition: 0 });
+      if (options && [options.top, options.right, options.bottom, options.left].some((distance) => distance !== defaultBorderDistance(options.measure))) {
+        changes.push({ target: "pageLayout.borderDistance", expectedValue: pageBorderDistance(afterLayout.border as string), label: `Page border distance from ${options.measure === "text" ? "the text" : "the edge of the page"}: ${pageBorderDistance(afterLayout.border as string)} pt (top, right, bottom, left)`, blockPosition: 0 });
+      }
+      continue; }
     changes.push({ target: `pageLayout.${field}`, expectedValue: afterLayout[field] ?? null, label: `Page ${fieldLabel(field)} changed to ${String(afterLayout[field])}`, blockPosition: 0 });
   }
   return changes;
@@ -361,6 +378,56 @@ export function modelAnswerRuleCriteria(finalDocument: unknown, criteria: ModelA
     const located = parts[0] === "blocks" && /^[0-9]+$/.test(parts[1] ?? "") ? locateBlock(finalDocument, Number(parts[1])) : null;
     return [{ target: criterion.target, expectedValue: finalValue, alternatives, ignoreCase: isText && !criterion.caseOnly, ...(located ?? {}) }];
   });
+}
+
+// A formatting question about a whole paragraph ("highlight the first paragraph's words", "make paragraph 2 bold")
+// is saved by the diff as one criterion per RUN ("blocks.0.runs.37.highlight"). Which runs a paragraph is split
+// into depends on how it was formatted (word by word, or the whole paragraph in one go), so such a rule is met
+// only by a student who happened to split the paragraph exactly the same way, and a long paragraph can need more
+// criteria than one rule may hold (300). When EVERY word of the paragraph (every run with a letter or digit) ends
+// up with the same value of the field, the run criteria are replaced by one rule that says just that
+// (migration 202610201200: {"rule":"words"}). Highlighting is "words only": when the model's spaces are NOT highlighted
+// the rule requires that too (spaceProps), so highlighting the spaces as well does not earn the mark. Other formatting
+// (bold, colour...) leaves the spaces unconstrained. Anything else (only some words formatted, different values)
+// keeps its run criteria.
+const WORDS_ONLY_FIELDS = new Set(["highlight"]);
+const RUN_CRITERION = /^blocks\.([0-9]+)\.runs\.[0-9]+\.([A-Za-z]+)$/;
+export type ModelAnswerRuleCriterion = ReturnType<typeof modelAnswerRuleCriteria>[number] | { rule: "words"; kind: "header" | "footer" | "body"; place: number; props: Record<string, unknown[]>; spaceProps?: Record<string, unknown[]> };
+export function compressRunCriteria(finalDocument: unknown, criteria: ReturnType<typeof modelAnswerRuleCriteria>): ModelAnswerRuleCriterion[] {
+  const groups = new Map<string, ReturnType<typeof modelAnswerRuleCriteria>>();
+  for (const criterion of criteria) {
+    const match = RUN_CRITERION.exec(criterion.target);
+    if (!match) continue;
+    const key = `${match[1]}.${match[2]}`;
+    groups.set(key, [...(groups.get(key) ?? []), criterion]);
+  }
+  const compressed = new Map<string, ModelAnswerRuleCriterion>();
+  for (const [key, items] of groups) {
+    const [blockIndex, field] = key.split(".");
+    const block = blocksOf(finalDocument)[Number(blockIndex)];
+    if (!block || items[0].kind === undefined || items[0].place === undefined) continue;
+    const wordRuns = textRuns(block).filter((run) => /[\p{L}\p{N}]/u.test(runText(run)));
+    const values = new Set(wordRuns.map((run) => JSON.stringify(normalizedRunField(run, field))));
+    if (!wordRuns.length || values.size !== 1) continue;
+    // The value an earlier question saved stays accepted too (see modelAnswerRuleCriteria), as in the run criteria.
+    const accepted = [normalizedRunField(wordRuns[0], field), ...items.flatMap((item) => item.alternatives)].filter((value, index, all) => all.findIndex((other) => JSON.stringify(other) === JSON.stringify(value)) === index).slice(0, 5);
+    // Every run holding a space (the database applies spaceProps to any run with a space in it), when they all agree
+    // with each other and differ from the words.
+    let spaceProps: Record<string, unknown[]> | undefined;
+    if (WORDS_ONLY_FIELDS.has(field)) {
+      const spaceValues = new Set(runsOf(block).filter((run) => /[\s\u00a0]/.test(runText(run))).map((run) => JSON.stringify(normalizedRunField(run, field))));
+      if (spaceValues.size === 1 && !values.has([...spaceValues][0])) spaceProps = { [field]: [JSON.parse([...spaceValues][0])] };
+    }
+    compressed.set(key, { rule: "words", kind: items[0].kind, place: items[0].place, props: { [field]: accepted }, ...(spaceProps ? { spaceProps } : {}) });
+  }
+  const out: ModelAnswerRuleCriterion[] = [], placed = new Set<string>();
+  for (const criterion of criteria) {
+    const match = RUN_CRITERION.exec(criterion.target), key = match ? `${match[1]}.${match[2]}` : "";
+    const rule = compressed.get(key);
+    if (!rule) { out.push(criterion); continue; }
+    if (!placed.has(key)) { placed.add(key); out.push(rule); }
+  }
+  return out;
 }
 
 function locateBlock(document: unknown, index: number): { kind: "header" | "footer" | "body"; place: number } | null {

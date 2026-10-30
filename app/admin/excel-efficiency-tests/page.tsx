@@ -152,7 +152,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                               <span className={`rounded-full px-2.5 py-1 text-[11px] font-black capitalize ${test.status === "published" ? "bg-emerald-100 text-emerald-800" : test.status === "archived" ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-800"}`}>{test.status}</span>
                               <div className="flex items-center gap-1.5">
                                 <Link href={`?edit=${test.id}`} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-800">Edit</Link>
+                                <Link href={`/admin/excel-efficiency-tests/${test.id}/model-answer`} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800">Model Answer</Link>
                                 <Link href={`?edit=${test.id}#attempts`} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-800">Attempts</Link>
+                                <Link href={`/admin/excel-efficiency-tests/${test.id}/auto-grading`} className="rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-800">Auto-grading</Link>
                               </div>
                             </div>
                             <details className="group mt-2">

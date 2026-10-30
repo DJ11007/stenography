@@ -699,6 +699,7 @@ ol[data-list-style="multilevel-bullet"] > li[data-list-level="9"]::marker { cont
 .word-ruler-tick { stroke: #7f7f7f; stroke-width: 1; shape-rendering: crispEdges; }
 .word-ruler-number { fill: #555; font: 8px "Segoe UI", Arial, sans-serif; }
 .word-ruler-marker { fill: #f4f4f4; stroke: #6d6d6d; stroke-width: 1; }
+.word-ruler-tabstop path { fill: none; stroke: #262626; stroke-width: 1.4; pointer-events: none; }
 .word-ruler-marker:hover { fill: #cfe4f8; }
 .word-page-frame { position: relative; display: flex; align-items: flex-start; }
 .word-page-frame .word-document-page { border: 1px solid #c6c6c6; box-shadow: 0 0 6px rgba(0, 0, 0, .18); }
@@ -1250,15 +1251,19 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-document-page tr[data-page-push] > td, .word-document-page tr[data-page-push] > th {
   padding-top: calc(var(--page-push-mt) + var(--page-push-pad, 0px)) !important;
   border-left-color: transparent !important; border-right-color: transparent !important;
-  background-image: linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(to bottom, #fff 0 var(--page-push-white), #d4d4d4 var(--page-push-white) var(--page-push-gap), #fff var(--page-push-gap) var(--page-push-mt));
+  background-image: linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(to bottom, var(--page-paper-fill, transparent) 0 var(--page-push-white), var(--page-gap-fill, transparent) var(--page-push-white) var(--page-push-gap), var(--page-paper-fill, transparent) var(--page-push-gap) var(--page-push-mt));
   background-repeat: no-repeat;
   background-size: 100% 1px, 1px calc(100% - var(--page-push-mt)), 100% var(--page-push-mt);
   background-position: 0 var(--page-push-mt), 0 var(--page-push-mt), 0 0;
 }
 .word-document-page tr[data-page-push] > :last-child {
-  background-image: linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(to bottom, #fff 0 var(--page-push-white), #d4d4d4 var(--page-push-white) var(--page-push-gap), #fff var(--page-push-gap) var(--page-push-mt));
+  background-image: linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(var(--page-push-border), var(--page-push-border)), linear-gradient(to bottom, var(--page-paper-fill, transparent) 0 var(--page-push-white), var(--page-gap-fill, transparent) var(--page-push-white) var(--page-push-gap), var(--page-paper-fill, transparent) var(--page-push-gap) var(--page-push-mt));
   background-size: 100% 1px, 1px calc(100% - var(--page-push-mt)), 1px calc(100% - var(--page-push-mt)), 100% var(--page-push-mt);
   background-position: 0 var(--page-push-mt), 0 var(--page-push-mt), 100% var(--page-push-mt), 0 0;
 }
+/* The paper (white, the grey gap, white) behind a moved row's padding is the page's own background showing through: a
+   copy painted by the cell was rounded differently by the browser and left a light line along the gap's edge. A shaded
+   cell would colour the padding and the gap, so only a shaded cell paints the paper itself. */
+.word-document-page tr[data-page-push] > td[style*="background"], .word-document-page tr[data-page-push] > th[style*="background"] { --page-paper-fill: #fff; --page-gap-fill: #d4d4d4; }
 /* View > Gridlines would outline the moved row across the gap; its borders are drawn above. */
 .word-document-page tr[data-page-push] > td, .word-document-page tr[data-page-push] > th { outline: none !important; }

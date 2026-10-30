@@ -46,8 +46,10 @@ type Marker = "first" | "hanging" | "left" | "right";
 
 // Horizontal ruler. All numbers are unzoomed CSS pixels (96 per inch); the parent
 // applies the same CSS `zoom` as the page, so the two stay aligned at any zoom.
-export function WordRuler({ metrics, indent, editable, zoom, onIndent }: {
-  metrics: RulerMetrics; indent: RulerIndent | null; editable: boolean; zoom: number; onIndent: (next: RulerIndent, commit: boolean) => void;
+// tabStops: inside a header or footer Word shows its two default tab stops on the ruler, a centre one in the middle
+// of the text area and a right one at the right margin (Tab goes to them; see lib/word-header-footer-tabs.ts).
+export function WordRuler({ metrics, indent, editable, zoom, onIndent, tabStops = false }: {
+  metrics: RulerMetrics; indent: RulerIndent | null; editable: boolean; zoom: number; onIndent: (next: RulerIndent, commit: boolean) => void; tabStops?: boolean;
 }) {
   const { pageWidth: width, marginLeft, marginRight } = metrics;
   const drag = useRef<{ marker: Marker; startX: number; start: RulerIndent; latest: RulerIndent } | null>(null);
@@ -98,6 +100,10 @@ export function WordRuler({ metrics, indent, editable, zoom, onIndent }: {
     <rect x={0} y={2} width={width} height={14} className="word-ruler-margin" />
     <rect x={marginLeft} y={2} width={textWidth} height={14} className="word-ruler-text" />
     {ticks}
+    {tabStops && <g aria-label="Header and footer tab stops" className="word-ruler-tabstop">
+      <title>Centre tab stop</title><path d={`M${marginLeft + textWidth / 2} 8v7M${marginLeft + textWidth / 2 - 3.5} 15h7`} />
+      <title>Right tab stop</title><path d={`M${marginLeft + textWidth - 0.5} 8v7h-7`} />
+    </g>}
     {indent && <>
       <g {...handlers("first")} style={{ cursor }}><title>First Line Indent</title><path d={`M${firstX - 4.5} 1.5h9v3.5l-4.5 3.5-4.5-3.5z`} className="word-ruler-marker" /></g>
       <g {...handlers("hanging")} style={{ cursor }}><title>Hanging Indent</title><path d={`M${leftX} 9.5l4.5 3.5v1.5h-9V13z`} className="word-ruler-marker" /></g>
@@ -107,22 +113,30 @@ export function WordRuler({ metrics, indent, editable, zoom, onIndent }: {
   </svg>;
 }
 
-export function WordVerticalRuler({ height, marginTop, marginBottom }: { height: number; marginTop: number; marginBottom: number }) {
+// Word draws the vertical ruler for every page: the top margin and the bottom margin grey, the text area white, the
+// numbers counting from the top margin edge and starting again at 0 on each page, nothing in the gap between pages.
+// sheets / sheetHeight / step (sheet height + gap) describe the stacked pages; without them it is one page.
+export function WordVerticalRuler({ height, marginTop, marginBottom, sheets = 1, sheetHeight, step }: { height: number; marginTop: number; marginBottom: number; sheets?: number; sheetHeight?: number; step?: number }) {
   const width = 18;
-  const ticks: ReactNode[] = [];
   const eighth = PX_PER_INCH / 8;
-  const bottomMargin = Math.min(marginBottom, height);
-  for (let k = -Math.floor(marginTop / eighth); marginTop + k * eighth <= height; k += 1) {
-    const y = marginTop + k * eighth;
-    if (y < 0.5 || y > height - 0.5) continue;
-    if (k % 8 === 0) {
-      if (k !== 0) ticks.push(<text key={`n${k}`} x={9} y={y + 3.5} textAnchor="middle" className="word-ruler-number">{Math.abs(k / 8)}</text>);
-    } else if (k % 4 === 0) ticks.push(<line key={`t${k}`} x1={5} x2={13} y1={y} y2={y} className="word-ruler-tick" />);
-    else ticks.push(<line key={`t${k}`} x1={7} x2={11} y1={y} y2={y} className="word-ruler-tick" />);
+  const pageHeight = sheets > 1 && sheetHeight ? sheetHeight : height, pitch = sheets > 1 && step ? step : height;
+  const count = Math.max(1, sheets), bottomMargin = Math.min(marginBottom, pageHeight);
+  const ticks: ReactNode[] = [], bands: ReactNode[] = [];
+  for (let sheet = 0; sheet < count; sheet++) {
+    const origin = sheet * pitch;
+    bands.push(<rect key={`m${sheet}`} x={2} y={origin} width={14} height={pageHeight} className="word-ruler-margin" />);
+    bands.push(<rect key={`x${sheet}`} x={2} y={origin + marginTop} width={14} height={Math.max(0, pageHeight - marginTop - bottomMargin)} className="word-ruler-text" />);
+    for (let k = -Math.floor(marginTop / eighth); marginTop + k * eighth <= pageHeight; k += 1) {
+      const local = marginTop + k * eighth, y = origin + local;
+      if (local < 0.5 || local > pageHeight - 0.5) continue;
+      if (k % 8 === 0) {
+        if (k !== 0) ticks.push(<text key={`n${sheet}.${k}`} x={9} y={y + 3.5} textAnchor="middle" className="word-ruler-number">{Math.abs(k / 8)}</text>);
+      } else if (k % 4 === 0) ticks.push(<line key={`t${sheet}.${k}`} x1={5} x2={13} y1={y} y2={y} className="word-ruler-tick" />);
+      else ticks.push(<line key={`t${sheet}.${k}`} x1={7} x2={11} y1={y} y2={y} className="word-ruler-tick" />);
+    }
   }
   return <svg role="img" aria-label="Vertical ruler" className="word-ruler word-ruler-vertical" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-    <rect x={2} y={0} width={14} height={height} className="word-ruler-margin" />
-    <rect x={2} y={marginTop} width={14} height={Math.max(0, height - marginTop - bottomMargin)} className="word-ruler-text" />
+    {bands}
     {ticks}
   </svg>;
 }
