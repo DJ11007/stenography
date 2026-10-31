@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
 import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
+import { THEME_GRID } from "@/lib/word-colors";
 import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
 import { NUMBER_FORMAT_LABELS, PAPER_SIZES, toExcelDocumentV3, type ChartType, type ConditionalType, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
@@ -28,14 +29,18 @@ export type { ExcelDocument } from "@/lib/excel-document";
 
 const FONTS = ["Calibri", "Calibri Light", "Arial", "Arial Black", "Cambria", "Times New Roman", "Verdana", "Tahoma", "Georgia", "Courier New", "Trebuchet MS", "Comic Sans MS", "Segoe UI", "Mangal", "Kruti Dev 010"];
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
-const THEME_COLORS = [
-  ["FFFFFF", "000000", "E7E6E6", "44546A", "4472C4", "ED7D31", "A5A5A5", "FFC000", "5B9BD5", "70AD47"],
-  ["F2F2F2", "7F7F7F", "D0CECE", "D6DCE4", "D9E2F3", "FBE5D5", "EDEDED", "FFF2CC", "DEEBF6", "E2EFD9"],
-  ["D8D8D8", "595959", "AEABAB", "ADB9CA", "B4C6E7", "F7CBAC", "DBDBDB", "FFE599", "BDD7EE", "C5E0B3"],
-  ["BFBFBF", "3F3F3F", "757070", "8496B0", "8EAADB", "F4B183", "C9C9C9", "FFD965", "9CC3E5", "A8D08D"],
-  ["A5A5A5", "262626", "3A3838", "323F4F", "2F5496", "C55A11", "7B7B7B", "BF9000", "2E75B5", "538135"],
-  ["7F7F7F", "0C0C0C", "171616", "222A35", "1F3864", "833C0B", "525252", "7F6000", "1E4E79", "375623"],
+// Excel 2013's theme colours in Office 2013's order (Blue, Accent 1 = 5B9BD5 ... Blue, Accent 5 = 4472C4), each
+// with its name as Excel and the Word workspace show it ("Blue, Accent 1, Lighter 80%"). The colour values are
+// Excel's own, kept as they were so saved sheets and marking rules still match.
+const THEME_HEX = [
+  ["FFFFFF", "000000", "E7E6E6", "44546A", "5B9BD5", "ED7D31", "A5A5A5", "FFC000", "4472C4", "70AD47"],
+  ["F2F2F2", "7F7F7F", "D0CECE", "D6DCE4", "DEEBF6", "FBE5D5", "EDEDED", "FFF2CC", "D9E2F3", "E2EFD9"],
+  ["D8D8D8", "595959", "AEABAB", "ADB9CA", "BDD7EE", "F7CBAC", "DBDBDB", "FFE599", "B4C6E7", "C5E0B3"],
+  ["BFBFBF", "3F3F3F", "757070", "8496B0", "9CC3E5", "F4B183", "C9C9C9", "FFD965", "8EAADB", "A8D08D"],
+  ["A5A5A5", "262626", "3A3838", "323F4F", "2E75B5", "C55A11", "7B7B7B", "BF9000", "2F5496", "538135"],
+  ["7F7F7F", "0C0C0C", "171616", "222A35", "1E4E79", "833C0B", "525252", "7F6000", "1F3864", "375623"],
 ];
+const THEME_COLORS: { hex: string; name: string }[][] = THEME_HEX.map((row, r) => row.map((hex, c) => ({ hex, name: THEME_GRID[r][c].name })));
 const STANDARD_COLORS: [string, string][] = [["C00000", "Dark Red"], ["FF0000", "Red"], ["FFC000", "Orange"], ["FFFF00", "Yellow"], ["92D050", "Light Green"], ["00B050", "Green"], ["00B0F0", "Light Blue"], ["0070C0", "Blue"], ["002060", "Dark Blue"], ["7030A0", "Purple"]];
 const PAPER_LABELS: Record<string, string> = { Letter: "Letter 8.5\" × 11\"", Legal: "Legal 8.5\" × 14\"", A4: "A4 8.27\" × 11.69\"", A5: "A5 5.83\" × 8.27\"", A3: "A3 11.69\" × 16.54\"", Executive: "Executive 7.25\" × 10.5\"", Tabloid: "Tabloid 11\" × 17\"", B5: "B5 6.93\" × 9.84\"" };
 const HEADER_CODES: [string, string][] = [["&[Page]", "Page Number"], ["&[Pages]", "Number of Pages"], ["&[Date]", "Current Date"], ["&[Time]", "Current Time"], ["&[File]", "File Name"], ["&[Tab]", "Sheet Name"]];
@@ -1787,7 +1792,7 @@ function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, n
         <Popover label={`${label} palette`} className="w-56 border border-[#c6c6c6] bg-white p-2 text-[#262626] shadow-lg">
           <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(null); setMenu(null); }} className="mb-1 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">{noneLabel}</button>
           <p className="text-[11px] font-semibold text-slate-500">Theme Colors</p>
-          <div className="mt-1 grid grid-cols-10 gap-0.5">{THEME_COLORS.flat().map((hex, index) => <button key={`${hex}-${index}`} type="button" role="menuitem" aria-label={`#${hex}`} title={`#${hex}`} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
+          <div className="mt-1 grid grid-cols-10 gap-0.5">{THEME_COLORS.flat().map(({ hex, name }, index) => <button key={`${hex}-${index}`} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
           <p className="mt-2 text-[11px] font-semibold text-slate-500">Standard Colors</p>
           <div className="mt-1 grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
           {onMore && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { setMenu(null); onMore(); }} className="mt-2 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">More Colors...</button>}
