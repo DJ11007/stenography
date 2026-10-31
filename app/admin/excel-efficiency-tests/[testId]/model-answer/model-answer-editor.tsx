@@ -50,18 +50,22 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
   };
 
   const saveActiveAnswer = async (_id: string, document: unknown): Promise<{ ok: boolean; error: string }> => {
-    const saved = await saveExcelEfficiencyModelAnswer(versionId, document);
+    // The rules come from the sheet on this computer, so the sheet and the question's rules are saved at the same
+    // time rather than one after the other.
+    const before = activeNumber !== null ? checkpoints[activeNumber] ?? document : document;
+    const { changes, unsupported } = diffExcelDocuments(before, document);
+    const rules = active ? excelQuestionRules(active.marks, excelRuleGroups(document, changes)) : [];
+    const [saved, result] = await Promise.all([
+      saveExcelEfficiencyModelAnswer(versionId, document),
+      activeNumber !== null && rules.length ? saveExcelEfficiencyQuestionRules(versionId, activeNumber, rules) : Promise.resolve({ ok: true, error: "" }),
+    ]);
     if (!saved.ok) return saved;
     setLatest(document);
     if (activeNumber === null || !active) return { ok: true, error: "" };
-    const before = checkpoints[activeNumber] ?? document;
-    const { changes, unsupported } = diffExcelDocuments(before, document);
-    const rules = excelQuestionRules(active.marks, excelRuleGroups(document, changes));
     if (!rules.length) {
       setMessage({ text: `No change was detected for Q${activeNumber}${unsupported.length ? ` that can be marked automatically (${unsupported.join(", ")} cannot be)` : ""} — nothing was changed in the sheet, so this question keeps its old rules and otherwise needs manual marking.`, ok: false });
       return { ok: true, error: "" };
     }
-    const result = await saveExcelEfficiencyQuestionRules(versionId, activeNumber, rules);
     if (!result.ok) return { ok: false, error: result.error };
     const nextGraded = new Set(graded); nextGraded.add(activeNumber); setGraded(nextGraded);
     setMessage(unsupported.length

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
@@ -83,7 +83,10 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const [operations, setOperations] = useState<string[]>(start.operations ?? []);
   const [anchor, setAnchor] = useState({ row: 1, col: 0 });
   const [focus, setFocus] = useState({ row: 1, col: 0 });
-  const [editing, setEditing] = useState<{ ref: string; value: string; fromBar: boolean } | null>(null);
+  // Which cell is being edited, and whether from the formula bar. The typed text itself lives in editText (below),
+  // not in this state: a keystroke then redraws only the cell editor and the formula bar, not the whole grid.
+  const [editing, setEditing] = useState<{ ref: string; fromBar: boolean } | null>(null);
+  const [editText] = useState(createTextStore);
   const [tab, setTab] = useState<Tab>("HOME");
   const [menu, setMenu] = useState<string | null>(null);
   const [painter, setPainter] = useState<{ style: Partial<SheetCell>; sticky: boolean } | null>(null);
@@ -260,14 +263,19 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   };
 
   // ---------- typing into cells ----------
-  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } setEditing({ ref: activeCellRef, value: initial ?? (active.formula ?? (active.value == null ? "" : String(active.value))), fromBar }); };
+  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } editText.set(initial ?? (active.formula ?? (active.value == null ? "" : String(active.value)))); setEditing({ ref: activeCellRef, fromBar }); };
   useEffect(() => { if (editing && !editing.fromBar) editInputRef.current?.focus(); }, [editing?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Escape drops the typed text, as in Excel. Moving focus back to the grid blurs the editor, whose blur would
+  // otherwise save it; the flag stops that one commit.
+  const cancelled = useRef(false);
+  const cancelEdit = () => { cancelled.current = true; setEditing(null); focusGrid(); cancelled.current = false; };
   const commitEdit = (move: "down" | "right" | "none" = "none") => {
-    if (!editing) return;
+    if (!editing || cancelled.current) return;
+    const text = editText.get();
     const current = cellOf(cells, editing.ref);
     // A typed date (25-10-2026, 25/10/2026, 2026-10-25) is stored as Excel's date number with a date format.
-    const typedDate = current.numberFormat === "Text" ? null : parseDate(editing.value);
-    const entry = typedDate !== null ? { value: typedDate, formula: null } : current.numberFormat === "Text" && !editing.value.startsWith("=") ? { value: editing.value === "" ? null : editing.value, formula: null } : parseEntry(editing.value);
+    const typedDate = current.numberFormat === "Text" ? null : parseDate(text);
+    const entry = typedDate !== null ? { value: typedDate, formula: null } : current.numberFormat === "Text" && !text.startsWith("=") ? { value: text === "" ? null : text, formula: null } : parseEntry(text);
     if (entry.value !== current.value || entry.formula !== current.formula) {
       // Data Validation: an entry the rule does not allow is refused with Excel's error alert.
       const rule = validationFor(editing.ref);
@@ -924,7 +932,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     if (rect) { selectRect(rect); setNotice(null); } else setNotice("Type a cell, a range such as A27:L27, or a defined name.");
     setNameBox(null); focusGrid();
   };
-  const formulaBarValue = editing ? editing.value : sheet.protected && active.hiddenFormula ? "" : (active.formula ?? (active.value == null ? "" : String(active.value)));
+  const formulaBarValue = sheet.protected && active.hiddenFormula ? "" : (active.formula ?? (active.value == null ? "" : String(active.value)));
   const zoom = sheet.zoom || 100;
   const tallRows = useMemo(() => { const rows = new Map<number, number>(); for (const [ref, cell] of Object.entries(cells)) { if (!cell.rotate || cell.value == null) continue; const row = Number(ref.replace(/^[A-Z]+/, "")); rows.set(row, Math.max(rows.get(row) ?? 20, cell.rotate === 255 ? Math.min(160, 16 * String(cell.value).length) : Math.min(120, 8 + Math.abs(Math.sin((cell.rotate * Math.PI) / 180)) * 7 * String(cell.value).length))); } return rows; }, [cells]);
   const hiddenRowSet = useMemo(() => new Set(sheet.hiddenRows ?? []), [sheet.hiddenRows]);
@@ -1318,7 +1326,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <div className="flex flex-col gap-0.5">
               <Small label="Define Name" icon="🏷" showLabel onClick={() => openDialog({ kind: "defineName" })} disabled={submitted} />
               <MenuButton id="useInFormula" menu={menu} setMenu={setMenu} label="Use in Formula" icon={<span className="flex items-center gap-1">ƒ Use in Formula</span>} disabled={submitted}>
-                {Object.keys(sheet.definedNames ?? {}).map((name) => <MenuItem key={name} onClick={() => { setMenu(null); const text = editing ? `${editing.value}${name}` : `=${name}`; if (editing) setEditing({ ...editing, value: text }); else beginEdit(text); }}>{name}</MenuItem>)}
+                {Object.keys(sheet.definedNames ?? {}).map((name) => <MenuItem key={name} onClick={() => { setMenu(null); if (editing) editText.set(`${editText.get()}${name}`); else beginEdit(`=${name}`); }}>{name}</MenuItem>)}
                 {!Object.keys(sheet.definedNames ?? {}).length && <p className="px-3 py-1 text-[#777]">No names defined yet</p>}
               </MenuButton>
             </div>
@@ -1395,12 +1403,12 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {ribbon}
       {questionBar}
       {sheet.formulaBar && <div className="flex items-center gap-2 border-b border-slate-300 bg-white px-2 py-1">
-        <input aria-label="Name Box" value={nameBox ?? nameBoxValue} onFocus={() => setNameBox(nameBoxValue)} onChange={(event) => setNameBox(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBox ?? ""); if (event.key === "Escape") { setNameBox(null); focusGrid(); } }} onBlur={() => setNameBox(null)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
+        <input aria-label="Name Box" value={nameBox ?? nameBoxValue} onFocus={(event) => { setNameBox(nameBoxValue); selectAllOnFocus.onFocus(event); }} onMouseUp={selectAllOnFocus.onMouseUp} onChange={(event) => setNameBox(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBox ?? ""); if (event.key === "Escape") { setNameBox(null); focusGrid(); } }} onBlur={() => setNameBox(null)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
         <button type="button" aria-label="Insert Function" title="Insert Function" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "insertFunction" })} className="px-1 font-serif text-[13px] italic text-slate-500 hover:bg-slate-100 disabled:opacity-50">fx</button>
-        <input aria-label="Formula bar" value={formulaBarValue} disabled={submitted}
+        <StoreInput store={editText} live={Boolean(editing)} fallback={formulaBarValue} aria-label="Formula bar" disabled={submitted}
           onFocus={() => { if (!editing) beginEdit(undefined, true); }}
-          onChange={(event) => setEditing((current) => ({ ref: current?.ref ?? activeCellRef, value: event.target.value, fromBar: true }))}
-          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Escape") { setEditing(null); focusGrid(); } }}
+          onText={(value) => { editText.set(value); if (!editing?.fromBar) setEditing((current) => ({ ref: current?.ref ?? activeCellRef, fromBar: true })); }}
+          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Escape") cancelEdit(); }}
           onBlur={() => { if (editing?.fromBar) commitEdit(); }}
           className="h-6 flex-1 rounded-sm border border-slate-300 px-2 font-mono text-[12px]" />
       </div>}
@@ -1495,8 +1503,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                           onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (
-                            <input ref={editInputRef} aria-label={`Edit ${ref}`} value={editing.value} onChange={(event) => setEditing({ ref, value: event.target.value, fromBar: false })}
-                              onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit("right"); } else if (event.key === "Escape") { setEditing(null); focusGrid(); } }}
+                            <StoreInput inputRef={editInputRef} store={editText} live fallback="" aria-label={`Edit ${ref}`} onText={(value) => editText.set(value)}
+                              onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit("right"); } else if (event.key === "Escape") cancelEdit(); }}
                               onBlur={() => commitEdit()} className="absolute inset-0 z-10 w-full min-w-[120px] border-2 border-[#217346] bg-white px-1 outline-none" style={{ fontSize: style.fontSize, fontFamily: style.fontFamily as string | undefined }} />
                           ) : (
                             <span className={cell.rotate ? "inline-block" : "block"} title={cell.link ? `${cell.link} - Click once to follow.` : undefined} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.vertAlign ? { position: "relative", top: cell.vertAlign === "superscript" ? "-0.4em" : "0.3em" } : {}), ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{conditional?.icon && <ConditionalIcon icon={conditional.icon} />}{shown}</span>
@@ -1660,6 +1668,19 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {headerDialog && <HeaderFooterDialog header={sheet.header} footer={sheet.footer} onCancel={() => setHeaderDialog(false)} onOk={(header, footer) => { setHeaderDialog(false); const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? ""))); change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header"); }} />}
     </div>
   );
+}
+
+// The text being typed into a cell or the formula bar: a tiny store both inputs read, so typing does not redraw the sheet.
+type TextStore = { get: () => string; set: (value: string) => void; subscribe: (listener: () => void) => () => void };
+function createTextStore(): TextStore {
+  let value = "";
+  const listeners = new Set<() => void>();
+  return { get: () => value, set: (next) => { if (next === value) return; value = next; listeners.forEach((listener) => listener()); }, subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; } };
+}
+// An input showing the store while live (being edited), otherwise the fallback text.
+function StoreInput({ store, live, fallback, onText, inputRef, ...rest }: { store: TextStore; live: boolean; fallback: string; onText: (value: string) => void; inputRef?: React.Ref<HTMLInputElement> } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const text = useSyncExternalStore(store.subscribe, store.get, store.get);
+  return <input ref={inputRef} {...rest} value={live ? text : fallback} onChange={(event) => onText(event.target.value)} />;
 }
 
 function ContextItem({ label, onSelect, disabled }: { label: string; onSelect: () => void; disabled?: boolean }) {
@@ -1826,6 +1847,13 @@ function MenuHeading({ children }: { children: React.ReactNode }) {
 function MenuSeparator() {
   return <div className="my-1 border-t border-[#e1e1e1]" />;
 }
+// Clicking into the Name Box or the Font Size box selects its text, as in Excel, so typing replaces it. The
+// mouse-up that follows the focusing click would put the caret back; it is skipped once.
+const selectAllOnFocus = {
+  onFocus: (event: React.FocusEvent<HTMLInputElement>) => { event.currentTarget.select(); event.currentTarget.dataset.selectAll = "1"; },
+  onMouseUp: (event: React.MouseEvent<HTMLInputElement>) => { if (event.currentTarget.dataset.selectAll) { event.preventDefault(); delete event.currentTarget.dataset.selectAll; } },
+};
+
 function FontSizeBox({ value, onChange, disabled }: { value: number; onChange: (size: number) => void; disabled?: boolean }) {
   const [text, setText] = useState<string | null>(null);
   // Excel's own size list under the box. Not a <datalist>: the browser drew that list at the page's top-left
@@ -1844,7 +1872,7 @@ function FontSizeBox({ value, onChange, disabled }: { value: number; onChange: (
   const toggle = () => { if (list) { setList(null); return; } const box = boxRef.current?.getBoundingClientRect(); if (box) setList({ left: box.left, top: box.bottom }); };
   return (
     <span ref={boxRef} className="flex">
-      <input aria-label="Font Size" disabled={disabled} value={text ?? String(value)} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(text ?? String(value)); setList(null); } if (event.key === "Escape") setList(null); }} onBlur={() => { if (text !== null) apply(text); }} className="h-[22px] w-9 border border-r-0 border-[#c6c6c6] bg-white px-1 text-[12px]" />
+      <input aria-label="Font Size" disabled={disabled} value={text ?? String(value)} {...selectAllOnFocus} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(text ?? String(value)); setList(null); } if (event.key === "Escape") setList(null); }} onBlur={() => { if (text !== null) apply(text); }} className="h-[22px] w-9 border border-r-0 border-[#c6c6c6] bg-white px-1 text-[12px]" />
       <button type="button" aria-label="Font Size list" aria-haspopup="listbox" aria-expanded={Boolean(list)} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={toggle} className="h-[22px] w-4 border border-[#c6c6c6] bg-white text-[9px] text-slate-600 hover:bg-[#d5e1f2] disabled:opacity-40">▾</button>
       {list && <div role="listbox" aria-label="Font sizes" className="fixed z-[90] max-h-72 w-[52px] overflow-y-auto border border-[#c6c6c6] bg-white py-0.5 text-[12px] shadow-lg" style={{ left: list.left, top: list.top }}>
         {FONT_SIZES.map((size) => <button key={size} type="button" role="option" aria-selected={size === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { apply(String(size)); setList(null); }} className={`block w-full px-2 py-0.5 text-left hover:bg-[#d5e1f2] ${size === value ? "bg-[#cde6f7]" : ""}`}>{size}</button>)}

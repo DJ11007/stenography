@@ -195,7 +195,9 @@ export async function saveExcelEfficiencyQuestionRules(versionId: string, questi
   const supabase = await createClient();
   const { error } = await supabase.rpc("save_excel_efficiency_question_rules", { p_version_id: versionId, p_question_number: questionNumber, p_rules: rules });
   if (error) return { ok: false, error: error.message };
-  revalidatePath("/admin/excel-efficiency-tests");
+  // No revalidatePath here: in a Server Action it makes Next re-render the whole Model Answer page (both sheet
+  // snapshots) into the response, which made every "Save answer" slow. The admin pages are dynamic (they read the
+  // sign-in cookies), so they show the new rules on their next visit anyway.
   return { ok: true, error: "" };
 }
 
