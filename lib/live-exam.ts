@@ -31,8 +31,6 @@ export const RSMSSB_LDC_PATTERN: LiveExamPattern = {
     { kind: "excel", language: "English", label: "Excel Efficiency", durationSeconds: 600, gapAfterSeconds: 0, maxMarks: 25 },
   ],
   instructions: [
-    "The exam has four parts in this order: Hindi Typing (10 minutes), English Typing (10 minutes), Word Efficiency (10 minutes) and Excel Efficiency (10 minutes).",
-    "After Hindi Typing there is a 2-minute break, after English Typing a 5-minute break and after Word Efficiency a 2-minute break. The next part starts by itself when the break timer reaches 00:00.",
     "Each part is submitted automatically when its time is over. You cannot go back to a part once it has ended.",
     "Each part carries 25 marks; the total is 100 marks. Typing is marked on correct words as per the RSMSSB scheme; there is no negative marking.",
     "Do not refresh, close or leave the exam page. If your internet stops, open the page again: the exam continues from the part that is running, but the time already passed is not given back.",
@@ -66,3 +64,18 @@ export const examLengthSeconds = (sections: Pick<LiveExamSection, "durationSecon
   sections.reduce((total, section) => total + section.durationSeconds + section.gapAfterSeconds, 0);
 /** Whether a published exam has already started (its sections and times can no longer change). */
 export const liveExamStarted = (exam: { status: string; starts_at: string }) => exam.status === "published" && new Date(exam.starts_at).getTime() <= Date.now();
+/** "30 seconds", "1 minute", "10 minutes", "1.5 minutes" (for instructions and the exam screens). */
+export function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  const minutes = Math.round((seconds / 60) * 10) / 10;
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+/** The first instructions of any exam, written from its own sections: the parts in order, and the breaks. */
+export function sectionInstructions(sections: { label: string; durationSeconds: number; gapAfterSeconds: number }[]): string[] {
+  const parts = sections.map((section) => `${section.label} (${formatDuration(section.durationSeconds)})`);
+  const breaks = sections.slice(0, -1).filter((section) => section.gapAfterSeconds > 0).map((section) => `a ${section.gapAfterSeconds < 60 ? `${section.gapAfterSeconds}-second` : `${Math.round((section.gapAfterSeconds / 60) * 10) / 10}-minute`} break after ${section.label}`);
+  return [
+    `The exam has ${sections.length} part${sections.length === 1 ? "" : "s"} in this order: ${parts.join(", ")}.`,
+    ...(breaks.length ? [`There is ${breaks.join(", ")}. The next part starts by itself when the break timer reaches 00:00.`] : []),
+  ];
+}

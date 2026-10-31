@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { examLengthSeconds, SECTION_KIND_LABEL, type LiveExamLanguage, type LiveExamPattern, type LiveExamSection, type LiveExamSectionKind } from "@/lib/live-exam";
+import { examLengthSeconds, SECTION_KIND_LABEL, sectionInstructions, type LiveExamLanguage, type LiveExamPattern, type LiveExamSection, type LiveExamSectionKind } from "@/lib/live-exam";
 import { saveLiveExam } from "./actions";
 
 export type TestOption = { id: string; title: string; kind: LiveExamSectionKind; language: LiveExamLanguage; mode?: string | null };
@@ -100,7 +100,7 @@ export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: I
 
       <section className="grid gap-3 rounded-2xl bg-white p-6 shadow-sm">
         <h2 className="text-xl font-black">Instructions for students</h2>
-        {pattern && <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">{pattern.instructions.map((line) => <li key={line}>{line}</li>)}</ol>}
+        <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-700">{[...sectionInstructions(sections), ...(pattern?.instructions ?? [])].map((line) => <li key={line}>{line}</li>)}</ol>
         <label className="grid gap-2 text-sm font-bold text-slate-700">Extra instructions for this exam (one per line, shown after the standard ones)
           <textarea className="input min-h-28" name="instructions" defaultValue={initial.instructions} placeholder={"Reporting time: 9:45 AM\nKeep your login ID and password ready."} />
         </label>
