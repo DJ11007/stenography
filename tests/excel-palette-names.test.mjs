@@ -10,6 +10,6 @@ test("Excel theme swatches are named like Word's, in Office 2013 order, with the
   assert.match(source, /\["FFFFFF", "000000", "E7E6E6", "44546A", "5B9BD5", "ED7D31", "A5A5A5", "FFC000", "4472C4", "70AD47"\]/);
   assert.match(source, /THEME_HEX\.map\(\(row, r\) => row\.map\(\(hex, c\) => \(\{ hex, name: THEME_GRID\[r\]\[c\]\.name \}\)\)\)/);
   assert.match(source, /aria-label=\{`\$\{name\} \(#\$\{hex\}\)`\} title=\{name\}/);
-  const hexes = [...source.matchAll(/^  \[("[0-9A-F]{6}"(, )?){10}\],?$/gm)].map((m) => m[0]).join("").match(/[0-9A-F]{6}/g);
-  assert.equal(new Set(hexes).size >= 59, true);
+  // The shade rows keep Excel's values (e.g. DEEBF6 under Blue, Accent 1), not Word's computed ones (DEEBF7).
+  assert.match(source, /\["F2F2F2", "7F7F7F", "D0CECE", "D6DCE4", "DEEBF6", "FBE5D5", "EDEDED", "FFF2CC", "D9E2F3", "E2EFD9"\]/);
 });
