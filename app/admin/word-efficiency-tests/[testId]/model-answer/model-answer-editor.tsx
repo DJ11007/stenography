@@ -31,9 +31,11 @@ type Criterion = ModelAnswerCriterion;
 // already saved can pick up those later edits too, matching the known,
 // documented scope of diffWordDocuments itself (see lib/word-document-diff.ts).
 // Number of non-blank paragraphs/elements in an editor document, or null when it is not a document.
+// Header and footer are not counted: rules find body paragraphs by their place among body blocks, so adding a
+// header or footer (questions like "write X in the footer") moves nothing. Counting them refused every such save.
 function countParagraphs(document: unknown): number | null {
   const blocks = (stripBlankParagraphs(document) as { blocks?: unknown } | null)?.blocks;
-  return Array.isArray(blocks) ? blocks.length : null;
+  return Array.isArray(blocks) ? blocks.filter((block) => !["header", "footer"].includes((block as { type?: string } | null)?.type ?? "")).length : null;
 }
 
 export function ModelAnswerEditor({ versionId, original, initialDocument, questions }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; questions: Question[] }) {
