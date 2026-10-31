@@ -55,6 +55,9 @@ export type SheetSettings = {
   hiddenRows?: number[]; hiddenCols?: number[]; colWidths?: Record<string, number>; rowHeights?: Record<string, number>;
   tabColor?: string | null; rowBreaks?: number[]; scale?: number | null; fitWidth?: number | null; fitHeight?: number | null;
   centerHorizontally?: boolean; centerVertically?: boolean; definedNames?: Record<string, string>; validations?: DataValidation[];
+  // Rows / columns given AutoFit (HOME > Format > AutoFit Row Height / Column Width) and not resized by hand since,
+  // so a question that asks for AutoFit can be marked even when the size it gives equals the default.
+  autoFitRows?: number[]; autoFitCols?: string[];
 };
 export type ExcelDocumentV2 = { schemaVersion: "2"; rows: number; cols: number; cells: Record<string, SheetCell>; operations: string[]; savedAt: string };
 export type ExcelDocument = { schemaVersion: "3"; rows: number; cols: number; cells: Record<string, SheetCell>; merges: string[]; sheet: SheetSettings; operations: string[]; savedAt: string };
@@ -81,7 +84,7 @@ const ALIGNMENTS = new Set(["left", "center", "right"]);
 const V_ALIGNMENTS = new Set(["top", "middle", "bottom"]);
 const SHEET_KEYS = new Set(["gridlines", "headings", "formulaBar", "printGridlines", "printHeadings", "printArea", "orientation", "paperSize", "margins", "header", "footer", "zoom",
   "name", "freeze", "filter", "filterHidden", "protected", "printTitleRows", "printTitleCols", "conditionalFormats", "charts", "hiddenRows", "hiddenCols", "colWidths", "rowHeights",
-  "tabColor", "rowBreaks", "scale", "fitWidth", "fitHeight", "centerHorizontally", "centerVertically", "definedNames", "validations"]);
+  "tabColor", "rowBreaks", "scale", "fitWidth", "fitHeight", "centerHorizontally", "centerVertically", "definedNames", "validations", "autoFitRows", "autoFitCols"]);
 const CONDITIONAL_TYPES = new Set(["greaterThan", "lessThan", "between", "equalTo", "textContains", "duplicate", "unique", "top", "bottom", "topPercent", "bottomPercent", "aboveAverage", "belowAverage", "dataBar", "colorScale", "iconSet"]);
 const CONDITIONAL_STYLES = new Set(["lightRedDarkRed", "yellowDarkYellow", "greenDarkGreen", "lightRed", "redText", "redBorder", "blueBar", "greenBar", "redBar", "orangeBar", "greenYellowRed", "redYellowGreen", "greenWhite", "redWhite", "arrows3", "trafficLights3"]);
 const CHART_TYPES = new Set(["column", "bar", "line", "pie"]);
@@ -154,6 +157,8 @@ function validateSheet(sheet: unknown) {
   if ("hiddenCols" in sheet && (!Array.isArray(sheet.hiddenCols) || sheet.hiddenCols.some((col) => typeof col !== "number" || col < 0 || col > 25))) throw new Error("Invalid hidden columns.");
   if ("colWidths" in sheet && (!object(sheet.colWidths) || Object.entries(sheet.colWidths).some(([col, width]) => !/^[A-Z]{1,2}$/.test(col) || typeof width !== "number" || width < 0 || width > 255))) throw new Error("Invalid column widths.");
   if ("rowHeights" in sheet && (!object(sheet.rowHeights) || Object.entries(sheet.rowHeights).some(([row, height]) => !/^[0-9]{1,3}$/.test(row) || typeof height !== "number" || height < 0 || height > 409))) throw new Error("Invalid row heights.");
+  if ("autoFitRows" in sheet && (!Array.isArray(sheet.autoFitRows) || sheet.autoFitRows.length > 200 || sheet.autoFitRows.some((row) => typeof row !== "number" || row < 1 || row > 200))) throw new Error("Invalid AutoFit rows.");
+  if ("autoFitCols" in sheet && (!Array.isArray(sheet.autoFitCols) || sheet.autoFitCols.length > 26 || sheet.autoFitCols.some((col) => typeof col !== "string" || !/^[A-Z]{1,2}$/.test(col)))) throw new Error("Invalid AutoFit columns.");
   if (sheet.tabColor != null && !hexColor(sheet.tabColor)) throw new Error("Invalid tab color.");
   if ("rowBreaks" in sheet && (!Array.isArray(sheet.rowBreaks) || sheet.rowBreaks.length > 100 || sheet.rowBreaks.some((row) => typeof row !== "number" || row < 2 || row > 200))) throw new Error("Invalid page breaks.");
   if (sheet.scale != null && (typeof sheet.scale !== "number" || sheet.scale < 10 || sheet.scale > 400)) throw new Error("Invalid scale.");

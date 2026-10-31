@@ -668,25 +668,34 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     if (!hide && selection.c1 === selection.c2) { cols.delete(selection.c1 - 1); cols.delete(selection.c1 + 1); }
     change(hide ? "hideColumns" : "unhideColumns", { sheet: { ...sheet, hiddenCols: [...cols].sort((a, b) => a - b) } });
   };
+  // A row height or column width set by hand ends AutoFit for those rows / columns, as in Excel.
   const setRowHeight = (points: number | null) => {
-    const heights = { ...(sheet.rowHeights ?? {}) };
-    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { if (points === null) delete heights[String(row)]; else heights[String(row)] = Math.round(points * 100) / 100; }
-    change("rowHeight", { sheet: { ...sheet, rowHeights: heights } });
+    const heights = { ...(sheet.rowHeights ?? {}) }, fitted = new Set(sheet.autoFitRows ?? []);
+    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { fitted.delete(row); if (points === null) delete heights[String(row)]; else heights[String(row)] = Math.round(points * 100) / 100; }
+    change("rowHeight", { sheet: withAutoFit({ ...sheet, rowHeights: heights }, "autoFitRows", [...fitted]) });
   };
   const setColumnWidth = (width: number | null) => {
-    const widths = { ...(sheet.colWidths ?? {}) };
-    for (let col = selection.c1; col <= selection.c2; col++) { if (width === null) delete widths[columnLetters(col)]; else widths[columnLetters(col)] = Math.round(width * 100) / 100; }
-    change("columnWidth", { sheet: { ...sheet, colWidths: widths } });
+    const widths = { ...(sheet.colWidths ?? {}) }, fitted = new Set(sheet.autoFitCols ?? []);
+    for (let col = selection.c1; col <= selection.c2; col++) { fitted.delete(columnLetters(col)); if (width === null) delete widths[columnLetters(col)]; else widths[columnLetters(col)] = Math.round(width * 100) / 100; }
+    change("columnWidth", { sheet: withAutoFit({ ...sheet, colWidths: widths }, "autoFitCols", [...fitted]) });
+  };
+  // AutoFit Row Height: the rows go back to the height their text needs (the default height here), and are
+  // remembered as AutoFit so the question can be marked.
+  const autoFitRows = () => {
+    const heights = { ...(sheet.rowHeights ?? {}) }, fitted = new Set(sheet.autoFitRows ?? []);
+    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { delete heights[String(row)]; fitted.add(row); }
+    change("autoFitRowHeight", { sheet: withAutoFit({ ...sheet, rowHeights: heights }, "autoFitRows", [...fitted]) });
   };
   // AutoFit: the widest entry in each selected column, in characters of the default font.
   const autoFitColumns = () => {
-    const widths = { ...(sheet.colWidths ?? {}) };
+    const widths = { ...(sheet.colWidths ?? {}) }, fitted = new Set(sheet.autoFitCols ?? []);
     for (let col = selection.c1; col <= selection.c2; col++) {
       let longest = 0;
       for (const [ref, cell] of Object.entries(cells)) { const at = parseRef(ref); if (at?.col === col && cell.value != null && !mergeAt(merges, at.row, col)) longest = Math.max(longest, formatCellValue(cell.value, cell.numberFormat, cell.decimals).length * ((cell.fontSize ?? DEFAULT_FONT_SIZE) / DEFAULT_FONT_SIZE) * (cell.bold ? 1.1 : 1)); }
       widths[columnLetters(col)] = Math.min(255, Math.max(2, Math.ceil(longest + 1)));
+      fitted.add(columnLetters(col));
     }
-    change("columnWidth", { sheet: { ...sheet, colWidths: widths } });
+    change("autoFitColumnWidth", { sheet: withAutoFit({ ...sheet, colWidths: widths }, "autoFitCols", [...fitted]) });
   };
   const applyInput = (purpose: InputPurpose, value: string, chartId?: string) => {
     if (purpose === "rowHeight") setRowHeight(Number(value));
@@ -1159,7 +1168,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
             <MenuButton id="format" menu={menu} setMenu={setMenu} label="Format" icon={<Icon name="formatCells" big />} big disabled={submitted}>
               <MenuHeading>Cell Size</MenuHeading>
               <MenuItem onClick={() => openDialog({ kind: "input", purpose: "rowHeight" })}>Row Height...</MenuItem>
-              <MenuItem onClick={() => { setRowHeight(null); setMenu(null); }}>AutoFit Row Height</MenuItem>
+              <MenuItem onClick={() => { autoFitRows(); setMenu(null); }}>AutoFit Row Height</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "input", purpose: "columnWidth" })}>Column Width...</MenuItem>
               <MenuItem onClick={() => { autoFitColumns(); setMenu(null); }}>AutoFit Column Width</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "input", purpose: "defaultWidth" })}>Default Width...</MenuItem>
@@ -1681,6 +1690,14 @@ function createTextStore(): TextStore {
 function StoreInput({ store, live, fallback, onText, inputRef, ...rest }: { store: TextStore; live: boolean; fallback: string; onText: (value: string) => void; inputRef?: React.Ref<HTMLInputElement> } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const text = useSyncExternalStore(store.subscribe, store.get, store.get);
   return <input ref={inputRef} {...rest} value={live ? text : fallback} onChange={(event) => onText(event.target.value)} />;
+}
+
+// The sheet with its AutoFit rows or columns replaced (sorted; the key left out when there are none).
+function withAutoFit(sheet: SheetSettings, key: "autoFitRows" | "autoFitCols", items: (number | string)[]): SheetSettings {
+  const next = { ...sheet };
+  if (key === "autoFitRows") { const rows = (items as number[]).sort((a, b) => a - b); if (rows.length) next.autoFitRows = rows; else delete next.autoFitRows; }
+  else { const cols = (items as string[]).sort((a, b) => columnIndex(a) - columnIndex(b)); if (cols.length) next.autoFitCols = cols; else delete next.autoFitCols; }
+  return next;
 }
 
 function ContextItem({ label, onSelect, disabled }: { label: string; onSelect: () => void; disabled?: boolean }) {

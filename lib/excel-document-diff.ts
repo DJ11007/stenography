@@ -11,7 +11,8 @@ export type ExcelChange =
   | { kind: "cell"; cell: string; keys: string[] }
   | { kind: "value"; cell: string }
   | { kind: "merge"; range: string }
-  | { kind: "sheet"; path: string };
+  | { kind: "sheet"; path: string }
+  | { kind: "autoFit"; axis: "rows" | "cols" };
 export type ExcelCriterion = Record<string, unknown>;
 export type ExcelRuleGroup = { description: string; criteria: ExcelCriterion[] };
 export type ExcelDiff = { changes: ExcelChange[]; unsupported: string[] };
@@ -72,8 +73,23 @@ export function diffExcelDocuments(beforeSheet: unknown, afterSheet: unknown): E
     if ((path.startsWith("header.") || path.startsWith("footer.")) && y === "") { unsupported.push(`removing the ${path.replace(".", " ")} text`); continue; }
     changes.push({ kind: "sheet", path });
   }
+  // AutoFit Row Height / Column Width: rows or columns newly given AutoFit. The widths and heights AutoFit
+  // itself changed are then part of that, not an unmarkable "column widths" / "row heights" change.
+  const fittedRows = (after.sheet.autoFitRows ?? []).filter((row) => !(before.sheet.autoFitRows ?? []).includes(row));
+  const fittedCols = (after.sheet.autoFitCols ?? []).filter((col) => !(before.sheet.autoFitCols ?? []).includes(col));
+  if (fittedRows.length) changes.push({ kind: "autoFit", axis: "rows" });
+  if (fittedCols.length) changes.push({ kind: "autoFit", axis: "cols" });
+  const covered = (key: string, items: string[]) => {
+    const a = (before.sheet as unknown as Record<string, Record<string, unknown> | undefined>)[key] ?? {}, b = (after.sheet as unknown as Record<string, Record<string, unknown> | undefined>)[key] ?? {};
+    return [...new Set([...Object.keys(a), ...Object.keys(b)])].every((item) => same(a[item], b[item]) || items.includes(item));
+  };
   const beforeSettings = before.sheet as unknown as Record<string, unknown>, afterSettings = after.sheet as unknown as Record<string, unknown>;
-  for (const [key, label] of UNSUPPORTED_SHEET_KEYS) if (!same(beforeSettings[key], afterSettings[key])) unsupported.push(label);
+  for (const [key, label] of UNSUPPORTED_SHEET_KEYS) {
+    if (same(beforeSettings[key], afterSettings[key])) continue;
+    if (key === "colWidths" && fittedCols.length && covered(key, fittedCols)) continue;
+    if (key === "rowHeights" && fittedRows.length && covered(key, fittedRows.map(String))) continue;
+    unsupported.push(label);
+  }
   return { changes, unsupported };
 }
 
@@ -157,6 +173,13 @@ export function excelRuleGroups(finalSheet: unknown, changes: ExcelChange[]): Ex
     } else if (change.kind === "sheet") {
       const criterion = sheetCriterion(change.path, sheetValue(sheet, change.path));
       if (criterion) groups.push({ description: `Sheet setting ${change.path}`, criteria: [criterion] });
+    } else if (change.kind === "autoFit") {
+      // The rows / columns the model gave AutoFit, within the part of the sheet that is used: AutoFit on the
+      // "complete workbook" then asks for the used rows and columns, not every empty one up to row 200.
+      const rows = change.axis === "rows", items: (number | string)[] = rows ? sheet.sheet.autoFitRows ?? [] : sheet.sheet.autoFitCols ?? [];
+      const used = items.filter((item) => (rows ? (item as number) <= sheet.rows : parseRef(`${item}1`).col <= sheet.cols));
+      const expected = used.length ? used : items;
+      groups.push({ description: `AutoFit ${rows ? "Row Height" : "Column Width"} (${rows ? "rows" : "columns"} ${expected[0]}–${expected[expected.length - 1]})`, criteria: [{ rule: "sheet", path: rows ? "autoFitRows" : "autoFitCols", includesAll: expected }] });
     }
   }
   return groups;
