@@ -678,14 +678,13 @@ function ColumnWidth13({ value, onChange, disabled }: { value: number | null; on
   const show = (current: number | null) => (current === null ? "Auto" : `${formatNumber(current, 2)} cm`);
   const [text, setText] = useState(show(value));
   const [editing, setEditing] = useState(false);
-  useEffect(() => { if (!editing) setText(show(value)); }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const clamp = (number: number) => Math.min(55.88, Math.max(0.25, number));
   const commit = (raw: string) => { const parsed = /^\s*auto\s*$/i.test(raw) || !raw.trim() ? null : parseMeasure(raw, "length"); const next = parsed === null ? (/^\s*auto\s*$/i.test(raw) || !raw.trim() ? null : value) : clamp(parsed); onChange(next); setText(show(next)); };
   const spin = (direction: 1 | -1) => { const next = value === null ? (direction > 0 ? 0.25 : null) : value + direction * 0.25 < 0.25 ? null : clamp(Number((value + direction * 0.25).toFixed(2))); onChange(next); setText(show(next)); };
   return (
     <span className="w13-spin" style={{ width: 82, marginLeft: "auto" }}>
-      <input aria-label="Fixed column width" inputMode="decimal" disabled={disabled} value={text}
-        onFocus={() => setEditing(true)} onChange={event => setText(event.target.value)}
+      <input aria-label="Fixed column width" inputMode="decimal" disabled={disabled} value={editing ? text : show(value)}
+        onFocus={() => { setText(show(value)); setEditing(true); }} onChange={event => setText(event.target.value)}
         onBlur={() => { setEditing(false); commit(text); }}
         onKeyDown={event => { if (event.key === "ArrowUp") { event.preventDefault(); spin(1); } else if (event.key === "ArrowDown") { event.preventDefault(); spin(-1); } else if (event.key === "Enter") { (event.target as HTMLInputElement).blur(); } }} />
       <span className="w13-spin-buttons">
