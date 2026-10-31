@@ -12,37 +12,37 @@
 -- The functions are changed in place from their live definitions; safe to run twice.
 begin;
 
+-- Every piece of text matched below is a single line, and the inserted text has its line breaks as E'\n', so the
+-- script works the same whether it is pasted with Windows (CRLF) or Unix (LF) line endings.
 do $migration$
-declare definition text;
+declare definition text; word_gate text; word_new text; excel_count text; excel_new text;
 begin
-  -- Word
+  -- Word: the auto-publish gate ("if exists(... auto_publish_results)then / perform ...auto_publish_attempt / end if;")
+  word_gate := ' if exists(select 1 from public.word_efficiency_tests as test_rows where test_rows.id=attempt_record.test_id and test_rows.auto_publish_results)then' || E'\n'
+            || '  perform public.word_efficiency_auto_publish_attempt(p_attempt_id);' || E'\n'
+            || ' end if;';
+  word_new := ' update public.word_efficiency_question_scores as question_scores set awarded_marks=0,grading_status=''graded'',teacher_comment=''Not checked automatically: this question has no marking rule yet, so it gets no marks.'',updated_at=now()where question_scores.attempt_id=p_attempt_id and question_scores.awarded_marks is null and question_scores.graded_by is null;' || E'\n'
+           || ' perform public.word_efficiency_auto_publish_attempt(p_attempt_id);';
   select pg_get_functiondef('public.submit_word_efficiency_document(uuid,jsonb)'::regprocedure) into definition;
+  definition := replace(definition, chr(13), '');
   if position('Not checked automatically' in definition) = 0 then
-    if position($$ if exists(select 1 from public.word_efficiency_tests as test_rows where test_rows.id=attempt_record.test_id and test_rows.auto_publish_results)then
-  perform public.word_efficiency_auto_publish_attempt(p_attempt_id);
- end if;$$ in definition) = 0 then
+    if position(word_gate in definition) = 0 then
       raise exception 'submit_word_efficiency_document is not the expected version';
     end if;
-    definition := replace(definition, $$ if exists(select 1 from public.word_efficiency_tests as test_rows where test_rows.id=attempt_record.test_id and test_rows.auto_publish_results)then
-  perform public.word_efficiency_auto_publish_attempt(p_attempt_id);
- end if;$$, $$ update public.word_efficiency_question_scores as question_scores set awarded_marks=0,grading_status='graded',teacher_comment='Not checked automatically: this question has no marking rule yet, so it gets no marks.',updated_at=now()where question_scores.attempt_id=p_attempt_id and question_scores.awarded_marks is null and question_scores.graded_by is null;
- perform public.word_efficiency_auto_publish_attempt(p_attempt_id);$$);
-    execute definition;
+    execute replace(definition, word_gate, word_new);
   end if;
 
   -- Excel
+  excel_count := ' select count(*) filter (where awarded_marks is null), coalesce(sum(awarded_marks), 0), sum(maximum_marks) into unmarked, total, maximum from public.excel_efficiency_question_scores where attempt_id = p_attempt_id;';
+  excel_new := ' update public.excel_efficiency_question_scores set awarded_marks = 0, grading_status = ''graded'', teacher_comment = ''Not checked automatically: this question has no marking rule yet, so it gets no marks.'', updated_at = now() where attempt_id = p_attempt_id and awarded_marks is null and graded_by is null;' || E'\n' || excel_count;
   select pg_get_functiondef('public.submit_excel_efficiency_document(uuid,jsonb)'::regprocedure) into definition;
+  definition := replace(definition, chr(13), '');
   if position('Not checked automatically' in definition) = 0 then
-    if position($$ select count(*) filter (where awarded_marks is null), coalesce(sum(awarded_marks), 0), sum(maximum_marks) into unmarked, total, maximum from public.excel_efficiency_question_scores where attempt_id = p_attempt_id;$$ in definition) = 0
-       or position($$ if unmarked = 0 and auto then$$ in definition) = 0 then
+    if position(excel_count in definition) = 0 or position(' if unmarked = 0 and auto then' in definition) = 0 then
       raise exception 'submit_excel_efficiency_document is not the expected version';
     end if;
-    definition := replace(definition, $$ select count(*) filter (where awarded_marks is null), coalesce(sum(awarded_marks), 0), sum(maximum_marks) into unmarked, total, maximum from public.excel_efficiency_question_scores where attempt_id = p_attempt_id;$$,
-      $$ update public.excel_efficiency_question_scores set awarded_marks = 0, grading_status = 'graded', teacher_comment = 'Not checked automatically: this question has no marking rule yet, so it gets no marks.', updated_at = now()
-  where attempt_id = p_attempt_id and awarded_marks is null and graded_by is null;
- select count(*) filter (where awarded_marks is null), coalesce(sum(awarded_marks), 0), sum(maximum_marks) into unmarked, total, maximum from public.excel_efficiency_question_scores where attempt_id = p_attempt_id;$$);
-    definition := replace(definition, $$ if unmarked = 0 and auto then$$, $$ if unmarked = 0 then$$);
-    execute definition;
+    definition := replace(definition, excel_count, excel_new);
+    execute replace(definition, ' if unmarked = 0 and auto then', ' if unmarked = 0 then');
   end if;
 end
 $migration$;
