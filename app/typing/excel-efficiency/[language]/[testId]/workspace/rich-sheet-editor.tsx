@@ -1650,7 +1650,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                                 const last = autoFillDownLastRow(cells, selection);
                                 if (last !== null) finishFill(selection, "down", last - selection.r2);
                               }}
-                              className="absolute bottom-0 right-0 z-[6] h-[7px] w-[7px] cursor-crosshair border border-white bg-[#217346]" />
+                              className="absolute bottom-0 right-0 z-[6] h-[7px] w-[7px] cursor-crosshair border border-white bg-[#217346] before:absolute before:-inset-[5px] before:content-['']" />
                           )}
                           {listRule?.type === "list" && <button type="button" aria-label={`Pick from list for ${ref}`} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }} onClick={() => setListMenu((open) => !open)} className="absolute -right-[18px] bottom-0 z-[3] grid h-[18px] w-4 place-items-center border border-[#adadad] bg-[#f0f0f0] text-[9px]">▾</button>}
                           {listRule?.type === "list" && listMenu && <div data-xl-list role="listbox" aria-label="Validation list" className="absolute left-0 top-full z-[45] min-w-full border border-[#7a7a7a] bg-white text-left text-[12px] shadow">{(listRule.list ?? "").split(",").map((item) => item.trim()).filter(Boolean).map((item) => <button key={item} type="button" role="option" aria-selected={String(cell.value ?? "") === item} onMouseDown={(event) => { event.stopPropagation(); event.preventDefault(); }} onClick={() => pickFromList(item)} className="block w-full px-1.5 py-0.5 text-left hover:bg-[#0078d7] hover:text-white">{item}</button>)}</div>}

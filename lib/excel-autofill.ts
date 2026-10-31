@@ -119,11 +119,14 @@ export function autoFill(cells: Cells, source: Rect, direction: FillDirection, c
 }
 
 /**
- * Double-clicking the handle fills down as far as the data next to the selection goes (the column on its left, or if
- * that is empty beside the selection's last row, the column on its right). Returns the last row to fill, or null.
+ * Double-clicking the handle fills down as far as the data next to the selection goes: the column on its left, or if
+ * that is empty beside the selection's last row, the column on its right; when both are empty (a Percentage column
+ * next to an empty Average column), the nearest column further left that has data there. Returns the last row to
+ * fill, or null.
  */
 export function autoFillDownLastRow(cells: Cells, source: Rect): number | null {
-  const neighbours = [source.c1 - 1, source.c2 + 1].filter((col) => col >= 0 && col < MAX_COLS);
+  const further = Array.from({ length: Math.max(0, source.c1 - 1) }, (_, i) => source.c1 - 2 - i);
+  const neighbours = [source.c1 - 1, source.c2 + 1, ...further].filter((col) => col >= 0 && col < MAX_COLS);
   for (const col of neighbours) {
     if (!hasData(cellAt(cells, source.r2, col))) continue;
     let last = source.r2;
