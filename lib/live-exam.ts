@@ -79,3 +79,9 @@ export function sectionInstructions(sections: { label: string; durationSeconds: 
     ...(breaks.length ? [`There is ${breaks.join(", ")}. The next part starts by itself when the break timer reaches 00:00.`] : []),
   ];
 }
+/** Seconds left until a section ends on the exam server's clock (serverOffsetMs = server time − this PC's time), at
+ *  least 1 and at most the test's own duration. */
+export const liveSecondsLeft = (endsAtMs: number, serverOffsetMs: number, maxSeconds: number) =>
+  Math.max(1, Math.min(maxSeconds, Math.floor((endsAtMs - (Date.now() + serverOffsetMs)) / 1000)));
+/** The exam category whose typing rules and marks a pattern's typing sections use (RSMSSB LDC: correct words × marks, max 25). */
+export const PATTERN_TYPING_CATEGORY: Record<string, string> = { "rsmssb-ldc": "rajasthan-ldc" };

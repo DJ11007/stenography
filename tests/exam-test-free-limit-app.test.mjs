@@ -18,8 +18,10 @@ test("the exam paywall reuses the existing Buy Now button, not a new purchase fl
 
 test("recordManagedAttempt has a server-side backstop for the free-exam limit, scoped to mode='exam' and non-live only", async () => {
   const actions = await read("app/tests/actions.ts");
-  assert.match(actions, /v\.mode === "exam" && !test\.is_live \? supabase\.rpc\("assert_exam_test_allowed"\) : Promise\.resolve\(null\)/);
-  assert.match(actions, /if \(v\.mode === "exam" && !test\.is_live && examLimitResult\?\.error\) return \{ status: "locked" as const \};/);
+  // A verified, open Live Exam Center section is exempt too (openLiveExamTypingSection), like a live test.
+  assert.match(actions, /v\.mode === "exam" && !test\.is_live && !liveSection \? supabase\.rpc\("assert_exam_test_allowed"\) : Promise\.resolve\(null\)/);
+  assert.match(actions, /if \(v\.mode === "exam" && !test\.is_live && !liveSection && examLimitResult\?\.error\) return \{ status: "locked" as const \};/);
+  assert.match(actions, /const liveSection = payload\.liveExamSectionId \? await openLiveExamTypingSection\(supabase, payload\.liveExamSectionId, test\.id\) : null;/);
 });
 
 test("an admin can set a student's free-exam-test limit from the student detail page", async () => {

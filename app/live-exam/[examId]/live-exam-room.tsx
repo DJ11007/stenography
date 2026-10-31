@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ConfigurableTypingExam } from "@/app/typing/_components/configurable-typing-exam";
+import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { formatDuration } from "@/lib/live-exam";
+import { loadLiveExamTypingSection, type LiveTypingSection } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 
 export type LiveExamSectionState = {
@@ -48,12 +51,13 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   const [state, setState] = useState(initial);
   // Server time minus this computer's time, so every countdown follows the exam server, not the PC clock.
   const offset = useRef(0);
+  const [serverOffset, setServerOffset] = useState(0);
   const [now, setNow] = useState(() => Date.parse(initial.serverNow));
-  useEffect(() => { offset.current = Date.parse(initial.serverNow) - Date.now(); }, [initial.serverNow]);
+  useEffect(() => { offset.current = Date.parse(initial.serverNow) - Date.now(); setServerOffset(offset.current); }, [initial.serverNow]);
   const refresh = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase.rpc("live_exam_state", { p_exam_id: initial.id });
-    if (data) { const next = data as LiveExamState; offset.current = Date.parse(next.serverNow) - Date.now(); setState(next); }
+    if (data) { const next = data as LiveExamState; offset.current = Date.parse(next.serverNow) - Date.now(); setServerOffset(offset.current); setState(next); }
   }, [initial.id]);
   useEffect(() => {
     const tick = window.setInterval(() => setNow(Date.now() + offset.current), 250);
@@ -85,17 +89,20 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
       {preview && <p className="bg-amber-300 px-4 py-1 text-center text-xs font-black text-amber-950">Admin preview — nothing you do here is submitted.</p>}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <CandidatePanel candidate={candidate} running={running} timeLeft={phase.kind === "finished" ? null : clock(timeLeft)} sections={state.sections} now={now} />
-        <section className="flex min-w-0 flex-1 items-center justify-center p-4 sm:p-8">
+        <section className={`flex min-w-0 flex-1 justify-center ${phase.kind === "section" && phase.section.kind === "typing" && !phase.section.submitted ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
           {phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
           {phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
-          {phase.kind === "section" && (
+          {phase.kind === "section" && (phase.section.submitted || phase.section.kind !== "typing") && (
             <div className="w-full max-w-2xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-xs font-black uppercase tracking-widest text-[#0b2e59]">Part {phase.section.position} of {state.sections.length}</p>
               <h2 className="mt-2 text-3xl font-black text-slate-900">{phase.section.label}</h2>
               <p className="mt-1 text-slate-600">{formatDuration(phase.section.durationSeconds)} · {phase.section.maxMarks} marks</p>
               <p className="mt-6 font-mono text-6xl font-black text-[#0b2e59]">{clock(timeLeft)}</p>
-              <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">This part opens here on this page. (The typing, Word and Excel workspaces are added inside the exam in the next update.)</p>
+              <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : "This part opens here on this page. (The Word and Excel workspaces are added inside the exam in the next update.)"}</p>
             </div>
+          )}
+          {phase.kind === "section" && !phase.section.submitted && phase.section.kind === "typing" && (
+            <TypingSection key={phase.section.id} section={phase.section} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={() => { void refresh(); }} />
           )}
           {phase.kind === "finished" && (
             <div className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
@@ -210,6 +217,36 @@ function PeripheralCheck({ onClose }: { onClose: () => void }) {
         <p className="mt-2 text-xs text-slate-500">{text.length} characters typed</p>
         <button type="button" onClick={onClose} className="mt-4 w-full rounded-xl bg-[#0b2e59] px-4 py-3 font-black text-white">Keyboard is working — close</button>
       </div>
+    </div>
+  );
+}
+
+// A typing part: its test is fetched when the part starts (the server refuses earlier), then the normal typing screen
+// runs in live-exam mode — its clock ends with the part, the RSMSSB rules are fixed, and the attempt is saved with the
+// part. An admin preview shows the same screen but saves nothing.
+function TypingSection({ section, serverOffset, candidate, preview, onSaved }: { section: LiveExamSectionState; serverOffset: number; candidate: Candidate; preview: boolean; onSaved: () => void }) {
+  const [loaded, setLoaded] = useState<LiveTypingSection | null>(null), [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    let tries = 0, retry: number | undefined;
+    // This PC may reach the start a moment before the server does: "not started yet" is asked again shortly.
+    const load = () => void loadLiveExamTypingSection(section.id).then((result) => {
+      if (cancelled) return;
+      if (result.ok) { setLoaded(result.section); return; }
+      if (/not started yet/i.test(result.error) && tries++ < 12) { retry = window.setTimeout(load, 1500); return; }
+      setProblem(result.error);
+    }).catch(() => { if (!cancelled) setProblem("Could not open this part. Check your internet and refresh the page."); });
+    load();
+    return () => { cancelled = true; window.clearTimeout(retry); };
+  }, [section.id]);
+  if (problem) return <p role="alert" className="m-8 rounded-2xl bg-red-50 p-6 text-center font-bold text-red-800">{problem}</p>;
+  if (!loaded) return <p className="m-8 rounded-2xl bg-white p-6 text-center font-bold text-slate-600 shadow">Opening {section.label}…</p>;
+  return (
+    <div className="w-full">
+      <TypingStudentProvider student={{ name: candidate.name, email: candidate.loginId, phone: null }}>
+        <ConfigurableTypingExam preset={loaded.preset} mode="exam" customPreset managedTest={preview ? undefined : loaded.managedTest} adminPreview={preview}
+          liveExam={{ sectionId: section.id, endsAt: Date.parse(section.endsAt), serverOffset, onSaved }} />
+      </TypingStudentProvider>
     </div>
   );
 }
