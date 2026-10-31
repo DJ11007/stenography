@@ -672,10 +672,34 @@ function FindFormatPanel({ kind, initial, onOk, onCancel }: { kind: "font" | "pa
 
 // ---- Insert tab dialogs (Insert Table, Page Number Format, Drop Cap, Date and Time, Symbol) ----
 
-export function InsertTableDialog2013({ onSubmit }: { onSubmit: (rows: number, cols: number, layout: string) => void }) {
+// Word 2013's "Fixed column width" box: "Auto" (the columns share the page width) or a width typed or stepped
+// with the arrows (0.25 cm a click); stepping below the smallest width goes back to Auto.
+function ColumnWidth13({ value, onChange, disabled }: { value: number | null; onChange: (value: number | null) => void; disabled?: boolean }) {
+  const show = (current: number | null) => (current === null ? "Auto" : `${formatNumber(current, 2)} cm`);
+  const [text, setText] = useState(show(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { if (!editing) setText(show(value)); }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  const clamp = (number: number) => Math.min(55.88, Math.max(0.25, number));
+  const commit = (raw: string) => { const parsed = /^\s*auto\s*$/i.test(raw) || !raw.trim() ? null : parseMeasure(raw, "length"); const next = parsed === null ? (/^\s*auto\s*$/i.test(raw) || !raw.trim() ? null : value) : clamp(parsed); onChange(next); setText(show(next)); };
+  const spin = (direction: 1 | -1) => { const next = value === null ? (direction > 0 ? 0.25 : null) : value + direction * 0.25 < 0.25 ? null : clamp(Number((value + direction * 0.25).toFixed(2))); onChange(next); setText(show(next)); };
+  return (
+    <span className="w13-spin" style={{ width: 82, marginLeft: "auto" }}>
+      <input aria-label="Fixed column width" inputMode="decimal" disabled={disabled} value={text}
+        onFocus={() => setEditing(true)} onChange={event => setText(event.target.value)}
+        onBlur={() => { setEditing(false); commit(text); }}
+        onKeyDown={event => { if (event.key === "ArrowUp") { event.preventDefault(); spin(1); } else if (event.key === "ArrowDown") { event.preventDefault(); spin(-1); } else if (event.key === "Enter") { (event.target as HTMLInputElement).blur(); } }} />
+      <span className="w13-spin-buttons">
+        <button type="button" tabIndex={-1} aria-label="Increase Fixed column width" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => spin(1)}>▲</button>
+        <button type="button" tabIndex={-1} aria-label="Decrease Fixed column width" disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => spin(-1)}>▼</button>
+      </span>
+    </span>
+  );
+}
+
+export function InsertTableDialog2013({ onSubmit }: { onSubmit: (rows: number, cols: number, layout: string, columnWidthCm: number | null) => void }) {
   const chrome = useContext(Word13Chrome);
   const [cols, setCols] = useState<number | null>(5), [rows, setRows] = useState<number | null>(2);
-  const [layout, setLayout] = useState("fixed"), [remember, setRemember] = useState(false);
+  const [layout, setLayout] = useState("fixed"), [remember, setRemember] = useState(false), [columnWidth, setColumnWidth] = useState<number | null>(null);
   return (
     <Window13 title="Insert Table" width={300}>
       <Group13>Table size</Group13>
@@ -685,11 +709,11 @@ export function InsertTableDialog2013({ onSubmit }: { onSubmit: (rows: number, c
       {([["fixed", "Fixed column width:"], ["auto", "AutoFit to contents"], ["window", "AutoFit to window"]] as const).map(([id, label]) => (
         <div key={id} className="w13-row" style={{ marginLeft: 12 }}>
           <label className="w13-check"><input type="radio" name="w13-table-autofit" checked={layout === id} onChange={() => setLayout(id)} /><span>{label}</span></label>
-          {id === "fixed" && <input className="w13-field" style={{ width: 64, marginLeft: "auto" }} value="Auto" disabled readOnly aria-label="Fixed column width" />}
+          {id === "fixed" && <ColumnWidth13 value={columnWidth} onChange={setColumnWidth} disabled={layout !== "fixed"} />}
         </div>
       ))}
       <div className="w13-row" style={{ marginTop: 10 }}><Check13 checked={remember} onChange={setRemember}>Re<u>m</u>ember dimensions for new tables</Check13></div>
-      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={() => onSubmit(Math.round(rows ?? 2), Math.round(cols ?? 5), layout)}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
+      <div className="w13-footer"><span /><div className="w13-footer-right"><Button13 isDefault onClick={() => onSubmit(Math.round(rows ?? 2), Math.round(cols ?? 5), layout, layout === "fixed" ? columnWidth : null)}>OK</Button13><Button13 onClick={chrome?.onClose}>Cancel</Button13></div></div>
     </Window13>
   );
 }

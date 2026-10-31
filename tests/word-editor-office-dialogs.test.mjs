@@ -52,3 +52,13 @@ test("the font dialog, paragraph special indent, table AutoFit, and page-number 
   assert.match(diff, /"specialIndentMode", "specialIndentAmount"/);
   assert.match(diff, /TABLE_ATTR_FIELDS = \["tableLayout", "tableStyle"/);
 });
+
+test("Insert Table's Fixed column width can be changed from Auto, and the width goes into the table as <col> widths", async () => {
+  const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
+  assert.doesNotMatch(dialogs, /value="Auto" disabled readOnly aria-label="Fixed column width"/);
+  assert.match(dialogs, /<ColumnWidth13 value=\{columnWidth\} onChange=\{setColumnWidth\} disabled=\{layout !== "fixed"\} \/>/);
+  assert.match(dialogs, /onSubmit\(Math\.round\(rows \?\? 2\), Math\.round\(cols \?\? 5\), layout, layout === "fixed" \? columnWidth : null\)/);
+  const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(editor, /<col style="width:\$\{Math\.round\(columnWidthCm\*100\)\/100\}cm">/);
+  assert.match(editor, /onInsertTable=\{\(rows,cols,layout,columnWidthCm\)=>insertTableWithSize\(rows,cols,layout,null,columnWidthCm\)\}/);
+});
