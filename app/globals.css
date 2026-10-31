@@ -1267,3 +1267,13 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-document-page tr[data-page-push] > td[style*="background"], .word-document-page tr[data-page-push] > th[style*="background"] { --page-paper-fill: #fff; --page-gap-fill: #d4d4d4; }
 /* View > Gridlines would outline the moved row across the gap; its borders are drawn above. */
 .word-document-page tr[data-page-push] > td, .word-document-page tr[data-page-push] > th { outline: none !important; }
+
+/* Font Color, Shading and Page Color palettes (word-editor-ribbon.tsx): the same compact Word 2013 swatches as
+   Underline Color and Text Effects > Outline, not the gallery menu's padded rows. */
+.word-gallery-menu.word-full-palette { display: block; width: 232px; max-height: none; overflow: visible; padding: 0; }
+.word-full-palette .wr-swatch { display: block; width: 17px; height: 17px; min-height: 0; border: 1px solid #c6c6c6; border-radius: 0; padding: 0; }
+.word-full-palette .wr-palette-tints .wr-swatch { height: 15px; border-top-width: 0; border-bottom-width: 0; }
+.word-full-palette .wr-palette-tints .wr-swatch:nth-child(-n+10) { border-top-width: 1px; }
+.word-full-palette .wr-palette-tints .wr-swatch:nth-last-child(-n+10) { border-bottom-width: 1px; }
+.word-full-palette .wr-swatch:hover, .word-full-palette .wr-swatch:focus-visible { background-clip: padding-box; outline: 2px solid #f29436; outline-offset: -1px; }
+.word-full-palette .wi-item { width: 100%; height: auto; min-height: 0; border: 0; }
