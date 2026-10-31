@@ -1571,6 +1571,11 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           <button type="button" aria-label="Zoom In" onClick={() => setSheet((s) => ({ ...s, zoom: Math.min(400, (s.zoom || 100) + 10) }))} className="px-1 hover:text-black">+</button>
           <button type="button" onClick={() => openDialog({ kind: "zoom" })} className="w-10 text-right hover:text-black">{zoom}%</button>
         </span>
+        {/* Submit / Save answer: a small button at the end of the status bar, as in the Word workspace. */}
+        <span className="flex items-center gap-1.5 py-0.5 pl-1 pr-2">
+          {staleDeploy && <button type="button" onClick={() => window.location.reload()} className="word-statusbar-button word-statusbar-refresh">Refresh page</button>}
+          <button type="button" disabled={submitted} title={`Autosave: ${status}`} onClick={() => { if (editing) commitEdit(); if (submitted) return; if (submitConfirmMessage === null) void submitNow(false); else setConfirmSubmitOpen(true); }} className="word-statusbar-button">{submitLabel}</button>
+        </span>
       </div>
       <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message={submitConfirmMessage ?? ""} confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
       <ConfirmDialog open={submitProblem !== null} title="Could not submit" message={submitProblem} confirmLabel="OK" cancelLabel={null} tone="primary" onCancel={() => setSubmitProblem(null)} onConfirm={() => setSubmitProblem(null)} />
@@ -1653,10 +1658,6 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {dialog?.kind === "input" && dialog.purpose === "unprotect" && <InputDialog title="Unprotect Sheet" label="Password:" hint="Press OK to unprotect the sheet." onOk={(value) => applyInput("unprotect", value)} onCancel={closeDialog} />}
       {dialog?.kind === "input" && dialog.purpose === "chartTitle" && <InputDialog title="Chart Title" label="Chart title:" initial={(sheet.charts ?? []).find((chart) => chart.id === dialog.chartId)?.title ?? ""} onOk={(value) => applyInput("chartTitle", value, dialog.chartId)} onCancel={closeDialog} />}
       {headerDialog && <HeaderFooterDialog header={sheet.header} footer={sheet.footer} onCancel={() => setHeaderDialog(false)} onOk={(header, footer) => { setHeaderDialog(false); const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? ""))); change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header"); }} />}
-      <footer className="flex items-center justify-between gap-3 border-t bg-slate-950 px-4 py-2 text-white">
-        <p aria-live="polite" className="text-sm font-bold">Autosave: {status}{staleDeploy && <button type="button" onClick={() => window.location.reload()} className="ml-3 rounded-lg bg-amber-400 px-3 py-1 text-xs font-black text-slate-950 hover:bg-amber-300">Refresh page</button>}</p>
-        <button type="button" disabled={submitted} onClick={() => { if (editing) commitEdit(); if (submitted) return; if (submitConfirmMessage === null) void submitNow(false); else setConfirmSubmitOpen(true); }} className="rounded-xl bg-red-600 px-5 py-2.5 font-black text-white outline-none hover:bg-red-500 disabled:bg-slate-500">{submitLabel}</button>
-      </footer>
     </div>
   );
 }
