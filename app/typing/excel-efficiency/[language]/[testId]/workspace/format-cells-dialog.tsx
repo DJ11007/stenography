@@ -69,7 +69,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
       border: border === "bottom" && lineStyle === "double" ? "bottomDouble" : border === "bottom" && lineStyle === "thick" ? "thickBottom" : border === "outside" && lineStyle === "thick" ? "thickBox" : border, merge: merge === merged ? null : merge,
     });
   };
-  const previewStyle = { fontFamily: font, fontWeight: style.includes("Bold") ? 700 : 400, fontStyle: style.includes("Italic") ? "italic" : "normal", textDecoration: [underline !== "None" && "underline", strike && "line-through"].filter(Boolean).join(" ") || undefined, textDecorationStyle: underline.startsWith("double") ? ("double" as const) : undefined, verticalAlign: vertAlign === "superscript" ? "super" : vertAlign === "subscript" ? "sub" : undefined, color: color ? `#${color}` : undefined, fontSize: `${Math.min(28, Math.max(8, Number(size) || 11)) * 1.2}px` };
+  const previewStyle = { fontFamily: font, fontWeight: style.includes("Bold") ? 700 : 400, fontStyle: style.includes("Italic") ? "italic" : "normal", textDecorationLine: [underline !== "None" && "underline", strike && "line-through"].filter(Boolean).join(" ") || undefined, textDecorationStyle: underline.startsWith("double") ? ("double" as const) : undefined, verticalAlign: vertAlign === "superscript" ? "super" : vertAlign === "subscript" ? "sub" : undefined, color: color ? `#${color}` : undefined, fontSize: `${Math.min(28, Math.max(8, Number(size) || 11)) * 1.2}px` };
 
   return (
     <div role="presentation" className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/30 p-4" onMouseDown={onCancel}>

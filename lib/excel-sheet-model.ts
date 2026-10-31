@@ -199,7 +199,9 @@ export function applyBorder(cells: Record<string, SheetCell>, rect: Rect, style:
 /** CSS for a cell's border value. */
 export function borderCss(border: string | null | undefined): Record<string, string> {
   if (!border) return {};
-  if (!/^([tlbrTLBR]=?)+$/.test(border)) return { border };
+  // Per side, never the "border" shorthand: the cell style also sets borderRight / borderBottom (gridlines), and
+  // React warns when a shorthand and its parts are mixed in one style.
+  if (!/^([tlbrTLBR]=?)+$/.test(border)) return { borderTop: border, borderRight: border, borderBottom: border, borderLeft: border };
   const css: Record<string, string> = {};
   const names = { t: "borderTop", r: "borderRight", b: "borderBottom", l: "borderLeft" } as const;
   for (const [side, kind] of borderSides(border)) css[names[side]] = kind === "double" ? "3px double #000" : kind === "thick" ? "2px solid #000" : "1px solid #000";
