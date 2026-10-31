@@ -2,12 +2,13 @@
 import { useState } from "react";
 import type { ConditionalFormat, DataValidation, ValidationOperator, ValidationType } from "@/lib/excel-document";
 import { CONDITIONAL_STYLES } from "@/lib/excel-sheet-model";
+import type { DateUnit, SeriesType } from "@/lib/excel-series";
 import { DialogButton, DialogShell } from "./excel-dialogs";
 
 // More of Excel 2013's dialog boxes: Paste Special, Insert / Delete (cells), Series, Go To Special, Insert Hyperlink,
 // New Name and Name Manager, Data Validation, Convert Text to Columns, Conditional Formatting Rules Manager, Colors.
 const field = "border border-[#adadad] bg-white px-1.5 py-1 outline-none focus:border-[#0078d7]";
-const Radio = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) => <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={checked} onChange={onChange} /> {label}</label>;
+const Radio = ({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: () => void; disabled?: boolean }) => <label className={`flex items-center gap-1.5 py-0.5 ${disabled ? "text-[#a0a0a0]" : ""}`}><input type="radio" checked={checked} onChange={onChange} disabled={disabled} /> {label}</label>;
 const Footer = ({ onOk, onCancel, okDisabled }: { onOk: () => void; onCancel: () => void; okDisabled?: boolean }) => <><DialogButton primary onClick={onOk} disabled={okDisabled}>OK</DialogButton><DialogButton onClick={onCancel}>Cancel</DialogButton></>;
 
 // ---------- Paste Special ----------
@@ -39,19 +40,30 @@ export function InsertDeleteCellsDialog({ mode, onOk, onCancel }: { mode: "inser
 }
 
 // ---------- Series ----------
-export type SeriesChoice = { direction: "rows" | "columns"; type: "linear" | "growth"; step: number; stop: number | null };
-export function SeriesDialog({ defaultDirection, onOk, onCancel }: { defaultDirection: "rows" | "columns"; onOk: (choice: SeriesChoice) => void; onCancel: () => void }) {
+// Excel 2013's Series box: Series in (Rows / Columns), Type (Linear / Growth / Date / AutoFill), Date unit (only for
+// Date), Trend (only for Linear / Growth), Step value and Stop value (not for AutoFill).
+export type SeriesChoice = { direction: "rows" | "columns"; type: SeriesType; dateUnit: DateUnit; step: number; stop: number | null; trend: boolean };
+export function SeriesDialog({ defaultDirection, defaultType = "linear", onOk, onCancel }: { defaultDirection: "rows" | "columns"; defaultType?: SeriesType; onOk: (choice: SeriesChoice) => void; onCancel: () => void }) {
   const [direction, setDirection] = useState(defaultDirection);
-  const [type, setType] = useState<SeriesChoice["type"]>("linear");
+  const [type, setType] = useState<SeriesType>(defaultType);
+  const [dateUnit, setDateUnit] = useState<DateUnit>("day");
+  const [trend, setTrend] = useState(false);
   const [step, setStep] = useState("1"), [stop, setStop] = useState("");
-  const ok = Number.isFinite(Number(step)) && (stop.trim() === "" || Number.isFinite(Number(stop)));
+  const usesStep = type !== "autofill" && !(trend && type !== "date");
+  const ok = type === "autofill" || ((!usesStep || (step.trim() !== "" && Number.isFinite(Number(step)))) && (stop.trim() === "" || Number.isFinite(Number(stop))));
+  const box = "rounded-sm border border-[#d5d5d5] px-2 pb-1.5 pt-0.5";
   return (
-    <DialogShell title="Series" onCancel={onCancel} width={360} footer={<Footer okDisabled={!ok} onOk={() => onOk({ direction, type, step: Number(step), stop: stop.trim() === "" ? null : Number(stop) })} onCancel={onCancel} />}>
-      <div className="grid grid-cols-2 gap-3">
-        <fieldset><legend className="text-[#1e5aa8]">Series in</legend><Radio label="Rows" checked={direction === "rows"} onChange={() => setDirection("rows")} /><Radio label="Columns" checked={direction === "columns"} onChange={() => setDirection("columns")} /></fieldset>
-        <fieldset><legend className="text-[#1e5aa8]">Type</legend><Radio label="Linear" checked={type === "linear"} onChange={() => setType("linear")} /><Radio label="Growth" checked={type === "growth"} onChange={() => setType("growth")} /></fieldset>
+    <DialogShell title="Series" onCancel={onCancel} width={330} footer={<Footer okDisabled={!ok} onOk={() => onOk({ direction, type, dateUnit, trend: trend && (type === "linear" || type === "growth"), step: Number(step) || 0, stop: stop.trim() === "" || type === "autofill" ? null : Number(stop) })} onCancel={onCancel} />}>
+      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2">
+        <fieldset className={box}><legend className="px-0.5">Series in</legend><Radio label="Rows" checked={direction === "rows"} onChange={() => setDirection("rows")} /><Radio label="Columns" checked={direction === "columns"} onChange={() => setDirection("columns")} /></fieldset>
+        <fieldset className={box}><legend className="px-0.5">Type</legend>{([["linear", "Linear"], ["growth", "Growth"], ["date", "Date"], ["autofill", "AutoFill"]] as [SeriesType, string][]).map(([value, label]) => <Radio key={value} label={label} checked={type === value} onChange={() => setType(value)} />)}</fieldset>
+        <fieldset className={box}><legend className={`px-0.5 ${type === "date" ? "" : "text-[#a0a0a0]"}`}>Date unit</legend>{([["day", "Day"], ["weekday", "Weekday"], ["month", "Month"], ["year", "Year"]] as [DateUnit, string][]).map(([value, label]) => <Radio key={value} label={label} disabled={type !== "date"} checked={dateUnit === value} onChange={() => setDateUnit(value)} />)}</fieldset>
       </div>
-      <div className="mt-3 flex gap-3"><label className="flex items-center gap-1.5">Step value: <input aria-label="Step value" value={step} onChange={(event) => setStep(event.target.value)} className={`${field} w-20`} /></label><label className="flex items-center gap-1.5">Stop value: <input aria-label="Stop value" value={stop} onChange={(event) => setStop(event.target.value)} className={`${field} w-20`} /></label></div>
+      <label className={`mt-2 flex items-center gap-1.5 ${type === "linear" || type === "growth" ? "" : "text-[#a0a0a0]"}`}><input type="checkbox" checked={trend} disabled={!(type === "linear" || type === "growth")} onChange={(event) => setTrend(event.target.checked)} /> <span><u>T</u>rend</span></label>
+      <div className="mt-2 flex gap-3">
+        <label className={`flex items-center gap-1.5 ${usesStep ? "" : "text-[#a0a0a0]"}`}>Step value: <input aria-label="Step value" disabled={!usesStep} value={step} onChange={(event) => setStep(event.target.value)} className={`${field} w-20`} /></label>
+        <label className={`flex items-center gap-1.5 ${type === "autofill" ? "text-[#a0a0a0]" : ""}`}>Stop value: <input aria-label="Stop value" disabled={type === "autofill"} value={stop} onChange={(event) => setStop(event.target.value)} className={`${field} w-20`} /></label>
+      </div>
     </DialogShell>
   );
 }

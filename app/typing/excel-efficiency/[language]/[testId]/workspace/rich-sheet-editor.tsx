@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
 import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
+import { seriesLine } from "@/lib/excel-series";
+import { flashFill } from "@/lib/excel-flash-fill";
 import { THEME_GRID } from "@/lib/word-colors";
 import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
@@ -417,6 +419,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     if (event.shiftKey && key === "F3") { event.preventDefault(); if (!submitted) openDialog({ kind: "insertFunction" }); return; }
     if (selectedChart && (key === "Delete" || key === "Backspace")) { event.preventDefault(); if (!submitted) deleteChart(selectedChart); return; }
     if (ctrl && key.toLowerCase() === "s") { event.preventDefault(); void saveNow(); return; }
+    if (ctrl && key.toLowerCase() === "e") { event.preventDefault(); if (!submitted) runFlashFill(); return; }
+    if (ctrl && (key.toLowerCase() === "d" || key.toLowerCase() === "r")) { event.preventDefault(); if (!submitted) fillRange(key.toLowerCase() === "d" ? "down" : "right"); return; }
     if (ctrl && ["b", "i", "u", "c", "x", "z", "y", "a"].includes(key.toLowerCase())) {
       event.preventDefault();
       const k = key.toLowerCase();
@@ -506,11 +510,22 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const indentBy = (delta: number) => { const level = Math.min(15, Math.max(0, (active.indent ?? 0) + delta)); formatSelection({ indent: level || null, align: level ? (active.align === "right" ? "right" : "left") : active.align }, "indent"); };
   const decimalsOf = (cell: SheetCell) => cell.decimals ?? (typeof cell.value === "number" && !Number.isInteger(cell.value) ? Math.min(10, String(cell.value).split(".")[1]?.length ?? 0) : cell.numberFormat && cell.numberFormat !== "General" ? 2 : 0);
   const changeDecimals = (delta: number) => formatSelection({ decimals: Math.min(10, Math.max(0, decimalsOf(active) + delta)) }, "decimals");
+  // Fill Down / Right / Up / Left, as in Excel: a selection of one row is filled from the row above it (Down) or
+  // below it (Up), one column from the column to its left (Right) or right (Left); a larger selection from its own
+  // first (last) row or column.
+  const fillSourceLine = (direction: "down" | "right" | "up" | "left"): number | null => {
+    if (direction === "down") return selection.r1 === selection.r2 ? (selection.r1 > 1 ? selection.r1 - 1 : null) : selection.r1;
+    if (direction === "up") return selection.r1 === selection.r2 ? (selection.r2 < MAX_ROWS ? selection.r2 + 1 : null) : selection.r2;
+    if (direction === "right") return selection.c1 === selection.c2 ? (selection.c1 > 0 ? selection.c1 - 1 : null) : selection.c1;
+    return selection.c1 === selection.c2 ? (selection.c2 < MAX_COLS - 1 ? selection.c2 + 1 : null) : selection.c2;
+  };
   const fillRange = (direction: "down" | "right" | "up" | "left") => {
+    const line = fillSourceLine(direction);
+    if (line === null) return;
     const next = { ...cells };
     for (let row = selection.r1; row <= selection.r2; row++) for (let col = selection.c1; col <= selection.c2; col++) {
-      const sourceRow = direction === "down" ? selection.r1 : direction === "up" ? selection.r2 : row;
-      const sourceCol = direction === "right" ? selection.c1 : direction === "left" ? selection.c2 : col;
+      const sourceRow = direction === "down" || direction === "up" ? line : row;
+      const sourceCol = direction === "right" || direction === "left" ? line : col;
       if (sourceRow === row && sourceCol === col) continue;
       const source = cellOf(cells, refAt(sourceRow, sourceCol));
       next[refAt(row, col)] = { ...source, formula: shiftFormula(source.formula, row - sourceRow, col - sourceCol) };
@@ -869,21 +884,72 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
 
   const fillSeries = (choice: SeriesChoice) => {
     closeDialog();
-    const next = { ...cells };
-    const lines = choice.direction === "columns" ? Array.from({ length: selection.c2 - selection.c1 + 1 }, (_, i) => selection.c1 + i) : Array.from({ length: selection.r2 - selection.r1 + 1 }, (_, i) => selection.r1 + i);
-    for (const line of lines) {
-      const startRef = choice.direction === "columns" ? refAt(selection.r1, line) : refAt(line, selection.c1);
-      const start = cellOf(cells, startRef).value;
-      if (typeof start !== "number") continue;
-      const length = choice.direction === "columns" ? selection.r2 - selection.r1 + 1 : selection.c2 - selection.c1 + 1;
-      for (let k = 1; k < length; k++) {
-        const value = choice.type === "linear" ? start + choice.step * k : start * choice.step ** k;
-        if (choice.stop !== null && (choice.step >= 0 ? value > choice.stop : value < choice.stop)) break;
-        const ref = choice.direction === "columns" ? refAt(selection.r1 + k, line) : refAt(line, selection.c1 + k);
-        next[ref] = { ...cellOf(next, ref), value: Math.round(value * 1e10) / 1e10, formula: null };
-      }
+    const columns = choice.direction === "columns";
+    const length = columns ? selection.r2 - selection.r1 + 1 : selection.c2 - selection.c1 + 1;
+    const lines = columns ? Array.from({ length: selection.c2 - selection.c1 + 1 }, (_, i) => selection.c1 + i) : Array.from({ length: selection.r2 - selection.r1 + 1 }, (_, i) => selection.r1 + i);
+    const refOf = (line: number, k: number) => (columns ? refAt(selection.r1 + k, line) : refAt(line, selection.c1 + k));
+    // AutoFill: the fill handle's own rules, from the filled cells the selection starts with.
+    if (choice.type === "autofill") {
+      let lead = 0;
+      while (lead < length && lines.some((line) => !isBlankCell(cellOf(cells, refOf(line, lead))))) lead++;
+      if (!lead || lead >= length) return;
+      const source = columns ? { r1: selection.r1, c1: selection.c1, r2: selection.r1 + lead - 1, c2: selection.c2 } : { r1: selection.r1, c1: selection.c1, r2: selection.r2, c2: selection.c1 + lead - 1 };
+      change("fillSeries:autofill", { cells: autoFill(cells, source, columns ? "down" : "right", length - lead) });
+      return;
     }
-    change("fillSeries", { cells: next });
+    const next = { ...cells };
+    for (const line of lines) {
+      const values = seriesLine(Array.from({ length }, (_, k) => cellOf(cells, refOf(line, k)).value), length, { type: choice.type, dateUnit: choice.dateUnit, step: choice.step, stop: choice.stop, trend: choice.trend });
+      if (!values) continue;
+      const startFormat = cellOf(cells, refOf(line, 0)).numberFormat;
+      values.forEach((value, k) => {
+        if (value === null) return;
+        const ref = refOf(line, k), cell = cellOf(next, ref);
+        next[ref] = { ...cell, value, formula: null, ...(choice.type === "date" && (!cell.numberFormat || cell.numberFormat === "General") ? { numberFormat: startFormat ?? "ShortDate" } : {}) };
+      });
+    }
+    change(choice.type === "date" ? "fillSeries:date" : choice.trend ? "fillSeries:trend" : `fillSeries:${choice.type}`, { cells: next });
+  };
+  // Fill > Justify: the text of the selected column's cells joined, then wrapped again to the column's width
+  // (one line per cell); text that needs more rows runs on below the selection, as Excel warns.
+  const justifyText = () => {
+    const col = selection.c1, rows = Array.from({ length: selection.r2 - selection.r1 + 1 }, (_, i) => selection.r1 + i);
+    const filled = rows.map((row) => cellOf(cells, refAt(row, col))).filter((cell) => !isBlankCell(cell) && cell.value !== null && cell.value !== "");
+    if (filled.some((cell) => typeof cell.value === "number" || cell.formula)) { setNotice("Cannot justify cells that contain numbers or formulas."); return; }
+    if (!filled.length) return;
+    const width = Math.max(1, Math.floor((colPx(col) - 6) / 7));
+    const lines: string[] = [];
+    for (const word of filled.map((cell) => String(cell.value)).join(" ").split(/\s+/).filter(Boolean)) {
+      const last = lines[lines.length - 1];
+      if (last !== undefined && (last + " " + word).length <= width) lines[lines.length - 1] = last + " " + word; else lines.push(word);
+    }
+    const next = { ...cells };
+    const total = Math.max(rows.length, Math.min(lines.length, MAX_ROWS - selection.r1 + 1));
+    for (let i = 0; i < total; i++) { const ref = refAt(selection.r1 + i, col); next[ref] = { ...cellOf(next, ref), value: lines[i] ?? null, formula: null }; }
+    if (lines.length > rows.length) setNotice("Text will extend below selected range.");
+    change("justify", { cells: next });
+  };
+  // Fill > Flash Fill (Ctrl+E): the examples typed in the active cell's column (the filled cells above it), and the
+  // rows below them that have data, filled in the same pattern.
+  const runFlashFill = () => {
+    const col = focus.col, extent = usedExtent(cells, merges, sheet, baseRows, baseCols);
+    const text = (row: number) => { const cell = cells[refAt(row, col)]; return cell && cell.value !== null && cell.value !== "" ? String(cell.value) : null; };
+    const sourcesOf = (row: number) => Array.from({ length: extent.cols }, (_, c) => { if (c === col) return null; const value = cells[refAt(row, c)]?.value; return value === undefined || value === "" ? null : value; });
+    const hasData = (row: number) => sourcesOf(row).some((value) => value !== null);
+    let bottom = text(focus.row) !== null ? focus.row : focus.row - 1;
+    let top = bottom;
+    while (top > 1 && text(top - 1) !== null) top--;
+    if (bottom < 1 || text(bottom) === null) { top = focus.row; bottom = focus.row - 1; while (top > 1 && text(top - 1) !== null) top--; }
+    const rows: number[] = [];
+    for (let row = top; row <= extent.rows && (row <= bottom || hasData(row)); row++) rows.push(row);
+    const attempt = (from: number) => flashFill(rows.filter((row) => row >= from).map((row) => ({ sources: sourcesOf(row), output: row <= bottom ? text(row) : null })));
+    let filled = attempt(top), first = top;
+    if (!filled && bottom > top) { filled = attempt(top + 1); first = top + 1; }
+    const used = rows.filter((row) => row >= first);
+    if (!filled || !filled.some((value) => value !== null)) { setNotice("Flash Fill didn't recognize a pattern to fill the values. To use Flash Fill, enter a couple of examples of the output you want, keep the active cell in the column you want filled in, and click the Flash Fill button again."); return; }
+    const next = { ...cells };
+    filled.forEach((value, i) => { if (value === null) return; const ref = refAt(used[i], col); if (text(used[i]) === null) next[ref] = { ...cellOf(next, ref), value, formula: null }; });
+    change("flashFill", { cells: next });
   };
   const clearComments = () => formatSelection({ comment: null }, "clearComments");
   const clearHyperlinks = () => formatSelection({ link: null }, "clearHyperlinks");
@@ -1202,11 +1268,14 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                 <MenuItem onClick={() => openDialog({ kind: "insertFunction" })}>More Functions...</MenuItem>
               </MenuButton>
               <MenuButton id="fill-range" menu={menu} setMenu={setMenu} label="Fill" icon={<span className="flex items-center gap-1"><span className="text-[#2a6bd4]">⬇</span>Fill</span>} disabled={submitted}>
-                <MenuItem onClick={() => { fillRange("down"); setMenu(null); }}>Down</MenuItem>
-                <MenuItem onClick={() => { fillRange("right"); setMenu(null); }}>Right</MenuItem>
-                <MenuItem onClick={() => { fillRange("up"); setMenu(null); }}>Up</MenuItem>
-                <MenuItem onClick={() => { fillRange("left"); setMenu(null); }}>Left</MenuItem>
-                <MenuItem onClick={() => openDialog({ kind: "series" })}>Series...</MenuItem>
+                <MenuItem icon={<FillIcon arrow="down" />} disabled={fillSourceLine("down") === null} onClick={() => { fillRange("down"); setMenu(null); }}><u>D</u>own</MenuItem>
+                <MenuItem icon={<FillIcon arrow="right" />} disabled={fillSourceLine("right") === null} onClick={() => { fillRange("right"); setMenu(null); }}><u>R</u>ight</MenuItem>
+                <MenuItem icon={<FillIcon arrow="up" />} disabled={fillSourceLine("up") === null} onClick={() => { fillRange("up"); setMenu(null); }}><u>U</u>p</MenuItem>
+                <MenuItem icon={<FillIcon arrow="left" />} disabled={fillSourceLine("left") === null} onClick={() => { fillRange("left"); setMenu(null); }}><u>L</u>eft</MenuItem>
+                <MenuItem disabled onClick={() => setMenu(null)}><u>A</u>cross Worksheets...</MenuItem>
+                <MenuItem onClick={() => openDialog({ kind: "series" })}><u>S</u>eries...</MenuItem>
+                <MenuItem onClick={() => { justifyText(); setMenu(null); }}><u>J</u>ustify</MenuItem>
+                <MenuItem icon={<span aria-hidden className="text-[12px] leading-none text-[#c48a00]">⚡</span>} onClick={() => { runFlashFill(); setMenu(null); }}><u>F</u>lash Fill</MenuItem>
               </MenuButton>
               <MenuButton id="clear" menu={menu} setMenu={setMenu} label="Clear" icon={<span className="flex items-center gap-1"><span className="text-[#d24726]">⌫</span>Clear</span>} disabled={submitted}>
                 <MenuItem onClick={() => { clearAll(); setMenu(null); }}>Clear All</MenuItem>
@@ -1757,8 +1826,13 @@ function Popover({ children, className, label, role = "menu" }: { children: Reac
 function Menu({ children }: { children: React.ReactNode }) {
   return <Popover className="min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg">{children}</Popover>;
 }
-function MenuItem({ children, onClick, checked }: { children: React.ReactNode; onClick: () => void; checked?: boolean }) {
-  return <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={onClick} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-[#d5e1f2] ${checked ? "font-semibold text-[#217346]" : ""}`}><span className="w-3">{checked ? "✓" : ""}</span>{children}</button>;
+// Excel's small Fill menu arrows: a blue arrow into a cell.
+function FillIcon({ arrow }: { arrow: "down" | "right" | "up" | "left" }) {
+  const rotate = { down: 0, left: 90, up: 180, right: 270 }[arrow];
+  return <svg aria-hidden viewBox="0 0 14 14" className="h-3.5 w-3.5" style={{ transform: `rotate(${rotate}deg)` }}><rect x="1.5" y="1.5" width="11" height="11" fill="#fff" stroke="#8c8c8c" /><path d="M7 3v6M4.5 6.8 7 9.5l2.5-2.7" fill="none" stroke="#2a6bd4" strokeWidth="1.6" /><path d="M3 11h8" stroke="#2a6bd4" strokeWidth="1.4" /></svg>;
+}
+function MenuItem({ children, onClick, checked, disabled, icon }: { children: React.ReactNode; onClick: () => void; checked?: boolean; disabled?: boolean; icon?: React.ReactNode }) {
+  return <button type="button" role="menuitem" disabled={disabled} aria-disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-[#d5e1f2] disabled:cursor-default disabled:text-[#a6a6a6] disabled:hover:bg-transparent ${checked ? "font-semibold text-[#217346]" : ""}`}><span className="flex w-3.5 justify-center">{icon ?? (checked ? "✓" : "")}</span>{children}</button>;
 }
 function MenuButton({ id, menu, setMenu, label, icon, children, disabled, big, onMain }: { id: string; menu: string | null; setMenu: (value: string | null) => void; label: string; icon: React.ReactNode; children: React.ReactNode; disabled?: boolean; big?: boolean; onMain?: () => void }) {
   const open = menu === id;
