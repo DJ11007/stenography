@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { RichSheetEditor, type ExcelDocument } from "@/app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor";
 import { diffExcelDocuments, excelQuestionRules, excelRuleGroups } from "@/lib/excel-document-diff";
 import { resetExcelEfficiencyModelAnswer, saveExcelEfficiencyModelAnswer, saveExcelEfficiencyQuestionRules } from "../../actions";
@@ -28,7 +29,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
   const handleReset = async () => {
     if (!confirm("Reset the model answer for this test? This clears every question's saved answer and auto-grading rule here — it does not change any student's already-graded result. This can't be undone.")) return;
     setResetting(true); setMessage(null);
-    const result = await resetExcelEfficiencyModelAnswer(versionId);
+    const result = await resetExcelEfficiencyModelAnswer(versionId).catch((error: unknown) => ({ ok: false, error: isStaleServerActionError(error) ? "This page was updated on the server. Refresh the page, then press Reset again." : "Could not reset. Check your internet connection and try again." }));
     if (!result.ok) { setResetting(false); setMessage({ text: result.error, ok: false }); return; }
     window.location.reload();
   };

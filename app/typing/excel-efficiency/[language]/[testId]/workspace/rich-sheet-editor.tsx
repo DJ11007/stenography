@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
 import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
+import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
 import { NUMBER_FORMAT_LABELS, PAPER_SIZES, toExcelDocumentV3, type ChartType, type ConditionalType, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
 import {
@@ -155,20 +156,59 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     const extent = usedExtent(kept, m, s, baseRows, baseCols);
     return { schemaVersion: "3", rows: extent.rows, cols: extent.cols, cells: kept, merges: m, sheet: s, operations: ops.slice(0, 256), savedAt: new Date().toISOString() };
   }, [cells, merges, sheet, operations, baseRows, baseCols]);
+  // Each deploy gives the save actions new ids, so a page opened before a deploy gets a 404 ("Server Action ... was
+  // not found") on its next save. The sheet is then kept in this tab (sessionStorage) and the page reloads itself;
+  // after the reload the kept sheet is put back and saved again, so nothing is lost. A network failure keeps the
+  // sheet the same way and the next change (or Save) tries again.
+  const [staleDeploy, setStaleDeploy] = useState(false);
+  const keptKey = `excel-unsaved:${mode}:${attemptId}`;
+  const keepUnsaved = (document: ExcelDocument) => { try { sessionStorage.setItem(keptKey, JSON.stringify(document)); } catch { /* storage unavailable */ } };
+  const clearUnsaved = () => { try { sessionStorage.removeItem(keptKey); } catch { /* storage unavailable */ } };
+  const recoverFromDeploy = (document: ExcelDocument) => {
+    keepUnsaved(document);
+    setStaleDeploy(true);
+    // One automatic reload; if the page is still stale right after it, the Refresh page button stays instead of looping.
+    let recent = false;
+    try { recent = Date.now() - Number(sessionStorage.getItem("excel-deploy-reload") ?? 0) < 60_000; sessionStorage.setItem("excel-deploy-reload", String(Date.now())); } catch { recent = true; }
+    if (!recent) window.location.reload();
+  };
+  const saveDocument = async () => {
+    const document = buildDocument() as ExcelDocument;
+    setStatus("Saving…");
+    try {
+      const result = await (autosaveAction ?? autosaveExcelDocument)(attemptId, document);
+      if (result.ok) clearUnsaved(); else keepUnsaved(document);
+      setStatus(result.ok ? "Saved" : result.error);
+    } catch (error) {
+      if (isStaleServerActionError(error)) { setStatus("This page was updated. Reloading to save your work…"); recoverFromDeploy(document); return; }
+      keepUnsaved(document);
+      setStatus("Could not save. Check your internet connection; your work is kept and will be saved again.");
+    }
+  };
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (revision === 0 || submitted) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(async () => {
-      setStatus("Saving…");
-      const result = await (autosaveAction ?? autosaveExcelDocument)(attemptId, buildDocument());
-      setStatus(result.ok ? "Saved" : result.error);
-    }, 800);
+    autosaveTimer.current = setTimeout(() => { void saveDocument(); }, 800);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [revision]); // eslint-disable-line react-hooks/exhaustive-deps -- saves after each change
 
   // The Model Answer page needs the sheet as it first looks (before anything is changed) as its checkpoint.
   useEffect(() => { onReady?.(buildDocument()); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on first render
+  // A sheet kept in this tab when a save failed (see saveDocument) comes back after the reload and is saved again,
+  // unless the saved one is newer (saved from another tab meanwhile).
+  useEffect(() => {
+    let kept: ExcelDocument | null = null;
+    try { const raw = sessionStorage.getItem(keptKey); kept = raw ? toExcelDocumentV3(JSON.parse(raw)) : null; } catch { kept = null; }
+    if (!kept || locked || (start.savedAt && kept.savedAt <= start.savedAt)) { clearUnsaved(); return; }
+    const sheetToRestore = kept;
+    const timer = setTimeout(() => {
+      setCells(sheetToRestore.cells); setMerges(sheetToRestore.merges); setSheet(sheetToRestore.sheet); setOperations(sheetToRestore.operations ?? []);
+      setRevision((current) => current + 1);
+      setStatus("Your unsaved work was put back. Saving…");
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, on first render
 
   // Development only: lets the local test page read the sheet as it would be saved.
   useEffect(() => { if (process.env.NODE_ENV !== "production") (window as unknown as { __excelDocument?: () => ExcelDocument }).__excelDocument = () => buildDocument(); });
@@ -397,6 +437,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     const fail = (message: string) => { setStatus(message); setFinalSubmitting(false); submitting.current = false; if (!auto) setSubmitProblem(message); return false; };
     try {
       const result = await (submitAction ?? submitExcelDocument)(attemptId, finalDocument);
+      clearUnsaved();
       if (!result.ok) {
         if (/already submitted/i.test(result.error)) { submittedRef.current = true; setSubmitted(true); router.push(`/typing/excel-efficiency/results/${attemptId}`); return true; }
         return fail(result.error);
@@ -405,7 +446,11 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       submittedRef.current = true; setSubmitted(true); setStatus("Test submitted successfully");
       router.push(`/typing/excel-efficiency/results/${attemptId}`);
       return true;
-    } catch { return fail("Submission failed. Check your internet connection and try again."); }
+    } catch (error) {
+      keepUnsaved(finalDocument as ExcelDocument);
+      if (isStaleServerActionError(error)) { setStaleDeploy(true); return fail("This page was updated on the server. Press Refresh page, then press the button again. Your sheet is kept, nothing is lost."); }
+      return fail("Submission failed. Check your internet connection and try again.");
+    }
   };
   useEffect(() => {
     if (!autoSubmit || submitted) return;
@@ -485,7 +530,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     ["Accent2", { fillColor: "ED7D31", fontColor: "FFFFFF" }], ["Accent6", { fillColor: "70AD47", fontColor: "FFFFFF" }],
     ["Comma", { numberFormat: "Number", decimals: 2 }], ["Currency", { numberFormat: "Currency", decimals: 2 }], ["Percent", { numberFormat: "Percentage", decimals: 0 }],
   ];
-  const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); setStatus("Saving…"); const result = await (autosaveAction ?? autosaveExcelDocument)(attemptId, buildDocument()); setStatus(result.ok ? "Saved" : result.error); };
+  const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); void saveDocument(); };
   const openContextMenu = (event: React.MouseEvent, row: number, col: number) => {
     event.preventDefault();
     if (!rectContains(selection, row, col)) select(row, col);
@@ -1609,7 +1654,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {dialog?.kind === "input" && dialog.purpose === "chartTitle" && <InputDialog title="Chart Title" label="Chart title:" initial={(sheet.charts ?? []).find((chart) => chart.id === dialog.chartId)?.title ?? ""} onOk={(value) => applyInput("chartTitle", value, dialog.chartId)} onCancel={closeDialog} />}
       {headerDialog && <HeaderFooterDialog header={sheet.header} footer={sheet.footer} onCancel={() => setHeaderDialog(false)} onOk={(header, footer) => { setHeaderDialog(false); const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? ""))); change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header"); }} />}
       <footer className="flex items-center justify-between gap-3 border-t bg-slate-950 px-4 py-2 text-white">
-        <p aria-live="polite" className="text-sm font-bold">Autosave: {status}</p>
+        <p aria-live="polite" className="text-sm font-bold">Autosave: {status}{staleDeploy && <button type="button" onClick={() => window.location.reload()} className="ml-3 rounded-lg bg-amber-400 px-3 py-1 text-xs font-black text-slate-950 hover:bg-amber-300">Refresh page</button>}</p>
         <button type="button" disabled={submitted} onClick={() => { if (editing) commitEdit(); if (submitted) return; if (submitConfirmMessage === null) void submitNow(false); else setConfirmSubmitOpen(true); }} className="rounded-xl bg-red-600 px-5 py-2.5 font-black text-white outline-none hover:bg-red-500 disabled:bg-slate-500">{submitLabel}</button>
       </footer>
     </div>
