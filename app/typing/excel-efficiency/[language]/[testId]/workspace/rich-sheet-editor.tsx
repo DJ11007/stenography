@@ -112,6 +112,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   // before the new selection has rendered.
   const paintStart = useRef<{ row: number; col: number } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   // The grid listens through a hidden text box, as Google Sheets does: typed text arrives whether it comes as
   // key presses, from an input method (Hindi keyboards, phones) or as pasted text.
@@ -271,14 +272,56 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
 
   // ---------- typing into cells ----------
   const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } editText.set(initial ?? (active.formula ?? (active.value == null ? "" : String(active.value)))); setEditing({ ref: activeCellRef, fromBar }); };
-  useEffect(() => { if (editing && !editing.fromBar) editInputRef.current?.focus(); }, [editing?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Where the caret goes when an edit starts: the end of the text, or a part of it (AutoSum selects its range,
+  // =SUM(B4:F4), so the student can drag over other cells to change it before pressing Enter, as in Excel).
+  const pendingEditSelection = useRef<[number, number] | null>(null);
+  useEffect(() => {
+    if (!editing || editing.fromBar) return;
+    const input = editInputRef.current;
+    if (!input) return;
+    input.focus();
+    const [start, end] = pendingEditSelection.current ?? [input.value.length, input.value.length];
+    pendingEditSelection.current = null;
+    input.setSelectionRange(start, end);
+  }, [editing?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Point mode: while a formula is being typed, clicking a cell (or dragging over a range) puts its reference into
+  // the formula, where the caret is or over the selected part; clicking again replaces the reference just put in.
+  const formulaBarRef = useRef<HTMLInputElement>(null);
+  const pointing = useRef<{ row: number; col: number } | null>(null);
+  const lastPointed = useRef<{ start: number; end: number; text: string } | null>(null);
+  const editInput = () => (editing?.fromBar ? formulaBarRef.current : editInputRef.current);
+  const pointTarget = (): [number, number] | null => {
+    const input = editInput(), text = editText.get();
+    if (!input || !text.startsWith("=")) return null;
+    const start = input.selectionStart ?? text.length, end = input.selectionEnd ?? start;
+    const last = lastPointed.current;
+    if (last && last.text === text && start === end && end === last.end) return [last.start, last.end];
+    if (start !== end) return [start, end];
+    return /[=(,+\-*/^&<>:;]\s*$/.test(text.slice(0, start)) ? [start, start] : null;
+  };
+  const putReference = (from: { row: number; col: number }, to: { row: number; col: number }, at: [number, number]) => {
+    const rect = expandForMerges(normalizeRect(from, to), merges);
+    const ref = rect.r1 === rect.r2 && rect.c1 === rect.c2 ? refAt(rect.r1, rect.c1) : `${refAt(rect.r1, rect.c1)}:${refAt(rect.r2, rect.c2)}`;
+    const text = editText.get(), next = text.slice(0, at[0]) + ref + text.slice(at[1]), caret = at[0] + ref.length;
+    editText.set(next);
+    lastPointed.current = { start: at[0], end: caret, text: next };
+    requestAnimationFrame(() => { const input = editInput(); input?.focus(); input?.setSelectionRange(caret, caret); });
+  };
+  // Enter closes brackets left open (=SUM(B4:F4 becomes =SUM(B4:F4)), as Excel does.
+  const closeBrackets = (text: string) => {
+    if (!text.startsWith("=")) return text;
+    let open = 0, quoted = false;
+    for (const char of text) { if (char === '"') quoted = !quoted; else if (!quoted) open += char === "(" ? 1 : char === ")" ? -1 : 0; }
+    return open > 0 ? text + ")".repeat(open) : text;
+  };
   // Escape drops the typed text, as in Excel. Moving focus back to the grid blurs the editor, whose blur would
   // otherwise save it; the flag stops that one commit.
   const cancelled = useRef(false);
   const cancelEdit = () => { cancelled.current = true; setEditing(null); focusGrid(); cancelled.current = false; };
   const commitEdit = (move: "down" | "right" | "none" = "none") => {
     if (!editing || cancelled.current) return;
-    const text = editText.get();
+    const text = closeBrackets(editText.get());
+    lastPointed.current = null;
     const current = cellOf(cells, editing.ref);
     // A typed date (25-10-2026, 25/10/2026, 2026-10-25) is stored as Excel's date number with a date format.
     const typedDate = current.numberFormat === "Text" ? null : parseDate(text);
@@ -397,11 +440,13 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     sortRows(rect, column, direction === "desc", looksLikeHeaders(rect), direction === "asc" ? "sortAscending" : "sortDescending");
   };
   const autoSum = (fn = "SUM") => {
+    // As in Excel: the formula is shown in the cell with the range it guessed selected (=SUM(B4:F4)); drag over
+    // other cells to change the range, then press Enter to apply it.
     const range = autoSumRange(cells, focus.row, focus.col);
-    if (!range) { beginEdit(`=${fn}()`); return; }
-    const formula = `=${fn}(${range})`;
-    change(`formula:${fn}`, { cells: { ...cells, [activeCellRef]: { ...active, ...parseEntry(formula) } } });
+    const inside = fn.length + 2;
+    pendingEditSelection.current = range ? [inside, inside + range.length] : [inside, inside];
     record("autoSum");
+    beginEdit(range ? `=${fn}(${range})` : `=${fn}()`);
   };
 
   // ---------- keyboard ----------
@@ -481,7 +526,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
     return () => { cancelled = true; };
   }, [autoSubmit]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once when the clock expires
 
-  useEffect(() => { const stop = () => { dragging.current = false; }; window.addEventListener("mouseup", stop); return () => window.removeEventListener("mouseup", stop); }, []);
+  useEffect(() => { const stop = () => { dragging.current = false; pointing.current = null; }; window.addEventListener("mouseup", stop); return () => window.removeEventListener("mouseup", stop); }, []);
   useEffect(() => { if (!menu) return; const close = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest?.("[data-xl-menu]")) setMenu(null); }; window.addEventListener("mousedown", close); return () => window.removeEventListener("mousedown", close); }, [menu]);
 
   // ---------- status bar figures ----------
@@ -1488,7 +1533,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {sheet.formulaBar && <div className="flex items-center gap-2 border-b border-slate-300 bg-white px-2 py-1">
         <input aria-label="Name Box" value={nameBox ?? nameBoxValue} onFocus={(event) => { setNameBox(nameBoxValue); selectAllOnFocus.onFocus(event); }} onMouseUp={selectAllOnFocus.onMouseUp} onChange={(event) => setNameBox(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBox ?? ""); if (event.key === "Escape") { setNameBox(null); focusGrid(); } }} onBlur={() => setNameBox(null)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
         <button type="button" aria-label="Insert Function" title="Insert Function" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "insertFunction" })} className="px-1 font-serif text-[13px] italic text-slate-500 hover:bg-slate-100 disabled:opacity-50">fx</button>
-        <StoreInput store={editText} live={Boolean(editing)} fallback={formulaBarValue} aria-label="Formula bar" disabled={submitted}
+        <StoreInput inputRef={formulaBarRef} store={editText} live={Boolean(editing)} fallback={formulaBarValue} aria-label="Formula bar" disabled={submitted}
           onFocus={() => { if (!editing) beginEdit(undefined, true); }}
           onText={(value) => { editText.set(value); if (!editing?.fromBar) setEditing((current) => ({ ref: current?.ref ?? activeCellRef, fromBar: true })); }}
           onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Escape") cancelEdit(); }}
@@ -1504,7 +1549,8 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
           onPaste={(event) => { event.preventDefault(); if (!submitted) pasteText(event.clipboardData.getData("text/plain")); }}
           className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0" />
         <div className="relative" style={{ zoom: zoom / 100 } as CSSProperties}>
-          <table className="border-separate border-spacing-0 text-[13px]" style={{ tableLayout: "fixed", fontFamily: DEFAULT_FONT, width: headerColPx + Array.from({ length: displayCols }, (_, col) => colPx(col)).reduce((a, b) => a + b, 0) }}>
+          <FormulaReferences store={editText} live={Boolean(editing)} tableRef={tableRef} />
+          <table ref={tableRef} className="border-separate border-spacing-0 text-[13px]" style={{ tableLayout: "fixed", fontFamily: DEFAULT_FONT, width: headerColPx + Array.from({ length: displayCols }, (_, col) => colPx(col)).reduce((a, b) => a + b, 0) }}>
             <colgroup>{sheet.headings && <col style={{ width: ROW_HEADER_WIDTH }} />}{Array.from({ length: displayCols }, (_, col) => <col key={col} style={{ width: colPx(col) }} />)}</colgroup>
             {sheet.headings && <thead>
               <tr>
@@ -1576,13 +1622,17 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                             setSelectedChart(null);
                             // A right-click inside the selection keeps it (the menu then acts on all of it), as in Excel.
                             if (event.button === 2 && rectContains(selection, row, col)) return;
+                            if (editing && !isEditing && event.button === 0) {
+                              const at = pointTarget();
+                              if (at) { event.preventDefault(); pointing.current = { row, col }; putReference({ row, col }, { row, col }, at); return; }
+                            }
                             if (editing && !isEditing) commitEdit();
                             focusGrid();
                             if (painter) { dragging.current = true; paintStart.current = { row, col }; select(row, col); return; }
                             dragging.current = true;
                             select(row, col, event.shiftKey);
                           }}
-                          onMouseEnter={() => { if (dragging.current) setFocus({ row, col }); else if (fillDrag) setFillDrag({ ...fillDrag, target: { row, col } }); }}
+                          onMouseEnter={() => { if (pointing.current && lastPointed.current) { putReference(pointing.current, { row, col }, [lastPointed.current.start, lastPointed.current.end]); return; } if (dragging.current) setFocus({ row, col }); else if (fillDrag) setFillDrag({ ...fillDrag, target: { row, col } }); }}
                           onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (
@@ -1760,6 +1810,29 @@ function createTextStore(): TextStore {
   const listeners = new Set<() => void>();
   return { get: () => value, set: (next) => { if (next === value) return; value = next; listeners.forEach((listener) => listener()); }, subscribe: (listener) => { listeners.add(listener); return () => { listeners.delete(listener); }; } };
 }
+// While a formula is typed, each cell or range it refers to is outlined in its own colour, as Excel does.
+const REFERENCE_COLORS = ["#4472C4", "#C00000", "#7030A0", "#00B050", "#ED7D31", "#00B0F0"];
+function FormulaReferences({ store, live, tableRef }: { store: TextStore; live: boolean; tableRef: React.RefObject<HTMLTableElement | null> }) {
+  const text = useSyncExternalStore(store.subscribe, store.get, () => "");
+  const [boxes, setBoxes] = useState<{ left: number; top: number; width: number; height: number; color: string }[]>([]);
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!live || !text.startsWith("=") || !table) { setBoxes((old) => (old.length ? [] : old)); return; }
+    const found: { left: number; top: number; width: number; height: number; color: string }[] = [];
+    const unquoted = text.replace(/"[^"]*"?/g, (match) => " ".repeat(match.length));
+    let index = 0;
+    for (const match of unquoted.matchAll(/\$?([A-Z]{1,2})\$?([0-9]{1,3})(?::\$?([A-Z]{1,2})\$?([0-9]{1,3}))?(?![A-Za-z0-9(])/g)) {
+      const first = table.querySelector<HTMLElement>(`[data-ref="${match[1]}${match[2]}"]`), last = match[3] ? table.querySelector<HTMLElement>(`[data-ref="${match[3]}${match[4]}"]`) : first;
+      if (!first || !last) continue;
+      const left = Math.min(first.offsetLeft, last.offsetLeft), top = Math.min(first.offsetTop, last.offsetTop);
+      const right = Math.max(first.offsetLeft + first.offsetWidth, last.offsetLeft + last.offsetWidth), bottom = Math.max(first.offsetTop + first.offsetHeight, last.offsetTop + last.offsetHeight);
+      found.push({ left, top, width: right - left, height: bottom - top, color: REFERENCE_COLORS[index++ % REFERENCE_COLORS.length] });
+    }
+    setBoxes(found);
+  }, [text, live, tableRef]);
+  return <>{boxes.map((box, i) => <div key={i} aria-hidden data-formula-reference className="pointer-events-none absolute z-[12]" style={{ left: box.left, top: box.top, width: box.width, height: box.height, border: `2px dashed ${box.color}`, background: `${box.color}14` }} />)}</>;
+}
+
 // An input showing the store while live (being edited), otherwise the fallback text.
 function StoreInput({ store, live, fallback, onText, inputRef, ...rest }: { store: TextStore; live: boolean; fallback: string; onText: (value: string) => void; inputRef?: React.Ref<HTMLInputElement> } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const text = useSyncExternalStore(store.subscribe, store.get, store.get);
@@ -1943,11 +2016,12 @@ function MenuHeading({ children }: { children: React.ReactNode }) {
 function MenuSeparator() {
   return <div className="my-1 border-t border-[#e1e1e1]" />;
 }
-// Clicking into the Name Box or the Font Size box selects its text, as in Excel, so typing replaces it. The
-// mouse-up that follows the focusing click would put the caret back; it is skipped once.
+// Clicking into the Name Box or the Font Size box selects its text, as in Excel, so typing replaces it (focus by
+// keyboard selects on focus; a mouse click selects again on the mouse-up that follows it).
 const selectAllOnFocus = {
   onFocus: (event: React.FocusEvent<HTMLInputElement>) => { event.currentTarget.select(); event.currentTarget.dataset.selectAll = "1"; },
-  onMouseUp: (event: React.MouseEvent<HTMLInputElement>) => { if (event.currentTarget.dataset.selectAll) { event.preventDefault(); delete event.currentTarget.dataset.selectAll; } },
+  // The browser puts the caret where the mouse went down after the focus event, so a mouse click selects again here.
+  onMouseUp: (event: React.MouseEvent<HTMLInputElement>) => { if (event.currentTarget.dataset.selectAll) { event.preventDefault(); event.currentTarget.select(); delete event.currentTarget.dataset.selectAll; } },
 };
 
 function FontSizeBox({ value, onChange, disabled }: { value: number; onChange: (size: number) => void; disabled?: boolean }) {

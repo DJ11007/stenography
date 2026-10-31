@@ -17,8 +17,8 @@ test("typed text lives in a small store, so a keystroke redraws only the cell ed
   assert.match(source, /const \[editing, setEditing\] = useState<\{ ref: string; fromBar: boolean \} \| null>\(null\);/);
   assert.match(source, /const \[editText\] = useState\(createTextStore\);/);
   assert.match(source, /<StoreInput inputRef=\{editInputRef\} store=\{editText\} live fallback="" aria-label=\{`Edit \$\{ref\}`\} onText=\{\(value\) => editText\.set\(value\)\}/);
-  assert.match(source, /<StoreInput store=\{editText\} live=\{Boolean\(editing\)\} fallback=\{formulaBarValue\} aria-label="Formula bar"/);
-  assert.match(source, /const text = editText\.get\(\);/);
+  assert.match(source, /<StoreInput inputRef=\{formulaBarRef\} store=\{editText\} live=\{Boolean\(editing\)\} fallback=\{formulaBarValue\} aria-label="Formula bar"/);
+  assert.match(source, /const text = closeBrackets\(editText\.get\(\)\);/);
   assert.doesNotMatch(source, /editing\.value/);
 });
 
