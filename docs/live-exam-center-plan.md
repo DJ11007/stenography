@@ -34,6 +34,20 @@ Every section has a **gap after it** (minutes:seconds countdown, waiting only; t
 - **Results sheet** (CSV, opens in Excel): `Name | <Section 1> (max) | <Section 2> (max) | … | Total (sum of max)`,
   e.g. `Name | Hindi Typing (25) | English Typing (25) | Word Efficiency (25) | Excel Efficiency (25) | Total (100)`.
 
+## Real-exam look (student side, requested 2026-11-01)
+- **Exam login screen** before the exam: the student types their login ID and password again (checked with
+  Supabase sign-in for their own account) and presses **Login**. Next to it a **Peripheral check** button opens a text
+  box to test the keyboard (English only), showing each key as it is pressed.
+- **Instructions** under the login: the standard instructions for the pattern (RSMSSB LDC by default) plus any the
+  admin adds to that exam.
+- **Candidate panel** on the left during the whole exam: photo (or initials when none), name, login ID shown in
+  full, password shown as `XXXXXX` (passwords are never stored readable, so the real one cannot be shown), roll
+  number / exam name, the section now running and the time left.
+- **Wait messages** on the waiting and gap screens: a calm countdown in minutes and seconds, the next section's name
+  and duration, and short tips ("Keep your hands ready on the home row…", "Do not refresh or close this page…").
+- **Photos**: an optional photo on the student profile (uploaded by the student or by the admin); the panel falls back
+  to initials.
+
 ## Build order
 1. Database: `live_exams` (title, template, starts_at, results_at, status) and `live_exam_sections` (order, type, test
    reference, durations, gap, max marks), `live_exam_participants` (student, the attempt id of each section); RPCs that
