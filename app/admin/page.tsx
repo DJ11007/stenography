@@ -33,6 +33,7 @@ const groups = [
       ["/admin/live-typing-tests", "Live Typing Test", "Create a scheduled live typing test -- optionally pick one of the 25 exam-category presets to auto-fill speed, duration and backspace, or set everything by hand.", "Manage →"],
       ["/admin/live-stenography-tests", "Live Stenography Test", "Create a scheduled live stenography test -- optionally pick one of the researched stenography-category presets, or set dictation speed and accuracy by hand.", "Manage →"],
       ["/admin/live-efficiency-tests", "Live Efficiency Test", "Create a scheduled live Word or Excel Efficiency test.", "Manage →"],
+      ["/admin/live-exams", "Live Exam Center", "Build a full timed exam (e.g. RSMSSB LDC: Hindi typing, English typing, Word, Excel with breaks) from tests you have already uploaded.", "Manage →"],
     ],
   },
   {
