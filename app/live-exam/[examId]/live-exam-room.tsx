@@ -173,22 +173,22 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
 function CandidatePanel({ candidate, running, timeLeft, sections, now }: { candidate: Candidate; running: string; timeLeft: string | null; sections: LiveExamSectionState[]; now: number }) {
   const initials = candidate.name.split(/\s+/u).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "C";
   return (
-    <aside className="w-full shrink-0 border-b border-slate-300 bg-white p-4 md:w-[12.5rem] md:border-b-0 md:border-r md:p-3">
+    <aside className="w-full shrink-0 border-b border-slate-300 bg-white p-4 md:w-[8.75rem] md:border-b-0 md:border-r md:p-2">
       <div className="flex items-center gap-3 md:flex-col md:text-center">
         {candidate.photoUrl
-          ? <img src={candidate.photoUrl} alt="Candidate photo" className="h-20 w-20 shrink-0 rounded-lg border-2 border-[#0b2e59] object-cover md:h-24 md:w-20" />
-          : <div aria-label="Candidate photo" className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-[#0b2e59] bg-[#dbe7f5] text-2xl font-black text-[#0b2e59] md:h-24 md:w-20">{initials}</div>}
+          ? <img src={candidate.photoUrl} alt="Candidate photo" className="h-20 w-20 shrink-0 rounded-lg border-2 border-[#0b2e59] object-cover md:h-16 md:w-14" />
+          : <div aria-label="Candidate photo" className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-[#0b2e59] bg-[#dbe7f5] text-2xl font-black text-[#0b2e59] md:h-16 md:w-14 md:text-lg">{initials}</div>}
         <div className="min-w-0">
-          <p className="truncate text-lg font-black text-slate-900 md:text-base" title={candidate.name}>{candidate.name}</p>
+          <p className="truncate text-lg font-black text-slate-900 md:text-sm" title={candidate.name}>{candidate.name}</p>
           <p className="text-xs text-slate-500">Roll No. {candidate.rollNumber}</p>
         </div>
       </div>
-      <dl className="mt-4 grid gap-2 text-sm">
-        <div className="rounded-lg bg-slate-50 px-3 py-2"><dt className="text-[11px] font-black uppercase tracking-wider text-slate-500">Login ID</dt><dd className="break-all font-bold text-slate-900">{candidate.loginId || "—"}</dd></div>
-        <div className="rounded-lg bg-slate-50 px-3 py-2"><dt className="text-[11px] font-black uppercase tracking-wider text-slate-500">Password</dt><dd className="font-mono font-bold tracking-[0.3em] text-slate-900">XXXXXX</dd></div>
-        <div className="rounded-lg bg-[#0b2e59] px-3 py-2 text-white"><dt className="text-[11px] font-black uppercase tracking-wider text-white/70">Now</dt><dd className="font-bold">{running}</dd>{timeLeft && <dd className="font-mono text-2xl font-black">{timeLeft}</dd>}</div>
+      <dl className="mt-4 grid gap-2 text-sm md:mt-3 md:gap-1.5 md:text-xs">
+        <div className="rounded-lg bg-slate-50 px-3 py-2 md:px-2 md:py-1.5"><dt className="text-[11px] font-black uppercase tracking-wider md:text-[9px] text-slate-500">Login ID</dt><dd className="break-all font-bold text-slate-900">{candidate.loginId || "—"}</dd></div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 md:px-2 md:py-1.5"><dt className="text-[11px] font-black uppercase tracking-wider md:text-[9px] text-slate-500">Password</dt><dd className="font-mono font-bold tracking-[0.3em] text-slate-900 md:tracking-[0.15em]">XXXXXX</dd></div>
+        <div className="rounded-lg bg-[#0b2e59] px-3 py-2 text-white md:px-2 md:py-1.5"><dt className="text-[11px] font-black uppercase tracking-wider md:text-[9px] text-white/70">Now</dt><dd className="font-bold">{running}</dd>{timeLeft && <dd className="font-mono text-2xl font-black md:text-xl">{timeLeft}</dd>}</div>
       </dl>
-      <ol className="mt-4 grid gap-1.5 text-sm">
+      <ol className="mt-4 grid gap-1.5 text-sm md:mt-3 md:gap-1">
         {sections.map((section) => {
           const status = section.submitted ? "Submitted" : now >= Date.parse(section.endsAt) ? "Over" : now >= Date.parse(section.startsAt) ? "Running" : istTime(section.startsAt).slice(0, 5);
           return <li key={section.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 md:px-2"><span className="min-w-0 truncate font-bold text-slate-800 md:text-xs" title={section.label}>{section.position}. {section.label}</span><span className={`shrink-0 text-xs font-black ${status === "Running" ? "text-green-700" : status === "Submitted" ? "text-blue-700" : "text-slate-500"}`}>{status}</span></li>;
