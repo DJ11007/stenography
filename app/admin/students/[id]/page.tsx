@@ -8,6 +8,8 @@ import { StudentActionButtons } from "../student-action-buttons";
 import { StudentAccessControls } from "../student-access-controls";
 import { AccessStatusBadge, validityLabel, type StudentAccessStatus } from "../access-status-badge";
 import { BackButton } from "../../../_components/back-button";
+import { StudentPhotoUpload } from "@/components/student-photo-upload";
+import { studentPhotoUrl } from "@/lib/student-photo";
 
 export const metadata: Metadata = { title: "Student Profile | Admin" };
 
@@ -57,6 +59,10 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
               <p className="mt-4 max-w-md text-xs text-slate-500">Passwords are never stored or shown in plain text by this or any secure system — use &quot;Send password reset link&quot; below if this student is locked out.</p>
             </div>
             <StudentActionButtons studentId={student.id} emailConfirmed={emailConfirmed} isActive={student.is_active} approved={student.approved} />
+          </div>
+          <div className="mt-5 rounded-xl border border-slate-200 p-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Photo (shown on the live exam screen)</p>
+            <StudentPhotoUpload studentId={student.id} photoUrl={await studentPhotoUrl(supabase, student.id)} initials={(student.full_name || "S").split(/\s+/u).slice(0, 2).map((part: string) => part[0]?.toUpperCase()).join("") || "S"} />
           </div>
           <div className="mt-5">
             <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} freePracticeLimit={student.free_practice_test_limit} freeExamLimit={student.free_exam_test_limit} />

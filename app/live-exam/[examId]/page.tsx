@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { patternById, sectionInstructions } from "@/lib/live-exam";
+import { studentPhotoUrl } from "@/lib/student-photo";
 import { createClient } from "@/lib/supabase/server";
 import { LiveExamRoom, type LiveExamState } from "./live-exam-room";
 
@@ -26,7 +27,7 @@ export default async function LiveExamPage({ params }: { params: Promise<{ examI
       initial={exam}
       instructions={instructions}
       preview={preview}
-      candidate={{ name: profile?.full_name?.trim() || "Candidate", loginId: user.email ?? "", rollNumber: user.id.slice(0, 8).toUpperCase() }}
+      candidate={{ name: profile?.full_name?.trim() || "Candidate", loginId: user.email ?? "", rollNumber: user.id.slice(0, 8).toUpperCase(), photoUrl: await studentPhotoUrl(supabase, user.id) }}
     />
   );
 }

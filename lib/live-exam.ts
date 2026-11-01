@@ -85,3 +85,20 @@ export const liveSecondsLeft = (endsAtMs: number, serverOffsetMs: number, maxSec
   Math.max(1, Math.min(maxSeconds, Math.floor((endsAtMs - (Date.now() + serverOffsetMs)) / 1000)));
 /** The exam category whose typing rules and marks a pattern's typing sections use (RSMSSB LDC: correct words × marks, max 25). */
 export const PATTERN_TYPING_CATEGORY: Record<string, string> = { "rsmssb-ldc": "rajasthan-ldc" };
+
+export type LiveExamResultRow = { student_id: string; student_name: string; section_marks: { position: number; label: string; maxMarks: number; marks: number | null }[]; total: number; email?: string | null };
+const csvCell = (value: string | number | null | undefined) => { const text = value === null || value === undefined ? "" : String(value); return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; };
+const marksText = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(Math.round(Number(value) * 100) / 100));
+/** The results sheet: header "Rank, Name, Login ID, <Section> (<max>)…, Total (<sum>)", one row per student (best total
+ *  first; equal totals share a rank), a section not taken left empty. UTF-8 with a BOM so Excel shows Hindi names. */
+export function liveExamResultsCsv(sections: { label: string; maxMarks: number }[], rows: LiveExamResultRow[]): string {
+  const totalMax = Math.round(sections.reduce((sum, section) => sum + section.maxMarks, 0) * 100) / 100;
+  const header = ["Rank", "Name", "Login ID", ...sections.map((section) => `${section.label} (${marksText(section.maxMarks)})`), `Total (${marksText(totalMax)})`];
+  const sorted = [...rows].sort((a, b) => Number(b.total) - Number(a.total) || a.student_name.localeCompare(b.student_name));
+  const lines = sorted.map((row) => {
+    const rank = sorted.findIndex((other) => Number(other.total) === Number(row.total)) + 1;
+    const marks = sections.map((_, position) => marksText(row.section_marks.find((mark) => mark.position === position + 1)?.marks ?? null));
+    return [rank, row.student_name, row.email ?? "", ...marks, marksText(row.total)].map(csvCell).join(",");
+  });
+  return "\uFEFF" + [header.map(csvCell).join(","), ...lines].join("\r\n") + "\r\n";
+}

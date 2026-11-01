@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BackButton } from "@/app/_components/back-button";
 import { requireAdmin } from "@/lib/auth";
 import { formatIST } from "@/lib/format-datetime";
-import { examLengthSeconds, isoToIstInput, LIVE_EXAM_PATTERNS, liveExamStarted, patternById, type LiveExamSection } from "@/lib/live-exam";
+import { examLengthSeconds, isoToIstInput, LIVE_EXAM_PATTERNS, liveExamStarted, patternById, type LiveExamResultRow, type LiveExamSection } from "@/lib/live-exam";
 import { createClient } from "@/lib/supabase/server";
 import { deleteLiveExam } from "./actions";
 import { LiveExamEditor, type TestOption } from "./live-exam-editor";
@@ -68,6 +68,7 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
         </div>
 
         {editor}
+        {editing && <ExamResults examId={editing.id} />}
         {editing && (
           <form action={deleteLiveExam} className="mt-4">
             <input type="hidden" name="examId" value={editing.id} />
@@ -96,5 +97,40 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
         </section>
       </div>
     </main>
+  );
+}
+
+// The exam's results so far: one row per student, each section's marks and the total, with the download.
+async function ExamResults({ examId }: { examId: string }) {
+  const supabase = await createClient();
+  const [{ data: sections }, { data: rows, error }] = await Promise.all([
+    supabase.from("live_exam_sections").select("label,max_marks").eq("exam_id", examId).order("seq"),
+    supabase.rpc("admin_live_exam_results", { p_exam_id: examId }),
+  ]);
+  const results = ((rows ?? []) as LiveExamResultRow[]).sort((a, b) => Number(b.total) - Number(a.total) || a.student_name.localeCompare(b.student_name));
+  const totalMax = (sections ?? []).reduce((sum, section) => sum + Number(section.max_marks), 0);
+  return (
+    <section className="mt-8 rounded-2xl bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-black">Results ({results.length} student{results.length === 1 ? "" : "s"})</h2>
+        <a href={`/admin/live-exams/${examId}/results.csv`} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white hover:bg-emerald-800">Download results (Excel)</a>
+      </div>
+      {error && <p className="mt-3 text-sm font-bold text-red-700">{error.message}</p>}
+      {!results.length ? <p className="mt-3 text-sm text-slate-500">No student has submitted a part of this exam yet.</p> : (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead><tr className="border-b text-left text-xs uppercase tracking-wider text-slate-500"><th className="py-2 pr-3">Rank</th><th className="py-2 pr-3">Name</th>{(sections ?? []).map((section) => <th key={section.label} className="py-2 pr-3 text-right">{section.label} ({Number(section.max_marks)})</th>)}<th className="py-2 text-right">Total ({totalMax})</th></tr></thead>
+            <tbody>{results.map((row) => (
+              <tr key={row.student_id} className="border-b last:border-0">
+                <td className="py-2 pr-3 font-black">{results.findIndex((other) => Number(other.total) === Number(row.total)) + 1}</td>
+                <td className="py-2 pr-3 font-bold">{row.student_name}</td>
+                {(sections ?? []).map((_, index) => { const mark = row.section_marks.find((item) => item.position === index + 1)?.marks; return <td key={index} className="py-2 pr-3 text-right">{mark === null || mark === undefined ? "—" : Math.round(Number(mark) * 100) / 100}</td>; })}
+                <td className="py-2 text-right font-black">{Math.round(Number(row.total) * 100) / 100}</td>
+              </tr>))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

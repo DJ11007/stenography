@@ -17,7 +17,7 @@ export type LiveExamState = {
   id: string; title: string; pattern: string; status: string; instructions: string | null; startsAt: string; resultsAt: string | null;
   serverNow: string; phase: "waiting" | "section" | "gap" | "finished"; sections: LiveExamSectionState[];
 };
-type Candidate = { name: string; loginId: string; rollNumber: string };
+type Candidate = { name: string; loginId: string; rollNumber: string; photoUrl?: string | null };
 type Phase = { kind: "waiting"; until: number } | { kind: "section"; section: LiveExamSectionState; until: number } | { kind: "gap"; after: LiveExamSectionState; next: LiveExamSectionState | null; until: number } | { kind: "finished" };
 
 const TIPS = [
@@ -116,7 +116,9 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
               <p className="text-5xl">✓</p>
               <h2 className="mt-3 text-3xl font-black text-slate-900">Exam completed</h2>
               <p className="mt-2 text-slate-600">All parts of this exam are over. Thank you.</p>
-              <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm font-bold text-blue-900">{state.resultsAt ? `Results will be shown from ${istDateTime(state.resultsAt)}.` : "Results will be shown soon."}</p>
+              {!preview && (!state.resultsAt || now >= Date.parse(state.resultsAt))
+                ? <OwnResult examId={state.id} sections={state.sections} />
+                : <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm font-bold text-blue-900">{state.resultsAt ? `Results will be shown from ${istDateTime(state.resultsAt)}.` : "Results will be shown soon."}</p>}
             </div>
           )}
         </section>
@@ -132,7 +134,9 @@ function CandidatePanel({ candidate, running, timeLeft, sections, now }: { candi
   return (
     <aside className="w-full shrink-0 border-b border-slate-300 bg-white p-4 md:w-72 md:border-b-0 md:border-r">
       <div className="flex items-center gap-3 md:flex-col md:text-center">
-        <div aria-label="Candidate photo" className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-[#0b2e59] bg-[#dbe7f5] text-2xl font-black text-[#0b2e59] md:h-32 md:w-28">{initials}</div>
+        {candidate.photoUrl
+          ? <img src={candidate.photoUrl} alt="Candidate photo" className="h-20 w-20 shrink-0 rounded-lg border-2 border-[#0b2e59] object-cover md:h-32 md:w-28" />
+          : <div aria-label="Candidate photo" className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-[#0b2e59] bg-[#dbe7f5] text-2xl font-black text-[#0b2e59] md:h-32 md:w-28">{initials}</div>}
         <div className="min-w-0">
           <p className="truncate text-lg font-black text-slate-900">{candidate.name}</p>
           <p className="text-xs text-slate-500">Roll No. {candidate.rollNumber}</p>
@@ -283,6 +287,36 @@ function EfficiencySection({ section, onSaved }: { section: LiveExamSectionState
       {loaded.kind === "word"
         ? <WordWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof WordWorkspace>[0]["snapshot"]} status={loaded.status} durationSeconds={loaded.durationSeconds} remainingSeconds={loaded.remainingSeconds} signedPdfUrl={null} initialDocument={loaded.initialDocument} liveExam={{ onSubmitted }} />
         : <ExcelWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof ExcelWorkspace>[0]["snapshot"]} status={loaded.status} remainingSeconds={loaded.remainingSeconds} original={loaded.original as Parameters<typeof ExcelWorkspace>[0]["original"]} initialDocument={loaded.initialDocument as Parameters<typeof ExcelWorkspace>[0]["initialDocument"]} liveExam={{ onSubmitted }} />}
+    </div>
+  );
+}
+
+// The student's own result, once results are open: each part's marks (out of its maximum) and the total.
+function OwnResult({ examId, sections }: { examId: string; sections: LiveExamSectionState[] }) {
+  const [marks, setMarks] = useState<Map<string, number | null> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void createClient().from("live_exam_section_attempts").select("section_id,marks").eq("exam_id", examId).then(({ data }) => {
+      if (!cancelled) setMarks(new Map((data ?? []).map((row) => [row.section_id as string, row.marks === null ? null : Number(row.marks)])));
+    });
+    return () => { cancelled = true; };
+  }, [examId]);
+  if (!marks) return <p className="mt-4 text-sm text-slate-500">Loading your result…</p>;
+  const total = [...marks.values()].reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  const totalMax = sections.reduce((sum, section) => sum + section.maxMarks, 0);
+  const round = (value: number) => Math.round(value * 100) / 100;
+  return (
+    <div className="mt-5 text-left">
+      <h3 className="text-center text-lg font-black text-slate-900">Your result</h3>
+      <table className="mt-3 w-full text-sm">
+        <tbody>
+          {sections.map((section) => {
+            const mark = marks.get(section.id);
+            return <tr key={section.id} className="border-b"><td className="py-2 font-bold text-slate-800">{section.label}</td><td className="py-2 text-right">{mark === undefined ? "Not submitted" : mark === null ? "Being marked" : `${round(mark)} / ${section.maxMarks}`}</td></tr>;
+          })}
+          <tr><td className="py-2 text-base font-black">Total</td><td className="py-2 text-right text-base font-black">{round(total)} / {round(totalMax)}</td></tr>
+        </tbody>
+      </table>
     </div>
   );
 }
