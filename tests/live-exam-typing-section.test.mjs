@@ -43,14 +43,14 @@ test("the typing screen in exam mode: starts with the part, no back arrow, saves
   assert.match(exam, /const \[started, setStarted\] = useState\(directWorkspace \|\| Boolean\(liveExam\)\);/);
   assert.match(exam, /useEffect\(\(\) => \{ if \(!liveExam\) return; const timer = window\.setTimeout\(beginTiming, 0\);/);
   assert.match(exam, /<ExamWorkspace hideBack=\{Boolean\(liveExam\)\} /);
-  assert.match(exam, /liveExamSectionId:liveExam\?\.sectionId\}\}\)\.then\(result=>\{applySaveResult\(result\);liveExam\?\.onSaved\(result\);\}\);/);
+  assert.match(exam, /liveExamSectionId:liveExam\?\.sectionId\}\}\)\.then\(result=>\{applySaveResult\(result\);if\(result&&liveExam\)clearLiveExamDraft\(liveExam\.sectionId\);liveExam\?\.onSaved\(result\);\}\);/);
   assert.match(exam, /if \(finished && liveExam\) return <main/);
 });
 
 test("a section attempt is checked against an open section of this test, skips the free limit, and is linked", async () => {
   const actions = await read("app/tests/actions.ts");
   assert.match(actions, /if \(!section \|\| section\.kind !== "typing" \|\| section\.test_id !== testId\) return null;/);
-  assert.match(actions, /now >= Date\.parse\(slot\.starts_at\) && now <= Date\.parse\(slot\.ends_at\) \+ 120000 \? section\.id : null/);
+  assert.match(actions, /const open = now >= starts && \(now <= ends \+ 120000 \|\| \(startedInPart && now <= examEnd \+ 15 \* 60000\)\);/);
   assert.match(actions, /if \(payload\.liveExamSectionId && !liveSection\) return \{ status: "closed" as const \};/);
-  assert.match(actions, /supabase\.rpc\("record_live_exam_section", \{ p_section_id: liveSection, p_attempt_id: saved\.id \}\)/);
+  assert.match(actions, /supabase\.rpc\("record_live_exam_section", \{ p_section_id: liveSection\.id, p_attempt_id: saved\.id \}\)/);
 });

@@ -26,6 +26,24 @@ export function clearPendingAttempt(key: string) {
   try { localStorage.removeItem(KEY_PREFIX + key); } catch { /* storage unavailable */ }
 }
 
+// A live exam typing part keeps a running copy of the answer while it is typed (separately from the attempt kept
+// above, so a reload during the part never hands it in early). Only the exam's Final Submit sends it, and only for a
+// part the server never received.
+const DRAFT_PREFIX = "live-exam-draft:";
+export function saveLiveExamDraft(sectionId: string, job: unknown) {
+  try { localStorage.setItem(DRAFT_PREFIX + sectionId, JSON.stringify({ savedAt: Date.now(), payload: job })); } catch { /* storage unavailable */ }
+}
+export function readLiveExamDraft<T>(sectionId: string): T | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_PREFIX + sectionId);
+    const stored = raw ? (JSON.parse(raw) as { payload?: T }) : null;
+    return stored?.payload ?? null;
+  } catch { return null; }
+}
+export function clearLiveExamDraft(sectionId: string) {
+  try { localStorage.removeItem(DRAFT_PREFIX + sectionId); } catch { /* storage unavailable */ }
+}
+
 // Next.js gives every Server Action a new id at each deploy; a page loaded
 // before the deploy can no longer call it until it is refreshed.
 export function isStaleServerActionError(error: unknown) {

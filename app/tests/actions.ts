@@ -37,7 +37,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   if (!test || test.status !== "published" || test.visibility !== "public" || test.current_version_id !== v?.id || v.test_id !== test.id) return null;
   // Live Exam Center: an attempt taken inside a live exam section is checked against that section (a published exam
   // whose section uses this very test and is open now on the server clock); it does not use up a free attempt.
-  const liveSection = payload.liveExamSectionId ? await openLiveExamTypingSection(supabase, payload.liveExamSectionId, test.id) : null;
+  const liveSection = payload.liveExamSectionId ? await openLiveExamTypingSection(supabase, payload.liveExamSectionId, test.id, payload.startedAt) : null;
   if (payload.liveExamSectionId && !liveSection) return { status: "closed" as const };
   // Defense-in-depth backstop for the free-practice-test and free-exam-test
   // caps -- the real gates are PracticeNavigator and /tests/[slug] refusing
@@ -156,12 +156,15 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // recomputing it -- the list tiles and the detailed breakdown can no
   // longer drift apart, for English or Hindi, typing or stenography.
   const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : speedMarksResult ? speedMarksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : speedMarksResult ? speedMarksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
-  const row = { test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: trustedStartedAt(payload.startedAt, payload.elapsedSeconds), snapshot: v, result, is_live_attempt: Boolean(test.is_live) };
+  // A live exam part keeps the student's own start time when it falls inside the part (a Final Submit resend comes
+  // after the part, where "now minus the time taken" would no longer be inside it).
+  const startedAtIso = liveSection?.startedInPart ? new Date(payload.startedAt).toISOString() : trustedStartedAt(payload.startedAt, payload.elapsedSeconds);
+  const row = { test_id: test.id, test_version_id: v.id, student_id: user.id, started_at: startedAtIso, snapshot: v, result, is_live_attempt: Boolean(test.is_live) };
   if (liveSection) {
     // The attempt is saved, then linked to its exam section, which reads its marks (RSMSSB: correct words, max 25).
     const { data: saved, error: saveError } = await supabase.from("test_attempts").insert(row).select("id").single();
     if (saveError || !saved) return null;
-    const { error: linkError } = await supabase.rpc("record_live_exam_section", { p_section_id: liveSection, p_attempt_id: saved.id });
+    const { error: linkError } = await supabase.rpc("record_live_exam_section", { p_section_id: liveSection.id, p_attempt_id: saved.id });
     if (linkError && !/already submitted/i.test(linkError.message)) return null;
     return { status: "scored" as const, score };
   }
@@ -180,11 +183,18 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
 
 // A live exam section a typing attempt may be saved with: the section uses this test, its exam is published, and the
 // section is open now (until two minutes after it ends, for the submit to arrive). Returns the section id, or null.
-async function openLiveExamTypingSection(supabase: Awaited<ReturnType<typeof createClient>>, sectionId: string, testId: string) {
+async function openLiveExamTypingSection(supabase: Awaited<ReturnType<typeof createClient>>, sectionId: string, testId: string, startedAt: string) {
   const { data: section } = await supabase.from("live_exam_sections").select("id,exam_id,kind,test_id").eq("id", sectionId).maybeSingle();
   if (!section || section.kind !== "typing" || section.test_id !== testId) return null;
   const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: section.exam_id });
-  const slot = ((timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[]).find((row) => row.section_id === sectionId);
-  const now = Date.now();
-  return slot && now >= Date.parse(slot.starts_at) && now <= Date.parse(slot.ends_at) + 120000 ? section.id : null;
+  const rows = (timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[];
+  const slot = rows.find((row) => row.section_id === sectionId);
+  if (!slot) return null;
+  const now = Date.now(), starts = Date.parse(slot.starts_at), ends = Date.parse(slot.ends_at), started = Date.parse(startedAt);
+  const startedInPart = Number.isFinite(started) && started >= starts - 60000 && started <= ends;
+  // During the part (and 2 minutes after it), or — Final Submit — an answer started during the part, until 15 minutes
+  // after the exam's last part (record_live_exam_section checks the same).
+  const examEnd = Math.max(...rows.map((row) => Date.parse(row.ends_at)));
+  const open = now >= starts && (now <= ends + 120000 || (startedInPart && now <= examEnd + 15 * 60000));
+  return open ? { id: section.id as string, startedInPart } : null;
 }

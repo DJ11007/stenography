@@ -107,3 +107,33 @@ export async function recordLiveExamEfficiency(sectionId: string, attemptId: str
   if (error && !/already submitted/i.test(error.message)) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// Final Submit, after the last part: every Word / Excel part the server has not received is handed in now — the
+// student's own attempt of that part's test, started during the part, from its last autosave — and linked to the part.
+export async function finalizeLiveExamEfficiency(examId: string): Promise<{ ok: boolean; handedIn: number }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, handedIn: 0 };
+  const { data: sections } = await supabase.from("live_exam_sections").select("id,kind,test_id").eq("exam_id", examId).in("kind", ["word", "excel"]);
+  const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: examId });
+  const { data: linked } = await supabase.from("live_exam_section_attempts").select("section_id").eq("exam_id", examId);
+  const done = new Set((linked ?? []).map((row) => row.section_id as string));
+  let handedIn = 0;
+  for (const section of sections ?? []) {
+    if (done.has(section.id as string)) continue;
+    const slot = ((timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[]).find((row) => row.section_id === section.id);
+    if (!slot) continue;
+    const table = section.kind === "word" ? "word_efficiency_attempts" : "excel_efficiency_attempts";
+    const { data: attempt } = await supabase.from(table).select("id,status,document_autosave").eq("student_id", user.id).eq("test_id", section.test_id)
+      .gte("started_at", new Date(Date.parse(slot.starts_at) - 60000).toISOString()).lte("started_at", slot.ends_at).order("started_at", { ascending: false }).limit(1).maybeSingle();
+    if (!attempt) continue;
+    if (attempt.status === "active") {
+      // Past its time the submit takes the last autosave itself; before it, the autosave is what is handed in.
+      const { error } = await supabase.rpc(section.kind === "word" ? "submit_word_efficiency_document" : "submit_excel_efficiency_document", { p_attempt_id: attempt.id, p_document: attempt.document_autosave ?? {} });
+      if (error) continue;
+    }
+    const { error } = await supabase.rpc("record_live_exam_section", { p_section_id: section.id, p_attempt_id: attempt.id });
+    if (!error) handedIn += 1;
+  }
+  return { ok: true, handedIn };
+}

@@ -6,7 +6,9 @@ import { TypingStudentProvider } from "@/app/typing/_components/typing-student-p
 import { formatDuration } from "@/lib/live-exam";
 import { WordWorkspace } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace";
 import { ExcelWorkspace } from "@/app/typing/excel-efficiency/[language]/[testId]/workspace/excel-workspace";
-import { loadLiveExamTypingSection, recordLiveExamEfficiency, startLiveExamEfficiencySection, type LiveEfficiencySection, type LiveTypingSection } from "../actions";
+import { finalizeLiveExamEfficiency, loadLiveExamTypingSection, recordLiveExamEfficiency, startLiveExamEfficiencySection, type LiveEfficiencySection, type LiveTypingSection } from "../actions";
+import { recordManagedAttempt } from "@/app/tests/actions";
+import { clearLiveExamDraft, clearPendingAttempt, readLiveExamDraft, readPendingAttempt } from "@/lib/pending-attempts";
 import { createClient } from "@/lib/supabase/client";
 
 export type LiveExamSectionState = {
@@ -105,6 +107,9 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   useEffect(() => { if (!closing) return; const timer = window.setTimeout(() => setClosing(null), 150000); return () => window.clearTimeout(timer); }, [closing]);
   const handIn = (sectionId: string) => { handedIn.current.add(sectionId); setClosing((current) => (current?.id === sectionId ? null : current)); void refresh(); };
   const active = closing ?? openSection;
+  const finalKey = `live-exam-final:${initial.id}`;
+  const [finalDone, setFinalDone] = useState(false);
+  useEffect(() => { try { if (localStorage.getItem(finalKey) === "1") setFinalDone(true); } catch { /* storage unavailable */ } }, [finalKey]); // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount
 
   if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} instructions={instructions} candidate={candidate} preview={preview} onLogin={() => { try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ } setLoggedIn(true); }} />;
 
@@ -137,7 +142,10 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
               <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : `Admin preview: students get the ${phase.section.label} test here. (A preview cannot start a real attempt.)`}</p>
             </div>
           )}
-          {!active && phase.kind === "finished" && (
+          {!active && phase.kind === "finished" && !preview && !finalDone && (
+            <FinalSubmit examId={state.id} sections={state.sections} refresh={refresh} onDone={() => { try { localStorage.setItem(finalKey, "1"); } catch { /* storage unavailable */ } setFinalDone(true); }} />
+          )}
+          {!active && phase.kind === "finished" && (preview || finalDone) && (
             <div className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-5xl">✓</p>
               <h2 className="mt-3 text-3xl font-black text-slate-900">Exam completed</h2>
@@ -250,16 +258,16 @@ function ExamLogin({ title, startsAt, instructions, candidate, preview, onLogin 
 function PeripheralCheck({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState(""), [lastKey, setLastKey] = useState<string | null>(null);
   return (
-    <div role="dialog" aria-modal aria-label="Peripheral check" className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4">
-      <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-        <div className="flex items-center justify-between"><h2 className="text-xl font-black text-slate-900">Peripheral check — keyboard</h2><button type="button" onClick={onClose} className="rounded-lg px-3 py-1 text-xl" aria-label="Close">×</button></div>
-        <p className="mt-1 text-sm text-slate-600">Type in the box below (English). Each key you press is shown on the right. If every key works, close this and log in.</p>
-        <div className="mt-4 flex gap-3">
-          <textarea autoFocus value={text} onKeyDown={(event) => setLastKey(event.key === " " ? "Space" : event.key)} onChange={(event) => setText(event.target.value.replace(/[^\x20-\x7E\n]/g, ""))} className="input min-h-32 flex-1 font-mono" placeholder="The quick brown fox jumps over the lazy dog 1234567890" />
-          <div className="grid w-28 shrink-0 place-items-center rounded-xl border-2 border-dashed border-slate-300 text-center"><span className="text-xs font-bold text-slate-500">Last key</span><span className="px-1 font-mono text-2xl font-black text-[#0b2e59]">{lastKey ?? "—"}</span></div>
+    <div role="dialog" aria-modal aria-label="Peripheral check" className="fixed inset-0 z-50 flex flex-col bg-white">
+      <header className="flex items-center justify-between bg-[#0b2e59] px-6 py-4 text-white"><h2 className="text-2xl font-black">Peripheral check — keyboard</h2><button type="button" onClick={onClose} className="rounded-lg px-4 py-1 text-3xl hover:bg-white/10" aria-label="Close">×</button></header>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+        <p className="text-lg text-slate-700">Type in the box below (English). Each key you press is shown on the right. If every key works, close this and log in.</p>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
+          <textarea autoFocus value={text} onKeyDown={(event) => setLastKey(event.key === " " ? "Space" : event.key)} onChange={(event) => setText(event.target.value.replace(/[^\x20-\x7E\n]/g, ""))} className="input min-h-48 flex-1 resize-none p-5 font-mono text-2xl leading-relaxed" placeholder="The quick brown fox jumps over the lazy dog 1234567890" />
+          <div className="grid min-h-40 shrink-0 place-items-center rounded-2xl border-4 border-dashed border-slate-300 p-4 text-center md:w-72"><div><p className="text-base font-black uppercase tracking-widest text-slate-500">Last key</p><p className="mt-2 break-all font-mono text-6xl font-black text-[#0b2e59]">{lastKey ?? "—"}</p></div></div>
         </div>
-        <p className="mt-2 text-xs text-slate-500">{text.length} characters typed</p>
-        <button type="button" onClick={onClose} className="mt-4 w-full rounded-xl bg-[#0b2e59] px-4 py-3 font-black text-white">Keyboard is working — close</button>
+        <p className="text-base font-bold text-slate-600">{text.length} characters typed</p>
+        <button type="button" onClick={onClose} className="w-full rounded-xl bg-[#0b2e59] px-4 py-4 text-xl font-black text-white hover:bg-[#123d73]">Keyboard is working — close</button>
       </div>
     </div>
   );
@@ -320,6 +328,55 @@ function EfficiencySection({ section, onSaved }: { section: LiveExamSectionState
       {loaded.kind === "word"
         ? <WordWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof WordWorkspace>[0]["snapshot"]} status={loaded.status} durationSeconds={loaded.durationSeconds} remainingSeconds={loaded.remainingSeconds} signedPdfUrl={null} initialDocument={loaded.initialDocument} liveExam={{ onSubmitted }} />
         : <ExcelWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof ExcelWorkspace>[0]["snapshot"]} status={loaded.status} remainingSeconds={loaded.remainingSeconds} original={loaded.original as Parameters<typeof ExcelWorkspace>[0]["original"]} initialDocument={loaded.initialDocument as Parameters<typeof ExcelWorkspace>[0]["initialDocument"]} liveExam={{ onSubmitted }} />}
+    </div>
+  );
+}
+
+// After the last part: each part's status, "I have attempted this test", and Final Submit, which hands in any part the
+// server has not received — a typing answer kept on this computer (the running copy, or an attempt that failed to
+// send), and any Word / Excel attempt left open (from its autosave).
+type TypingJob = { kind: "managed"; payload: Parameters<typeof recordManagedAttempt>[0] };
+function FinalSubmit({ examId, sections, refresh, onDone }: { examId: string; sections: LiveExamSectionState[]; refresh: () => Promise<void>; onDone: () => void }) {
+  const [agreed, setAgreed] = useState(false), [busy, setBusy] = useState(false), [sent, setSent] = useState(false);
+  const missing = sections.filter((section) => !section.submitted);
+  const submit = async () => {
+    setBusy(true);
+    for (const section of missing.filter((item) => item.kind === "typing")) {
+      const pending = readPendingAttempt<TypingJob>(section.testId);
+      const job = readLiveExamDraft<TypingJob>(section.id) ?? (pending?.payload.liveExamSectionId === section.id ? pending : null);
+      if (!job) continue;
+      try {
+        const result = await recordManagedAttempt(job.payload);
+        if (result) { clearLiveExamDraft(section.id); clearPendingAttempt(section.testId); }
+      } catch { /* the status below shows it as not received */ }
+    }
+    if (missing.some((item) => item.kind !== "typing")) { try { await finalizeLiveExamEfficiency(examId); } catch { /* shown below */ } }
+    await refresh();
+    setBusy(false); setSent(true);
+  };
+  return (
+    <div className="w-full max-w-xl rounded-3xl bg-white p-8 shadow-lg">
+      <h2 className="text-center text-2xl font-black text-slate-900">{sent ? "Final submission" : "Final Submit"}</h2>
+      <p className="mt-1 text-center text-sm text-slate-600">{sent ? "This is what the exam server has received from you." : "All parts are over. Check each part below, then submit your exam."}</p>
+      <ol className="mt-5 grid gap-2">
+        {sections.map((section) => (
+          <li key={section.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-2.5">
+            <span className="font-bold text-slate-800">{section.position}. {section.label}</span>
+            <span className={`text-sm font-black ${section.submitted ? "text-green-700" : "text-red-700"}`}>{section.submitted ? "✓ Received" : "✗ Not received"}</span>
+          </li>
+        ))}
+      </ol>
+      {sent && missing.length > 0 && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-800">A part still shows “Not received”: tell the exam supervisor before you leave.</p>}
+      {!sent && (
+        <>
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-800">
+            <input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="mt-0.5 h-5 w-5" />
+            <span>I agree that I have attempted this test myself, and I want to submit it.</span>
+          </label>
+          <button type="button" disabled={!agreed || busy} onClick={() => { void submit(); }} className="mt-4 w-full rounded-xl bg-[#0b2e59] py-3 text-lg font-black text-white disabled:cursor-not-allowed disabled:bg-slate-400">{busy ? "Submitting…" : "Final Submit"}</button>
+        </>
+      )}
+      {sent && <button type="button" onClick={onDone} className="mt-5 w-full rounded-xl bg-green-700 py-3 text-lg font-black text-white">Continue</button>}
     </div>
   );
 }
