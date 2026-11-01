@@ -102,3 +102,8 @@ export function liveExamResultsCsv(sections: { label: string; maxMarks: number }
   });
   return "\uFEFF" + [header.map(csvCell).join(","), ...lines].join("\r\n") + "\r\n";
 }
+
+// Whether a live exam is running now, for the home page's "LIVE NOW" badge (server clock of the request).
+export function liveExamRunningNow(startsAt: string, endsAt: string, now = Date.now()): boolean {
+  return now >= Date.parse(startsAt) && now < Date.parse(endsAt);
+}

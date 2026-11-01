@@ -55,3 +55,22 @@ export async function getPublishedLiveResultsByDate(date: string, limit = 200): 
   if (error) { logRpcFailure(`Live results by date listing failed (${date})`, error); return []; }
   return (data ?? []) as PublicLiveResult[];
 }
+
+// Home page "Live Exam" section (migration 202611011900): the upcoming / running live exams, and the latest live
+// exam's top rankers once its results are open. An error (for example before the migration is run) hides the section.
+export type UpcomingLiveExam = { id: string; title: string; starts_at: string; ends_at: string; parts: number; part_names: string };
+export type LiveExamTopRanker = { exam_id: string; exam_title: string; exam_date: string; max_total: number; rank: number; student_name: string; total: number };
+
+export async function getUpcomingLiveExams(limit = 5): Promise<UpcomingLiveExam[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("public_live_exams_upcoming", { p_limit: limit });
+  if (error) { logRpcFailure("Upcoming live exams listing failed", error); return []; }
+  return (data ?? []) as UpcomingLiveExam[];
+}
+
+export async function getLiveExamTopRankers(limit = 10): Promise<LiveExamTopRanker[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("public_live_exam_top_rankers", { p_limit: limit });
+  if (error) { logRpcFailure("Live exam top rankers listing failed", error); return []; }
+  return (data ?? []) as LiveExamTopRanker[];
+}

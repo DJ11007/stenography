@@ -20,7 +20,8 @@ import { ALL_EXAMS, examsByGroup } from "@/lib/seo-exams";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
-import { getPublishedLiveResults, getLiveTestTopRankers } from "@/lib/live-test-results-server";
+import { getPublishedLiveResults, getLiveTestTopRankers, getUpcomingLiveExams, getLiveExamTopRankers } from "@/lib/live-test-results-server";
+import { LiveExamHomeSection } from "./_components/live-exam-home-section";
 
 const EXAM_CATEGORIES = [
   {
@@ -129,7 +130,7 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const supabase = await createClient();
-  const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user] = await Promise.all([
+  const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user, upcomingLiveExams, liveExamRankers] = await Promise.all([
     getPublishedLiveResults(20),
     getLiveTestTopRankers("English"),
     getLiveTestTopRankers("Hindi"),
@@ -137,6 +138,8 @@ export default async function Home() {
     getApprovedFeedback(6),
     getPublishedOfficialWebsites(),
     getCurrentUser(),
+    getUpcomingLiveExams(5),
+    getLiveExamTopRankers(10),
   ]);
 
   // Personalized "my latest result" cards, in the requested Typing ->
@@ -261,6 +264,8 @@ export default async function Home() {
       </section>
 
       <HomepageTypingDemo />
+
+      <LiveExamHomeSection upcoming={upcomingLiveExams} rankers={liveExamRankers} />
 
       <section className="border-b border-blue-100 bg-white px-4 py-12">
         <div className="mx-auto max-w-7xl">
