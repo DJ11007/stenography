@@ -33,12 +33,12 @@ type UniversalTypingSettingsProps = {
   onManualUnlockChange?: (value: boolean) => void;
   compact?: boolean; durationMinutes?: number; durationLocked?: boolean;
   onDurationChange?: (value: number) => void; onSettingsChange: (changes: Partial<TypingSettings>) => void;
-  onScrollChange: (value: boolean) => void; onScrollbarChange?: (value: boolean) => void;
+  onScrollChange: (value: boolean) => void; onScrollbarChange?: (value: boolean) => void; scrollLocked?: boolean;
   onFontsChange: (value: TypingFontPreferences) => void; onReset?: () => void;
   showPassageWordCount?: boolean; passageWordCount?: number; passageWordCountLocked?: boolean; onPassageWordCountChange?: (value: number | null) => void;
 };
 
-export function UniversalTypingSettings({ settings, autoScroll, showScrollbar, fonts, script, rulesLocked = false, highlightLocked, backspaceLocked, wordMethodLocked, manualUnlock = false, onManualUnlockChange, compact = false, durationMinutes, durationLocked = false, onDurationChange, onSettingsChange, onScrollChange, onScrollbarChange, onFontsChange, onReset, showPassageWordCount = false, passageWordCount, passageWordCountLocked = false, onPassageWordCountChange }: UniversalTypingSettingsProps) {
+export function UniversalTypingSettings({ settings, autoScroll, showScrollbar, fonts, script, rulesLocked = false, highlightLocked, backspaceLocked, wordMethodLocked, scrollLocked = false, manualUnlock = false, onManualUnlockChange, compact = false, durationMinutes, durationLocked = false, onDurationChange, onSettingsChange, onScrollChange, onScrollbarChange, onFontsChange, onReset, showPassageWordCount = false, passageWordCount, passageWordCountLocked = false, onPassageWordCountChange }: UniversalTypingSettingsProps) {
   const highlightIsLocked = highlightLocked ?? rulesLocked;
   const backspaceIsLocked = backspaceLocked ?? rulesLocked;
   const wordMethodIsLocked = wordMethodLocked ?? rulesLocked;
@@ -49,7 +49,7 @@ export function UniversalTypingSettings({ settings, autoScroll, showScrollbar, f
     <SettingOptions compact={compact} label="Backspace" value={settings.backspaceMode} disabled={backspaceIsLocked} values={[["full","Full"],["word","Current Word"],["disabled","Disabled"]]} onChange={(backspaceMode) => onSettingsChange({ backspaceMode: backspaceMode as TypingSettings["backspaceMode"] })}/>
     <SettingOptions compact={compact} label="Word calculation" value={settings.wordMethod} disabled={wordMethodIsLocked} values={[["characters","5 Characters"],["spaces","Space-separated Words"]]} onChange={(wordMethod) => onSettingsChange({ wordMethod: wordMethod as TypingSettings["wordMethod"] })}/>
     {showPassageWordCount && onPassageWordCountChange && <label className={compact ? "block text-xs font-bold" : "block text-sm font-bold"}>Passage length (words){passageWordCountLocked && <span className="ml-1 font-normal text-slate-500">— locked to this test&apos;s own length</span>}<input type="number" min={150} max={700} disabled={passageWordCountLocked} value={passageWordCount ?? ""} onChange={(event) => { const raw = Number(event.target.value); if (!Number.isFinite(raw)) return; onPassageWordCountChange(Math.min(700, Math.max(150, Math.round(raw)))); }} className="input mt-1"/></label>}
-    <SettingOptions compact={compact} label="Auto Scroll" value={autoScroll ? "auto" : "manual"} values={[["auto","On"],["manual","Off"]]} onChange={(value) => onScrollChange(value === "auto")}/>
+    <SettingOptions compact={compact} label="Auto Scroll" value={autoScroll ? "auto" : "manual"} disabled={scrollLocked} values={[["auto","On"],["manual","Off"]]} onChange={(value) => onScrollChange(value === "auto")}/>
     {showScrollbar !== undefined && onScrollbarChange && <label className={`flex cursor-pointer items-center gap-2 rounded-lg bg-slate-50 font-bold text-slate-800 ${compact ? "p-2 text-xs" : "p-3 text-sm"}`}><input type="checkbox" checked={showScrollbar} onChange={(event) => onScrollbarChange(event.target.checked)}/><span>Show Scrollbar</span></label>}
     {rulesLocked && onManualUnlockChange && <button type="button" onClick={() => onManualUnlockChange(!manualUnlock)} className={`flex w-full items-center justify-center gap-2 rounded-lg border font-black ${compact ? "p-2 text-xs" : "p-3 text-sm"} ${manualUnlock ? "border-amber-400 bg-amber-100 text-amber-900" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}>
       <span aria-hidden="true">{manualUnlock ? "🔓" : "🔒"}</span>{manualUnlock ? "Official rules unlocked — using your own settings" : "Unlock official rules for this attempt"}

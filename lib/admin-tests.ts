@@ -167,7 +167,7 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     fontStack: system.fontStack, fontClassName: "font-sans", layoutLabel: system.keyboardLayout,
     keyboardLayout: system.keyboardLayout, inputSystems: [inputSystem], speedRequirement: rules?.requiredWpm ?? version.requiredWpm,
     accuracyRequirement: rules?.requiredAccuracy ?? version.requiredAccuracy, backspaceMode: rules?.backspaceMode ?? version.backspaceMode,
-    wordMethod: rules?.wordMethod ?? version.wordMethod, highlightMode: rules?.highlightMode ?? version.highlightMode,
+    wordMethod: rules?.wordMethod ?? version.wordMethod, highlightMode: rules?.highlightMode ?? version.highlightMode, autoScroll: effectiveCategory?.autoScroll,
     // passNetWpm/passAccuracy (not just the display-only speedRequirement/
     // accuracyRequirement above) must also reflect the effective category --
     // this is what actually drives Pass/Fail and RSSB Qualified/Not-Qualified

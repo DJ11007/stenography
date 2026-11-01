@@ -75,6 +75,8 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   const loginKey = `live-exam-login:${initial.id}`;
   const [loggedIn, setLoggedIn] = useState(false);
   useEffect(() => { try { if (sessionStorage.getItem(loginKey) === "1") setLoggedIn(true); } catch { /* storage unavailable */ } }, [loginKey]); // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount
+  const [fullScreen, setFullScreen] = useState(true);
+  useEffect(() => { const onChange = () => setFullScreen(Boolean(document.fullscreenElement)); onChange(); document.addEventListener("fullscreenchange", onChange); return () => document.removeEventListener("fullscreenchange", onChange); }, []);
 
   if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} instructions={instructions} candidate={candidate} preview={preview} onLogin={() => { try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ } setLoggedIn(true); }} />;
 
@@ -89,6 +91,7 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
         <h1 className="min-w-0 flex-1 truncate text-base font-black">{state.title}</h1>
         <span className="text-xs text-white/70">Server time</span>
         <span className="font-mono text-sm font-black">{istTime(now)}</span>
+        {!fullScreen && phase.kind !== "finished" && <button type="button" onClick={enterFullScreen} className="rounded bg-amber-400 px-3 py-1 text-xs font-black text-amber-950 hover:bg-amber-300">⛶ Full screen</button>}
       </header>
       {preview && <p className="bg-amber-300 px-4 py-1 text-center text-xs font-black text-amber-950">Admin preview — nothing you do here is submitted.</p>}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -172,11 +175,18 @@ function WaitScreen({ title, until, now, next }: { title: string; until: number;
 
 // The exam login: the candidate types their own login ID and password again (checked against their own account only),
 // can test the keyboard first, and reads the instructions.
+// Full screen for the whole page; only works from a click, and quietly does nothing where a browser refuses it.
+function enterFullScreen() {
+  if (typeof document === "undefined" || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+  void document.documentElement.requestFullscreen().catch(() => { /* refused: the button stays */ });
+}
+
 function ExamLogin({ title, startsAt, instructions, candidate, preview, onLogin }: { title: string; startsAt: string; instructions: string[]; candidate: Candidate; preview: boolean; onLogin: () => void }) {
   const [loginId, setLoginId] = useState(""), [password, setPassword] = useState("");
   const [problem, setProblem] = useState<string | null>(null), [checking, setChecking] = useState(false), [peripheral, setPeripheral] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    enterFullScreen();
     setProblem(null);
     // Only this account: a different login ID is refused before anything is sent, so the session never switches.
     if (!candidate.loginId || loginId.trim().toLowerCase() !== candidate.loginId.toLowerCase()) { setProblem("This login ID does not match the account you are signed in with."); return; }
