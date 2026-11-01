@@ -77,6 +77,14 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   useEffect(() => { try { if (sessionStorage.getItem(loginKey) === "1") setLoggedIn(true); } catch { /* storage unavailable */ } }, [loginKey]); // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount
   const [fullScreen, setFullScreen] = useState(true);
   useEffect(() => { const onChange = () => setFullScreen(Boolean(document.fullscreenElement)); onChange(); document.addEventListener("fullscreenchange", onChange); return () => document.removeEventListener("fullscreenchange", onChange); }, []);
+  const examOver = phase.kind === "finished";
+  useEffect(() => {
+    if (!loggedIn || examOver) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key !== "Escape") enterFullScreen(); };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", enterFullScreen, true);
+    return () => { document.removeEventListener("keydown", onKey, true); document.removeEventListener("pointerdown", enterFullScreen, true); };
+  }, [loggedIn, examOver]);
 
   const timeLeft = phase.kind === "finished" ? 0 : phase.until - now;
   // A running part not yet submitted fills the main area with its workspace (an admin preview of Word / Excel shows a card).
@@ -150,13 +158,13 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
 function CandidatePanel({ candidate, running, timeLeft, sections, now }: { candidate: Candidate; running: string; timeLeft: string | null; sections: LiveExamSectionState[]; now: number }) {
   const initials = candidate.name.split(/\s+/u).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "C";
   return (
-    <aside className="w-full shrink-0 border-b border-slate-300 bg-white p-4 md:w-72 md:border-b-0 md:border-r">
+    <aside className="w-full shrink-0 border-b border-slate-300 bg-white p-4 md:w-[12.5rem] md:border-b-0 md:border-r md:p-3">
       <div className="flex items-center gap-3 md:flex-col md:text-center">
         {candidate.photoUrl
-          ? <img src={candidate.photoUrl} alt="Candidate photo" className="h-20 w-20 shrink-0 rounded-lg border-2 border-[#0b2e59] object-cover md:h-32 md:w-28" />
-          : <div aria-label="Candidate photo" className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-[#0b2e59] bg-[#dbe7f5] text-2xl font-black text-[#0b2e59] md:h-32 md:w-28">{initials}</div>}
+          ? <img src={candidate.photoUrl} alt="Candidate photo" className="h-20 w-20 shrink-0 rounded-lg border-2 border-[#0b2e59] object-cover md:h-24 md:w-20" />
+          : <div aria-label="Candidate photo" className="grid h-20 w-20 shrink-0 place-items-center rounded-lg border-2 border-[#0b2e59] bg-[#dbe7f5] text-2xl font-black text-[#0b2e59] md:h-24 md:w-20">{initials}</div>}
         <div className="min-w-0">
-          <p className="truncate text-lg font-black text-slate-900">{candidate.name}</p>
+          <p className="truncate text-lg font-black text-slate-900 md:text-base" title={candidate.name}>{candidate.name}</p>
           <p className="text-xs text-slate-500">Roll No. {candidate.rollNumber}</p>
         </div>
       </div>
@@ -168,7 +176,7 @@ function CandidatePanel({ candidate, running, timeLeft, sections, now }: { candi
       <ol className="mt-4 grid gap-1.5 text-sm">
         {sections.map((section) => {
           const status = section.submitted ? "Submitted" : now >= Date.parse(section.endsAt) ? "Over" : now >= Date.parse(section.startsAt) ? "Running" : istTime(section.startsAt).slice(0, 5);
-          return <li key={section.id} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5"><span className="truncate font-bold text-slate-800">{section.position}. {section.label}</span><span className={`shrink-0 text-xs font-black ${status === "Running" ? "text-green-700" : status === "Submitted" ? "text-blue-700" : "text-slate-500"}`}>{status}</span></li>;
+          return <li key={section.id} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 md:px-2"><span className="truncate font-bold text-slate-800 md:text-xs" title={section.label}>{section.position}. {section.label}</span><span className={`shrink-0 text-xs font-black ${status === "Running" ? "text-green-700" : status === "Submitted" ? "text-blue-700" : "text-slate-500"}`}>{status}</span></li>;
         })}
       </ol>
     </aside>
