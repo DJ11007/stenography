@@ -37,7 +37,7 @@ test("Drop Cap's lines/distance/margin position persist across reload as new par
   const editor = await read(EDITOR);
   assert.match(editor, /block\.dataset\.dropCapLines=String\(linesValue\)/);
   assert.match(editor, /block\.dataset\.dropCapDistance=String\(distanceValue\)/);
-  assert.match(editor, /function applyDropCapMarker\(element:HTMLElement,lines=3,distance=0,margin=false\)/);
+  assert.match(editor, /function applyDropCapMarker\(element:HTMLElement,lines=3,distance=0,margin=false,length=1\)/);
   const validator = await read("lib/word-editor-document.ts");
   assert.match(validator, /"dropCapLines", "dropCapDistance", "dropCapMargin"/);
   const diff = await read("lib/word-document-diff.ts");

@@ -23,10 +23,10 @@ test("a paragraph border on some sides is a valid saved document", () => {
 test("the Borders drop-down adds and takes off each side by itself", async () => {
   const editor = await read(EDITOR);
   assert.match(editor, /const BORDER_SIDES=\["top","right","bottom","left"\]as const;/);
-  assert.match(editor, /const setBlockBorderSides=\(block:HTMLElement,sides:string\[\]\)=>/);
-  assert.match(editor, /if\(\(BORDER_SIDES as readonly string\[\]\)\.includes\(value\)\)\{const current=currentBorderSides\(block\);setBlockBorderSides\(block,current\.includes\(value as"top"\)\?current\.filter\(side=>side!==value\):\[\.\.\.current,value\]\);continue\}/);
+  assert.match(editor, /const setBlockBorderSides=\(block:HTMLElement,sides:string\[\],line\?:string\|null\)=>/);
+  assert.match(editor, /if\(\(BORDER_SIDES as readonly string\[\]\)\.includes\(value\)\)\{const current=currentBorderSides\(block\);setBlockBorderSides\(block,current\.includes\(value as"top"\)\?current\.filter\(side=>side!==value\):\[\.\.\.current,value\],line\);continue\}/);
   // a border kept after a reload, in the document or from the dialog
   assert.match(editor, /else if\(kind\.includes\(","\)&&borderSidesOf\(kind\)\)for\(const side of borderSidesOf\(kind\)!\)html\.style\.setProperty\(`border-\$\{side\}`,BORDER_CSS\)/);
   assert.match(editor, /if\(isBorderSideKind\(block\.attrs\.border\)\)html\.dataset\.borderKind=block\.attrs\.border/);
-  assert.match(editor, /const chosen=BORDER_SIDES\.filter\(side=>values\.edges\[side\]\|\|\(side==="top"&&values\.edges\.insideH&&index>0\)\);if\(chosen\.length>0&&chosen\.length<4\)block\.dataset\.borderKind=chosen\.join\(","\)/);
+  assert.match(editor, /const chosen=BORDER_SIDES\.filter\(side=>values\.edges\[side\]\|\|\(side==="top"&&values\.edges\.insideH&&index>0\)\);\/\* some sides keep their colour and width when saved \(they used to be saved as the side names only\) \*\/setBlockBorderSides\(block,chosen,css\)/);
 });

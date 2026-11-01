@@ -152,6 +152,24 @@ export function wrapEditorRange(range:Range,styles:EditorRunStyles,attributes:Re
   const selected=document.createRange();selected.setStartBefore(spans[0]);selected.setEndAfter(spans[spans.length-1]);
   return{span:spans[0],spans,range:selected};
  }
+ // A selection over several paragraphs: each paragraph's part is wrapped on its own, as for cells above.
+ // (One wrapper is clamped to the paragraph the selection starts in, so Underline, Outline or a Font
+ // dialog change over three selected paragraphs used to reach only the first.)
+ const blockOf=(node:Node)=>(node.nodeType===1?node as Element:node.parentElement)?.closest("p,li")??null;
+ const startBlock=blockOf(range.startContainer),endBlock=blockOf(range.endContainer);
+ if(startBlock&&endBlock&&startBlock!==endBlock){
+  const root=range.commonAncestorContainer.nodeType===1?range.commonAncestorContainer as Element:range.commonAncestorContainer.parentElement;
+  const blocks=root?[...root.querySelectorAll("p,li")].filter(block=>range.intersectsNode(block)&&!block.querySelector("p,li")):[];
+  const spans:HTMLElement[]=[];
+  for(const block of blocks){
+   const part=document.createRange();part.selectNodeContents(block);
+   if(block.contains(range.startContainer))part.setStart(range.startContainer,range.startOffset);
+   if(block.contains(range.endContainer))part.setEnd(range.endContainer,range.endOffset);
+   if(part.collapsed||!part.toString())continue;
+   const wrapped=wrapSingleEditorRange(part,styles,attributes);if(wrapped)spans.push(wrapped.span);
+  }
+  if(spans.length){const selected=document.createRange();selected.setStartBefore(spans[0]);selected.setEndAfter(spans[spans.length-1]);return{span:spans[0],spans,range:selected}}
+ }
  const wrapped=wrapSingleEditorRange(range,styles,attributes);
  return wrapped?{...wrapped,spans:[wrapped.span]}:null;
 }

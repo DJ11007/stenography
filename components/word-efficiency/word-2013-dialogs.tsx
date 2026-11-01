@@ -144,33 +144,16 @@ function MenuButton13({ label, items, onPick, caret = true, disabled }: { label:
 }
 
 // ---- Colour drop-down: a palette, like Word 2013 ----
-// Reported: the Font dialog's colour drop-downs were a long list of names.
-// Word shows a palette of swatches (Automatic, then Standard Colors), each
-// swatch naming its colour only in a tooltip, and the closed drop-down shows
-// a bar of the chosen colour.
-const COLOR_CHOICES = [
-  { name: "Dark Red", value: "#c00000" }, { name: "Red", value: "#ff0000" }, { name: "Orange", value: "#ffc000" }, { name: "Yellow", value: "#ffff00" },
-  { name: "Light Green", value: "#92d050" }, { name: "Green", value: "#00b050" }, { name: "Light Blue", value: "#00b0f0" }, { name: "Blue", value: "#0070c0" },
-  { name: "Dark Blue", value: "#002060" }, { name: "Purple", value: "#7030a0" }, { name: "Pink", value: "#ff00ff" },
-];
+// Word's colour drop-downs (Font color, Underline color, Find > Format > Font) open the same palette
+// as the ribbon: Automatic, Theme Colors with their tints and shades, Standard Colors and More Colors,
+// each swatch named in its tooltip (Word's names); the closed drop-down shows a bar of the chosen colour.
 function ColorSelect13({ value, onChange, autoLabel = "Automatic", width = 112, disabled, label }: { value: string; onChange: (value: string) => void; autoLabel?: string; width?: number; disabled?: boolean; label: string }) {
   const menu = useMenu();
-  const current = COLOR_CHOICES.find(item => item.value.toLowerCase() === value.toLowerCase());
-  const pick = (next: string) => { menu.setOpen(false); onChange(next); };
   return (
     <>
-      <button ref={element => { menu.buttonRef.current = element; }} type="button" aria-label={label} aria-haspopup="menu" disabled={disabled} className="w13-select" title={value ? current?.name ?? value : autoLabel} style={{ width, textAlign: "left", cursor: "default" }}
+      <button ref={element => { menu.buttonRef.current = element; }} type="button" aria-label={label} aria-haspopup="menu" disabled={disabled} className="w13-select" title={value ? colorLabel(value.replace("#", "")) : autoLabel} style={{ width, textAlign: "left", cursor: "default" }}
         onMouseDown={event => event.preventDefault()} onClick={() => menu.setOpen(open => !open)}>{value ? <span aria-hidden style={{ display: "inline-block", width: width - 34, height: 12, border: "1px solid #666", verticalAlign: "-2px", background: value }} /> : autoLabel}</button>
-      {menu.open && createPortal(<div ref={menu.menuRef} role="menu" aria-label={`${label} palette`} className="w13-menu" style={{ ...menu.style, padding: 4, width: 198, overflowX: "hidden" }}>
-        <button type="button" role="menuitem" onMouseDown={event => event.preventDefault()} onClick={() => pick("")} style={{ padding: "3px 6px", width: "100%" }}>
-          <span aria-hidden style={{ display: "inline-block", width: 14, height: 14, marginRight: 8, border: "1px solid #666", background: "#000", verticalAlign: "-3px" }} />{autoLabel}</button>
-        <div className="w13-note" style={{ margin: "6px 4px 4px", fontWeight: 600, color: "#333" }}>Standard Colors</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 16px)", gap: 2, padding: "0 4px 2px" }}>
-          {COLOR_CHOICES.map(item => <button key={item.value} type="button" role="menuitemradio" title={item.name} aria-label={item.name} aria-checked={item.value.toLowerCase() === value.toLowerCase()}
-            onMouseDown={event => event.preventDefault()} onClick={() => pick(item.value)}
-            style={{ width: 16, height: 16, padding: 0, background: item.value, border: item.value.toLowerCase() === value.toLowerCase() ? "2px solid #e37300" : "1px solid #a0a0a0" }} />)}
-        </div>
-      </div>, document.body)}
+      {menu.open && createPortal(<div ref={menu.menuRef} role="menu" aria-label={`${label} palette`} className="wi-menu wr-menu" style={{ ...menu.style, width: 232 }}><WordPalette noneLabel={autoLabel} noneSwatch="#000" close={() => menu.setOpen(false)} onPick={hex => onChange(hex ? `#${hex.toLowerCase()}` : "")} /></div>, document.body)}
     </>
   );
 }

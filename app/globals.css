@@ -1174,6 +1174,16 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"]::after { position: absolute; left: -2px; z-index: 1; border: 1px solid #a6a6a6; background: #e7e7e7; padding: 1px 8px; color: #404040; font: 11px "Segoe UI", Calibri, Arial, sans-serif; font-style: normal; font-weight: 400; pointer-events: none; user-select: none; }
 .word-document-page[data-hf-editing="header"] > header[data-block-type="header"]::after { content: "Header"; top: calc(100% + 3px); }
 .word-document-page[data-hf-editing="footer"] > footer[data-block-type="footer"]::after { content: "Footer"; bottom: calc(100% + 3px); }
+/* Header and footer where Word puts them: 0.5" from the top / bottom of the sheet, between the side margins,
+   out of the body's flow (paginatePages sets the variables; copies on the other sheets: .word-hf-copy). */
+.word-page-frame .word-document-page { position: relative; }
+.word-document-page > header[data-block-type="header"], .word-document-page > footer[data-block-type="footer"] { position: absolute !important; left: var(--word-margin-left, 96px); right: var(--word-margin-right, 96px); margin: 0 !important; }
+.word-document-page > header[data-block-type="header"] { top: var(--word-header-top, 48px); }
+.word-document-page > footer[data-block-type="footer"] { top: var(--word-footer-top, auto); }
+.word-hf-layer { position: absolute; inset: 0; pointer-events: none; }
+.word-hf-copy { position: absolute; opacity: .55; overflow: hidden; }
+.word-hf-copy span[style*="33%"] { white-space: nowrap; vertical-align: bottom; }
+.word-document-page[data-hf-editing] ~ .word-hf-layer .word-hf-copy { opacity: .8; }
 /* Fields (page number, date and time) look like the text around them, as in Word 2013, with Word's
    light grey field shading while the header/footer is being edited or the pointer is on the field.
    The shading is a background IMAGE: a background colour would be saved as a highlight. */
@@ -1187,7 +1197,9 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 
 /* Pages (rich-document-editor paginatePages): white sheets of the paper's height with a grey gap
    between them, as Word shows its pages; a block that does not fit moves to the next sheet. */
-.word-document-page { background-image: repeating-linear-gradient(to bottom, #fff 0, #fff var(--word-page-height, 1123px), #d4d4d4 var(--word-page-height, 1123px), #d4d4d4 var(--word-page-step, 1145px)); background-color: transparent !important; }
+/* Each sheet is painted in the Page Color (DESIGN > Page Color, kept in --word-page-color by paginatePages), as Word
+   colours every page; the page element's own background-color (what is saved) would also fill the grey gaps. */
+.word-document-page { background-image: repeating-linear-gradient(to bottom, var(--word-page-color, #fff) 0, var(--word-page-color, #fff) var(--word-page-height, 1123px), #d4d4d4 var(--word-page-height, 1123px), #d4d4d4 var(--word-page-step, 1145px)); background-color: transparent !important; }
 .word-document-page [data-page-push] { margin-top: var(--page-push-mt) !important; }
 /* Words only underline: the span's own line is hidden, drawWordsOnlyUnderlines draws one per word. */
 .word-document-page [data-underline-style="words-only"], .word-document-page [data-underline-words-only="true"] { text-decoration-line: none !important; }
@@ -1264,7 +1276,7 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 /* The paper (white, the grey gap, white) behind a moved row's padding is the page's own background showing through: a
    copy painted by the cell was rounded differently by the browser and left a light line along the gap's edge. A shaded
    cell would colour the padding and the gap, so only a shaded cell paints the paper itself. */
-.word-document-page tr[data-page-push] > td[style*="background"], .word-document-page tr[data-page-push] > th[style*="background"] { --page-paper-fill: #fff; --page-gap-fill: #d4d4d4; }
+.word-document-page tr[data-page-push] > td[style*="background"], .word-document-page tr[data-page-push] > th[style*="background"] { --page-paper-fill: var(--word-page-color, #fff); --page-gap-fill: #d4d4d4; }
 /* View > Gridlines would outline the moved row across the gap; its borders are drawn above. */
 .word-document-page tr[data-page-push] > td, .word-document-page tr[data-page-push] > th { outline: none !important; }
 

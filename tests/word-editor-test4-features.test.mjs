@@ -131,7 +131,7 @@ test("header/footer text in a position stays on one line, and Replace names the 
 
 test("pages: a table is split between rows at a page break, as in Word, and pages are split again once a late font (Kruti Dev 010) loads", async () => {
   const [editor, css] = await Promise.all([read(EDITOR), read("app/globals.css")]);
-  assert.match(editor, /if \(block\.tagName === "TABLE" && paginateTableRows\(block as HTMLTableElement, \{ top, zoom, step, sheetHeight, padTop, padBottom, usable \}\)\) continue;/);
+  assert.match(editor, /if \(block\.tagName === "TABLE" && paginateTableRows\(block as HTMLTableElement, \{ top, zoom, step, sheetHeight, padTop: bodyTop, padBottom: sheetHeight - bodyBottom, usable \}\)\) continue;/);
   assert.match(editor, /if \(index === 0\) return false;/, "a table whose first row does not fit moves whole, like a paragraph");
   assert.match(editor, /const target = \(number \+ 1\) \* sheet\.step \+ sheet\.padTop, push = target - rowTop;/);
   assert.match(editor, /Read before the row is marked: getComputedStyle is live/);

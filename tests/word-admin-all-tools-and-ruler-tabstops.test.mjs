@@ -63,5 +63,5 @@ test("a table row moved to the next page lets the page's own white and grey show
   const rule = css.slice(css.indexOf("tr[data-page-push] > td, .word-document-page tr[data-page-push] > th {"), css.indexOf("/* The paper (white, the grey gap, white) behind a moved row"));
   assert.match(rule, /var\(--page-paper-fill, transparent\) 0 var\(--page-push-white\), var\(--page-gap-fill, transparent\) var\(--page-push-white\) var\(--page-push-gap\), var\(--page-paper-fill, transparent\) var\(--page-push-gap\) var\(--page-push-mt\)/);
   assert.doesNotMatch(rule, /#d4d4d4|#fff /);
-  assert.match(css, /td\[style\*="background"\], \.word-document-page tr\[data-page-push\] > th\[style\*="background"\] \{ --page-paper-fill: #fff; --page-gap-fill: #d4d4d4; \}/);
+  assert.match(css, /td\[style\*="background"\], \.word-document-page tr\[data-page-push\] > th\[style\*="background"\] \{ --page-paper-fill: var\(--word-page-color, #fff\); --page-gap-fill: #d4d4d4; \}/);
 });
