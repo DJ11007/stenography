@@ -78,11 +78,28 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   const [fullScreen, setFullScreen] = useState(true);
   useEffect(() => { const onChange = () => setFullScreen(Boolean(document.fullscreenElement)); onChange(); document.addEventListener("fullscreenchange", onChange); return () => document.removeEventListener("fullscreenchange", onChange); }, []);
 
-  if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} instructions={instructions} candidate={candidate} preview={preview} onLogin={() => { try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ } setLoggedIn(true); }} />;
-
   const timeLeft = phase.kind === "finished" ? 0 : phase.until - now;
   // A running part not yet submitted fills the main area with its workspace (an admin preview of Word / Excel shows a card).
   const workspaceOpen = phase.kind === "section" && !phase.section.submitted && (phase.section.kind === "typing" || !preview);
+  // The part's screen stays open past its end until it has handed the answer in (real bug, first live exam: the page
+  // switched to the break at the end second and removed the screen while it was still confirming the end with the
+  // server, so most students' typing was never sent). handedIn: parts whose answer reached the server.
+  const handedIn = useRef(new Set<string>());
+  const [closing, setClosing] = useState<LiveExamSectionState | null>(null);
+  const shown = useRef<LiveExamSectionState | null>(null);
+  const openSection = loggedIn && workspaceOpen && phase.kind === "section" ? phase.section : null;
+  useEffect(() => {
+    const previous = shown.current;
+    shown.current = openSection;
+    if (previous && previous.id !== openSection?.id && !preview && !handedIn.current.has(previous.id)) setClosing(previous);
+  }, [openSection?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per change of part
+  // Never longer than the server accepts a late answer (2 minutes after the end), plus a little.
+  useEffect(() => { if (!closing) return; const timer = window.setTimeout(() => setClosing(null), 150000); return () => window.clearTimeout(timer); }, [closing]);
+  const handIn = (sectionId: string) => { handedIn.current.add(sectionId); setClosing((current) => (current?.id === sectionId ? null : current)); void refresh(); };
+  const active = closing ?? openSection;
+
+  if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} instructions={instructions} candidate={candidate} preview={preview} onLogin={() => { try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ } setLoggedIn(true); }} />;
+
   const running = phase.kind === "section" ? phase.section.label : phase.kind === "gap" ? "Break" : phase.kind === "waiting" ? "Not started" : "Completed";
   return (
     <main className="flex min-h-screen flex-col bg-[#eef2f7]">
@@ -96,10 +113,14 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
       {preview && <p className="bg-amber-300 px-4 py-1 text-center text-xs font-black text-amber-950">Admin preview — nothing you do here is submitted.</p>}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <CandidatePanel candidate={candidate} running={running} timeLeft={phase.kind === "finished" ? null : clock(timeLeft)} sections={state.sections} now={now} />
-        <section className={`flex min-w-0 flex-1 justify-center ${workspaceOpen ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
-          {phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
-          {phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
-          {phase.kind === "section" && !workspaceOpen && (
+        <section className={`flex min-w-0 flex-1 justify-center ${active ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
+          {/* One fixed place for the part's screen, so it is the same screen while it hands in after the end. */}
+          {active && (active.kind === "typing"
+            ? <TypingSection key={active.id} section={active} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={(result) => { if (result) handIn(active.id); }} />
+            : <EfficiencySection key={active.id} section={active} onSaved={() => handIn(active.id)} />)}
+          {!active && phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
+          {!active && phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
+          {!active && phase.kind === "section" && !workspaceOpen && (
             <div className="w-full max-w-2xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-xs font-black uppercase tracking-widest text-[#0b2e59]">Part {phase.section.position} of {state.sections.length}</p>
               <h2 className="mt-2 text-3xl font-black text-slate-900">{phase.section.label}</h2>
@@ -108,13 +129,7 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
               <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : `Admin preview: students get the ${phase.section.label} test here. (A preview cannot start a real attempt.)`}</p>
             </div>
           )}
-          {phase.kind === "section" && workspaceOpen && phase.section.kind !== "typing" && (
-            <EfficiencySection key={phase.section.id} section={phase.section} onSaved={() => { void refresh(); }} />
-          )}
-          {phase.kind === "section" && workspaceOpen && phase.section.kind === "typing" && (
-            <TypingSection key={phase.section.id} section={phase.section} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={() => { void refresh(); }} />
-          )}
-          {phase.kind === "finished" && (
+          {!active && phase.kind === "finished" && (
             <div className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-5xl">✓</p>
               <h2 className="mt-3 text-3xl font-black text-slate-900">Exam completed</h2>
@@ -245,7 +260,7 @@ function PeripheralCheck({ onClose }: { onClose: () => void }) {
 // A typing part: its test is fetched when the part starts (the server refuses earlier), then the normal typing screen
 // runs in live-exam mode — its clock ends with the part, the RSMSSB rules are fixed, and the attempt is saved with the
 // part. An admin preview shows the same screen but saves nothing.
-function TypingSection({ section, serverOffset, candidate, preview, onSaved }: { section: LiveExamSectionState; serverOffset: number; candidate: Candidate; preview: boolean; onSaved: () => void }) {
+function TypingSection({ section, serverOffset, candidate, preview, onSaved }: { section: LiveExamSectionState; serverOffset: number; candidate: Candidate; preview: boolean; onSaved: (result: unknown) => void }) {
   const [loaded, setLoaded] = useState<LiveTypingSection | null>(null), [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
