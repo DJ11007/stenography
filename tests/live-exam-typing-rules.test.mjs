@@ -44,12 +44,11 @@ test("a part's screen stays open past its end until its answer reaches the serve
   // Real bug, first live exam: at the end second the page switched to the break and removed the typing screen while it
   // was still confirming the end with the server, so most students' typing was never sent.
   const room = await read("app/live-exam/[examId]/live-exam-room.tsx");
-  assert.match(room, /if \(previous && previous\.id !== openSection\?\.id && !preview && !handedIn\.current\.has\(previous\.id\)\) setClosing\(previous\);/);
-  assert.match(room, /window\.setTimeout\(\(\) => setClosing\(null\), 150000\)/);
-  assert.match(room, /const active = closing \?\? openSection;/);
+  // The hold itself is rendered and checked in tests/live-exam-part-hand-in.test.mjs.
+  assert.match(room, /const \{ active, handIn \} = usePartHandIn\(openSection, preview, \(\) => \{ void refresh\(\); \}\);/);
   // One fixed place and key for the screen, so React keeps the very same screen (and its typed text) while it hands in.
-  assert.match(room, /\{active && \(active\.kind === "typing"\n\s+\? <TypingSection key=\{active\.id\} section=\{active\}[^\n]*onSaved=\{\(result\) => \{ if \(result\) handIn\(active\.id\); \}\} \/>\n\s+: <EfficiencySection key=\{active\.id\} section=\{active\} onSaved=\{\(\) => handIn\(active\.id\)\} \/>\)\}/);
+  assert.match(room, /\{active && \(active\.kind === "typing"\n\s+\? <TypingSection key=\{active\.id\} section=\{active\} preloaded=\{preloaded\[active\.id\]\}[^\n]*onSaved=\{\(result\) => \{ if \(result\) handIn\(active\.id\); \}\} \/>\n\s+: <EfficiencySection key=\{active\.id\} section=\{active\} onSaved=\{\(\) => handIn\(active\.id\)\} \/>\)\}/);
   for (const screen of ["waiting", "gap", "finished"]) assert.match(room, new RegExp(`\{!active && phase\.kind === "${screen}"`));
   // The hooks run before the login screen's early return.
-  assert.ok(room.indexOf("const active = closing ?? openSection;") < room.indexOf("if (!loggedIn) return <ExamLogin"));
+  assert.ok(room.indexOf("const { active, handIn } = usePartHandIn(") < room.indexOf("if (!loggedIn) return <ExamLogin"));
 });

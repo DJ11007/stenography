@@ -30,7 +30,7 @@ test("instructions are written from the exam's own parts and breaks", () => {
 
 test("the part's test is loaded only between its start and end, and a moment-early PC asks again", async () => {
   const actions = await read("app/live-exam/actions.ts");
-  assert.match(actions, /if \(!slot \|\| now < Date\.parse\(slot\.starts_at\)\) return \{ ok: false, error: "This part has not started yet\." \};/);
+  assert.match(actions, /if \(!slot \|\| now < Date\.parse\(slot\.starts_at\) - 20000\) return \{ ok: false, error: "This part has not started yet\." \};/);
   assert.match(actions, /if \(now >= Date\.parse\(slot\.ends_at\)\) return \{ ok: false, error: "This part is over\." \};/);
   assert.match(actions, /managedVersionToPreset\(version, PATTERN_TYPING_CATEGORY\[pattern\]\)/);
   const room = await read("app/live-exam/[examId]/live-exam-room.tsx");

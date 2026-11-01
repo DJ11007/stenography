@@ -10,6 +10,7 @@ import { finalizeLiveExamEfficiency, loadLiveExamTypingSection, recordLiveExamEf
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { clearLiveExamDraft, clearPendingAttempt, readLiveExamDraft, readPendingAttempt } from "@/lib/pending-attempts";
 import { createClient } from "@/lib/supabase/client";
+import { usePartHandIn } from "./use-part-hand-in";
 
 export type LiveExamSectionState = {
   id: string; position: number; kind: "typing" | "word" | "excel"; language: "English" | "Hindi"; label: string; testId: string;
@@ -91,22 +92,23 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   const timeLeft = phase.kind === "finished" ? 0 : phase.until - now;
   // A running part not yet submitted fills the main area with its workspace (an admin preview of Word / Excel shows a card).
   const workspaceOpen = phase.kind === "section" && !phase.section.submitted && (phase.section.kind === "typing" || !preview);
-  // The part's screen stays open past its end until it has handed the answer in (real bug, first live exam: the page
-  // switched to the break at the end second and removed the screen while it was still confirming the end with the
-  // server, so most students' typing was never sent). handedIn: parts whose answer reached the server.
-  const handedIn = useRef(new Set<string>());
-  const [closing, setClosing] = useState<LiveExamSectionState | null>(null);
-  const shown = useRef<LiveExamSectionState | null>(null);
+  // The part's screen stays open past its end until it has handed the answer in (see use-part-hand-in.ts).
   const openSection = loggedIn && workspaceOpen && phase.kind === "section" ? phase.section : null;
+  const { active, handIn } = usePartHandIn(openSection, preview, () => { void refresh(); });
+  // A typing part's passage and font are fetched 12 seconds before it starts (the server allows 20), and shown at the
+  // start second, so the part no longer opens 7 to 10 seconds late.
+  const [preloaded, setPreloaded] = useState<Record<string, LiveTypingSection>>({});
+  const upcoming = !loggedIn ? null : phase.kind === "waiting" ? state.sections[0] ?? null : phase.kind === "gap" ? phase.next : null;
+  const soon = upcoming && upcoming.kind === "typing" && phase.kind !== "finished" && phase.kind !== "section" && phase.until - now <= 12000 ? upcoming : null;
   useEffect(() => {
-    const previous = shown.current;
-    shown.current = openSection;
-    if (previous && previous.id !== openSection?.id && !preview && !handedIn.current.has(previous.id)) setClosing(previous);
-  }, [openSection?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per change of part
-  // Never longer than the server accepts a late answer (2 minutes after the end), plus a little.
-  useEffect(() => { if (!closing) return; const timer = window.setTimeout(() => setClosing(null), 150000); return () => window.clearTimeout(timer); }, [closing]);
-  const handIn = (sectionId: string) => { handedIn.current.add(sectionId); setClosing((current) => (current?.id === sectionId ? null : current)); void refresh(); };
-  const active = closing ?? openSection;
+    if (!soon) return;
+    void loadLiveExamTypingSection(soon.id).then((result) => {
+      if (!result.ok) return;
+      setPreloaded((current) => ({ ...current, [soon.id]: result.section }));
+      const system = result.section.preset.inputSystems[0];
+      if (system?.requiredFontAsset) void fetch(system.requiredFontAsset).then(() => document.fonts.load(`16px ${system.fontStack}`)).catch(() => { /* loaded again at the start */ });
+    }).catch(() => { /* the part loads itself at the start */ });
+  }, [soon?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per upcoming part
   const finalKey = `live-exam-final:${initial.id}`;
   const [finalDone, setFinalDone] = useState(false);
   useEffect(() => { try { if (localStorage.getItem(finalKey) === "1") setFinalDone(true); } catch { /* storage unavailable */ } }, [finalKey]); // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount
@@ -129,7 +131,7 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
         <section className={`flex min-w-0 flex-1 justify-center ${active ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
           {/* One fixed place for the part's screen, so it is the same screen while it hands in after the end. */}
           {active && (active.kind === "typing"
-            ? <TypingSection key={active.id} section={active} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={(result) => { if (result) handIn(active.id); }} />
+            ? <TypingSection key={active.id} section={active} preloaded={preloaded[active.id]} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={(result) => { if (result) handIn(active.id); }} />
             : <EfficiencySection key={active.id} section={active} onSaved={() => handIn(active.id)} />)}
           {!active && phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
           {!active && phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
@@ -184,7 +186,7 @@ function CandidatePanel({ candidate, running, timeLeft, sections, now }: { candi
       <ol className="mt-4 grid gap-1.5 text-sm">
         {sections.map((section) => {
           const status = section.submitted ? "Submitted" : now >= Date.parse(section.endsAt) ? "Over" : now >= Date.parse(section.startsAt) ? "Running" : istTime(section.startsAt).slice(0, 5);
-          return <li key={section.id} className="flex items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 md:px-2"><span className="truncate font-bold text-slate-800 md:text-xs" title={section.label}>{section.position}. {section.label}</span><span className={`shrink-0 text-xs font-black ${status === "Running" ? "text-green-700" : status === "Submitted" ? "text-blue-700" : "text-slate-500"}`}>{status}</span></li>;
+          return <li key={section.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-slate-200 px-2.5 py-1.5 md:px-2"><span className="min-w-0 truncate font-bold text-slate-800 md:text-xs" title={section.label}>{section.position}. {section.label}</span><span className={`shrink-0 text-xs font-black ${status === "Running" ? "text-green-700" : status === "Submitted" ? "text-blue-700" : "text-slate-500"}`}>{status}</span></li>;
         })}
       </ol>
     </aside>
@@ -276,9 +278,10 @@ function PeripheralCheck({ onClose }: { onClose: () => void }) {
 // A typing part: its test is fetched when the part starts (the server refuses earlier), then the normal typing screen
 // runs in live-exam mode — its clock ends with the part, the RSMSSB rules are fixed, and the attempt is saved with the
 // part. An admin preview shows the same screen but saves nothing.
-function TypingSection({ section, serverOffset, candidate, preview, onSaved }: { section: LiveExamSectionState; serverOffset: number; candidate: Candidate; preview: boolean; onSaved: (result: unknown) => void }) {
-  const [loaded, setLoaded] = useState<LiveTypingSection | null>(null), [problem, setProblem] = useState<string | null>(null);
+function TypingSection({ section, preloaded, serverOffset, candidate, preview, onSaved }: { section: LiveExamSectionState; preloaded?: LiveTypingSection; serverOffset: number; candidate: Candidate; preview: boolean; onSaved: (result: unknown) => void }) {
+  const [loaded, setLoaded] = useState<LiveTypingSection | null>(preloaded ?? null), [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
+    if (preloaded) return;
     let cancelled = false;
     let tries = 0, retry: number | undefined;
     // This PC may reach the start a moment before the server does: "not started yet" is asked again shortly.
@@ -290,7 +293,7 @@ function TypingSection({ section, serverOffset, candidate, preview, onSaved }: {
     }).catch(() => { if (!cancelled) setProblem("Could not open this part. Check your internet and refresh the page."); });
     load();
     return () => { cancelled = true; window.clearTimeout(retry); };
-  }, [section.id]);
+  }, [section.id]); // eslint-disable-line react-hooks/exhaustive-deps -- a preloaded part needs no load
   if (problem) return <p role="alert" className="m-8 rounded-2xl bg-red-50 p-6 text-center font-bold text-red-800">{problem}</p>;
   if (!loaded) return <p className="m-8 rounded-2xl bg-white p-6 text-center font-bold text-slate-600 shadow">Opening {section.label}…</p>;
   return (

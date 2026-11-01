@@ -16,7 +16,7 @@ export async function loadLiveExamTypingSection(sectionId: string): Promise<{ ok
   const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: section.exam_id });
   const slot = ((timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[]).find((row) => row.section_id === sectionId);
   const now = Date.now();
-  if (!slot || now < Date.parse(slot.starts_at)) return { ok: false, error: "This part has not started yet." };
+  if (!slot || now < Date.parse(slot.starts_at) - 20000) return { ok: false, error: "This part has not started yet." };
   if (now >= Date.parse(slot.ends_at)) return { ok: false, error: "This part is over." };
   const { data: test } = await supabase.from("tests").select("id,slug,current_version_id").eq("id", section.test_id).maybeSingle();
   const { data: v } = test?.current_version_id ? await supabase.from("test_versions").select("*").eq("id", test.current_version_id).maybeSingle() : { data: null };
