@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 import { examLengthSeconds, SECTION_KIND_LABEL, sectionInstructions, type LiveExamLanguage, type LiveExamPattern, type LiveExamSection, type LiveExamSectionKind } from "@/lib/live-exam";
 import { saveLiveExam } from "./actions";
 
-export type TestOption = { id: string; title: string; kind: LiveExamSectionKind; language: LiveExamLanguage; mode?: string | null };
+export type TestOption = { id: string; title: string; kind: LiveExamSectionKind; language: LiveExamLanguage; group: string };
+const GROUP_ORDER = ["Exam Simulator", "Live tests", "Practice / Take Tests", "Learning"];
 type Initial = { examId: string | null; title: string; pattern: string; startsAt: string; resultsAt: string; status: string; instructions: string; sections: LiveExamSection[] };
 
 const UPLOAD_LINK: Record<LiveExamSectionKind, (language: LiveExamLanguage) => string> = {
@@ -19,8 +20,9 @@ const minutes = (seconds: number) => Math.round((seconds / 60) * 100) / 100;
 // already uploaded (filtered by kind and language) or links to upload a new one.
 export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: Initial; pattern: LiveExamPattern | null; tests: TestOption[]; locked: boolean }) {
   const [sections, setSections] = useState<LiveExamSection[]>(initial.sections);
+  const [searches, setSearches] = useState<Record<number, string>>({});
   const update = (index: number, change: Partial<LiveExamSection>) => setSections((current) => current.map((section, i) => (i === index ? { ...section, ...change } : section)));
-  const move = (index: number, by: -1 | 1) => setSections((current) => { const next = [...current]; const [item] = next.splice(index, 1); next.splice(index + by, 0, item); return next; });
+  const move = (index: number, by: -1 | 1) => setSections((current) => { setSearches({}); const next = [...current]; const [item] = next.splice(index, 1); next.splice(index + by, 0, item); return next; });
   const total = useMemo(() => examLengthSeconds(sections), [sections]);
   const marks = sections.reduce((sum, section) => sum + (Number(section.maxMarks) || 0), 0);
 
@@ -54,7 +56,9 @@ export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: I
         </div>
         {pattern && <p className="text-sm text-slate-600">{pattern.name} pattern: {pattern.description}</p>}
         {sections.map((section, index) => {
-          const options = tests.filter((test) => test.kind === section.kind && test.language === section.language);
+          const query = (searches[index] ?? "").trim().toLowerCase();
+          const options = tests.filter((test) => test.kind === section.kind && (section.kind !== "typing" || test.language === section.language) && (!query || test.title.toLowerCase().includes(query) || test.id === section.testId));
+          const groups = [...new Set(options.map((test) => test.group))].sort((a, b) => (GROUP_ORDER.indexOf(a) + 1 || 99) - (GROUP_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b));
           return (
             <div key={index} className="grid gap-3 rounded-xl border border-slate-200 p-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -63,7 +67,7 @@ export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: I
                 <span className="ml-auto flex gap-1">
                   <button type="button" disabled={locked || index === 0} onClick={() => move(index, -1)} className="rounded-lg border px-2 py-1 text-sm disabled:opacity-30" aria-label="Move up">↑</button>
                   <button type="button" disabled={locked || index === sections.length - 1} onClick={() => move(index, 1)} className="rounded-lg border px-2 py-1 text-sm disabled:opacity-30" aria-label="Move down">↓</button>
-                  <button type="button" disabled={locked || sections.length === 1} onClick={() => setSections((current) => current.filter((_, i) => i !== index))} className="rounded-lg border border-red-200 px-2 py-1 text-sm text-red-700 disabled:opacity-30">Remove</button>
+                  <button type="button" disabled={locked || sections.length === 1} onClick={() => { setSearches({}); setSections((current) => current.filter((_, i) => i !== index)); }} className="rounded-lg border border-red-200 px-2 py-1 text-sm text-red-700 disabled:opacity-30">Remove</button>
                 </span>
               </div>
               <div className="grid gap-3 sm:grid-cols-[150px_120px_1fr]">
@@ -73,19 +77,21 @@ export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: I
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs font-bold text-slate-600">Language
-                  <select className="input" value={section.language} disabled={locked} onChange={(event) => update(index, { language: event.target.value as LiveExamLanguage, testId: "" })}>
+                  <select className="input" value={section.language} disabled={locked || section.kind !== "typing"} title={section.kind !== "typing" ? "Set by the test you choose" : undefined} onChange={(event) => update(index, { language: event.target.value as LiveExamLanguage, testId: "" })}>
                     <option>Hindi</option><option>English</option>
                   </select>
                 </label>
-                <label className="grid gap-1 text-xs font-bold text-slate-600">Test ({options.length} available)
+                <div className="grid gap-1 text-xs font-bold text-slate-600">
+                  <span>Test — {options.length} {query ? "matching" : "available"}{section.kind === "typing" ? ` ${section.language}` : ""}</span>
+                  <input className="input" type="search" aria-label={`Search tests for section ${index + 1}`} placeholder="Search by name, e.g. CHAPTER-154" value={searches[index] ?? ""} disabled={locked} onChange={(event) => setSearches((current) => ({ ...current, [index]: event.target.value }))} />
                   <span className="flex gap-2">
-                    <select className="input min-w-0 flex-1" value={section.testId} disabled={locked} onChange={(event) => update(index, { testId: event.target.value })}>
+                    <select className="input min-w-0 flex-1" aria-label={`Test for section ${index + 1}`} value={section.testId} disabled={locked} onChange={(event) => { const chosen = tests.find((test) => test.id === event.target.value); update(index, { testId: event.target.value, ...(chosen && section.kind !== "typing" ? { language: chosen.language } : {}) }); }}>
                       <option value="">— choose a test —</option>
-                      {options.map((test) => <option key={test.id} value={test.id}>{test.title}{test.mode ? ` (${test.mode})` : ""}</option>)}
+                      {groups.map((group) => <optgroup key={group} label={group}>{options.filter((test) => test.group === group).map((test) => <option key={test.id} value={test.id}>{test.title}</option>)}</optgroup>)}
                     </select>
                     <Link href={UPLOAD_LINK[section.kind](section.language)} target="_blank" className="whitespace-nowrap rounded-lg border border-blue-200 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50">Upload new ↗</Link>
                   </span>
-                </label>
+                </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="grid gap-1 text-xs font-bold text-slate-600">Duration (minutes)<input className="input" type="number" min={1} max={240} step={0.5} disabled={locked} value={minutes(section.durationSeconds)} onChange={(event) => update(index, { durationSeconds: Math.max(60, Number(event.target.value) * 60) })} /></label>

@@ -10,6 +10,9 @@ import { LiveExamEditor, type TestOption } from "./live-exam-editor";
 
 export const metadata: Metadata = { title: "Live Exam Center | Admin" };
 
+// The section each typing test is listed under in the builder's dropdown.
+const TYPING_GROUP: Record<string, string> = { exam: "Exam Simulator", practice: "Practice / Take Tests", learn: "Learning" };
+
 type ExamRow = { id: string; title: string; pattern: string; starts_at: string; results_at: string | null; status: string; instructions: string | null; live_exam_sections: { duration_seconds: number; gap_after_seconds: number }[] };
 
 // Live Exam Center (docs/live-exam-center-plan.md): timed exams made of sections that reuse tests already on the site.
@@ -27,14 +30,14 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
   if (showEditor) {
     // Every published test a section can use, by kind and language.
     const [typing, word, excel] = await Promise.all([
-      supabase.from("tests").select("id,title,language,mode").eq("status", "published").eq("test_type", "typing").is("archived_at", null).in("mode", ["exam", "practice"]).order("title"),
-      supabase.from("word_efficiency_tests").select("id,title,language").eq("status", "published").order("title"),
-      supabase.from("excel_efficiency_tests").select("id,title,language").eq("status", "published").order("title"),
+      supabase.from("tests").select("id,title,language,mode,is_live").eq("status", "published").eq("test_type", "typing").is("archived_at", null).in("mode", ["exam", "practice", "learn"]).order("title"),
+      supabase.from("word_efficiency_tests").select("id,title,language,is_live").eq("status", "published").order("title"),
+      supabase.from("excel_efficiency_tests").select("id,title,language,is_live").eq("status", "published").order("title"),
     ]);
     const tests: TestOption[] = [
-      ...(typing.data ?? []).map((test) => ({ id: test.id, title: test.title, kind: "typing" as const, language: test.language as TestOption["language"], mode: test.mode })),
-      ...(word.data ?? []).map((test) => ({ id: test.id, title: test.title, kind: "word" as const, language: test.language as TestOption["language"] })),
-      ...(excel.data ?? []).map((test) => ({ id: test.id, title: test.title, kind: "excel" as const, language: test.language as TestOption["language"] })),
+      ...(typing.data ?? []).map((test) => ({ id: test.id, title: test.title, kind: "typing" as const, language: test.language as TestOption["language"], group: test.is_live ? "Live tests" : TYPING_GROUP[test.mode as string] ?? "Other" })),
+      ...(word.data ?? []).map((test) => ({ id: test.id, title: test.title, kind: "word" as const, language: test.language as TestOption["language"], group: `${test.language} Word tests${test.is_live ? " (live)" : ""}` })),
+      ...(excel.data ?? []).map((test) => ({ id: test.id, title: test.title, kind: "excel" as const, language: test.language as TestOption["language"], group: `${test.language} Excel tests${test.is_live ? " (live)" : ""}` })),
     ].sort((a, b) => a.title.localeCompare(b.title, "en", { numeric: true, sensitivity: "base" }));
     let sections: LiveExamSection[] = (newPattern?.sections ?? [{ kind: "typing", language: "English", label: "Section 1", durationSeconds: 600, gapAfterSeconds: 0, maxMarks: 25 }]).map((section) => ({ ...section, testId: "" }));
     let locked = false;
