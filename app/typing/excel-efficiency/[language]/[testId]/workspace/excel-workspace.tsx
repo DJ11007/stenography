@@ -9,7 +9,8 @@ import { ConfirmDialog, FullscreenButton, formatClock, useExamCountdown } from "
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
 type Snapshot = { title: string; language: string; instructions_markdown: string; duration_seconds: number; question_count: number; maximum_marks: number; questions: Question[]; show_questions?: boolean; delivery_onscreen?: boolean; question_toggle?: boolean };
 
-export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, original, initialDocument }: { attemptId: string; snapshot: Snapshot; status: string; remainingSeconds: number; original: ExcelDocument; initialDocument?: ExcelDocument | null }) {
+// liveExam: inside a Live Exam Center part — no Exit, and after submitting the exam page carries on (no result page).
+export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, original, initialDocument, liveExam }: { liveExam?: { onSubmitted: () => void }; attemptId: string; snapshot: Snapshot; status: string; remainingSeconds: number; original: ExcelDocument; initialDocument?: ExcelDocument | null }) {
   // The admin decides (migration 202610252100): no on-screen questions (PDF only), or questions the student
   // may not hide. Attempts started before these settings keep the old behaviour (toggle allowed).
   const onscreen = snapshot.delivery_onscreen !== false;
@@ -26,7 +27,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
     <main className="h-dvh overflow-hidden bg-slate-100">
       <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
         <div className="flex items-center gap-3">
-          <BackButton href={catalogueHref} label="Exit" dark onNavigate={(event) => { if (!submitted) { event.preventDefault(); setLeaveOpen(true); } }} />
+          {!liveExam && <BackButton href={catalogueHref} label="Exit" dark onNavigate={(event) => { if (!submitted) { event.preventDefault(); setLeaveOpen(true); } }} />}
           <div><p className="text-xs font-black uppercase tracking-wider text-emerald-300">Excel Efficiency</p><h1 className="font-black">{snapshot.title}</h1></div>
         </div>
         <div className="flex items-center gap-3">
@@ -37,7 +38,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
         </div>
       </header>
       <div className="h-[calc(100dvh-4rem)] min-h-0">
-        <RichSheetEditor attemptId={attemptId} original={original} initialDocument={initialDocument} locked={submitted} autoSubmit={expired}
+        <RichSheetEditor afterSubmit={liveExam?.onSubmitted} attemptId={attemptId} original={original} initialDocument={initialDocument} locked={submitted} autoSubmit={expired}
           questionBar={onscreen ? <QuestionBar questions={questions} current={current} onSelect={setCurrent} language={snapshot.language} collapsed={!showQuestions} onToggle={canToggle ? () => setShowQuestions((value) => !value) : undefined} /> : null} />
       </div>
       <ConfirmDialog open={leaveOpen} title="Leave the test?" message="Your progress is saved automatically, but the timer keeps running while you are away." confirmLabel="Leave test" cancelLabel="Stay" onCancel={() => setLeaveOpen(false)} onConfirm={() => { setLeaveOpen(false); router.push(catalogueHref); }} />

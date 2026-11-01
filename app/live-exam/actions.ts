@@ -27,3 +27,83 @@ export async function loadLiveExamTypingSection(sectionId: string): Promise<{ ok
   const preset = managedVersionToPreset(version, PATTERN_TYPING_CATEGORY[pattern]);
   return { ok: true, section: { preset, managedTest: { testId: test.id, versionId: v.id, mode: version.mode, isLive: false } } };
 }
+
+type EfficiencyKind = "word" | "excel";
+export type LiveEfficiencySection =
+  | { kind: "word"; attemptId: string; snapshot: unknown; status: string; durationSeconds: number; remainingSeconds: number; initialDocument: unknown }
+  | { kind: "excel"; attemptId: string; snapshot: unknown; status: string; remainingSeconds: number; original: unknown; initialDocument: unknown };
+
+// When a part is open: the section's timeline slot, or a reason it cannot be used now.
+async function openSection(supabase: Awaited<ReturnType<typeof createClient>>, sectionId: string, kinds: string[]) {
+  const { data: section } = await supabase.from("live_exam_sections").select("id,exam_id,kind,test_id").eq("id", sectionId).maybeSingle();
+  if (!section || !kinds.includes(section.kind)) return { error: "This part is not available." } as const;
+  const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: section.exam_id });
+  const slot = ((timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[]).find((row) => row.section_id === sectionId);
+  const now = Date.now();
+  if (!slot || now < Date.parse(slot.starts_at)) return { error: "This part has not started yet." } as const;
+  if (now >= Date.parse(slot.ends_at)) return { error: "This part is over." } as const;
+  return { section, startsAt: slot.starts_at, secondsLeft: Math.max(1, Math.floor((Date.parse(slot.ends_at) - now) / 1000)) } as const;
+}
+
+// The test's duration option to start with: the shortest that covers the time left in the part (the screen's own
+// timer is then capped at the part's end, so the part's end always comes first), else the longest there is.
+const durationFor = (options: number[] | null | undefined, secondsLeft: number) => {
+  const sorted = [...(options ?? [])].filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  return sorted.find((value) => value >= secondsLeft) ?? sorted[sorted.length - 1] ?? null;
+};
+
+// A Word / Excel part: starts the student's attempt of the part's test when the part opens — or carries on with the one
+// they already started in this part (a refresh), linking it to the part if it was already submitted.
+export async function startLiveExamEfficiencySection(sectionId: string): Promise<{ ok: true; section: LiveEfficiencySection } | { ok: true; submitted: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in again to continue." };
+  const open = await openSection(supabase, sectionId, ["word", "excel"]);
+  if ("error" in open) return { ok: false, error: open.error ?? "This part is not available." };
+  const kind = open.section.kind as EfficiencyKind, testId = open.section.test_id as string;
+  const table = kind === "word" ? "word_efficiency_attempts" : "excel_efficiency_attempts";
+  const columns = kind === "word" ? "id,status,started_at,selected_duration_seconds,snapshot,document_autosave" : "id,status,started_at,selected_duration_seconds,snapshot,original_document_snapshot,document_autosave";
+  const findAttempt = async () => (await supabase.from(table).select(columns).eq("student_id", user.id).eq("test_id", testId).gte("started_at", open.startsAt).order("started_at", { ascending: false }).limit(1).maybeSingle()).data as Record<string, unknown> | null;
+  let attempt = await findAttempt();
+  if (attempt && (attempt.status === "submitted" || attempt.status === "completed")) {
+    await supabase.rpc("record_live_exam_section", { p_section_id: sectionId, p_attempt_id: attempt.id });
+    return { ok: true, submitted: true };
+  }
+  if (!attempt) {
+    const versions = kind === "word" ? "word_efficiency_versions" : "excel_efficiency_versions";
+    const { data: test } = await supabase.from(kind === "word" ? "word_efficiency_tests" : "excel_efficiency_tests").select("current_version_id").eq("id", testId).maybeSingle();
+    const { data: version } = test?.current_version_id ? await supabase.from(versions).select("*").eq("id", test.current_version_id).maybeSingle() : { data: null };
+    const duration = durationFor(version?.duration_options as number[] | undefined, open.secondsLeft);
+    if (!version || !duration) return { ok: false, error: "The test for this part could not be loaded. Tell the exam supervisor." };
+    if (kind === "word") {
+      const delivery = version.delivery_onscreen ? "onscreen" : version.delivery_pdf ? "pdf" : null;
+      if (!delivery) return { ok: false, error: "This Word test is set to a real-file paper, which cannot run inside a live exam. Tell the exam supervisor." };
+      const { data: prepared, error } = await supabase.rpc("prepare_word_efficiency_attempt", { p_test_id: testId, p_duration_seconds: duration, p_delivery: delivery, p_live: false });
+      if (error || !prepared) return { ok: false, error: error?.message ?? "This part could not be started." };
+      const { error: initError } = await supabase.rpc("initialize_word_efficiency_document", { p_attempt_id: prepared, p_show_questions: true });
+      if (initError) return { ok: false, error: initError.message };
+      const { error: startError } = await supabase.rpc("start_word_efficiency_attempt", { p_attempt_id: prepared });
+      if (startError) return { ok: false, error: "This part could not be started." };
+    } else {
+      const { error } = await supabase.rpc("prepare_excel_efficiency_attempt", { p_test_id: testId, p_duration_seconds: duration, p_show_questions: true, p_live: false });
+      if (error) return { ok: false, error: error.message };
+    }
+    attempt = await findAttempt();
+    if (!attempt) return { ok: false, error: "This part could not be started." };
+  }
+  // Time left: the attempt's own (server start time + its duration), never past the part's end.
+  const snapshot = attempt.snapshot as { duration_seconds?: number; working_matter?: unknown };
+  const durationSeconds = Number(attempt.selected_duration_seconds) || Number(snapshot?.duration_seconds) || open.secondsLeft;
+  const ownLeft = attempt.started_at ? Math.max(0, durationSeconds - Math.floor((Date.now() - Date.parse(String(attempt.started_at))) / 1000)) : durationSeconds;
+  const remainingSeconds = Math.min(ownLeft, open.secondsLeft);
+  if (kind === "word") return { ok: true, section: { kind, attemptId: String(attempt.id), snapshot, status: String(attempt.status), durationSeconds, remainingSeconds, initialDocument: attempt.document_autosave ?? null } };
+  return { ok: true, section: { kind, attemptId: String(attempt.id), snapshot, status: String(attempt.status), remainingSeconds, original: attempt.original_document_snapshot, initialDocument: attempt.document_autosave ?? null } };
+}
+
+// After a Word / Excel part is submitted: link the attempt to the part (its marks are read from the attempt).
+export async function recordLiveExamEfficiency(sectionId: string, attemptId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("record_live_exam_section", { p_section_id: sectionId, p_attempt_id: attemptId });
+  if (error && !/already submitted/i.test(error.message)) return { ok: false, error: error.message };
+  return { ok: true };
+}

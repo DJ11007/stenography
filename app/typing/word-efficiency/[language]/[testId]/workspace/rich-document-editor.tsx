@@ -96,9 +96,9 @@ const ratioParts=(ratio:string)=>{const match=/^\s*([\d.]+)\s*\/\s*([\d.]+)\s*$/
 // prop defaults to the original hardcoded action/label/confirm/lock, so a
 // caller that omits them (every existing student workspace) behaves
 // byte-for-byte as before.
-export function RichDocumentEditor({attemptId,original,initialDocument,capabilities:rawCapabilities,locked,mode="attempt",autosaveAction,submitAction,submitLabel="Submit Final Document",submitConfirmMessage="Submit your final document? You cannot edit it afterward.",oneTimeSubmit=true,submitPortalId,autoSubmit=false,documentLanguage="English (U.S.)",snapshotRef,randomText,fullHeight=false,paragraphDefaults,onReady,onSaved,questionBar,hideSubmit=false,showUnavailableTools=false}:{
+export function RichDocumentEditor({attemptId,original,initialDocument,capabilities:rawCapabilities,locked,mode="attempt",autosaveAction,submitAction,submitLabel="Submit Final Document",submitConfirmMessage="Submit your final document? You cannot edit it afterward.",oneTimeSubmit=true,submitPortalId,autoSubmit=false,documentLanguage="English (U.S.)",snapshotRef,randomText,fullHeight=false,paragraphDefaults,onReady,onSaved,questionBar,hideSubmit=false,showUnavailableTools=false,afterSubmit}:{
  // Shown between the ribbon and the page (the exam's current question).
- questionBar?:ReactNode;hideSubmit?:boolean;attemptId:string;original:WorkingMatterSnapshot;initialDocument?:unknown;capabilities:unknown;locked:boolean;mode?:"attempt"|"authoring";autosaveAction?:typeof autosaveWordDocument;submitAction?:typeof submitWordDocument;submitLabel?:string;submitConfirmMessage?:string|null;oneTimeSubmit?:boolean;submitPortalId?:string;autoSubmit?:boolean;documentLanguage?:string;snapshotRef?:{current:(()=>unknown)|null};randomText?:{language:()=>"English"|"Hindi"};fullHeight?:boolean;paragraphDefaults?:{spaceAfter:number;lineHeight:number};onReady?:(snapshot:ReturnType<typeof toSnapshot>)=>void;onSaved?:(snapshot:ReturnType<typeof toSnapshot>)=>void;showUnavailableTools?:boolean}){
+ questionBar?:ReactNode;hideSubmit?:boolean;afterSubmit?:()=>void;attemptId:string;original:WorkingMatterSnapshot;initialDocument?:unknown;capabilities:unknown;locked:boolean;mode?:"attempt"|"authoring";autosaveAction?:typeof autosaveWordDocument;submitAction?:typeof submitWordDocument;submitLabel?:string;submitConfirmMessage?:string|null;oneTimeSubmit?:boolean;submitPortalId?:string;autoSubmit?:boolean;documentLanguage?:string;snapshotRef?:{current:(()=>unknown)|null};randomText?:{language:()=>"English"|"Hindi"};fullHeight?:boolean;paragraphDefaults?:{spaceAfter:number;lineHeight:number};onReady?:(snapshot:ReturnType<typeof toSnapshot>)=>void;onSaved?:(snapshot:ReturnType<typeof toSnapshot>)=>void;showUnavailableTools?:boolean}){
  const router=useRouter();
  // Load the result page in the background while the test is open, so after Submit it opens at once.
  useEffect(()=>{if(oneTimeSubmit&&mode==="attempt")router.prefetch(`/typing/word-efficiency/results/${attemptId}`)},[oneTimeSubmit,mode,attemptId,router]);
@@ -1309,11 +1309,11 @@ savedRange.current=wrapped.range;changed();
    const snapshot=toSnapshot(editor.current);const result=await(submitAction??submitWordDocument)(attemptId,snapshot);
    if(!result.ok){
     // Already finalised (e.g. the automatic submit won the race): just go to the result.
-    if(oneTimeSubmit&&/already submitted/i.test(result.error)){setSubmitted(true);router.push(`/typing/word-efficiency/results/${attemptId}`);return true}
+    if(oneTimeSubmit&&/already submitted/i.test(result.error)){setSubmitted(true);(afterSubmit?afterSubmit():router.push(`/typing/word-efficiency/results/${attemptId}`));return true}
     return fail(result.error)
    }
    onSaved?.(snapshot);
-   if(oneTimeSubmit){setSubmitted(true);setStatus("Test submitted successfully");router.push(`/typing/word-efficiency/results/${attemptId}`)}else{lastAutosave.current=snapshot;setStatus("Saved");submitting.current=false}
+   if(oneTimeSubmit){setSubmitted(true);setStatus("Test submitted successfully");(afterSubmit?afterSubmit():router.push(`/typing/word-efficiency/results/${attemptId}`))}else{lastAutosave.current=snapshot;setStatus("Saved");submitting.current=false}
    return true
   }catch(error){
    if(isStaleServerActionError(error)){setStaleDeploy(true);return fail("A newer version of this page was published. Refresh the page, then submit again -- nothing was lost.")}

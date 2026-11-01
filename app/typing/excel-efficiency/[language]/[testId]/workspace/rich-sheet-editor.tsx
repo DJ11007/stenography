@@ -79,7 +79,7 @@ type SaveAction = (id: string, document: unknown) => Promise<{ ok: boolean; erro
 // mode "authoring": the admin solves the paper on the Model Answer page. The same sheet, but its autosave and its
 // button save the model answer (autosaveAction / submitAction), the button can be pressed again and again
 // (oneTimeSubmit false) and nothing is locked or sent to a results page.
-export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar, mode = "attempt", autosaveAction, submitAction, submitLabel = "Submit", submitConfirmMessage = "Submit your final sheet? You cannot edit it afterward.", oneTimeSubmit = true, onReady }: { attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode; mode?: "attempt" | "authoring"; autosaveAction?: SaveAction; submitAction?: SaveAction; submitLabel?: string; submitConfirmMessage?: string | null; oneTimeSubmit?: boolean; onReady?: (document: ExcelDocument) => void }) {
+export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar, mode = "attempt", autosaveAction, submitAction, submitLabel = "Submit", submitConfirmMessage = "Submit your final sheet? You cannot edit it afterward.", oneTimeSubmit = true, onReady, afterSubmit }: { afterSubmit?: () => void; attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode; mode?: "attempt" | "authoring"; autosaveAction?: SaveAction; submitAction?: SaveAction; submitLabel?: string; submitConfirmMessage?: string | null; oneTimeSubmit?: boolean; onReady?: (document: ExcelDocument) => void }) {
   const router = useRouter();
   const start = useMemo(() => toExcelDocumentV3(initialDocument) ?? toExcelDocumentV3(original)!, []); // eslint-disable-line react-hooks/exhaustive-deps -- the starting sheet only
   // The saved sheet never has fewer rows/columns than the starting sheet.
@@ -501,12 +501,12 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       const result = await (submitAction ?? submitExcelDocument)(attemptId, finalDocument);
       clearUnsaved();
       if (!result.ok) {
-        if (/already submitted/i.test(result.error)) { submittedRef.current = true; setSubmitted(true); router.push(`/typing/excel-efficiency/results/${attemptId}`); return true; }
+        if (/already submitted/i.test(result.error)) { submittedRef.current = true; setSubmitted(true); if (afterSubmit) afterSubmit(); else router.push(`/typing/excel-efficiency/results/${attemptId}`); return true; }
         return fail(result.error);
       }
       if (!oneTimeSubmit) { setStatus("Saved"); setFinalSubmitting(false); submitting.current = false; return true; }
       submittedRef.current = true; setSubmitted(true); setStatus("Test submitted successfully");
-      router.push(`/typing/excel-efficiency/results/${attemptId}`);
+      if (afterSubmit) afterSubmit(); else router.push(`/typing/excel-efficiency/results/${attemptId}`);
       return true;
     } catch (error) {
       keepUnsaved(finalDocument as ExcelDocument);

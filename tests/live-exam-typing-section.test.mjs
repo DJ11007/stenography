@@ -10,9 +10,9 @@ const read = async (path) => (await readFile(new URL(`../${path}`, import.meta.u
 
 test("the typing clock ends with the part on the server clock, never longer than the test itself", () => {
   const now = Date.now();
-  assert.equal(liveSecondsLeft(now + 90_000, 0, 600), 90, "a late joiner gets only the time left");
+  assert.equal(liveSecondsLeft(now + 90_500, 0, 600), 90, "a late joiner gets only the time left");
   assert.equal(liveSecondsLeft(now + 900_000, 0, 600), 600, "never more than the test's own duration");
-  assert.equal(liveSecondsLeft(now + 90_000, 30_000, 600), 60, "a PC clock 30 s behind the server is corrected");
+  assert.equal(liveSecondsLeft(now + 90_500, 30_000, 600), 60, "a PC clock 30 s behind the server is corrected");
   assert.equal(liveSecondsLeft(now - 5_000, 0, 600), 1);
 });
 

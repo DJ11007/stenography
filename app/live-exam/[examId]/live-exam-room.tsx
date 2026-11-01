@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfigurableTypingExam } from "@/app/typing/_components/configurable-typing-exam";
 import { TypingStudentProvider } from "@/app/typing/_components/typing-student-provider";
 import { formatDuration } from "@/lib/live-exam";
-import { loadLiveExamTypingSection, type LiveTypingSection } from "../actions";
+import { WordWorkspace } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace";
+import { ExcelWorkspace } from "@/app/typing/excel-efficiency/[language]/[testId]/workspace/excel-workspace";
+import { loadLiveExamTypingSection, recordLiveExamEfficiency, startLiveExamEfficiencySection, type LiveEfficiencySection, type LiveTypingSection } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 
 export type LiveExamSectionState = {
@@ -77,6 +79,8 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} instructions={instructions} candidate={candidate} preview={preview} onLogin={() => { try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ } setLoggedIn(true); }} />;
 
   const timeLeft = phase.kind === "finished" ? 0 : phase.until - now;
+  // A running part not yet submitted fills the main area with its workspace (an admin preview of Word / Excel shows a card).
+  const workspaceOpen = phase.kind === "section" && !phase.section.submitted && (phase.section.kind === "typing" || !preview);
   const running = phase.kind === "section" ? phase.section.label : phase.kind === "gap" ? "Break" : phase.kind === "waiting" ? "Not started" : "Completed";
   return (
     <main className="flex min-h-screen flex-col bg-[#eef2f7]">
@@ -89,19 +93,22 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
       {preview && <p className="bg-amber-300 px-4 py-1 text-center text-xs font-black text-amber-950">Admin preview — nothing you do here is submitted.</p>}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <CandidatePanel candidate={candidate} running={running} timeLeft={phase.kind === "finished" ? null : clock(timeLeft)} sections={state.sections} now={now} />
-        <section className={`flex min-w-0 flex-1 justify-center ${phase.kind === "section" && phase.section.kind === "typing" && !phase.section.submitted ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
+        <section className={`flex min-w-0 flex-1 justify-center ${workspaceOpen ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
           {phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
           {phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
-          {phase.kind === "section" && (phase.section.submitted || phase.section.kind !== "typing") && (
+          {phase.kind === "section" && !workspaceOpen && (
             <div className="w-full max-w-2xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-xs font-black uppercase tracking-widest text-[#0b2e59]">Part {phase.section.position} of {state.sections.length}</p>
               <h2 className="mt-2 text-3xl font-black text-slate-900">{phase.section.label}</h2>
               <p className="mt-1 text-slate-600">{formatDuration(phase.section.durationSeconds)} · {phase.section.maxMarks} marks</p>
               <p className="mt-6 font-mono text-6xl font-black text-[#0b2e59]">{clock(timeLeft)}</p>
-              <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : "This part opens here on this page. (The Word and Excel workspaces are added inside the exam in the next update.)"}</p>
+              <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : `Admin preview: students get the ${phase.section.label} test here. (A preview cannot start a real attempt.)`}</p>
             </div>
           )}
-          {phase.kind === "section" && !phase.section.submitted && phase.section.kind === "typing" && (
+          {phase.kind === "section" && workspaceOpen && phase.section.kind !== "typing" && (
+            <EfficiencySection key={phase.section.id} section={phase.section} onSaved={() => { void refresh(); }} />
+          )}
+          {phase.kind === "section" && workspaceOpen && phase.section.kind === "typing" && (
             <TypingSection key={phase.section.id} section={phase.section} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={() => { void refresh(); }} />
           )}
           {phase.kind === "finished" && (
@@ -247,6 +254,35 @@ function TypingSection({ section, serverOffset, candidate, preview, onSaved }: {
         <ConfigurableTypingExam preset={loaded.preset} mode="exam" customPreset managedTest={preview ? undefined : loaded.managedTest} adminPreview={preview}
           liveExam={{ sectionId: section.id, endsAt: Date.parse(section.endsAt), serverOffset, onSaved }} />
       </TypingStudentProvider>
+    </div>
+  );
+}
+
+// A Word or Excel part: the student's attempt of the part's test is started (or carried on after a refresh) when the
+// part opens, shown with its own screen in live-exam mode (no Exit; its timer never runs past the part's end), and
+// linked to the part when submitted.
+function EfficiencySection({ section, onSaved }: { section: LiveExamSectionState; onSaved: () => void }) {
+  const [loaded, setLoaded] = useState<LiveEfficiencySection | null>(null), [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false, tries = 0, retry: number | undefined;
+    const load = () => void startLiveExamEfficiencySection(section.id).then((result) => {
+      if (cancelled) return;
+      if (result.ok && "submitted" in result) { onSaved(); return; }
+      if (result.ok) { setLoaded(result.section); return; }
+      if (/not started yet/i.test(result.error) && tries++ < 12) { retry = window.setTimeout(load, 1500); return; }
+      setProblem(result.error);
+    }).catch(() => { if (!cancelled) setProblem("Could not open this part. Check your internet and refresh the page."); });
+    load();
+    return () => { cancelled = true; window.clearTimeout(retry); };
+  }, [section.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per part
+  if (problem) return <p role="alert" className="m-8 rounded-2xl bg-red-50 p-6 text-center font-bold text-red-800">{problem}</p>;
+  if (!loaded) return <p className="m-8 rounded-2xl bg-white p-6 text-center font-bold text-slate-600 shadow">Opening {section.label}…</p>;
+  const onSubmitted = () => { void recordLiveExamEfficiency(section.id, loaded.attemptId).finally(onSaved); };
+  return (
+    <div className="w-full">
+      {loaded.kind === "word"
+        ? <WordWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof WordWorkspace>[0]["snapshot"]} status={loaded.status} durationSeconds={loaded.durationSeconds} remainingSeconds={loaded.remainingSeconds} signedPdfUrl={null} initialDocument={loaded.initialDocument} liveExam={{ onSubmitted }} />
+        : <ExcelWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof ExcelWorkspace>[0]["snapshot"]} status={loaded.status} remainingSeconds={loaded.remainingSeconds} original={loaded.original as Parameters<typeof ExcelWorkspace>[0]["original"]} initialDocument={loaded.initialDocument as Parameters<typeof ExcelWorkspace>[0]["initialDocument"]} liveExam={{ onSubmitted }} />}
     </div>
   );
 }
