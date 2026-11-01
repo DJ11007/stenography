@@ -110,6 +110,10 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
     }).catch(() => { /* the part loads itself at the start */ });
   }, [soon?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per upcoming part
   const finalKey = `live-exam-final:${initial.id}`;
+  // Final Submit is offered only while it can still hand an answer in (until 15 minutes after the last part, as the
+  // server allows); an exam opened later goes straight to the result.
+  const lastEnd = Math.max(...state.sections.map((section) => Date.parse(section.endsAt)));
+  const finalOpen = now < lastEnd + 15 * 60000;
   const [finalDone, setFinalDone] = useState(false);
   useEffect(() => { try { if (localStorage.getItem(finalKey) === "1") setFinalDone(true); } catch { /* storage unavailable */ } }, [finalKey]); // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount
 
@@ -144,10 +148,10 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
               <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : `Admin preview: students get the ${phase.section.label} test here. (A preview cannot start a real attempt.)`}</p>
             </div>
           )}
-          {!active && phase.kind === "finished" && !preview && !finalDone && (
+          {!active && phase.kind === "finished" && !preview && !finalDone && finalOpen && (
             <FinalSubmit examId={state.id} sections={state.sections} refresh={refresh} onDone={() => { try { localStorage.setItem(finalKey, "1"); } catch { /* storage unavailable */ } setFinalDone(true); }} />
           )}
-          {!active && phase.kind === "finished" && (preview || finalDone) && (
+          {!active && phase.kind === "finished" && (preview || finalDone || !finalOpen) && (
             <div className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-5xl">✓</p>
               <h2 className="mt-3 text-3xl font-black text-slate-900">Exam completed</h2>

@@ -88,7 +88,10 @@ test("during the part nothing changed: the attempt links at once, and only once"
 
 test("the Final Submit screen: each part's status, the agreement, and resending what the server has not received", async () => {
   const room = (await readFile(new URL("../app/live-exam/[examId]/live-exam-room.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
-  assert.match(room, /\{!active && phase\.kind === "finished" && !preview && !finalDone && \(\n\s+<FinalSubmit /);
+  assert.match(room, /\{!active && phase\.kind === "finished" && !preview && !finalDone && finalOpen && \(\n\s+<FinalSubmit /);
+  // Offered only while it can still hand an answer in; an exam opened later goes straight to the result.
+  assert.ok(room.includes("const finalOpen = now < lastEnd + 15 * 60000;"));
+  assert.ok(room.includes("(preview || finalDone || !finalOpen)"));
   assert.match(room, /I agree that I have attempted this test myself, and I want to submit it\./);
   assert.match(room, /disabled=\{!agreed \|\| busy\}/);
   assert.match(room, /const job = readLiveExamDraft<TypingJob>\(section\.id\) \?\? \(pending\?\.payload\.liveExamSectionId === section\.id \? pending : null\);/);
