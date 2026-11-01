@@ -10,6 +10,7 @@ import { finalizeLiveExamEfficiency, loadLiveExamTypingSection, recordLiveExamEf
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { clearLiveExamDraft, clearPendingAttempt, readLiveExamDraft, readPendingAttempt } from "@/lib/pending-attempts";
 import { createClient } from "@/lib/supabase/client";
+import { PasswordInput } from "@/app/_components/password-input";
 import { usePartHandIn } from "./use-part-hand-in";
 
 export type LiveExamSectionState = {
@@ -242,7 +243,7 @@ function ExamLogin({ title, startsAt, instructions, candidate, preview, onLogin 
           <h2 className="text-xl font-black text-slate-900">Candidate login</h2>
           <p className="mt-1 text-sm text-slate-600">Exam starts {istDateTime(startsAt)}</p>
           <label className="mt-5 grid gap-1.5 text-sm font-bold text-slate-700">Login ID<input className="input" type="email" autoComplete="username" required value={loginId} onChange={(event) => setLoginId(event.target.value)} placeholder="your login email" /></label>
-          <label className="mt-3 grid gap-1.5 text-sm font-bold text-slate-700">Password<input className="input" type="password" autoComplete="current-password" required={!preview} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label className="mt-3 grid gap-1.5 text-sm font-bold text-slate-700">Password<PasswordInput className="input w-full" autoComplete="current-password" required={!preview} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           {problem && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-800">{problem}</p>}
           <div className="mt-5 flex gap-2">
             <button disabled={checking} className="flex-1 rounded-xl bg-[#0b2e59] px-4 py-3 font-black text-white hover:bg-[#123f78] disabled:opacity-60">{checking ? "Checking…" : "Login"}</button>
