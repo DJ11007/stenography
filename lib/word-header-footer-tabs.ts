@@ -33,8 +33,21 @@ export function restoreHeaderFooterTabs(editor: HTMLElement) {
     let at = 0;
     for (const child of [...area.childNodes]) {
       const element = asElement(child), text = child.textContent ?? "";
-      // A field (page number, date) is never split; it stays whole in the position it is in.
-      if (!text.includes("\t") || (element && element.hasAttribute("data-field"))) { zones[at].append(child); continue; }
+      if (!text.includes("\t")) { zones[at].append(child); continue; }
+      // A field (page number, date) is never split; it stays whole. Saving writes the tabs before a position into
+      // the text of the run that starts it, so a page number put after two tabs is saved as "\t\t1": those
+      // leading tabs move the field to its position (and trailing ones move what follows), and are taken out of
+      // the field's own text. It used to stay in the position before, next to the date in front of it.
+      const field = element && (element.hasAttribute("data-field") ? element : element.querySelector("[data-field]"));
+      if (field) {
+        const leading = text.length - text.replace(/^\t+/, "").length, trailing = text.length - text.replace(/\t+$/, "").length;
+        at = Math.min(2, at + leading);
+        const walker = document.createTreeWalker(child, 4 /* NodeFilter.SHOW_TEXT */);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) node.textContent = (node.textContent ?? "").replace(/\t/g, "");
+        zones[at].append(child);
+        at = Math.min(2, at + trailing);
+        continue;
+      }
       text.split("\t").forEach((part, index) => {
         if (index > 0) at = Math.min(2, at + 1);
         if (!part) return;

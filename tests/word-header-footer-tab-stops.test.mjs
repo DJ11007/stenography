@@ -108,3 +108,15 @@ test("the editor wires Tab, Backspace and Delete, and the first typed character,
   assert.match(editor, /placeInPosition\(target\)/);
   assert.match(editor, /ensureHeaderFooterMarkers\(area\)/);
 });
+
+test("a field saved with the tabs before it (\"\t\t1\") reloads in its own position, not next to the text before it", () => {
+  // Efficiency Test 3: date and time on the left, Tab Tab, page number on the right -- saved as two runs,
+  // "11/2/2026 10:36:42 PM" (date field) and "\t\t1" (page-number field). It came back with both on the left.
+  const window = new Window(), document = window.document;
+  document.body.innerHTML = `<div id="editor"><footer><span data-field="date-time">11/2/2026 10:36:42 PM</span><span data-field="page-number|current|right">\t\t1</span></footer></div>`;
+  const editor = document.getElementById("editor");
+  restoreHeaderFooterTabs(editor);
+  const zones = headerFooterPositions(editor.querySelector("footer"));
+  assert.deepEqual(zones.map((zone) => zone.textContent), ["11/2/2026 10:36:42 PM", "", "1"]);
+  assert.equal(zones[2].querySelector("[data-field]").getAttribute("data-field"), "page-number|current|right");
+});
