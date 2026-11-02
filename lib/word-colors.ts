@@ -5,7 +5,7 @@
 export type NamedColor = { name: string; hex: string };
 
 export const THEME_BASE: NamedColor[] = [
-  { name: "White, Background 1", hex: "FFFFFF" }, { name: "Black, Text 1", hex: "000000" }, { name: "Tan, Background 2", hex: "E7E6E6" }, { name: "Dark Blue, Text 2", hex: "44546A" },
+  { name: "White, Background 1", hex: "FFFFFF" }, { name: "Black, Text 1", hex: "000000" }, { name: "Tan, Background 2", hex: "E7E6E6" }, { name: "Blue-Gray, Text 2", hex: "44546A" },
   { name: "Blue, Accent 1", hex: "5B9BD5" }, { name: "Orange, Accent 2", hex: "ED7D31" }, { name: "Gray, Accent 3", hex: "A5A5A5" }, { name: "Gold, Accent 4", hex: "FFC000" },
   { name: "Blue, Accent 5", hex: "4472C4" }, { name: "Green, Accent 6", hex: "70AD47" },
 ];
