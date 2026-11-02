@@ -145,33 +145,37 @@ test("a category with no accuracy gate says so instead of printing 0%", async ()
   assert.match(page, /category\.accuracy === 0 \? "no separate accuracy requirement"/);
 });
 
-// Checked against BSF's own detailed advertisement (Directorate General BSF, ASI
-// (Steno)/HC (Ministerial), ref. A.5/101/Pers(Rectt)/Min Staff/BSF/2021): "10%
-// mistakes are allowed. For excess mistakes, 10 words for each mistake will be
-// subtracted from the total words typed out." -- unlike the 5% other CAPF forces use.
-test("BSF HCM uses its own advertisement's 10% mistake allowance and no invented accuracy gate; 400 words with 45 mistakes still qualifies", () => {
+// BSF HCM's typing rule as published for the 2024 recruitment: "5% mistakes are allowed. For excess mistakes, 10 words
+// for each mistake will be subtracted from the total words typed out." Each mistake counts as one -- no half-mistake
+// concession (an older notice quoted 10%; the simulator used 10% with half mistakes at half until 2 Nov 2026, which let
+// a student make 50+ mistakes and still show net = gross).
+test("BSF HCM: 5% of mistakes forgiven, then 10 words off for each extra mistake, and every mistake counts as one", () => {
   const category = getExamCategory("bsf-hcm");
-  assert.equal(category.errorRelaxationPercent, 10);
+  assert.equal(category.errorRelaxationPercent, 5);
   assert.equal(category.fullErrorPenalty, 10);
-  assert.equal(category.halfErrorPenalty, 5);
+  assert.equal(category.halfErrorPenalty, 10);
   assert.equal(category.accuracy, 0);
   assert.equal(category.speedEnglish, 35);
   assert.equal(category.speedHindi, 30);
   assert.equal(category.durationMinutes, 10);
-  assert.equal(getExamCategory("crpf-hcm").errorRelaxationPercent, 5);
   const preset = getExamPreset(examCategoryPresetId("bsf-hcm", "English"));
-  assert.equal(preset.scoringProfile.errorRelaxationPercent, 10);
+  assert.equal(preset.scoringProfile.errorRelaxationPercent, 5);
   assert.equal(preset.scoringProfile.passAccuracy, 0);
+  // The rule's own example: 400 words in 10 minutes, 25 mistakes -> 20 forgiven, 5 extra -> 50 words off -> 35 WPM.
   const words = Array.from({ length: 400 }, (_, index) => `w${String(index).padStart(3, "0")}`);
-  const typed = words.map((word, index) => (index < 45 ? "zzzz" : word)).join(" ");
-  const score = calculateTypingScore({ typedText: typed, passage: words.join(" "), elapsedSeconds: 600, wordMethod: preset.wordMethod, scoringProfile: preset.scoringProfile, includeUntypedWords: true });
-  assert.equal(score.analysis.fullErrors, 45);
+  const score = (mistakes) => calculateTypingScore({ typedText: words.map((word, index) => (index < mistakes ? "zzzz" : word)).join(" "), passage: words.join(" "), elapsedSeconds: 600, wordMethod: "spaces", scoringProfile: preset.scoringProfile, includeUntypedWords: true });
+  assert.equal(score(25).grossWpm, 40);
+  assert.equal(score(25).netWpm, 35);
+  assert.equal(score(20).netWpm, 40, "up to 5% of the words typed, nothing is deducted");
+  assert.equal(score(60).netWpm, 0, "60 mistakes: 40 extra = 400 words off");
+  assert.ok(score(25).netWpm < score(25).grossWpm);
 });
 
 test("BSF HCM notes quote the advertisement's mistake rule and KDPH figures and are honest about what it does not state", () => {
   const english = defaultExamCategoryRules(getExamCategory("bsf-hcm"), "English").join(" ");
   const hindi = defaultExamCategoryRules(getExamCategory("bsf-hcm"), "Hindi").join(" ");
-  assert.match(english, /10% mistakes are allowed/);
+  assert.match(english, /5% mistakes are allowed/);
+  assert.match(english, /Every mistake counts as one/);
   assert.match(english, /10,500 \/ 9,000 KDPH/);
   assert.match(english, /does not state the passage length, whether Backspace is enabled/);
   assert.match(english, /no separate accuracy requirement/);
