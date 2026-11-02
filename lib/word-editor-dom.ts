@@ -214,19 +214,23 @@ function replaceEditorRangeTextPreservingRuns(range:Range,source:string,value:st
  // nothing for exactly the most common selection, a phrase inside one run.
  if(root.nodeType===3)nodes.push(root as Text);
  else{const walker=document.createTreeWalker(root,4);for(let node=walker.nextNode();node;node=walker.nextNode())if(range.intersectsNode(node))nodes.push(node as Text)}
+ // The selection's ends are kept BEFORE the text changes: rewriting a text node moves any live range edge inside it
+ // back to the node's start (DOM "replace data"), so after a triple-click + Toggle Case the selection used to end
+ // before the paragraph's last run -- only part of the paragraph looked selected, though all of it was changed.
+ const startContainer=range.startContainer,startOffset=range.startOffset,endContainer=range.endContainer,endOffset=range.endOffset;
  let cursor=0;
  for(const node of nodes){
   const text=node.textContent??"";
-  const startInNode=node===range.startContainer?range.startOffset:0;
-  const endInNode=node===range.endContainer?range.endOffset:text.length;
+  const startInNode=node===startContainer?startOffset:0;
+  const endInNode=node===endContainer?endOffset:text.length;
   if(startInNode>=endInNode)continue;
   const length=endInNode-startInNode;
   node.textContent=text.slice(0,startInNode)+value.slice(cursor,cursor+length)+text.slice(endInNode);
   cursor+=length;
  }
  const selected=document.createRange();
- selected.setStart(range.startContainer,range.startOffset);
- selected.setEnd(range.endContainer,range.endOffset);
+ selected.setStart(startContainer,startOffset);
+ selected.setEnd(endContainer,endOffset);
  return selected;
 }
 
