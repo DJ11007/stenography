@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
 import { PAPER_SIZES, type ConditionalStyle, type ConditionalType, type HeaderFooter, type PaperSize, type SheetSettings } from "@/lib/excel-document";
 import { CONDITIONAL_STYLES, HIGHLIGHT_STYLES } from "@/lib/excel-sheet-model";
@@ -7,12 +7,33 @@ import { CONDITIONAL_STYLES, HIGHLIGHT_STYLES } from "@/lib/excel-sheet-model";
 // Excel 2013's dialog boxes for the workspace: grey body, white title bar with ? and ✕, OK / Cancel at the
 // bottom right. Each returns what the user chose; the editor applies it to the sheet.
 
+// Dragging a dialog by its title bar, as in Excel: the dialog follows the mouse, and its title bar never leaves the
+// window (so it can always be caught again). Buttons in the title bar (✕) are not drag handles.
+export function useDialogDrag() {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const startDrag = (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+    event.preventDefault();
+    const bar = event.currentTarget.getBoundingClientRect();
+    const start = { x: event.clientX - offset.x, y: event.clientY - offset.y, left: bar.left - offset.x, top: bar.top - offset.y, width: bar.width };
+    const move = (moveEvent: MouseEvent) => {
+      const x = Math.min(Math.max(moveEvent.clientX - start.x, 40 - start.left - start.width), window.innerWidth - 40 - start.left);
+      const y = Math.min(Math.max(moveEvent.clientY - start.y, -start.top), window.innerHeight - 30 - start.top);
+      setOffset({ x, y });
+    };
+    const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+  };
+  return { style: { transform: `translate(${offset.x}px, ${offset.y}px)` }, startDrag };
+}
+
 export function DialogShell({ title, children, onCancel, footer, width = 420 }: { title: string; children: ReactNode; onCancel: () => void; footer: ReactNode; width?: number }) {
+  const drag = useDialogDrag();
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/20 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
-      <div role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[92vh] flex-col border border-[#8a8a8a] bg-[#f0f0f0] text-[12px] text-[#1e1e1e] shadow-2xl" style={{ width }}
+      <div role="dialog" aria-modal="true" aria-label={title} className="flex max-h-[92vh] flex-col border border-[#8a8a8a] bg-[#f0f0f0] text-[12px] text-[#1e1e1e] shadow-2xl" style={{ width, ...drag.style }}
         onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onCancel(); } }}>
-        <div className="flex items-center justify-between bg-white px-3 py-1.5">
+        <div onMouseDown={drag.startDrag} className="flex cursor-default select-none items-center justify-between bg-white px-3 py-1.5">
           <span className="text-[13px]">{title}</span>
           <span className="flex items-center gap-3 text-[#555]"><span aria-hidden>?</span><button type="button" onClick={onCancel} aria-label="Close" className="px-1 hover:bg-[#e81123] hover:text-white">✕</button></span>
         </div>

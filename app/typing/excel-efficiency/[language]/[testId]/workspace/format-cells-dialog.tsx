@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CURRENCIES, type CurrencySymbol, type SheetCell, type UnderlineStyle } from "@/lib/excel-document";
 import { formatCellValue } from "@/lib/excel-sheet-model";
 import { FormatCellsBorderTab, type BorderLines } from "./format-cells-border-tab";
+import { useDialogDrag } from "./excel-dialogs";
 
 // Excel 2013's Format Cells dialog (Ctrl+1, right-click > Format Cells..., the ↘ launchers of the Font,
 // Alignment and Number groups): Number, Alignment, Font, Border, Fill and Protection tabs, applied with OK.
@@ -31,6 +32,7 @@ const listFont = (font: string) => (font === "Calibri (Body)" ? "Calibri" : font
 
 export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, multiRow, multiCol, onOk, onCancel }: { cell: SheetCell; merged: boolean; initialTab: FormatCellsTab; initialBorders: BorderLines; multiRow: boolean; multiCol: boolean; onOk: (result: FormatCellsResult) => void; onCancel: () => void }) {
   const [tab, setTab] = useState<FormatCellsTab>(initialTab);
+  const drag = useDialogDrag();
   const [numberFormat, setNumberFormat] = useState<SheetCell["numberFormat"]>(cell.numberFormat === "LongDate" ? "ShortDate" : cell.numberFormat ?? "General");
   const [decimals, setDecimals] = useState<number>(cell.decimals ?? 2);
   const [horizontal, setHorizontal] = useState<string>(cell.align ?? "general");
@@ -74,8 +76,8 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
 
   return (
     <div role="presentation" className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/30 p-4" onMouseDown={onCancel}>
-      <div role="dialog" aria-modal="true" aria-label="Format Cells" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") onCancel(); if (event.key === "Enter" && (event.target as HTMLElement).tagName !== "BUTTON") { event.preventDefault(); ok(); } }} className="w-full max-w-[540px] border border-slate-400 bg-white text-[12px] text-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between bg-white px-3 py-1.5"><span>Format Cells</span><span className="flex gap-3"><span aria-hidden className="text-slate-400">?</span><button type="button" onClick={onCancel} aria-label="Close">✕</button></span></div>
+      <div role="dialog" aria-modal="true" aria-label="Format Cells" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") onCancel(); if (event.key === "Enter" && (event.target as HTMLElement).tagName !== "BUTTON") { event.preventDefault(); ok(); } }} className="w-full max-w-[540px] border border-slate-400 bg-white text-[12px] text-slate-900 shadow-2xl" style={drag.style}>
+        <div onMouseDown={drag.startDrag} className="flex cursor-default select-none items-center justify-between bg-white px-3 py-1.5"><span>Format Cells</span><span className="flex gap-3"><span aria-hidden className="text-slate-400">?</span><button type="button" onClick={onCancel} aria-label="Close">✕</button></span></div>
         <div role="tablist" className="flex gap-0.5 px-2 pt-2">
           {(["Number", "Alignment", "Font", "Border", "Fill", "Protection"] as FormatCellsTab[]).map((name) => (
             <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => setTab(name)} className={`border border-b-0 px-3 py-1 ${tab === name ? "border-slate-400 bg-white" : "border-slate-300 bg-white text-slate-700"} disabled:text-slate-400`}>{name}</button>

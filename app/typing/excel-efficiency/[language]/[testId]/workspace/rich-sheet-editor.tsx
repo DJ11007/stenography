@@ -16,7 +16,7 @@ import {
   mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, parseRef, previewHeaderText, rangeString, readBorderLines, recomputeFormulas, rectContains, rectRefs, refAt,
   shiftColumns, shiftFormula, shiftRows, unmergeRanges, usedExtent, type BorderStyle, type Rect,
 } from "@/lib/excel-sheet-model";
-import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
+import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, useDialogDrag, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
 import { ChartView } from "./excel-chart";
 import { STANDARD_COLORS, THEME_COLORS } from "./excel-colors";
 import { DataValidationDialog, DefineNameDialog, GoToSpecialDialog, HyperlinkDialog, InsertDeleteCellsDialog, ManageRulesDialog, MoreColorsDialog, NameManagerDialog, PasteSpecialDialog, SeriesDialog, TextToColumnsDialog, type GoToSpecialChoice, type PasteSpecialChoice, type SeriesChoice, type ShiftChoice } from "./excel-dialogs-more";
@@ -2175,6 +2175,7 @@ function Check({ label, checked, onChange, disabled, ariaLabel }: { label: strin
 
 // Insert > Header & Footer: the three header and footer sections of the printed page, with Excel's codes.
 function HeaderFooterDialog({ header, footer, onOk, onCancel }: { header: HeaderFooter; footer: HeaderFooter; onOk: (header: HeaderFooter, footer: HeaderFooter) => void; onCancel: () => void }) {
+  const drag = useDialogDrag();
   const [h, setH] = useState<HeaderFooter>({ ...header }), [f, setF] = useState<HeaderFooter>({ ...footer });
   const [target, setTarget] = useState<{ part: "header" | "footer"; side: "left" | "center" | "right" }>({ part: "header", side: "center" });
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -2201,8 +2202,8 @@ function HeaderFooterDialog({ header, footer, onOk, onCancel }: { header: Header
   );
   return (
     <div role="presentation" className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/40 p-4" onMouseDown={onCancel}>
-      <div role="dialog" aria-modal="true" aria-label="Header & Footer" onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-sm border border-slate-400 bg-[#f3f3f3] p-4 text-[12px] shadow-2xl">
-        <div className="flex items-center justify-between"><h2 className="text-[13px] font-semibold">Header &amp; Footer</h2><button type="button" onClick={onCancel} aria-label="Close" className="px-2">✕</button></div>
+      <div role="dialog" aria-modal="true" aria-label="Header & Footer" onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-2xl rounded-sm border border-slate-400 bg-[#f3f3f3] p-4 text-[12px] shadow-2xl" style={drag.style}>
+        <div onMouseDown={drag.startDrag} className="flex cursor-default select-none items-center justify-between"><h2 className="text-[13px] font-semibold">Header &amp; Footer</h2><button type="button" onClick={onCancel} aria-label="Close" className="px-2">✕</button></div>
         <p className="mt-1 text-slate-600">Click in a section, then choose an element to insert.</p>
         <div role="toolbar" aria-label="Header & Footer Elements" className="mt-2 flex flex-wrap gap-1">
           {HEADER_CODES.map(([code, label]) => <button key={code} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insert(code)} className="rounded-sm border border-slate-300 bg-white px-2 py-1 hover:bg-[#d5ead9]">{label}</button>)}
