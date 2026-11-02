@@ -1812,9 +1812,32 @@ function splitBetweenSheets(block: HTMLElement, sheet: { top: () => number; zoom
       const now = (rect.top - sheet.top()) / sheet.zoom; if (Math.abs(now - target) < 0.5) break;
       spacer.style.height = `${Math.max(0, Number.parseFloat(spacer.style.height) + target - now)}px`;
     }
+    paintSplitSpacer(block, spacer, sheet, number);
     split = true;
   }
   return split;
+}
+
+// A bordered or shaded paragraph split between sheets: as in Word, its border closes below the last line on
+// the first sheet and opens again above the first line on the next, and nothing of it crosses the bottom
+// margin, the grey gap, the next sheet's top margin or its header. The spacer reaches over the paragraph's
+// padding and side borders and paints the paper (Page Color), the gap and the two closing lines itself.
+function paintSplitSpacer(block: HTMLElement, spacer: HTMLElement, sheet: { top: () => number; zoom: number; step: number }, number: number) {
+  const style = getComputedStyle(block), px = (value: string) => Number.parseFloat(value) || 0;
+  const side = (name: "Top" | "Right" | "Bottom" | "Left") => style[`border${name}Style`] !== "none" && px(style[`border${name}Width`]) > 0 ? { width: px(style[`border${name}Width`]), color: style[`border${name}Color`] } : null;
+  const top = side("Top"), bottom = side("Bottom"), left = side("Left"), right = side("Right");
+  const shaded = Boolean(style.backgroundColor) && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(style.backgroundColor);
+  if (!top && !bottom && !left && !right && !shaded) return;
+  spacer.style.position = "relative";
+  spacer.style.marginLeft = `-${px(style.paddingLeft) + (left?.width ?? 0)}px`;
+  spacer.style.marginRight = `-${px(style.paddingRight) + (right?.width ?? 0)}px`;
+  const y = (spacer.getBoundingClientRect().top - sheet.top()) / sheet.zoom;
+  const paperEnd = Math.max(0, (number + 1) * sheet.step - PAGE_GAP_PX - y), gapEnd = Math.max(paperEnd, (number + 1) * sheet.step - y);
+  const paper = "var(--word-page-color, #fff)", layers: string[] = [], sizes: string[] = [], positions: string[] = [];
+  if (bottom) { layers.push(`linear-gradient(${bottom.color}, ${bottom.color})`); sizes.push(`100% ${bottom.width}px`); positions.push("0 0"); }
+  if (top) { layers.push(`linear-gradient(${top.color}, ${top.color})`); sizes.push(`100% ${top.width}px`); positions.push("0 100%"); }
+  layers.push(`linear-gradient(to bottom, ${paper} 0 ${paperEnd}px, #d4d4d4 ${paperEnd}px ${gapEnd}px, ${paper} ${gapEnd}px 100%)`); sizes.push("100% 100%"); positions.push("0 0");
+  spacer.style.backgroundImage = layers.join(", "); spacer.style.backgroundSize = sizes.join(", "); spacer.style.backgroundPosition = positions.join(", "); spacer.style.backgroundRepeat = "no-repeat";
 }
 
 // The header and the footer on every sheet after the first: copies of the real ones (which are on the

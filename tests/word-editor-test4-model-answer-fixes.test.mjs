@@ -153,3 +153,17 @@ test("the header/footer copies on later pages never show the editing line", asyn
   assert.match(editor.replace(/\r\n/g, "\n"), /copy\.style\.border = "0";[\s\S]{0,200}copy\.removeAttribute\("class"\);/);
   assert.match(css, /\.word-hf-copy > header, \.word-hf-copy > footer \{ border: 0 !important; \}/);
 });
+
+test("a bordered or shaded paragraph split between pages closes its border on page 1 and reopens it on page 2, never across the gap or the header", async () => {
+  const editor = (await read(EDITOR)).replace(/\r\n/g, "\n");
+  assert.match(editor, /paintSplitSpacer\(block, spacer, sheet, number\);\n    split = true;/);
+  const paint = editor.slice(editor.indexOf("function paintSplitSpacer("), editor.indexOf("// The header and the footer on every sheet after the first:"));
+  // the spacer reaches over the padding and side borders, and paints paper, grey gap, paper
+  assert.match(paint, /spacer\.style\.marginLeft = `-\$\{px\(style\.paddingLeft\) \+ \(left\?\.width \?\? 0\)\}px`;/);
+  assert.match(paint, /#d4d4d4 \$\{paperEnd\}px \$\{gapEnd\}px/);
+  // the bottom line closes page 1's part at the spacer's top, the top line opens page 2's part at its bottom
+  assert.match(paint, /if \(bottom\) \{[^\n]*?positions\.push\("0 0"\); \}/);
+  assert.match(paint, /if \(top\) \{[^\n]*?positions\.push\("0 100%"\); \}/);
+  // a paragraph with no border and no shading keeps a plain spacer
+  assert.match(paint, /if \(!top && !bottom && !left && !right && !shaded\) return;/);
+});
