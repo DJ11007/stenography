@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import { CURRENCIES, type CurrencySymbol, type SheetCell, type UnderlineStyle } from "@/lib/excel-document";
-import { formatCellValue, type BorderStyle } from "@/lib/excel-sheet-model";
+import { formatCellValue } from "@/lib/excel-sheet-model";
+import { FormatCellsBorderTab, type BorderLines } from "./format-cells-border-tab";
 
 // Excel 2013's Format Cells dialog (Ctrl+1, right-click > Format Cells..., the ↘ launchers of the Font,
 // Alignment and Number groups): Number, Alignment, Font, Border, Fill and Protection tabs, applied with OK.
 export type FormatCellsTab = "Number" | "Alignment" | "Font" | "Border" | "Fill" | "Protection";
-export type FormatCellsResult = { patch: Partial<SheetCell>; border: BorderStyle | null; merge: boolean | null };
+// borderLines: only the Border tab lines the student changed (null = removed); the rest of each cell's border stays.
+export type FormatCellsResult = { patch: Partial<SheetCell>; borderLines: BorderLines; merge: boolean | null };
 const CATEGORIES: [SheetCell["numberFormat"], string, string][] = [
   ["General", "General", "General format cells have no specific number format."],
   ["Number", "Number", "Number is used for general display of numbers."],
@@ -27,7 +29,7 @@ const COLORS: [string, string][] = [["000000", "Black"], ["FFFFFF", "White"], ["
 const fontName = (stored: string | null | undefined) => stored ?? "Calibri";
 const listFont = (font: string) => (font === "Calibri (Body)" ? "Calibri" : font === "Calibri Light (Headings)" ? "Calibri Light" : font);
 
-export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: { cell: SheetCell; merged: boolean; initialTab: FormatCellsTab; onOk: (result: FormatCellsResult) => void; onCancel: () => void }) {
+export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, multiRow, multiCol, onOk, onCancel }: { cell: SheetCell; merged: boolean; initialTab: FormatCellsTab; initialBorders: BorderLines; multiRow: boolean; multiCol: boolean; onOk: (result: FormatCellsResult) => void; onCancel: () => void }) {
   const [tab, setTab] = useState<FormatCellsTab>(initialTab);
   const [numberFormat, setNumberFormat] = useState<SheetCell["numberFormat"]>(cell.numberFormat === "LongDate" ? "ShortDate" : cell.numberFormat ?? "General");
   const [decimals, setDecimals] = useState<number>(cell.decimals ?? 2);
@@ -47,10 +49,9 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
   const [dateKind, setDateKind] = useState<"ShortDate" | "LongDate">(cell.numberFormat === "LongDate" ? "LongDate" : "ShortDate");
   const [locked, setLocked] = useState(cell.locked !== false);
   const [hiddenFormula, setHiddenFormula] = useState(Boolean(cell.hiddenFormula));
-  const [lineStyle, setLineStyle] = useState<"thin" | "thick" | "double">("thin");
   const [color, setColor] = useState<string | null>(cell.fontColor ?? null);
   const [strike, setStrike] = useState(Boolean(cell.strike));
-  const [border, setBorder] = useState<BorderStyle | null>(null);
+  const [borderLines, setBorderLines] = useState<BorderLines>(initialBorders);
   const [fill, setFill] = useState<string | null>(cell.fillColor ?? null);
 
   const ok = () => {
@@ -66,18 +67,18 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
         fontSize: Number.isFinite(sizeNumber) && sizeNumber >= 1 && sizeNumber <= 409 && sizeNumber !== 11 ? sizeNumber : null,
         underline: underline !== "None", underlineStyle: underline === "None" || underline === "single" ? null : (underline as UnderlineStyle), fontColor: color, strike: strike || null, fillColor: fill,
       },
-      border: border === "bottom" && lineStyle === "double" ? "bottomDouble" : border === "bottom" && lineStyle === "thick" ? "thickBottom" : border === "outside" && lineStyle === "thick" ? "thickBox" : border, merge: merge === merged ? null : merge,
+      borderLines: Object.fromEntries(Object.entries(borderLines).filter(([edge, line]) => JSON.stringify(line) !== JSON.stringify(initialBorders[edge as keyof BorderLines]))), merge: merge === merged ? null : merge,
     });
   };
   const previewStyle = { fontFamily: font, fontWeight: style.includes("Bold") ? 700 : 400, fontStyle: style.includes("Italic") ? "italic" : "normal", textDecorationLine: [underline !== "None" && "underline", strike && "line-through"].filter(Boolean).join(" ") || undefined, textDecorationStyle: underline.startsWith("double") ? ("double" as const) : undefined, verticalAlign: vertAlign === "superscript" ? "super" : vertAlign === "subscript" ? "sub" : undefined, color: color ? `#${color}` : undefined, fontSize: `${Math.min(28, Math.max(8, Number(size) || 11)) * 1.2}px` };
 
   return (
     <div role="presentation" className="fixed inset-0 z-[90] grid place-items-center bg-slate-950/30 p-4" onMouseDown={onCancel}>
-      <div role="dialog" aria-modal="true" aria-label="Format Cells" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") onCancel(); if (event.key === "Enter" && (event.target as HTMLElement).tagName !== "BUTTON") { event.preventDefault(); ok(); } }} className="w-full max-w-[520px] border border-slate-400 bg-[#f0f0f0] text-[12px] text-slate-900 shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label="Format Cells" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") onCancel(); if (event.key === "Enter" && (event.target as HTMLElement).tagName !== "BUTTON") { event.preventDefault(); ok(); } }} className="w-full max-w-[540px] border border-slate-400 bg-white text-[12px] text-slate-900 shadow-2xl">
         <div className="flex items-center justify-between bg-white px-3 py-1.5"><span>Format Cells</span><span className="flex gap-3"><span aria-hidden className="text-slate-400">?</span><button type="button" onClick={onCancel} aria-label="Close">✕</button></span></div>
         <div role="tablist" className="flex gap-0.5 px-2 pt-2">
           {(["Number", "Alignment", "Font", "Border", "Fill", "Protection"] as FormatCellsTab[]).map((name) => (
-            <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => setTab(name)} className={`border border-b-0 px-3 py-1 ${tab === name ? "border-slate-400 bg-white" : "border-slate-300 bg-[#f0f0f0] text-slate-700"} disabled:text-slate-400`}>{name}</button>
+            <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => setTab(name)} className={`border border-b-0 px-3 py-1 ${tab === name ? "border-slate-400 bg-white" : "border-slate-300 bg-white text-slate-700"} disabled:text-slate-400`}>{name}</button>
           ))}
         </div>
         <div className="mx-2 min-h-[330px] border border-slate-400 bg-white p-3">
@@ -138,25 +139,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, onOk, onCancel }: 
               </div>
             </div>
           )}
-          {tab === "Border" && (
-            <div className="grid gap-3">
-              <div className="flex items-center gap-2"><span className="font-semibold">Line Style:</span>{(["thin", "thick", "double"] as const).map((kind) => <button key={kind} type="button" aria-pressed={lineStyle === kind} onClick={() => setLineStyle(kind)} className={`w-16 border px-1 py-1.5 ${lineStyle === kind ? "border-[#217346] bg-[#d5ead9]" : "border-slate-300"}`}><span className="block w-full" style={{ borderTop: kind === "double" ? "3px double #000" : kind === "thick" ? "2px solid #000" : "1px solid #000" }} /></button>)}</div>
-              <p className="font-semibold">Presets</p>
-              <div className="flex gap-4">
-                {([["none", "None"], ["outside", "Outline"], ["all", "Inside"]] as [BorderStyle, string][]).map(([value, label]) => (
-                  <button key={value} type="button" aria-pressed={border === value} onClick={() => setBorder(value)} className={`grid w-16 justify-items-center gap-1 border p-1 ${border === value ? "border-[#217346] bg-[#d5ead9]" : "border-transparent"}`}>
-                    <span className="h-10 w-10 border border-slate-400" style={{ borderWidth: value === "none" ? 1 : 2, borderStyle: value === "none" ? "dotted" : "solid", backgroundImage: value === "all" ? "linear-gradient(#475569,#475569),linear-gradient(#475569,#475569)" : undefined, backgroundSize: "1px 100%, 100% 1px", backgroundPosition: "center", backgroundRepeat: "no-repeat" }} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="font-semibold">Border</p>
-              <div className="flex flex-wrap gap-2">
-                {([["top", "Top"], ["bottom", "Bottom"], ["left", "Left"], ["right", "Right"], ["thickBox", "Thick Box"]] as [BorderStyle, string][]).map(([value, label]) => <button key={value} type="button" aria-pressed={border === value} onClick={() => setBorder(value)} className={`border px-2 py-1 ${border === value ? "border-[#217346] bg-[#d5ead9]" : "border-slate-300 bg-white"}`}>{label}</button>)}
-              </div>
-              <p className="text-slate-600">Pick a line style, then a preset or a side. A double or thick line applies to the bottom border and the outline.</p>
-            </div>
-          )}
+          {tab === "Border" && <FormatCellsBorderTab lines={borderLines} setLines={setBorderLines} rows={multiRow} cols={multiCol} />}
           {tab === "Protection" && (
             <div className="grid gap-2">
               <label className="flex items-center gap-2"><input type="checkbox" checked={locked} onChange={(event) => setLocked(event.target.checked)} />Locked</label>

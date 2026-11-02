@@ -99,7 +99,9 @@ test("Excel 2013 look: title bar, all ribbon tabs, dialog launchers, Format Cell
   assert.match(editor, /if \(ctrl && key === "1"\) \{ event\.preventDefault\(\); openFormatCells\("Number"\); return; \}/);
   assert.match(editor, /onContextMenu=\{\(event\) => openContextMenu\(event, row, col\)\}/);
   for (const tab of ["Number", "Alignment", "Font", "Border", "Fill", "Protection"]) assert.ok(dialog.includes(`"${tab}"`), tab);
-  for (const label of ["Wrap text", "Merge cells", "Strikethrough", "Decimal places:", "Background Color:", "Degrees", "Outline", "Inside"]) assert.ok(dialog.includes(label), label);
+  for (const label of ["Wrap text", "Merge cells", "Strikethrough", "Decimal places:", "Background Color:", "Degrees"]) assert.ok(dialog.includes(label), label);
+  const borderTab = await read("app/typing/excel-efficiency/[language]/[testId]/workspace/format-cells-border-tab.tsx");
+  for (const label of ["Outline", "Inside", "Automatic", "Diagonal up border", "Inside horizontal border", "The selected border style can be applied by clicking the presets, preview diagram or the buttons above."]) assert.ok(borderTab.includes(label), label);
 });
 
 test("the new cell settings (orientation, indent, strikethrough, decimals) are valid in a saved sheet and are recorded commands", async () => {

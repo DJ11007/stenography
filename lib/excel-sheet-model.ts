@@ -159,53 +159,138 @@ export function usedExtent(cells: Record<string, SheetCell>, merges: string[], s
   return { rows: Math.min(Math.max(rows, 1), MAX_ROWS), cols: Math.min(Math.max(cols, 1), MAX_COLS) };
 }
 
-// Borders per side: t/r/b/l thin, T/R/B/L thick, a side followed by "=" is a double line (e.g. "tb=" = thin top,
-// double bottom). Older sheets kept a CSS string.
+// Borders per side, one token each: the side (t/r/b/l, u = diagonal up "/", d = diagonal down "\\"), then an optional
+// line mark, then an optional "@RRGGBB" colour (none = Automatic, black). A lower-case side with no mark is a thin
+// line, an upper-case one a medium line (the menu's "Thick Box" and "Thick Bottom", as in Excel), "=" a double line
+// -- so sheets saved before the Format Cells Border tab, and the marking rules written for them, read the same
+// (e.g. "tb=" = thin top, double bottom). The other Excel line styles: "!" thick, ":" hair, "." dotted, "-" dashed,
+// "~" dash-dot, "^" dash-dot-dot (upper case: the medium ones), "/" slanted dash-dot. Older sheets kept a CSS string.
 export type BorderStyle = "all" | "outside" | "thickBox" | "bottom" | "top" | "left" | "right" | "none"
   | "bottomDouble" | "thickBottom" | "topBottom" | "topThickBottom" | "topDoubleBottom";
-type Side = "t" | "r" | "b" | "l";
-type SideKind = "thin" | "thick" | "double";
-const SIDE_ORDER: Side[] = ["t", "r", "b", "l"];
-function borderSides(border: string | null | undefined): Map<Side, SideKind> {
-  const sides = new Map<Side, SideKind>();
+export type BorderLineStyle = "hair" | "dotted" | "dashDotDot" | "dashDot" | "dashed" | "thin"
+  | "mediumDashDotDot" | "slantDashDot" | "mediumDashDot" | "mediumDashed" | "medium" | "thick" | "double";
+export type BorderLine = { style: BorderLineStyle; color: string | null };
+/** The lines of the Format Cells Border tab: the outline, the lines between cells, and the two diagonals. */
+export type BorderEdge = "top" | "bottom" | "left" | "right" | "insideH" | "insideV" | "diagUp" | "diagDown";
+type Side = "t" | "r" | "b" | "l" | "u" | "d";
+const SIDE_ORDER: Side[] = ["t", "r", "b", "l", "u", "d"];
+const LINE_CODES: [BorderLineStyle, boolean, string][] = [
+  ["thin", false, ""], ["medium", true, ""], ["double", false, "="], ["thick", false, "!"], ["hair", false, ":"], ["dotted", false, "."],
+  ["dashed", false, "-"], ["dashDot", false, "~"], ["dashDotDot", false, "^"], ["mediumDashed", true, "-"], ["mediumDashDot", true, "~"],
+  ["mediumDashDotDot", true, "^"], ["slantDashDot", true, "/"],
+];
+const BORDER_TOKENS = /^(?:[trbludTRBLUD][=!:.\-~^/]?(?:@[0-9A-Fa-f]{6})?)+$/;
+const sameLine = (a: BorderLine | null | undefined, b: BorderLine | null | undefined) => (a ?? null) === (b ?? null) || (Boolean(a && b) && a!.style === b!.style && a!.color === b!.color);
+function borderSides(border: string | null | undefined): Map<Side, BorderLine> {
+  const sides = new Map<Side, BorderLine>();
   if (!border) return sides;
-  if (!/^([tlbrTLBR]=?)+$/.test(border)) { SIDE_ORDER.forEach((side) => sides.set(side, "thin")); return sides; }
-  for (const [, char, double] of border.matchAll(/([tlbrTLBR])(=?)/g)) sides.set(char.toLowerCase() as Side, double ? "double" : char === char.toUpperCase() ? "thick" : "thin");
+  if (!BORDER_TOKENS.test(border)) { (["t", "r", "b", "l"] as Side[]).forEach((side) => sides.set(side, { style: "thin", color: null })); return sides; }
+  for (const [, char, mark, color] of border.matchAll(/([trbludTRBLUD])([=!:.\-~^/]?)(?:@([0-9A-Fa-f]{6}))?/g)) {
+    const upper = char !== char.toLowerCase();
+    const style = LINE_CODES.find(([, medium, code]) => medium === upper && code === mark)?.[0] ?? (upper ? "medium" : "thin");
+    sides.set(char.toLowerCase() as Side, { style, color: color ? color.toUpperCase() : null });
+  }
   return sides;
 }
-function borderString(sides: Map<Side, SideKind>) {
-  return SIDE_ORDER.filter((side) => sides.has(side)).map((side) => { const kind = sides.get(side); return kind === "thick" ? side.toUpperCase() : kind === "double" ? side + "=" : side; }).join("") || null;
+function borderString(sides: Map<Side, BorderLine>) {
+  const token = (side: Side, line: BorderLine, withColor: boolean) => {
+    const [, medium, code] = LINE_CODES.find(([style]) => style === line.style) ?? LINE_CODES[0];
+    return (medium ? side.toUpperCase() : side) + code + (withColor && line.color && line.color !== "000000" ? `@${line.color}` : "");
+  };
+  const used = SIDE_ORDER.filter((side) => sides.has(side));
+  const text = used.map((side) => token(side, sides.get(side)!, true)).join("");
+  // A saved border is at most 50 characters; six coloured sides would pass that, so the colours give way first.
+  return (text.length <= 50 ? text : used.map((side) => token(side, sides.get(side)!, false)).join("")) || null;
 }
 export function applyBorder(cells: Record<string, SheetCell>, rect: Rect, style: BorderStyle): Record<string, SheetCell> {
   const next = { ...cells };
   for (let row = rect.r1; row <= rect.r2; row++) for (let col = rect.c1; col <= rect.c2; col++) {
     const ref = refAt(row, col), cell = next[ref] ?? EMPTY_CELL;
     const sides = borderSides(cell.border);
-    const edge: Record<Side, boolean> = { t: row === rect.r1, b: row === rect.r2, l: col === rect.c1, r: col === rect.c2 };
-    const set = (side: Side, kind: SideKind = "thin") => { if (edge[side]) sides.set(side, kind); };
+    const edge: Record<Side, boolean> = { t: row === rect.r1, b: row === rect.r2, l: col === rect.c1, r: col === rect.c2, u: false, d: false };
+    const set = (side: Side, kind: BorderLineStyle = "thin") => { if (edge[side]) sides.set(side, { style: kind, color: null }); };
     if (style === "none") sides.clear();
-    else if (style === "all") SIDE_ORDER.forEach((side) => sides.set(side, "thin"));
-    else if (style === "outside" || style === "thickBox") SIDE_ORDER.forEach((side) => set(side, style === "thickBox" ? "thick" : "thin"));
+    else if (style === "all") (["t", "r", "b", "l"] as Side[]).forEach((side) => sides.set(side, { style: "thin", color: null }));
+    else if (style === "outside" || style === "thickBox") (["t", "r", "b", "l"] as Side[]).forEach((side) => set(side, style === "thickBox" ? "medium" : "thin"));
     else if (style === "bottomDouble") set("b", "double");
-    else if (style === "thickBottom") set("b", "thick");
+    else if (style === "thickBottom") set("b", "medium");
     else if (style === "topBottom") { set("t"); set("b"); }
-    else if (style === "topThickBottom") { set("t"); set("b", "thick"); }
+    else if (style === "topThickBottom") { set("t"); set("b", "medium"); }
     else if (style === "topDoubleBottom") { set("t"); set("b", "double"); }
     else set(style[0] as Side);
     next[ref] = { ...cell, border: borderString(sides) };
   }
   return next;
 }
+// Which cell sides carry each line of the Border tab: the outline is drawn on the cells at the edge, a line between
+// cells on both of its neighbours (as All Borders does), a diagonal in every cell.
+function edgeSides(edge: BorderEdge, rect: Rect, row: number, col: number): Side[] {
+  if (edge === "top") return row === rect.r1 ? ["t"] : [];
+  if (edge === "bottom") return row === rect.r2 ? ["b"] : [];
+  if (edge === "left") return col === rect.c1 ? ["l"] : [];
+  if (edge === "right") return col === rect.c2 ? ["r"] : [];
+  if (edge === "insideH") return [...(row > rect.r1 ? ["t" as Side] : []), ...(row < rect.r2 ? ["b" as Side] : [])];
+  if (edge === "insideV") return [...(col > rect.c1 ? ["l" as Side] : []), ...(col < rect.c2 ? ["r" as Side] : [])];
+  return [edge === "diagUp" ? "u" : "d"];
+}
+const EDGES: BorderEdge[] = ["top", "bottom", "left", "right", "insideH", "insideV", "diagUp", "diagDown"];
+/** The Border tab's lines as the selection has them; a line that differs from cell to cell is left out (Excel greys it). */
+export function readBorderLines(cells: Record<string, SheetCell>, rect: Rect): Partial<Record<BorderEdge, BorderLine | null>> {
+  const lines: Partial<Record<BorderEdge, BorderLine | null>> = {};
+  for (const edge of EDGES) {
+    let found: BorderLine | null | undefined, mixed = false;
+    for (let row = rect.r1; row <= rect.r2 && !mixed; row++) for (let col = rect.c1; col <= rect.c2 && !mixed; col++) {
+      const sides = borderSides(cells[refAt(row, col)]?.border);
+      for (const side of edgeSides(edge, rect, row, col)) {
+        const line = sides.get(side) ?? null;
+        if (found === undefined) found = line; else if (!sameLine(found, line)) mixed = true;
+      }
+    }
+    if (!mixed && found !== undefined) lines[edge] = found;
+  }
+  return lines;
+}
+/** Draws (or, with null, removes) the given lines of the Border tab on the selection; lines not given stay as they are. */
+export function applyBorderLines(cells: Record<string, SheetCell>, rect: Rect, lines: Partial<Record<BorderEdge, BorderLine | null>>): Record<string, SheetCell> {
+  const next = { ...cells };
+  const edges = EDGES.filter((edge) => edge in lines);
+  if (!edges.length) return next;
+  for (let row = rect.r1; row <= rect.r2; row++) for (let col = rect.c1; col <= rect.c2; col++) {
+    const ref = refAt(row, col), cell = next[ref] ?? EMPTY_CELL;
+    const sides = borderSides(cell.border);
+    for (const edge of edges) for (const side of edgeSides(edge, rect, row, col)) { const line = lines[edge]; if (line) sides.set(side, { style: line.style, color: line.color }); else sides.delete(side); }
+    const border = borderString(sides);
+    if (border !== (cell.border ?? null)) next[ref] = { ...cell, border };
+  }
+  return next;
+}
+const LINE_CSS: Record<BorderLineStyle, string> = {
+  hair: "1px dotted", dotted: "1px dotted", dashDotDot: "1px dashed", dashDot: "1px dashed", dashed: "1px dashed", thin: "1px solid",
+  mediumDashDotDot: "2px dashed", slantDashDot: "2px dashed", mediumDashDot: "2px dashed", mediumDashed: "2px dashed", medium: "2px solid", thick: "3px solid", double: "3px double",
+};
 /** CSS for a cell's border value. */
 export function borderCss(border: string | null | undefined): Record<string, string> {
   if (!border) return {};
   // Per side, never the "border" shorthand: the cell style also sets borderRight / borderBottom (gridlines), and
   // React warns when a shorthand and its parts are mixed in one style.
-  if (!/^([tlbrTLBR]=?)+$/.test(border)) return { borderTop: border, borderRight: border, borderBottom: border, borderLeft: border };
+  if (!BORDER_TOKENS.test(border)) return { borderTop: border, borderRight: border, borderBottom: border, borderLeft: border };
   const css: Record<string, string> = {};
   const names = { t: "borderTop", r: "borderRight", b: "borderBottom", l: "borderLeft" } as const;
-  for (const [side, kind] of borderSides(border)) css[names[side]] = kind === "double" ? "3px double #000" : kind === "thick" ? "2px solid #000" : "1px solid #000";
+  for (const [side, line] of borderSides(border)) if (side !== "u" && side !== "d") css[names[side]] = `${LINE_CSS[line.style]} #${line.color ?? "000"}`;
   return css;
+}
+/** Background images drawing a cell's diagonal borders (none when it has no diagonal). */
+export function borderDiagonals(border: string | null | undefined): string[] {
+  if (!border || !BORDER_TOKENS.test(border)) return [];
+  const sides = borderSides(border), images: string[] = [];
+  for (const [side, direction] of [["u", "to top right"], ["d", "to bottom right"]] as const) {
+    const line = sides.get(side);
+    if (!line) continue;
+    const half = line.style === "thick" || line.style === "double" ? 1.5 : line.style.startsWith("medium") || line.style === "slantDashDot" ? 1 : 0.6;
+    const color = `#${line.color ?? "000"}`;
+    images.push(`linear-gradient(${direction}, transparent calc(50% - ${half}px), ${color} calc(50% - ${half}px), ${color} calc(50% + ${half}px), transparent calc(50% + ${half}px))`);
+  }
+  return images;
 }
 
 /** Number shown in a cell for its number format (and currency symbol for Currency / Accounting). */

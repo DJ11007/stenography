@@ -13,8 +13,8 @@ import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
 import { NUMBER_FORMAT_LABELS, PAPER_SIZES, toExcelDocumentV3, type ChartType, type ConditionalType, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
 import {
-  CONDITIONAL_STYLES, EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, autoSumRange, borderCss, conditionalStyleAt, currentRegion, expandForMerges, formatCellValue, isBlankCell,
-  mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, parseRef, previewHeaderText, rangeString, recomputeFormulas, rectContains, rectRefs, refAt,
+  CONDITIONAL_STYLES, EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, applyBorderLines, autoSumRange, borderCss, borderDiagonals, conditionalStyleAt, currentRegion, expandForMerges, formatCellValue, isBlankCell,
+  mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, parseRef, previewHeaderText, rangeString, readBorderLines, recomputeFormulas, rectContains, rectRefs, refAt,
   shiftColumns, shiftFormula, shiftRows, unmergeRanges, usedExtent, type BorderStyle, type Rect,
 } from "@/lib/excel-sheet-model";
 import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
@@ -583,7 +583,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const applyFormatCells = (result: FormatCellsResult) => {
     let next = { ...cells };
     for (const ref of rectRefs(selection)) next[ref] = { ...cellOf(next, ref), ...result.patch };
-    if (result.border) next = applyBorder(next, selection, result.border);
+    next = applyBorderLines(next, selection, result.borderLines);
     let nextMerges = merges;
     if (result.merge === true && (selection.r1 !== selection.r2 || selection.c1 !== selection.c2)) { const merged = mergeRanges(next, merges, selection, false); next = merged.cells; nextMerges = merged.merges; }
     if (result.merge === false) nextMerges = unmergeRanges(merges, selection);
@@ -1649,7 +1649,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                         fontFamily: cell.fontFamily ? `"${cell.fontFamily}", ${DEFAULT_FONT}, sans-serif` : undefined, fontSize: `${fontPx}px`,
                         fontWeight: cell.bold ? 700 : undefined, fontStyle: cell.italic ? "italic" : undefined, textDecorationLine: [cell.underline && "underline", cell.strike && "line-through"].filter(Boolean).join(" ") || undefined,
                         textDecorationStyle: cell.underlineStyle === "double" || cell.underlineStyle === "doubleAccounting" ? "double" : undefined, textUnderlineOffset: cell.underlineStyle?.includes("Accounting") ? 3 : undefined,
-                        backgroundImage: conditional?.bar ? `linear-gradient(to right, #${conditional.bar.color} 0%, #${conditional.bar.color}66 ${conditional.bar.percent}%, transparent ${conditional.bar.percent}%)` : undefined, color: conditional?.font ? `#${conditional.font}` : cell.fontColor ? `#${cell.fontColor}` : undefined,
+                        backgroundImage: [...borderDiagonals(cell.border), ...(conditional?.bar ? [`linear-gradient(to right, #${conditional.bar.color} 0%, #${conditional.bar.color}66 ${conditional.bar.percent}%, transparent ${conditional.bar.percent}%)`] : [])].join(", ") || undefined, color: conditional?.font ? `#${conditional.font}` : cell.fontColor ? `#${cell.fontColor}` : undefined,
                         paddingLeft: colHidden ? 0 : cell.indent && align === "left" ? 4 + cell.indent * 9 : undefined, paddingRight: colHidden ? 0 : filterButton ? 18 : cell.indent && align === "right" ? 4 + cell.indent * 9 : undefined,
                         whiteSpace: cell.wrap ? "normal" : "nowrap", overflow: spill || isEditing ? "visible" : "hidden", height: rowHeight(row), lineHeight: 1.2, zIndex: isEditing ? 18 : frozenRow && frozenCol ? 16 : frozenRow || frozenCol ? 15 : spill ? 1 : undefined,
                         position: frozenRow || frozenCol ? "sticky" : "relative", top: frozenRow ? frozenTop(row) : undefined, left: frozenCol ? frozenLeft(col) : undefined,
@@ -1760,7 +1760,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       </div>
       <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message={submitConfirmMessage ?? ""} confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
       <ConfirmDialog open={submitProblem !== null} title="Could not submit" message={submitProblem} confirmLabel="OK" cancelLabel={null} tone="primary" onCancel={() => setSubmitProblem(null)} onConfirm={() => setSubmitProblem(null)} />
-      {formatDialog && <FormatCellsDialog cell={active} merged={Boolean(activeMerge)} initialTab={formatDialog} onCancel={() => { setFormatDialog(null); focusGrid(); }} onOk={applyFormatCells} />}
+      {formatDialog && <FormatCellsDialog cell={active} merged={Boolean(activeMerge)} initialTab={formatDialog} initialBorders={readBorderLines(cells, selection)} multiRow={selection.r2 > selection.r1} multiCol={selection.c2 > selection.c1} onCancel={() => { setFormatDialog(null); focusGrid(); }} onOk={applyFormatCells} />}
       {contextMenu && (
         <div data-xl-context role="menu" aria-label="Cell menu" className="fixed z-[85] min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] shadow-xl" style={{ left: Math.min(contextMenu.x, (typeof window === "undefined" ? 1200 : window.innerWidth) - 200), top: Math.min(contextMenu.y, (typeof window === "undefined" ? 800 : window.innerHeight) - 420) }}>
           <ContextItem label="Cut" disabled={submitted} onSelect={() => { setContextMenu(null); copy(true); focusGrid(); }} />
