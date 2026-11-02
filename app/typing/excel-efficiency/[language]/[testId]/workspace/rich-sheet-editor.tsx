@@ -528,6 +528,45 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   }, [autoSubmit]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once when the clock expires
 
   useEffect(() => { const stop = () => { dragging.current = false; pointing.current = null; }; window.addEventListener("mouseup", stop); return () => window.removeEventListener("mouseup", stop); }, []);
+
+  // The mouse, with the button held, moving over a cell: grows the selection, the fill handle's target, or the
+  // reference being pointed at in a formula.
+  const pointerOver = (row: number, col: number) => {
+    if (pointing.current && lastPointed.current) { putReference(pointing.current, { row, col }, [lastPointed.current.start, lastPointed.current.end]); return; }
+    if (dragging.current) setFocus({ row, col }); else if (fillDrag) setFillDrag({ ...fillDrag, target: { row, col } });
+  };
+  const latestPointerOver = useRef(pointerOver), fillDragging = useRef(false);
+  useLayoutEffect(() => { latestPointerOver.current = pointerOver; fillDragging.current = Boolean(fillDrag); });
+  // Dragging past an edge of the grid scrolls it, in all four directions, as in Excel: the further past the edge,
+  // the faster, and the cell at that edge joins the selection as it scrolls into view. Keeps going while the mouse
+  // is held still outside the grid.
+  useEffect(() => {
+    let frame = 0, pointer: { x: number; y: number } | null = null;
+    const tick = () => {
+      frame = 0;
+      const grid = gridRef.current;
+      if (!grid || !pointer || !(dragging.current || pointing.current || fillDragging.current)) return;
+      const box = grid.getBoundingClientRect();
+      // The cells start below the column letters and right of the row numbers (both stay put while scrolling).
+      const corner = tableRef.current?.querySelector("thead th")?.getBoundingClientRect();
+      const top = corner?.bottom ?? box.top, left = corner?.right ?? box.left;
+      const right = box.left + grid.clientWidth, bottom = box.top + grid.clientHeight;
+      const speed = (past: number) => Math.min(80, 4 + Math.round(past / 2));
+      const dx = pointer.x < left ? -speed(left - pointer.x) : pointer.x > right ? speed(pointer.x - right) : 0;
+      const dy = pointer.y < top ? -speed(top - pointer.y) : pointer.y > bottom ? speed(pointer.y - bottom) : 0;
+      if (!dx && !dy) return;
+      grid.scrollBy(dx, dy);
+      const x = Math.min(Math.max(pointer.x, left + 2), right - 2), y = Math.min(Math.max(pointer.y, top + 2), bottom - 2);
+      const ref = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>("[data-ref]")?.dataset.ref;
+      const at = ref ? parseRef(ref) : null;
+      if (at) latestPointerOver.current(at.row, at.col);
+      frame = requestAnimationFrame(tick);
+    };
+    const move = (event: MouseEvent) => { pointer = { x: event.clientX, y: event.clientY }; if (!frame) frame = requestAnimationFrame(tick); };
+    const release = () => { pointer = null; };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", release);
+    return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", release); cancelAnimationFrame(frame); };
+  }, []);
   useEffect(() => { if (!menu) return; const close = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest?.("[data-xl-menu]")) setMenu(null); }; window.addEventListener("mousedown", close); return () => window.removeEventListener("mousedown", close); }, [menu]);
 
   // ---------- status bar figures ----------
@@ -1633,7 +1672,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                             dragging.current = true;
                             select(row, col, event.shiftKey);
                           }}
-                          onMouseEnter={() => { if (pointing.current && lastPointed.current) { putReference(pointing.current, { row, col }, [lastPointed.current.start, lastPointed.current.end]); return; } if (dragging.current) setFocus({ row, col }); else if (fillDrag) setFillDrag({ ...fillDrag, target: { row, col } }); }}
+                          onMouseEnter={() => pointerOver(row, col)}
                           onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (

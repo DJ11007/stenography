@@ -38,3 +38,12 @@ test("Save answer saves the sheet and the question's rules at the same time, wit
   const rulesAction = actions.slice(actions.indexOf("export async function saveExcelEfficiencyQuestionRules"), actions.indexOf("export async function resetExcelEfficiencyModelAnswer"));
   assert.doesNotMatch(rulesAction, /revalidatePath\(/);
 });
+
+test("dragging a selection past any edge of the grid scrolls it and keeps selecting, as in Excel", async () => {
+  const source = await sheet();
+  assert.match(source, /onMouseEnter=\{\(\) => pointerOver\(row, col\)\}/);
+  assert.match(source, /if \(!grid \|\| !pointer \|\| !\(dragging\.current \|\| pointing\.current \|\| fillDragging\.current\)\) return;/);
+  assert.match(source, /const dx = pointer\.x < left \? -speed\(left - pointer\.x\) : pointer\.x > right \? speed\(pointer\.x - right\) : 0;/);
+  assert.match(source, /const dy = pointer\.y < top \? -speed\(top - pointer\.y\) : pointer\.y > bottom \? speed\(pointer\.y - bottom\) : 0;/);
+  assert.match(source, /grid\.scrollBy\(dx, dy\);[\s\S]*?latestPointerOver\.current\(at\.row, at\.col\);\n\s+frame = requestAnimationFrame\(tick\);/);
+});
