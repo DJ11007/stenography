@@ -938,14 +938,21 @@ export function calculateTypingScore({
   scoringProfile?: ScoringProfile;
   includeUntypedWords?: boolean;
 }): TypingScore {
-  const totalCharacters = segmentGraphemes(typedText).length;
+  // Strokes (key depressions) are counted per character, as exam software counts them: a Hindi conjunct or a
+  // consonant with its matra takes several keys ("प्र" = प ् र, "कि" = क ि), so counting grapheme clusters (one per
+  // syllable) made Hindi gross/net speed about 40% too low and tripped AIIMS's minimum-strokes rule for students
+  // who had typed enough. English is unchanged (one character = one grapheme). The character-accuracy figure still
+  // compares grapheme clusters, the unit the alignment below works in.
+  const totalCharacters = Array.from(typedText).length;
+  const typedGraphemes = segmentGraphemes(typedText).length;
   const { correctCharacters } = getAlignment(typedText, passage);
-  const incorrectCharacters = Math.max(0, totalCharacters - correctCharacters);
+  const incorrectCharacters = Math.max(0, typedGraphemes - correctCharacters);
   const elapsedMinutes = Math.max(elapsedSeconds / 60, 1 / 60);
   const spaceWords = countSpaceWords(typedText);
   const fiveCharacterWords = Math.floor(totalCharacters / 5);
   const grossWordCount = wordMethod === "characters" ? totalCharacters / 5 : spaceWords;
-  const grossWpm = Math.round(grossWordCount / elapsedMinutes);
+  const grossSpeed = grossWordCount / elapsedMinutes;
+  const grossWpm = Math.round(grossSpeed);
   const analysis = analyzeTyping(passage, typedText, scoringProfile, includeUntypedWords);
   // RRB NTPC's real formula forgives errorRelaxationPercent% of grossWordCount
   // worth of mistakes before any penalty applies at all; UPSSSC's forgives a
@@ -957,7 +964,9 @@ export function calculateTypingScore({
   const relaxationPoints = (scoringProfile.errorRelaxationPercent ? (scoringProfile.errorRelaxationPercent / 100) * grossWordCount * scoringProfile.fullErrorPenalty : 0)
     + (scoringProfile.errorGraceCount ? scoringProfile.errorGraceCount * scoringProfile.fullErrorPenalty : 0);
   const effectivePenalty = Math.max(0, analysis.totalPenalty - relaxationPoints);
-  const netWpm = Math.max(Math.round(grossWpm - effectivePenalty / elapsedMinutes), 0);
+  // From the unrounded gross speed (AIIMS: net = (strokes - penalty) / (5 x minutes)), so rounding gross first can't
+  // move net speed across the qualifying line.
+  const netWpm = Math.max(Math.round(grossSpeed - effectivePenalty / elapsedMinutes), 0);
   const efficiency = grossWpm > 0 ? Math.min(100, Math.round((netWpm / grossWpm) * 100)) : 100;
   // AIIMS's real Accuracy = Net Speed / Gross Speed x 100 is already
   // exactly what `efficiency` above computes -- accuracyFromSpeedRatio

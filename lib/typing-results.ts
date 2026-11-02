@@ -1,5 +1,4 @@
 import { countSpaceWords, calculateTypingScore, type ScoringProfile, type TypingScore, type WordAnalysisEntry, type WordMethod } from "./typing-test.ts";
-import { segmentGraphemes } from "./typing-language.ts";
 
 export type ResultCalculation = {
   method: WordMethod;
@@ -61,7 +60,7 @@ export function buildResultSummary(passage: string, score: TypingScore, backspac
   const elapsedMinutes = Math.max(score.elapsedSeconds / 60, 1 / 60);
   const totalWordsTyped = counts.correct + counts.substituted + counts.extra + counts.repeated + counts.halfError;
   return {
-    totalCharacters: segmentGraphemes(passage).length,
+    totalCharacters: Array.from(passage).length,
     typedCharacters: score.totalCharacters,
     rightCharacters: score.correctCharacters,
     wrongCharacters: score.incorrectCharacters,
@@ -171,7 +170,7 @@ export function buildResultCalculations(args: {
     return {
       method,
       label: method === "characters" ? "Character-based calculation (5 characters = 1 word)" : "Space-separated word calculation",
-      availableWords: method === "characters" ? segmentGraphemes(args.passage).length / 5 : countSpaceWords(args.passage),
+      availableWords: method === "characters" ? Array.from(args.passage).length / 5 : countSpaceWords(args.passage),
       typedWords: method === "characters" ? score.totalCharacters / 5 : score.spaceWords,
       correctWords: score.correctWords,
       incorrectWords: score.analysis.counts.substituted + score.analysis.counts.extra + score.analysis.counts.repeated,

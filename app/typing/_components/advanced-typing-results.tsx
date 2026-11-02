@@ -330,7 +330,7 @@ function MethodBasedSpeedDetails({ summary, passage, typedText, backspaces, lang
   const netWpm = method === "word" ? summary.netWordsPerMinute : summary.netCharactersPerMinute / 5;
   const accuracy = method === "word"
     ? summary.totalWordsTyped > 0 ? Math.round((summary.correctWordsTyped / summary.totalWordsTyped) * 10000) / 100 : 100
-    : summary.typedCharacters > 0 ? Math.round((summary.rightCharacters / summary.typedCharacters) * 10000) / 100 : 100;
+    : summary.rightCharacters + summary.wrongCharacters > 0 ? Math.round((summary.rightCharacters / (summary.rightCharacters + summary.wrongCharacters)) * 10000) / 100 : 100;
   const metrics: [string, string][] = [["Net Speed", `${number(netWpm)} WPM`], ["Gross Speed", `${number(grossWpm)} WPM`], ["Accuracy", `${number(accuracy)}%`], ["Keystrokes per minute", number(grossWpm * 5)], ["KDPH", number(grossWpm * 300)]];
   const overviewRows = [["Passage words", summary.passageWords], ["Total words typed", summary.totalWordsTyped], ["Fully correct words", summary.correctWordsTyped], ["Remaining / unattempted words", summary.remainingWords], ["Backspaces", summary.backspaces]] as const;
   const centralCategories = useMemo(() => EXAM_CATEGORIES.filter((category) => !isRajasthanCategory(category)), []);

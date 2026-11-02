@@ -8,7 +8,9 @@ test("segments Hindi matras and conjuncts as grapheme clusters", () => {
   assert.equal(segmentGraphemes("कि").length, 1);
   assert.equal(segmentGraphemes("क्ष").length, 1);
   const score = calculateTypingScore({ typedText: "कक्षा", passage: "कक्षा", elapsedSeconds: 60, wordMethod: "characters" });
-  assert.equal(score.totalCharacters, segmentGraphemes("कक्षा").length);
+  // Speed counts key depressions, one per character (क क ् ष ा = 5), not grapheme clusters (2); accuracy still
+  // compares clusters.
+  assert.equal(score.totalCharacters, 5);
   assert.equal(score.accuracy, 100);
 });
 
