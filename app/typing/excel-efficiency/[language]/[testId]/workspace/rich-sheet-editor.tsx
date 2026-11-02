@@ -1,8 +1,9 @@
 "use client";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
+import { acceptFunction, functionSuggestions, functionTokenAt } from "@/lib/excel-formula-autocomplete";
 import { autosaveExcelDocument, submitExcelDocument } from "../../../actions";
 import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
 import { seriesLine } from "@/lib/excel-series";
@@ -1611,7 +1612,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                         textDecorationStyle: cell.underlineStyle === "double" || cell.underlineStyle === "doubleAccounting" ? "double" : undefined, textUnderlineOffset: cell.underlineStyle?.includes("Accounting") ? 3 : undefined,
                         backgroundImage: conditional?.bar ? `linear-gradient(to right, #${conditional.bar.color} 0%, #${conditional.bar.color}66 ${conditional.bar.percent}%, transparent ${conditional.bar.percent}%)` : undefined, color: conditional?.font ? `#${conditional.font}` : cell.fontColor ? `#${cell.fontColor}` : undefined,
                         paddingLeft: colHidden ? 0 : cell.indent && align === "left" ? 4 + cell.indent * 9 : undefined, paddingRight: colHidden ? 0 : filterButton ? 18 : cell.indent && align === "right" ? 4 + cell.indent * 9 : undefined,
-                        whiteSpace: cell.wrap ? "normal" : "nowrap", overflow: spill ? "visible" : "hidden", height: rowHeight(row), lineHeight: 1.2, zIndex: frozenRow && frozenCol ? 16 : frozenRow || frozenCol ? 15 : spill ? 1 : undefined,
+                        whiteSpace: cell.wrap ? "normal" : "nowrap", overflow: spill || isEditing ? "visible" : "hidden", height: rowHeight(row), lineHeight: 1.2, zIndex: isEditing ? 18 : frozenRow && frozenCol ? 16 : frozenRow || frozenCol ? 15 : spill ? 1 : undefined,
                         position: frozenRow || frozenCol ? "sticky" : "relative", top: frozenRow ? frozenTop(row) : undefined, left: frozenCol ? frozenLeft(col) : undefined,
                         outline: isActive ? "2px solid #217346" : undefined, outlineOffset: -2,
                       };
@@ -1636,9 +1637,9 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                           onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (
-                            <StoreInput inputRef={editInputRef} store={editText} live fallback="" aria-label={`Edit ${ref}`} onText={(value) => editText.set(value)}
+                            <CellEditInput inputRef={editInputRef} store={editText} label={`Edit ${ref}`} cellWidth={cellWidth} fontSize={style.fontSize} fontFamily={style.fontFamily as string | undefined}
                               onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit("right"); } else if (event.key === "Escape") cancelEdit(); }}
-                              onBlur={() => commitEdit()} className="absolute inset-0 z-10 w-full min-w-[120px] border-2 border-[#217346] bg-white px-1 outline-none" style={{ fontSize: style.fontSize, fontFamily: style.fontFamily as string | undefined }} />
+                              onBlur={() => commitEdit()} />
                           ) : (
                             <span className={cell.rotate ? "inline-block" : "block"} title={cell.link ? `${cell.link} - Click once to follow.` : undefined} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.vertAlign ? { position: "relative", top: cell.vertAlign === "superscript" ? "-0.4em" : "0.3em" } : {}), ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{conditional?.icon && <ConditionalIcon icon={conditional.icon} />}{shown}</span>
                           )}
@@ -1837,6 +1838,79 @@ function FormulaReferences({ store, live, tableRef }: { store: TextStore; live: 
 function StoreInput({ store, live, fallback, onText, inputRef, ...rest }: { store: TextStore; live: boolean; fallback: string; onText: (value: string) => void; inputRef?: React.Ref<HTMLInputElement> } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const text = useSyncExternalStore(store.subscribe, store.get, store.get);
   return <input ref={inputRef} {...rest} value={live ? text : fallback} onChange={(event) => onText(event.target.value)} />;
+}
+
+// The cell's own edit box, as in Excel: it grows to the right over the next cells so the whole entry shows (AutoSum's
+// "=SUM(I10:I12)" used to show only "10:I12)" in a narrow column), and while a formula is typed it lists the functions
+// starting with the letters before the cursor (Formula AutoComplete), with the highlighted one's description. Arrow keys
+// move in the list, Tab or a double-click put NAME( in, Esc closes the list (a second Esc cancels the edit).
+const FUNCTION_NAMES = FUNCTION_LIBRARY.map((fn) => fn.name);
+let measureCanvas: HTMLCanvasElement | null = null;
+function textWidth(text: string, font: string) {
+  if (typeof document === "undefined") return 0;
+  measureCanvas ??= document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  if (!context) return text.length * 8;
+  context.font = font;
+  return context.measureText(text).width;
+}
+function CellEditInput({ store, inputRef, label, cellWidth, fontSize, fontFamily, onKeyDown, onBlur }: { store: TextStore; inputRef: React.RefObject<HTMLInputElement | null>; label: string; cellWidth: number; fontSize: CSSProperties["fontSize"]; fontFamily?: string; onKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void; onBlur: () => void }) {
+  const text = useSyncExternalStore(store.subscribe, store.get, store.get);
+  const [caret, setCaret] = useState<number | null>(null);
+  const [active, setActive] = useState(0);
+  const [closedFor, setClosedFor] = useState<string | null>(null);
+  const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
+  const listId = useId();
+  const token = functionTokenAt(text, caret ?? text.length);
+  const list = token && token.prefix !== closedFor ? functionSuggestions(token.prefix, FUNCTION_NAMES) : [];
+  const highlighted = list[Math.min(active, list.length - 1)];
+  const info = highlighted ? FUNCTION_LIBRARY.find((fn) => fn.name === highlighted) : undefined;
+  const px = typeof fontSize === "number" ? `${fontSize}px` : fontSize ?? "14.667px";
+  const width = Math.max(cellWidth, 120, Math.ceil(textWidth(text, `${px} ${fontFamily ?? "Calibri, Arial, sans-serif"}`)) + 18);
+  const track = (element: HTMLInputElement) => setCaret(element.selectionStart);
+  useLayoutEffect(() => {
+    if (!list.length) return;
+    const rect = inputRef.current?.getBoundingClientRect();
+    if (rect) setPlace({ left: rect.left, top: rect.bottom });
+  }, [list.length, width]); // eslint-disable-line react-hooks/exhaustive-deps
+  const accept = (name: string) => {
+    if (!token) return;
+    const next = acceptFunction(text, token, name);
+    store.set(next.text);
+    setActive(0);
+    requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.setSelectionRange(next.caret, next.caret); setCaret(next.caret); });
+  };
+  return (
+    <>
+      <input ref={inputRef} role="combobox" aria-label={label} value={text} autoComplete="off" spellCheck={false}
+        aria-autocomplete="list" aria-expanded={list.length > 0} aria-controls={listId}
+        onChange={(event) => { store.set(event.target.value); track(event.target); setActive(0); setClosedFor(null); }}
+        onSelect={(event) => track(event.currentTarget)} onClick={(event) => track(event.currentTarget)}
+        onKeyDown={(event) => {
+          if (list.length) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); event.stopPropagation(); setActive((index) => (index + (event.key === "ArrowDown" ? 1 : list.length - 1)) % list.length); return; }
+            if (event.key === "Tab") { event.preventDefault(); event.stopPropagation(); accept(highlighted); return; }
+            if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setClosedFor(token?.prefix ?? null); return; }
+          }
+          onKeyDown(event);
+        }}
+        onBlur={onBlur}
+        className="absolute left-0 top-0 z-10 h-full border-2 border-[#217346] bg-white px-1 outline-none" style={{ width, fontSize, fontFamily }} />
+      {list.length > 0 && place && createPortal(
+        <div className="fixed z-[95] flex items-start gap-1" style={{ left: place.left, top: place.top + 1 }}>
+          <ul id={listId} role="listbox" aria-label="Functions" className="max-h-64 min-w-40 overflow-y-auto border border-[#9a9a9a] bg-white py-0.5 text-[12px] shadow-lg">
+            {list.map((name, index) => (
+              <li key={name} role="option" aria-selected={name === highlighted}
+                onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setActive(index)} onDoubleClick={() => accept(name)}
+                className={`flex cursor-default items-center gap-1.5 px-1.5 py-0.5 ${name === highlighted ? "bg-[#2a64b5] text-white" : "text-slate-900"}`}>
+                <span aria-hidden className={`grid h-4 w-4 place-items-center rounded-full border text-[9px] font-bold italic ${name === highlighted ? "border-white" : "border-slate-500"}`}>f</span>{name}
+              </li>
+            ))}
+          </ul>
+          {info && <p className="max-w-64 border border-[#9a9a9a] bg-[#ffffe1] px-1.5 py-0.5 text-[12px] text-slate-900 shadow">{info.description.replace(/\.$/, "")}</p>}
+        </div>, document.body)}
+    </>
+  );
 }
 
 // The sheet with its AutoFit rows or columns replaced (sorted; the key left out when there are none).

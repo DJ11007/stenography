@@ -16,7 +16,9 @@ test("typed text lives in a small store, so a keystroke redraws only the cell ed
   const source = await sheet();
   assert.match(source, /const \[editing, setEditing\] = useState<\{ ref: string; fromBar: boolean \} \| null>\(null\);/);
   assert.match(source, /const \[editText\] = useState\(createTextStore\);/);
-  assert.match(source, /<StoreInput inputRef=\{editInputRef\} store=\{editText\} live fallback="" aria-label=\{`Edit \$\{ref\}`\} onText=\{\(value\) => editText\.set\(value\)\}/);
+  // The cell's own edit box (it grows and lists functions) reads the same store, so it alone redraws on a keystroke.
+  assert.match(source, /<CellEditInput inputRef=\{editInputRef\} store=\{editText\} label=\{`Edit \$\{ref\}`\}/);
+  assert.match(source, /function CellEditInput\([\s\S]*?const text = useSyncExternalStore\(store\.subscribe, store\.get, store\.get\);/);
   assert.match(source, /<StoreInput inputRef=\{formulaBarRef\} store=\{editText\} live=\{Boolean\(editing\)\} fallback=\{formulaBarValue\} aria-label="Formula bar"/);
   assert.match(source, /const text = closeBrackets\(editText\.get\(\)\);/);
   assert.doesNotMatch(source, /editing\.value/);
