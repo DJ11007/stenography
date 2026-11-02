@@ -15,7 +15,7 @@ import { validateWordEditorDocument } from "../lib/word-editor-document.ts";
 // - The Borders button always drew the default teal line, whatever Borders and Shading last used.
 
 const EDITOR = "app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx";
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const read = async (path) => (await readFile(new URL(`../${path}`, import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const run = (overrides = {}) => ({ text: "Hello", bold: false, italic: false, underline: false, strike: false, superscript: false, subscript: false, fontFamily: null, fontSize: null, color: null, highlight: null, doubleStrike: false, href: null, bookmark: null, field: null, ...overrides });
 const pageLayout = { padding: null, maxWidth: null, aspectRatio: null, columnCount: null, backgroundColor: null, border: null, watermark: null };
 const doc = (blocks) => ({ schemaVersion: "2", blocks, pageLayout, operations: [], savedAt: new Date().toISOString() });
