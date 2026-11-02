@@ -30,6 +30,18 @@ const COLORS: [string, string][] = [["000000", "Black"], ["FFFFFF", "White"], ["
 const fontName = (stored: string | null | undefined) => stored ?? "Calibri";
 const listFont = (font: string) => (font === "Calibri (Body)" ? "Calibri" : font === "Calibri Light (Headings)" ? "Calibri Light" : font);
 
+// A number box that can be emptied while typing (Backspace on "0" leaves it blank, ready for a new number), as in
+// Excel; the number is kept within min..max, and a blank box counts as 0 and shows 0 again when you leave it.
+function NumberBox({ label, value, min, max, onChange, className }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; className?: string }) {
+  const [text, setText] = useState<string | null>(null);
+  const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n)));
+  return (
+    <input type="number" aria-label={label} min={min} max={max} value={text ?? String(value)} className={className}
+      onChange={(event) => { const typed = event.target.value; setText(typed); const n = Number(typed); onChange(typed.trim() === "" || !Number.isFinite(n) ? clamp(0) : clamp(n)); }}
+      onBlur={() => setText(null)} />
+  );
+}
+
 export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, multiRow, multiCol, onOk, onCancel }: { cell: SheetCell; merged: boolean; initialTab: FormatCellsTab; initialBorders: BorderLines; multiRow: boolean; multiCol: boolean; onOk: (result: FormatCellsResult) => void; onCancel: () => void }) {
   const [tab, setTab] = useState<FormatCellsTab>(initialTab);
   const drag = useDialogDrag();
@@ -95,7 +107,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
                 <fieldset className="border border-slate-300 p-2"><legend className="px-1">Sample</legend><span>{typeof cell.value === "number" ? formatCellValue(cell.value, numberFormat === "ShortDate" ? dateKind : numberFormat, ["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) ? null : decimals, currency) : formatCellValue(numberFormat === "ShortDate" || numberFormat === "Time" ? 46320.5 : 1234.5, numberFormat === "ShortDate" ? dateKind : numberFormat, ["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) ? null : decimals, currency)}</span></fieldset>
                 {(numberFormat === "Currency" || numberFormat === "Accounting") && <label className="flex items-center gap-2">Symbol: <select aria-label="Symbol" value={currency} onChange={(event) => setCurrency(event.target.value as CurrencySymbol)} className="border border-slate-400">{CURRENCIES.map(([symbol, label]) => <option key={symbol} value={symbol}>{label}</option>)}</select></label>}
                 {numberFormat === "ShortDate" && <label className="grid gap-1">Type:<select size={2} aria-label="Date type" value={dateKind} onChange={(event) => setDateKind(event.target.value as typeof dateKind)} className="border border-slate-400"><option value="ShortDate">25-10-2026</option><option value="LongDate">Sunday, 25 October, 2026</option></select></label>}
-                {!["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) && <label className="flex items-center gap-2">Decimal places: <input type="number" aria-label="Decimal places" min={0} max={10} value={decimals} onChange={(event) => setDecimals(Math.min(10, Math.max(0, Number(event.target.value) || 0)))} className="w-14 border border-slate-400 px-1" /></label>}
+                {!["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) && <label className="flex items-center gap-2">Decimal places: <NumberBox label="Decimal places" min={0} max={10} value={decimals} onChange={setDecimals} className="w-14 border border-slate-400 px-1" /></label>}
                 <p className="text-slate-600">{CATEGORIES.find(([value]) => value === numberFormat)?.[2]}</p>
               </div>
             </div>
@@ -105,7 +117,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
               <div className="grid content-start gap-2">
                 <fieldset className="grid gap-2 border-t border-slate-300 pt-1"><legend className="pr-2">Text alignment</legend>
                   <label className="grid gap-1">Horizontal:<select aria-label="Horizontal" value={horizontal} onChange={(event) => setHorizontal(event.target.value)} className="w-40 border border-slate-400"><option value="general">General</option><option value="left">Left (Indent)</option><option value="center">Center</option><option value="right">Right (Indent)</option></select></label>
-                  <label className="flex items-center gap-2">Indent: <input type="number" aria-label="Indent" min={0} max={15} value={indent} onChange={(event) => setIndent(Math.min(15, Math.max(0, Number(event.target.value) || 0)))} className="w-14 border border-slate-400 px-1" /></label>
+                  <label className="flex items-center gap-2">Indent: <NumberBox label="Indent" min={0} max={15} value={indent} onChange={setIndent} className="w-14 border border-slate-400 px-1" /></label>
                   <label className="grid gap-1">Vertical:<select aria-label="Vertical" value={vertical} onChange={(event) => setVertical(event.target.value)} className="w-40 border border-slate-400"><option value="top">Top</option><option value="middle">Center</option><option value="bottom">Bottom</option></select></label>
                 </fieldset>
                 <fieldset className="grid gap-1 border-t border-slate-300 pt-1"><legend className="pr-2">Text control</legend>
@@ -116,7 +128,7 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
               </div>
               <fieldset className="grid content-start gap-2 border border-slate-300 p-2"><legend className="px-1">Orientation</legend>
                 <button type="button" aria-pressed={rotate === 255} onClick={() => setRotate(rotate === 255 ? 0 : 255)} className={`border px-1 py-2 leading-3 ${rotate === 255 ? "border-[#217346] bg-[#d5ead9]" : "border-slate-300"}`}>T<br />e<br />x<br />t</button>
-                <label className="flex items-center gap-1"><input type="number" aria-label="Degrees" min={-90} max={90} value={rotate === 255 ? 0 : rotate} onChange={(event) => setRotate(Math.min(90, Math.max(-90, Number(event.target.value) || 0)))} className="w-14 border border-slate-400 px-1" />Degrees</label>
+                <label className="flex items-center gap-1"><NumberBox label="Degrees" min={-90} max={90} value={rotate === 255 ? 0 : rotate} onChange={setRotate} className="w-14 border border-slate-400 px-1" />Degrees</label>
               </fieldset>
             </div>
           )}
