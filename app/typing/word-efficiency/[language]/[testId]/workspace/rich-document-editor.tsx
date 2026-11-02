@@ -1919,6 +1919,9 @@ function drawSheetBorders(page: HTMLElement, sheets: number, sheetHeight: number
     const rect = pageBorderRect(options, { pageWidth, sheetHeight, marginTop, marginRight, marginBottom, marginLeft, headerBottom: sheet === 0 ? headerBottom : null, footerTop: sheet === sheets - 1 && footerTop !== null ? footerTop - sheet * step : null });
     sheetBox.style.cssText = `left:${box.left - origin.left + rect.left * zoom}px;top:${box.top - origin.top + (sheet * step + rect.top) * zoom}px;width:${rect.width * zoom}px;height:${rect.height * zoom}px`;
     for (const [side, value] of sides) sheetBox.style.setProperty(`border-${side}`, value);
+    // A Wave / Double wave border is a transparent border painted with a wave picture (setPageBorder): the picture
+    // has to come along too, or the sheet's border is there but invisible.
+    if (style.borderImage) sheetBox.style.borderImage = style.borderImage;
     boxes.push(sheetBox);
   }
   layer.replaceChildren(...boxes);

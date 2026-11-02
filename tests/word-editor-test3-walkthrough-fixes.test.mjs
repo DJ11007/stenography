@@ -56,6 +56,10 @@ test("Page Borders has Word's Wave and Double wave styles, drawn as a wave and s
   assert.match(dialogs, /const PAGE_STYLE_LIST = \[\.\.\.STYLE_LIST, "wave", "doubleWave"\] as const;/);
   assert.match(dialogs, /wave: "Wave", doubleWave: "Double wave"/);
   assert.match(editor, /function waveBorderImage\(color: string, double: boolean\)/);
+  // Each sheet's border box carries the wave picture (it was copied as a transparent border only, so the wave
+  // border was invisible), and the page's own copy is hidden so it is not drawn twice.
+  assert.match(editor, /if \(style\.borderImage\) sheetBox\.style\.borderImage = style\.borderImage;/);
+  assert.match(await read("app/globals.css"), /\.word-document-page\[data-sheet-borders\] \{ border-color: transparent !important; border-image-source: none !important; \}/);
 });
 
 test("Font > Advanced: typing 0.5 into Condensed By keeps Condensed (the leading 0 used to switch it to Normal and disable the box)", async () => {
