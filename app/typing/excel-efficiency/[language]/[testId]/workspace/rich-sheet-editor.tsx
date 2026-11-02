@@ -1221,9 +1221,9 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                 <MenuButton id="borders" menu={menu} setMenu={setMenu} label="Borders" icon={<Icon name="border" />} disabled={submitted}>
                   <MenuHeading>Borders</MenuHeading>
                   {([["bottom", "Bottom Border"], ["top", "Top Border"], ["left", "Left Border"], ["right", "Right Border"], ["none", "No Border"], ["all", "All Borders"], ["outside", "Outside Borders"], ["thickBox", "Thick Box Border"], ["bottomDouble", "Bottom Double Border"], ["thickBottom", "Thick Bottom Border"], ["topBottom", "Top and Bottom Border"], ["topThickBottom", "Top and Thick Bottom Border"], ["topDoubleBottom", "Top and Double Bottom Border"]] as [BorderStyle, string][]).map(([style, label]) => (
-                    <MenuItem key={style} onClick={() => { change("border", { cells: applyBorder(cells, selection, style) }); setMenu(null); }}>{label}</MenuItem>
+                    <MenuItem key={style} icon={<BorderMenuIcon style={style} />} onClick={() => { change("border", { cells: applyBorder(cells, selection, style) }); setMenu(null); }}>{label}</MenuItem>
                   ))}
-                  <MenuItem onClick={() => openFormatCells("Border")}>More Borders...</MenuItem>
+                  <MenuItem icon={<BorderMenuIcon style="all" />} onClick={() => openFormatCells("Border")}>More Borders...</MenuItem>
                 </MenuButton>
                 <ColorSplit id="fill" label="Fill Color" swatch={lastFill} icon={<Icon name="bucket" />} menu={menu} setMenu={setMenu} disabled={submitted} noneLabel="No Fill" onMore={() => openDialog({ kind: "moreColors", target: "fill" })} onApply={() => formatSelection({ fillColor: lastFill }, "fillColor")} onPick={(hex) => { if (hex) setLastFill(hex); formatSelection({ fillColor: hex }, "fillColor"); }} />
                 <ColorSplit id="font" label="Font Color" swatch={lastFont} icon={<span className="font-serif text-[13px] font-bold">A</span>} menu={menu} setMenu={setMenu} disabled={submitted} noneLabel="Automatic" onMore={() => openDialog({ kind: "moreColors", target: "font" })} onApply={() => formatSelection({ fontColor: lastFont }, "fontColor")} onPick={(hex) => { if (hex) setLastFont(hex); formatSelection({ fontColor: hex }, "fontColor"); }} />
@@ -2016,6 +2016,25 @@ function Menu({ children }: { children: React.ReactNode }) {
 function FillIcon({ arrow }: { arrow: "down" | "right" | "up" | "left" }) {
   const rotate = { down: 0, left: 90, up: 180, right: 270 }[arrow];
   return <svg aria-hidden viewBox="0 0 14 14" className="h-3.5 w-3.5" style={{ transform: `rotate(${rotate}deg)` }}><rect x="1.5" y="1.5" width="11" height="11" fill="#fff" stroke="#8c8c8c" /><path d="M7 3v6M4.5 6.8 7 9.5l2.5-2.7" fill="none" stroke="#2a6bd4" strokeWidth="1.6" /><path d="M3 11h8" stroke="#2a6bd4" strokeWidth="1.4" /></svg>;
+}
+// The picture beside each command in the Borders menu, as in Excel 2013: a dotted cell grid with the borders the
+// command draws in solid black (thick and double ones drawn thick and double).
+function BorderMenuIcon({ style }: { style: BorderStyle }) {
+  const line = (d: string, width = 1) => <path d={d} stroke="#1e1e1e" strokeWidth={width} />;
+  const box = "M1.5 1.5h11v11h-11z", top = "M1 1.5h12", bottom = "M1 12.5h12";
+  const double = <>{line("M1 11.5h12")}{line("M1 13.5h12")}</>;
+  const drawn: Partial<Record<BorderStyle, ReactNode>> = {
+    bottom: line(bottom), top: line(top), left: line("M1.5 1v12"), right: line("M12.5 1v12"),
+    all: <>{line(box)}{line("M7 1.5v11M1.5 7h11")}</>, outside: line(box), thickBox: line(box, 2),
+    bottomDouble: double, thickBottom: line("M1 12.25h12", 2), topBottom: <>{line(top)}{line(bottom)}</>,
+    topThickBottom: <>{line(top)}{line("M1 12.25h12", 2)}</>, topDoubleBottom: <>{line(top)}{double}</>,
+  };
+  return (
+    <svg aria-hidden viewBox="0 0 14 14" width="14" height="14" fill="none">
+      <path d={`${box}M7 1.5v11M1.5 7h11`} stroke="#8a8a8a" strokeDasharray="1 1" />
+      {drawn[style]}
+    </svg>
+  );
 }
 function MenuItem({ children, onClick, checked, disabled, icon }: { children: React.ReactNode; onClick: () => void; checked?: boolean; disabled?: boolean; icon?: React.ReactNode }) {
   return <button type="button" role="menuitem" disabled={disabled} aria-disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-[#d5e1f2] disabled:cursor-default disabled:text-[#a6a6a6] disabled:hover:bg-transparent ${checked ? "font-semibold text-[#217346]" : ""}`}><span className="flex w-3.5 justify-center">{icon ?? (checked ? "✓" : "")}</span>{children}</button>;

@@ -29,8 +29,17 @@ test("rejects an invalid color, number format, or alignment", () => {
   assert.throws(() => validateExcelDocument(doc({ cells: { A1: cell({ align: "justify" }) } })));
 });
 
-test("validateExcelOperations accepts known commands and rejects unrecognized ones", () => {
+test("validateExcelOperations keeps known commands and drops unrecognized ones, never refusing the sheet", () => {
   const value = doc({ operations: ["bold", "sortAscending"] });
   assert.equal(validateExcelOperations(value), value);
-  assert.throws(() => validateExcelOperations(doc({ operations: ["deleteEverything"] })));
+  assert.deepEqual(validateExcelOperations(doc({ operations: ["bold", "deleteEverything"] })).operations, ["bold"]);
+});
+
+test("every command the workspace records is a recognised one (autoFitRowHeight once stopped submissions)", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { EXCEL_SUPPORTED_COMMANDS } = await import("../lib/excel-document.ts");
+  const source = await readFile(new URL("../app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor.tsx", import.meta.url), "utf8");
+  const used = [...new Set([...source.matchAll(/change\("(\w+)"/g)].map((match) => match[1]))];
+  assert.ok(used.length > 10);
+  assert.deepEqual(used.filter((name) => !EXCEL_SUPPORTED_COMMANDS.has(name)), []);
 });

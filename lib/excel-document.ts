@@ -17,6 +17,9 @@ export const EXCEL_SUPPORTED_COMMANDS = new Set([
   "underlineDouble", "superscript", "subscript", "pasteFormulas", "pasteTranspose", "pasteNoBorders", "pasteSpecial", "insertCells", "deleteCells",
   "fillUp", "fillLeft", "fillSeries", "clearComments", "clearHyperlinks", "tabColor", "lockCell", "hyperlink", "pageBreak", "scaleToFit",
   "defineName", "dataValidation", "textToColumns", "shrink", "currency",
+  // AutoFit (migration 202610311000), Justify and Flash Fill: recorded by the workspace but missing here, which refused
+  // every save and the submission of a sheet that had used them.
+  "autoFitRowHeight", "autoFitColumnWidth", "justify", "flashFill",
 ]);
 
 export type SheetCell = {
@@ -190,8 +193,11 @@ export function validateExcelDocument(value: unknown) {
   return value;
 }
 
+// The operation list is only a history of commands used. An unknown name in it is dropped rather than refused: a
+// command the workspace records but this list has not caught up with must never stop a student's save or submission.
 export function validateExcelOperations(value: unknown) {
   const document = validateExcelDocument(value) as JsonObject;
-  for (const operation of document.operations as string[]) if (!EXCEL_SUPPORTED_COMMANDS.has(operation.split(":")[0])) throw new Error(`Sheet command ${operation} is not recognized.`);
-  return document;
+  const operations = document.operations as string[];
+  const known = operations.filter((operation) => EXCEL_SUPPORTED_COMMANDS.has(operation.split(":")[0]));
+  return known.length === operations.length ? document : { ...document, operations: known };
 }
