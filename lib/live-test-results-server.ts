@@ -59,7 +59,7 @@ export async function getPublishedLiveResultsByDate(date: string, limit = 200): 
 // Home page "Live Exam" section (migration 202611011900): the upcoming / running live exams, and the latest live
 // exam's top rankers once its results are open. An error (for example before the migration is run) hides the section.
 export type UpcomingLiveExam = { id: string; title: string; starts_at: string; ends_at: string; parts: number; part_names: string };
-export type LiveExamTopRanker = { exam_id: string; exam_title: string; exam_date: string; max_total: number; rank: number; student_name: string; total: number };
+export type LiveExamTopRanker = { exam_id: string | null; exam_title: string; exam_date: string; max_total: number; rank: number; student_name: string; total: number };
 
 export async function getUpcomingLiveExams(limit = 5): Promise<UpcomingLiveExam[]> {
   const supabase = await createClient();
@@ -75,10 +75,11 @@ export async function getLiveExamTopRankers(limit = 10): Promise<LiveExamTopRank
   return (data ?? []) as LiveExamTopRanker[];
 }
 
-// The public "all results" page (/live-exam-results, migration 202611022000): the exams whose results are open, and one
-// exam's full result sheet (the latest when no exam is given).
-export type LiveExamWithResults = { id: string; title: string; exam_date: string };
-export type LiveExamResultRow = { exam_id: string; exam_title: string; exam_date: string; sections: { position: number; label: string; maxMarks: number }[]; rank: number; student_name: string; section_marks: { position: number; marks: number | null }[]; total: number; max_total: number };
+// The public "all results" page (/live-exam-results, migration 202611022000), by TEST across batches ("Exam-1" and
+// "Exam-1 (5 pm batch)" are one test): the tests whose results are open, and one test's full result sheet (the latest
+// when none is given), each row with the batch the student sat.
+export type LiveExamWithResults = { test_title: string; exam_date: string; batches: number };
+export type LiveExamResultRow = { test_title: string; exam_date: string; sections: { position: number; label: string; maxMarks: number }[]; rank: number; student_name: string; batch: string; section_marks: { position: number; marks: number | null }[]; total: number; max_total: number };
 
 export async function getLiveExamsWithResults(): Promise<LiveExamWithResults[]> {
   const supabase = await createClient();
@@ -87,9 +88,9 @@ export async function getLiveExamsWithResults(): Promise<LiveExamWithResults[]> 
   return (data ?? []) as LiveExamWithResults[];
 }
 
-export async function getLiveExamResults(examId: string | null): Promise<LiveExamResultRow[]> {
+export async function getLiveExamResults(test: string | null): Promise<LiveExamResultRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("public_live_exam_results", { p_exam_id: examId });
+  const { data, error } = await supabase.rpc("public_live_exam_results", { p_test: test });
   if (error) { logRpcFailure("Live exam results listing failed", error); return []; }
   return (data ?? []) as LiveExamResultRow[];
 }

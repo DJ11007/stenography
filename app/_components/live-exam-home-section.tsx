@@ -50,7 +50,7 @@ export function LiveExamHomeSection({ upcoming, rankers }: { upcoming: UpcomingL
             ) : <p className="mt-3 text-sm text-slate-500">No live exam is scheduled right now. Check back soon.</p>}
           </div>
           <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Top rankers — latest live exam</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Top rankers — latest live exam (all batches)</h3>
             {exam ? (
               <>
                 <p className="mt-1 text-sm font-bold text-slate-700">{exam.exam_title} · {istDate(exam.exam_date)}</p>
@@ -66,7 +66,7 @@ export function LiveExamHomeSection({ upcoming, rankers }: { upcoming: UpcomingL
                     </div>
                   ))}
                 </div>
-                <Link href={`/live-exam-results?exam=${exam.exam_id}`} className="mt-3 block rounded-xl bg-red-700 px-4 py-2.5 text-center text-sm font-black text-white hover:bg-red-800">View all results →</Link>
+                <Link href={`/live-exam-results?test=${encodeURIComponent(exam.exam_title)}`} className="mt-3 block rounded-xl bg-red-700 px-4 py-2.5 text-center text-sm font-black text-white hover:bg-red-800">View all results →</Link>
               </>
             ) : <p className="mt-3 text-sm text-slate-500">Results appear here after the live exam&apos;s results are open.</p>}
           </div>
