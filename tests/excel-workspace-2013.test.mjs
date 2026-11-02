@@ -75,7 +75,7 @@ test("saved sheets: version 3 (merges, page settings, font size, Middle Align) v
 test("the workspace has Excel 2013's commands the papers ask about, and saves them", async () => {
   const editor = await read("app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor.tsx");
   for (const label of ["Merge &amp; Center", "Merge Across", "Merge Cells", "Unmerge Cells", "Middle Align", "Format Painter", "Wrap Text", "Font Size", "Set Print Area", "Clear Print Area", "Landscape", "Portrait", "Header &amp; Footer", "Page Number", "Gridlines: View", "Headings: View", "Formula Bar", "Name Box", "AutoSum", "Insert Sheet Rows", "Delete Sheet Columns", "Clear Formats"]) assert.ok(editor.includes(label), label);
-  assert.match(editor, /\["C00000", "Dark Red"\], \["FF0000", "Red"\]/, "Excel's standard colours, Red included");
+  assert.match(await read("app/typing/excel-efficiency/[language]/[testId]/workspace/excel-colors.ts"), /\["C00000", "Dark Red"\], \["FF0000", "Red"\]/, "Excel's standard colours, Red included");
   assert.match(editor, /return \{ schemaVersion: "3", rows: extent\.rows, cols: extent\.cols, cells: kept, merges: m, sheet: s,/);
   assert.match(editor, /onChange=\{\(event\) => \{ const text = event\.target\.value; event\.target\.value = ""; if \(text && !submitted && !editing\) beginEdit\(text\); \}\}/, "typed text from an input method or phone starts editing too");
   assert.match(editor, /onPaste=\{\(event\) => \{ event\.preventDefault\(\); if \(!submitted\) pasteText\(event\.clipboardData\.getData\("text\/plain"\)\); \}\}/);
