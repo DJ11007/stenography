@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ManagedTestMode } from "@/lib/admin-tests";
 import { BackButton } from "@/app/_components/back-button";
 import TestManager, { type ManagedTestRow } from "./test-manager";
+import { loadManagedVersionSummaries } from "./managed-versions";
 
 const TITLES: Record<ManagedTestMode, string> = { learn: "Learn Typing tests", practice: "Practice Tests", exam: "Exam Tests", stenography: "Stenography Tests" };
 
@@ -17,7 +18,7 @@ export async function SectionTestPage({ mode, live=false, language, inputSystemI
   const versionIds = (tests ?? []).flatMap((test) => test.current_version_id ? [test.current_version_id] : []);
   const creatorIds = [...new Set((tests ?? []).flatMap((test) => test.created_by ? [test.created_by] : []))];
   const [{ data: versions }, { data: attempts }, { data: creators }] = await Promise.all([
-    versionIds.length ? supabase.from("test_versions").select("*").in("id", versionIds) : Promise.resolve({ data: [] }),
+    loadManagedVersionSummaries(supabase, versionIds).then((data) => ({ data })),
     ids.length ? supabase.from("test_attempts").select("test_id").in("test_id", ids) : Promise.resolve({ data: [] }),
     creatorIds.length ? supabase.from("profiles").select("id,full_name").in("id", creatorIds) : Promise.resolve({ data: [] }),
   ]);

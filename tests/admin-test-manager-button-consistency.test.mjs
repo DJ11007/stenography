@@ -36,6 +36,6 @@ test("only the submit button actually clicked relabels to \"Uploading…\" -- th
   assert.match(manager, /const \[uploadingIntent,setUploadingIntent\] = useState<string\|null>\(null\);/);
   assert.match(manager, /setUploadingIntent\(submitter\?\.name==="intent"\?submitter\.value:"single"\);/);
   assert.match(manager, /setUploading\(false\);\s*setUploadingIntent\(null\);/);
-  assert.match(manager, /disabled=\{pending\|\|uploading\} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">\{uploading&&uploadingIntent==="draft"\?"Uploading…":"Save draft"\}/);
-  assert.match(manager, /disabled=\{pending\|\|uploading\} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">\{uploading&&uploadingIntent==="publish"\?"Uploading…":"Publish"\}/);
+  assert.match(manager, /disabled=\{pending\|\|uploading\|\|Boolean\(passageLoading\)\} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">\{uploading&&uploadingIntent==="draft"\?"Uploading…":"Save draft"\}/);
+  assert.match(manager, /disabled=\{pending\|\|uploading\|\|Boolean\(passageLoading\)\} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">\{uploading&&uploadingIntent==="publish"\?"Uploading…":"Publish"\}/);
 });

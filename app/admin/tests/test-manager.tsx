@@ -12,7 +12,7 @@ import { ALL_HALF_ERROR_CATEGORIES, HALF_ERROR_CATEGORY_LABELS, type HalfErrorCa
 import { encodingValidationMessage, type HindiTextFormat } from "@/lib/hindi-font-converter";
 import { FontConverter } from "@/app/admin/font-converter/font-converter";
 import { createClient as createBrowserClient } from "@/lib/supabase/client";
-import { createTestAssetUploadUrl, deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearningManagedTest, saveLiveExamManagedTest, saveLiveStenographyManagedTest, saveManagedTest, savePracticeManagedTest, saveStenographyManagedTest, setManagedTestStatus, type TestFormState } from "./actions";
+import { createTestAssetUploadUrl, loadTestVersionPassage, deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearningManagedTest, saveLiveExamManagedTest, saveLiveStenographyManagedTest, saveManagedTest, savePracticeManagedTest, saveStenographyManagedTest, setManagedTestStatus, type TestFormState } from "./actions";
 import { PermanentDeleteDangerZone } from "./permanent-delete-danger-zone";
 
 type Version = { id:string; description:string|null; language:"English"|"Hindi"; mode:ManagedTestMode; input_system_id:string; duration_seconds:number; passage:string; required_wpm:number; required_accuracy:number; backspace_mode:string; word_method:string; highlight_mode:string; visibility:"public"|"private"; passage_characters:number; passage_words:number; configuration?:Record<string,unknown>|null };
@@ -88,6 +88,9 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   const [pageSize,setPageSize] = useState(20);
   const [page,setPage] = useState(1);
   const [passage,setPassage] = useState("");
+  // Which version's passage is still on its way from the server after Edit; saving waits for it, so a version is
+  // never saved with an empty passage.
+  const [passageLoading,setPassageLoading] = useState<string|null>(null);
   const [language,setLanguage] = useState<"English"|"Hindi">(lockedLanguage ?? "English");
   const [inputSystem,setInputSystem] = useState(lockedInputSystemId ?? defaultInputSystemFor(lockedLanguage ?? "English", effectiveMode ?? "practice"));
   const [formMode,setFormMode] = useState<ManagedTestMode>(effectiveMode ?? "practice");
@@ -269,7 +272,14 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   const rangeEnd = Math.min(filtered.length,pageStart+pageSize);
   const choose = (test:ManagedTestRow|null) => {
     const chosenLanguage = test?.currentVersion?.language??lockedLanguage??"English"; const chosenMode = effectiveMode??test?.currentVersion?.mode??"practice";
-    setEditing(test); setPassage(test?.currentVersion?.passage??""); setLanguage(chosenLanguage); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??defaultInputSystemFor(chosenLanguage,chosenMode)); setFormMode(chosenMode); setIsLive(lockedLive || Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
+    setEditing(test); setPassage(test?.currentVersion?.passage??"");
+    const versionId = test?.current_version_id ?? null;
+    if (test && versionId && test.currentVersion?.passage == null) {
+      setPassageLoading(versionId);
+      void loadTestVersionPassage(versionId).then((result) => {
+        setPassageLoading((loading) => { if (loading !== versionId) return loading; if ("passage" in result) setPassage(result.passage); else setUploadError(result.error); return null; });
+      });
+    } else setPassageLoading(null); setLanguage(chosenLanguage); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??defaultInputSystemFor(chosenLanguage,chosenMode)); setFormMode(chosenMode); setIsLive(lockedLive || Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
     setExamCategorySlug((test?.currentVersion?.configuration?.exam_category as string|undefined) ?? "");
     setStenoCategorySlug((test?.currentVersion?.configuration?.steno_category as string|undefined) ?? "");
     const stored = test?.currentVersion?.configuration?.dictation_categories as {available?:unknown;defaults?:unknown}|undefined;
@@ -436,7 +446,7 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
         {preview&&<div className="max-h-56 overflow-auto rounded-xl bg-slate-50 p-4"><h3 className="font-bold">Passage preview</h3>{passageFormat==="krutidev"&&<span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">Kruti Dev 010 · Legacy encoded text</span>}<p className="mt-2 whitespace-pre-wrap text-lg leading-8" style={{fontFamily:inputSystem.includes("krutidev")?'"Kruti Dev 010", sans-serif':language==="Hindi"?'"Nirmala UI", Mangal, sans-serif':"Arial, sans-serif"}}>{passage||"No passage entered."}</p></div>}
         {uploadError&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{uploadError}</p>}
         {state.error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}{state.success&&<p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{state.success}</p>}
-        {learningOnly?<button disabled={pending||uploading} className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":editing?"Save and Publish Changes":"Create and Publish Test"}</button>:<div className="grid grid-cols-2 gap-2"><button disabled={pending||uploading} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">{uploading&&uploadingIntent==="draft"?"Uploading…":"Save draft"}</button><button disabled={pending||uploading} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading&&uploadingIntent==="publish"?"Uploading…":"Publish"}</button></div>}
+        {learningOnly?<button disabled={pending||uploading||Boolean(passageLoading)} className="w-full rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading?"Uploading…":editing?"Save and Publish Changes":"Create and Publish Test"}</button>:<div className="grid grid-cols-2 gap-2"><button disabled={pending||uploading||Boolean(passageLoading)} name="intent" value="draft" className="rounded-lg border border-blue-700 py-3 font-bold text-blue-700">{uploading&&uploadingIntent==="draft"?"Uploading…":"Save draft"}</button><button disabled={pending||uploading||Boolean(passageLoading)} name="intent" value="publish" className="rounded-lg bg-blue-700 py-3 font-bold text-white">{uploading&&uploadingIntent==="publish"?"Uploading…":"Publish"}</button></div>}
       </form>{converterOpen&&<div role="dialog" aria-modal="true" aria-label="Font and text converter" className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/70 p-3 sm:p-6"><div className="mx-auto max-w-[1500px] rounded-3xl bg-slate-100 p-5 shadow-2xl"><div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Font & Text Converter</h2><button type="button" aria-label="Close converter" onClick={()=>setConverterOpen(false)} className="rounded-lg bg-white px-4 py-2 text-xl font-black">×</button></div><FontConverter initialText={passage} initialSource={passageFormat} expectedOutput={passageFormat} onUse={(result)=>{if(result.encoding!==passageFormat){alert(`Select ${passageFormat==="krutidev"?"Kruti Dev 010":"Unicode Hindi — Mangal"} output before inserting.`);return;}if(confirm("Replace the Passage / matter field with this converted text? The current passage will remain unchanged until you confirm.")){setPassage(result.text);setConverterOpen(false);}}}/></div></div>}
     </aside>
   </div>;

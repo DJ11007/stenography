@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BackButton } from "@/app/_components/back-button";
 import TestManager, { type ManagedTestRow } from "./test-manager";
+import { loadManagedVersionSummaries } from "./managed-versions";
 
 export default async function AdminTestsPage() {
   const { user } = await requireAdmin(); const supabase = await createClient();
@@ -14,7 +15,7 @@ export default async function AdminTestsPage() {
   const ids=(tests??[]).map((test)=>test.id); const versionIds=(tests??[]).flatMap((test)=>test.current_version_id?[test.current_version_id]:[]);
   const creatorIds=[...new Set((tests??[]).flatMap((test)=>test.created_by?[test.created_by]:[]))];
   const [{data:versions},{data:attempts},{data:creators}] = await Promise.all([
-    versionIds.length ? supabase.from("test_versions").select("*").in("id",versionIds) : Promise.resolve({data:[]}),
+    loadManagedVersionSummaries(supabase, versionIds).then((data) => ({ data })),
     ids.length ? supabase.from("test_attempts").select("test_id").in("test_id",ids) : Promise.resolve({data:[]}),
     creatorIds.length ? supabase.from("profiles").select("id,full_name").in("id",creatorIds) : Promise.resolve({data:[]}),
   ]);

@@ -250,6 +250,15 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
   return { success: (publish ? "A new immutable version was saved and published." : "A new immutable draft version was saved.") + slugNote };
 }
 
+// The passage of the one test opened for editing (the lists no longer carry passages, see managed-versions.ts).
+export async function loadTestVersionPassage(versionId: string): Promise<{ passage: string } | { error: string }> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("test_versions").select("passage").eq("id", versionId).maybeSingle();
+  if (error || !data) return { error: "The passage of this test could not be loaded. Reload the page and try again." };
+  return { passage: data.passage ?? "" };
+}
+
 export async function saveManagedTest(_: TestFormState, formData: FormData): Promise<TestFormState> { return persistManagedTest(formData); }
 
 export async function saveLearningManagedTest(state: TestFormState, formData: FormData): Promise<TestFormState> {
