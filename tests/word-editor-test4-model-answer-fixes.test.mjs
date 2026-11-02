@@ -137,3 +137,19 @@ test("Underline (and every run format) over several selected paragraphs reaches 
   assert.equal(one.spans.length, 1);
   assert.equal(document.querySelector("#d").innerHTML, "Delta");
 });
+
+test("each page is drawn at its paper's width (A4 when no size was chosen), and saved documents keep no size they did not choose", async () => {
+  const editor = (await read(EDITOR)).replace(/\r\n/g, "\n");
+  assert.match(editor, /const paperWidth=el\.style\.maxWidth\|\|`\$\{PAPER_WIDTH_PX\.a4\}px`;if\(el\.style\.width!==paperWidth\)el\.style\.width=paperWidth;/);
+  // the page never shrinks to the window (Word keeps the paper's size and scrolls)
+  assert.match(editor, /w-\[794px\] max-w-none shrink-0 bg-white/);
+  assert.doesNotMatch(editor, /w-\[794px\] max-w-full/);
+  // an unchosen size stays unsaved (rules check only chosen sizes such as A3 "42 \/ 29.7")
+  assert.match(editor, /maxWidth:editor\.style\.maxWidth\|\|null,aspectRatio:editor\.style\.aspectRatio\|\|null/);
+});
+
+test("the header/footer copies on later pages never show the editing line", async () => {
+  const [editor, css] = await Promise.all([read(EDITOR), read("app/globals.css")]);
+  assert.match(editor.replace(/\r\n/g, "\n"), /copy\.style\.border = "0";[\s\S]{0,200}copy\.removeAttribute\("class"\);/);
+  assert.match(css, /\.word-hf-copy > header, \.word-hf-copy > footer \{ border: 0 !important; \}/);
+});

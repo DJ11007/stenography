@@ -1182,6 +1182,7 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-document-page > footer[data-block-type="footer"] { top: var(--word-footer-top, auto); }
 .word-hf-layer { position: absolute; inset: 0; pointer-events: none; }
 .word-hf-copy { position: absolute; opacity: .55; overflow: hidden; }
+.word-hf-copy > header, .word-hf-copy > footer { border: 0 !important; }
 .word-hf-copy span[style*="33%"] { white-space: nowrap; vertical-align: bottom; }
 .word-document-page[data-hf-editing] ~ .word-hf-layer .word-hf-copy { opacity: .8; }
 /* Fields (page number, date and time) look like the text around them, as in Word 2013, with Word's
