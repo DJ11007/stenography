@@ -1586,7 +1586,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                   <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.shiftKey) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
                     onContextMenu={(event) => { event.preventDefault(); if (!(col >= selection.c1 && col <= selection.c2 && wholeCols)) { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                     style={{ left: freeze && col < freeze.col ? frozenLeft(col) : undefined, padding: hiddenColSet.has(col) ? 0 : undefined }}
-                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d3d3d3] text-[#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}</th>
+                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_0_-2px_0_#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}</th>
                 ))}
               </tr>
             </thead>}
@@ -1600,7 +1600,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                     {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.shiftKey) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
                       onContextMenu={(event) => { event.preventDefault(); if (!(row >= selection.r1 && row <= selection.r2 && wholeRows)) { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                       style={{ top: frozenRow ? frozenTop(row) : undefined, height: rowHeight(row) }}
-                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d3d3d3] text-[#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}</th>}
+                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_-2px_0_0_#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}</th>}
                     {Array.from({ length: displayCols }, (_, col) => {
                       const merged = mergeAt(merges, row, col);
                       if (merged && (merged.r1 !== row || merged.c1 !== col)) return null;
@@ -1626,8 +1626,17 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
                       const neighbour = cells[refAt(row, col + 1)];
                       const spill = !cell.wrap && !merged && !numeric && cell.value != null && align === "left" && !filterButton && (!neighbour || (neighbour.value == null && !neighbour.formula)) && !mergeAt(merges, row, col + 1);
                       const fill = conditional?.fill ?? cell.fillColor;
+                      // As in Excel 2013: a selected range is shaded grey (over any fill colour too; the active cell stays clear)
+                      // and edged with a thick green line round the whole range.
+                      const multiSelect = selection.r1 !== selection.r2 || selection.c1 !== selection.c2;
+                      const edges = multiSelect && inSelection ? [
+                        (merged?.r1 ?? row) === selection.r1 && "inset 0 2px 0 #217346", (merged?.r2 ?? row) === selection.r2 && "inset 0 -2px 0 #217346",
+                        (merged?.c1 ?? col) === selection.c1 && "inset 2px 0 0 #217346", (merged?.c2 ?? col) === selection.c2 && "inset -2px 0 0 #217346",
+                      ].filter(Boolean) : [];
+                      const selectionShadow = [...edges, ...(inSelection && !isActive ? ["inset 0 0 0 200px rgba(70, 70, 70, 0.22)"] : [])].join(", ");
                       const style: CSSProperties = {
-                        backgroundColor: fill ? `#${fill}` : fillPreview && rectContains(fillPreview, row, col) ? "#e2efda" : inSelection && !isActive ? "#dbe8f7" : frozenRow || frozenCol ? "#ffffff" : undefined,
+                        backgroundColor: fill ? `#${fill}` : fillPreview && rectContains(fillPreview, row, col) ? "#e2efda" : frozenRow || frozenCol ? "#ffffff" : undefined,
+                        boxShadow: selectionShadow || undefined,
                         borderRight: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent", borderBottom: sheet.gridlines ? "1px solid #d4d4d4" : "1px solid transparent",
                         ...borderCss(cell.border),
                         ...(conditional?.border ? { borderTop: conditional.border, borderRight: conditional.border, borderBottom: conditional.border, borderLeft: conditional.border } : {}),
