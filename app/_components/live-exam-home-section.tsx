@@ -66,6 +66,7 @@ export function LiveExamHomeSection({ upcoming, rankers }: { upcoming: UpcomingL
                     </div>
                   ))}
                 </div>
+                <Link href={`/live-exam-results?exam=${exam.exam_id}`} className="mt-3 block rounded-xl bg-red-700 px-4 py-2.5 text-center text-sm font-black text-white hover:bg-red-800">View all results →</Link>
               </>
             ) : <p className="mt-3 text-sm text-slate-500">Results appear here after the live exam&apos;s results are open.</p>}
           </div>

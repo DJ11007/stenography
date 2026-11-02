@@ -74,3 +74,22 @@ export async function getLiveExamTopRankers(limit = 10): Promise<LiveExamTopRank
   if (error) { logRpcFailure("Live exam top rankers listing failed", error); return []; }
   return (data ?? []) as LiveExamTopRanker[];
 }
+
+// The public "all results" page (/live-exam-results, migration 202611022000): the exams whose results are open, and one
+// exam's full result sheet (the latest when no exam is given).
+export type LiveExamWithResults = { id: string; title: string; exam_date: string };
+export type LiveExamResultRow = { exam_id: string; exam_title: string; exam_date: string; sections: { position: number; label: string; maxMarks: number }[]; rank: number; student_name: string; section_marks: { position: number; marks: number | null }[]; total: number; max_total: number };
+
+export async function getLiveExamsWithResults(): Promise<LiveExamWithResults[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("public_live_exams_with_results");
+  if (error) { logRpcFailure("Live exams with results listing failed", error); return []; }
+  return (data ?? []) as LiveExamWithResults[];
+}
+
+export async function getLiveExamResults(examId: string | null): Promise<LiveExamResultRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("public_live_exam_results", { p_exam_id: examId });
+  if (error) { logRpcFailure("Live exam results listing failed", error); return []; }
+  return (data ?? []) as LiveExamResultRow[];
+}
