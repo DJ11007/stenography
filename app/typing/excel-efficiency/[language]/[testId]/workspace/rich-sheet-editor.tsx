@@ -2064,13 +2064,26 @@ function ColorSplit({ id, label, swatch, icon, menu, setMenu, onApply, onPick, n
       <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onApply} aria-label={label} title={label} className="flex h-[22px] flex-col items-center justify-center border border-transparent px-1 hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40"><span className="leading-none">{icon}</span><span className="mt-0.5 h-[3px] w-4" style={{ backgroundColor: `#${swatch}` }} /></button>
       <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => setMenu(open ? null : id)} aria-label={`${label} palette`} aria-expanded={open} className="flex h-[22px] items-center border border-transparent px-0.5 text-[9px] hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40">▾</button>
       {open && (
-        <Popover label={`${label} palette`} className="w-56 border border-[#c6c6c6] bg-white p-2 text-[#262626] shadow-lg">
-          <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(null); setMenu(null); }} className="mb-1 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">{noneLabel}</button>
-          <p className="text-[11px] font-semibold text-slate-500">Theme Colors</p>
-          <div className="mt-1 grid grid-cols-10 gap-0.5">{THEME_COLORS.flat().map(({ hex, name }, index) => <button key={`${hex}-${index}`} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
-          <p className="mt-2 text-[11px] font-semibold text-slate-500">Standard Colors</p>
-          <div className="mt-1 grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
-          {onMore && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { setMenu(null); onMore(); }} className="mt-2 w-full px-1 py-0.5 text-left text-[12px] hover:bg-[#d5e1f2]">More Colors...</button>}
+        // Excel 2013's colour menu: the ten theme colours, a gap, their five rows of tints and shades, the Standard
+        // Colors, then No Fill (Fill Color) -- Font Color has Automatic at the top instead -- and More Colors....
+        // Every swatch is named on hover ("Orange, Accent 2, Lighter 40%").
+        <Popover label={`${label} palette`} className="w-[212px] border border-[#c6c6c6] bg-white text-[12px] text-[#262626] shadow-lg">
+          {noneLabel === "Automatic" && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(null); setMenu(null); }} className="m-1 flex w-[calc(100%-8px)] items-center gap-2 border border-transparent px-1 py-0.5 text-left hover:border-[#f29436] hover:bg-[#fde9d3]"><span className="h-3.5 w-3.5 border border-slate-500 bg-black" />{noneLabel}</button>}
+          <p className="bg-[#f0f0f0] px-2 py-0.5 font-semibold text-[#444]">Theme Colors</p>
+          <div className="grid gap-[3px] px-2 py-1.5">
+            {THEME_COLORS.map((row, r) => (
+              <div key={r} className={`grid grid-cols-10 gap-[3px] ${r === 0 ? "mb-1" : ""}`}>
+                {row.map(({ hex, name }) => <button key={`${hex}-${r}`} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-[14px] w-[14px] border border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]" style={{ backgroundColor: `#${hex}` }} />)}
+              </div>
+            ))}
+          </div>
+          <p className="bg-[#f0f0f0] px-2 py-0.5 font-semibold text-[#444]">Standard Colors</p>
+          <div className="grid grid-cols-10 gap-[3px] px-2 py-1.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`${name} (#${hex})`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(hex); setMenu(null); }} className="h-[14px] w-[14px] border border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]" style={{ backgroundColor: `#${hex}` }} />)}</div>
+          {noneLabel !== "Automatic" && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { onPick(null); setMenu(null); }} className="flex w-full items-center gap-2 border-t border-slate-200 px-2 py-1 text-left hover:bg-[#fde9d3]"><span aria-hidden className="h-3.5 w-3.5 border border-slate-500 bg-white" /><span><u>{noneLabel[0]}</u>{noneLabel.slice(1)}</span></button>}
+          {onMore && <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => { setMenu(null); onMore(); }} className="flex w-full items-center gap-2 border-t border-slate-200 px-2 py-1 text-left hover:bg-[#fde9d3]">
+            <svg aria-hidden viewBox="0 0 16 16" width="14" height="14"><path d="M8 8V1a7 7 0 0 1 6.06 3.5z" fill="#e8463a" /><path d="M8 8l6.06-3.5a7 7 0 0 1 0 7z" fill="#f6b026" /><path d="M8 8l6.06 3.5A7 7 0 0 1 8 15z" fill="#5cb85c" /><path d="M8 8v7a7 7 0 0 1-6.06-3.5z" fill="#3b8ed8" /><path d="M8 8L1.94 11.5a7 7 0 0 1 0-7z" fill="#7d5ec4" /><path d="M8 8L1.94 4.5A7 7 0 0 1 8 1z" fill="#e05ab0" /></svg>
+            <span><u>M</u>ore Colors...</span>
+          </button>}
         </Popover>
       )}
     </span>
