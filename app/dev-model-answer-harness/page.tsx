@@ -35,6 +35,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     return <Harness original={saved.working_matter_snapshot as never} initial={initial} capabilities={saved.editor_capabilities} questions={questions as never} />;
   }
   const data = which === "1" ? test1 : which === "2v2" ? test2v2 : which === "3" ? test3 : which === "4" ? test4 : test2;
+  // ?file=<name>: a solved document from tests/fixtures opened on this test (no admin session needed).
+  const looseFixture = file && /^[a-z0-9-]+$/.test(file) ? JSON.parse(await (await import("node:fs/promises")).readFile(`${process.cwd()}/tests/fixtures/word-efficiency-${file}.json`, "utf8")) : null;
+  if (looseFixture) return <Harness original={data.working_matter_snapshot as never} initial={looseFixture} capabilities={data.editor_capabilities} questions={which === "4" ? questions4 : which === "3" ? questions3 : questions2} />;
   if (process.env.NODE_ENV !== "development") notFound();
   return <Harness original={data.working_matter_snapshot as never} capabilities={data.editor_capabilities} questions={which === "4" ? questions4 : which === "3" ? questions3 : questions2} />;
 }

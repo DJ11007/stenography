@@ -1875,13 +1875,17 @@ function paintSplitSpacer(block: HTMLElement, spacer: HTMLElement, sheet: { top:
   const shaded = Boolean(style.backgroundColor) && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(style.backgroundColor);
   if (!top && !bottom && !left && !right && !shaded) return;
   spacer.style.position = "relative";
-  spacer.style.marginLeft = `-${px(style.paddingLeft) + (left?.width ?? 0)}px`;
-  spacer.style.marginRight = `-${px(style.paddingRight) + (right?.width ?? 0)}px`;
+  // One pixel past the side borders as well: at a fractional position exactly the border width left a faint sliver
+  // of the left/right border running down through the page gap and the next page's header.
+  spacer.style.marginLeft = `-${px(style.paddingLeft) + (left?.width ?? 0) + (left ? 1 : 0)}px`;
+  spacer.style.marginRight = `-${px(style.paddingRight) + (right?.width ?? 0) + (right ? 1 : 0)}px`;
   const y = (spacer.getBoundingClientRect().top - sheet.top()) / sheet.zoom;
   const paperEnd = Math.max(0, (number + 1) * sheet.step - PAGE_GAP_PX - y), gapEnd = Math.max(paperEnd, (number + 1) * sheet.step - y);
   const paper = "var(--word-page-color, #fff)", layers: string[] = [], sizes: string[] = [], positions: string[] = [];
-  if (bottom) { layers.push(`linear-gradient(${bottom.color}, ${bottom.color})`); sizes.push(`100% ${bottom.width}px`); positions.push("0 0"); }
-  if (top) { layers.push(`linear-gradient(${top.color}, ${top.color})`); sizes.push(`100% ${top.width}px`); positions.push("0 100%"); }
+  // The closing and reopening lines span the box only, not the extra pixel each side.
+  const inL = left ? 1 : 0, inR = right ? 1 : 0, span = `calc(100% - ${inL + inR}px)`;
+  if (bottom) { layers.push(`linear-gradient(${bottom.color}, ${bottom.color})`); sizes.push(`${span} ${bottom.width}px`); positions.push(`${inL}px 0`); }
+  if (top) { layers.push(`linear-gradient(${top.color}, ${top.color})`); sizes.push(`${span} ${top.width}px`); positions.push(`${inL}px 100%`); }
   layers.push(`linear-gradient(to bottom, ${paper} 0 ${paperEnd}px, #d4d4d4 ${paperEnd}px ${gapEnd}px, ${paper} ${gapEnd}px 100%)`); sizes.push("100% 100%"); positions.push("0 0");
   spacer.style.backgroundImage = layers.join(", "); spacer.style.backgroundSize = sizes.join(", "); spacer.style.backgroundPosition = positions.join(", "); spacer.style.backgroundRepeat = "no-repeat";
 }
