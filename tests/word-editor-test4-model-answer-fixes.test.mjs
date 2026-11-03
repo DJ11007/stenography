@@ -158,12 +158,13 @@ test("a bordered or shaded paragraph split between pages closes its border on pa
   const editor = (await read(EDITOR)).replace(/\r\n/g, "\n");
   assert.match(editor, /paintSplitSpacer\(block, spacer, sheet, number\);\n    split = true;/);
   const paint = editor.slice(editor.indexOf("function paintSplitSpacer("), editor.indexOf("// The header and the footer on every sheet after the first:"));
-  // the spacer reaches over the padding and side borders, and paints paper, grey gap, paper
-  assert.match(paint, /spacer\.style\.marginLeft = `-\$\{px\(style\.paddingLeft\) \+ \(left\?\.width \?\? 0\)\}px`;/);
+  // the spacer reaches over the padding and side borders (one pixel past a bordered side, so no sliver of the side
+  // line shows at a fractional position), and paints paper, grey gap, paper
+  assert.match(paint, /spacer\.style\.marginLeft = `-\$\{px\(style\.paddingLeft\) \+ \(left\?\.width \?\? 0\) \+ \(left \? 1 : 0\)\}px`;/);
   assert.match(paint, /#d4d4d4 \$\{paperEnd\}px \$\{gapEnd\}px/);
   // the bottom line closes page 1's part at the spacer's top, the top line opens page 2's part at its bottom
-  assert.match(paint, /if \(bottom\) \{[^\n]*?positions\.push\("0 0"\); \}/);
-  assert.match(paint, /if \(top\) \{[^\n]*?positions\.push\("0 100%"\); \}/);
+  assert.match(paint, /if \(bottom\) \{[^\n]*?positions\.push\(`\$\{inL\}px 0`\); \}/);
+  assert.match(paint, /if \(top\) \{[^\n]*?positions\.push\(`\$\{inL\}px 100%`\); \}/);
   // a paragraph with no border and no shading keeps a plain spacer
   assert.match(paint, /if \(!top && !bottom && !left && !right && !shaded\) return;/);
 });
