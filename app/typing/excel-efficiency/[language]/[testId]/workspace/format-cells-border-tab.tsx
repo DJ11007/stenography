@@ -126,18 +126,18 @@ export function FormatCellsBorderTab({ lines, setLines, rows, cols }: { lines: B
             {palette && (
               // Excel's colour menu: Automatic, Theme Colors (the ten colours, then their tints and shades), Standard
               // Colors and More Colors...
-              <div role="listbox" aria-label="Line color" className="absolute left-0 top-7 z-10 w-[196px] border border-slate-400 bg-white text-[#262626] shadow-lg">
+              <div role="listbox" aria-label="Line color" className="absolute left-0 top-7 z-10 w-[214px] border border-slate-400 bg-white text-[#262626] shadow-lg">
                 <button type="button" role="option" aria-selected={color === null} onClick={() => { setColor(null); setPalette(false); }} className={`m-1 flex w-[calc(100%-8px)] items-center gap-2 border px-1 py-0.5 ${color === null ? "border-[#f29436] bg-[#fde9d3]" : "border-transparent hover:border-[#f29436] hover:bg-[#fde9d3]"}`}><span className="h-3.5 w-3.5 border border-slate-500 bg-black" />Automatic</button>
                 <p className="bg-[#f0f0f0] px-2 py-0.5 font-semibold text-[#444]">Theme Colors</p>
                 <div className="grid gap-1 p-1.5">
                   {THEME_COLORS.map((row, r) => (
-                    <div key={r} className={`grid grid-cols-10 gap-[3px] ${r === 0 ? "mb-1" : ""}`}>
+                    <div key={r} className={`grid grid-cols-11 gap-[3px] ${r === 0 ? "mb-1" : ""}`}>
                       {row.map(({ hex, name }) => <button key={hex + r} type="button" role="option" aria-selected={color === hex} aria-label={name} title={name} onClick={() => { setColor(hex); setPalette(false); }} className={`h-3.5 w-3.5 border ${color === hex ? "outline outline-2 outline-[#f29436]" : "border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]"}`} style={{ backgroundColor: `#${hex}` }} />)}
                     </div>
                   ))}
                 </div>
                 <p className="bg-[#f0f0f0] px-2 py-0.5 font-semibold text-[#444]">Standard Colors</p>
-                <div className="grid grid-cols-10 gap-[3px] p-1.5">
+                <div className="grid grid-cols-11 gap-[3px] p-1.5">
                   {STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="option" aria-selected={color === hex} aria-label={name} title={name} onClick={() => { setColor(hex); setPalette(false); }} className={`h-3.5 w-3.5 border ${color === hex ? "outline outline-2 outline-[#f29436]" : "border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]"}`} style={{ backgroundColor: `#${hex}` }} />)}
                 </div>
                 <button type="button" onClick={() => { setPalette(false); setMoreColors(true); }} className="flex w-full items-center gap-2 border-t border-slate-200 px-2 py-1 text-left hover:bg-[#fde9d3]">
