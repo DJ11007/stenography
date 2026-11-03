@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_WORD_INSTRUCTIONS,
+  type WordGradingCriterion,
   type WordQuestion,
   type WordVersion,
 } from "@/lib/word-efficiency";
@@ -66,7 +67,7 @@ export async function WordEfficiencyTestsPage({
         .eq("version_id", current.id)
         .order("display_order")
     : { data: [] };
-  const {data:gradingRules}=current?await supabase.from("word_efficiency_grading_rules").select("question_id,exact_target,expected_operation,expected_value,allocated_marks,partial_marks").eq("version_id",current.id):{data:[]};
+  const {data:gradingRules}=current?await supabase.from("word_efficiency_grading_rules").select("question_id,exact_target,expected_operation,expected_value,allocated_marks,partial_marks,additional_criteria").eq("version_id",current.id):{data:[]};
   const gradingRuleMap=new Map((gradingRules??[]).map(rule=>[rule.question_id,rule]));
   const initialQuestions: WordQuestion[] = (questions ?? []).map(
     (question) => {const rule=gradingRuleMap.get(question.id);return({
@@ -79,7 +80,9 @@ export async function WordEfficiencyTestsPage({
       is_visible: question.is_visible,
       solution: question.solution ?? null,
       solution_image: question.solution_image ?? null,
-      gradingRule:rule?{target:rule.exact_target,expectedOperation:rule.expected_operation,expectedValue:JSON.stringify(rule.expected_value),allocatedMarks:Number(rule.allocated_marks),partialMarks:rule.partial_marks==null?null:Number(rule.partial_marks)}:null,
+      gradingRule:rule?{target:rule.exact_target,expectedOperation:rule.expected_operation,expectedValue:JSON.stringify(rule.expected_value),allocatedMarks:Number(rule.allocated_marks),partialMarks:rule.partial_marks==null?null:Number(rule.partial_marks),// The rule's extra checks too (Q15 of Test 3 checks all six cells of a column), each value JSON-encoded like
+      // expectedValue so "18.5" stays text; without them a re-save kept only the first check.
+      additionalCriteria:Array.isArray(rule.additional_criteria)?(rule.additional_criteria as Record<string,unknown>[]).map(criterion=>"rule" in criterion?criterion:{...criterion,expectedValue:JSON.stringify(criterion.expectedValue)}) as unknown as WordGradingCriterion[]:[]}:null,
     })},
   );
   const selectedAttempts = editing

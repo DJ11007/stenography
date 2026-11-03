@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import { gradingRuleProblem, validateWordDraft, withValidGradingRules } from "../lib/word-efficiency.ts";
+
+// An admin can reword a question after solving the model paper: grading rules are worked out on the Model Answer
+// page and only carried through the test form, so a rule that no longer fits is left out of the save instead of
+// refusing it, and an edited question keeps its whole rule (every extra check, e.g. all six cells of a column).
+const base = { title: "EFFICIENCY TEST 3", language: "English", instructions: "1. Carefully read the instructions.", durations: [600], questionCount: 2, maximumMarks: 3, passingMarks: null, onscreen: true, pdf: false, hasPdf: false };
+const rule = (marks) => ({ target: "blocks.7.attrs.cellFormats.0.3.color", expectedOperation: "model-answer-match-v2", expectedValue: "\"C9C9C9\"", allocatedMarks: marks, partialMarks: null });
+const question = (number, marks, gradingRule) => ({ number, instruction: "Apply font colour to the fourth column of the table Gray, Accent-3, lighter 40%.", marks, section: null, display_order: number, is_visible: true, gradingRule });
+
+test("a rule that no longer fits is dropped from the save, never a reason to refuse it", () => {
+  const questions = [question(1, 1, rule(1)), question(2, 2, rule(3))];
+  assert.match(gradingRuleProblem(questions[1]), /worth 3 marks, more than the question's 2/);
+  const kept = withValidGradingRules(questions);
+  assert.deepEqual(kept[0].gradingRule, rule(1));
+  assert.equal(kept[1].gradingRule, null);
+  assert.deepEqual(validateWordDraft({ ...base, questions: kept }), []);
+});
+
+test("the test form carries each rule's extra checks, so a reworded question keeps them all", async () => {
+  const page = await readFile(new URL("../app/admin/word-efficiency-tests/tests-page.tsx", import.meta.url), "utf8");
+  assert.match(page, /allocated_marks,partial_marks,additional_criteria"\)/);
+  assert.match(page, /additionalCriteria:Array\.isArray\(rule\.additional_criteria\)/);
+  const actions = await readFile(new URL("../app/admin/word-efficiency-tests/actions.ts", import.meta.url), "utf8");
+  assert.match(actions, /const questions=withValidGradingRules\(parseWordQuestions\(value\(form,"questions"\)\)\);/);
+});
