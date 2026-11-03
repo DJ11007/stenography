@@ -15,6 +15,7 @@
 --   Q7  (a) A40:A44 cleared (no bold, underline or colour) (b) A40:I44 left indent 10
 -- and re-marks every finished attempt of this version. Checked with a dry run: of 31 attempts 22 go up, 6 lose only
 -- marks they had not earned (Q6 never done; one Q7 not cleared), 3 stay; ajai verma's Q1-Q8 attempt 14.70 -> 20.
+-- The rules are marked exact_target 'hand-written', so the Model Answer page keeps them when a question is solved again.
 begin;
 
 delete from public.excel_efficiency_grading_rules
@@ -22,7 +23,7 @@ where version_id = '347e7895-cdea-4a0e-94a2-3947b83830c1'
   and question_id in (select id from public.excel_efficiency_questions where version_id = '347e7895-cdea-4a0e-94a2-3947b83830c1' and question_number in (2, 3, 5, 6, 7));
 
 insert into public.excel_efficiency_grading_rules (version_id, question_id, exact_target, expected_operation, expected_value, allocated_marks, partial_marks, additional_criteria, part_label)
-select '347e7895-cdea-4a0e-94a2-3947b83830c1', q.id, 'sheet', 'rule-criteria', 'null'::jsonb, r.marks, null, r.criteria::jsonb, r.part_label
+select '347e7895-cdea-4a0e-94a2-3947b83830c1', q.id, 'hand-written', 'rule-criteria', 'null'::jsonb, r.marks, null, r.criteria::jsonb, r.part_label
 from (values
  (2, 'a', 0.63, '[{"rule":"cells","range":"B26:J37","props":{"align":["center"],"vAlign":["middle"]}}]'),
  (2, 'b', 0.63, '[{"rule":"cells","range":"B26:J37","props":{"fontColor":["BF9000"]}}]'),

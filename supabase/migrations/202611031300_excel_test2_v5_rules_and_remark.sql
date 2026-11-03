@@ -9,6 +9,7 @@
 --       (5B9BD5, or 4472C4 -- what newer Excel calls Blue, Accent 1, and what the model answer used) + strikethrough
 -- and re-marks this version's attempts (dry run: the only attempt, ajai verma, 18.75 -> 23.75; the model answer now
 -- 2.5 / 1.25 / 2.5 on Q2 / Q3 / Q6 -- its Q3 border has no colour).
+-- The rules are marked exact_target 'hand-written', so the Model Answer page keeps them when a question is solved again.
 begin;
 
 delete from public.excel_efficiency_grading_rules
@@ -16,7 +17,7 @@ where version_id = '697c94a9-141f-4867-8bc4-fec53bab3035'
   and question_id in (select id from public.excel_efficiency_questions where version_id = '697c94a9-141f-4867-8bc4-fec53bab3035' and question_number in (2, 3, 6));
 
 insert into public.excel_efficiency_grading_rules (version_id, question_id, exact_target, expected_operation, expected_value, allocated_marks, partial_marks, additional_criteria, part_label)
-select '697c94a9-141f-4867-8bc4-fec53bab3035', q.id, 'sheet', 'rule-criteria', 'null'::jsonb, r.marks, null, r.criteria::jsonb, r.part_label
+select '697c94a9-141f-4867-8bc4-fec53bab3035', q.id, 'hand-written', 'rule-criteria', 'null'::jsonb, r.marks, null, r.criteria::jsonb, r.part_label
 from (values
  (2, 'a', 0.63, '[{"rule":"cells","range":"B26:J37","props":{"align":["center"],"vAlign":["middle"]}}]'),
  (2, 'b', 0.63, '[{"rule":"cells","range":"B26:J37","props":{"fontColor":["BF9000"]}}]'),

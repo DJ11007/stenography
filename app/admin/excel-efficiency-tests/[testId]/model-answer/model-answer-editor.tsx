@@ -6,7 +6,7 @@ import { RichSheetEditor, type ExcelDocument } from "@/app/typing/excel-efficien
 import { diffExcelDocuments, excelQuestionRules, excelRuleGroups } from "@/lib/excel-document-diff";
 import { resetExcelEfficiencyModelAnswer, saveExcelEfficiencyModelAnswer, saveExcelEfficiencyQuestionRules } from "../../actions";
 
-type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean };
+type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean; handWritten?: boolean };
 
 // The admin solves the paper in the real Excel sheet, one question at a time, and presses "Save answer for Q<n>".
 // What changed since the question was opened (formatting, typed values and formulas' results, merged cells, page
@@ -54,7 +54,8 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     // time rather than one after the other.
     const before = activeNumber !== null ? checkpoints[activeNumber] ?? document : document;
     const { changes, unsupported } = diffExcelDocuments(before, document);
-    const rules = active ? excelQuestionRules(active.marks, excelRuleGroups(document, changes)) : [];
+    // A question marked by hand-written rules keeps them: only the sheet is saved.
+    const rules = active && !active.handWritten ? excelQuestionRules(active.marks, excelRuleGroups(document, changes)) : [];
     const [saved, result] = await Promise.all([
       saveExcelEfficiencyModelAnswer(versionId, document),
       activeNumber !== null && rules.length ? saveExcelEfficiencyQuestionRules(versionId, activeNumber, rules) : Promise.resolve({ ok: true, error: "" }),
@@ -62,6 +63,10 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     if (!saved.ok) return saved;
     setLatest(document);
     if (activeNumber === null || !active) return { ok: true, error: "" };
+    if (active.handWritten) {
+      setMessage({ text: `Q${activeNumber}'s answer was saved. Its marking was written by hand for this paper, so it was kept as it is.`, ok: true });
+      return { ok: true, error: "" };
+    }
     if (!rules.length) {
       setMessage({ text: `No change was detected for Q${activeNumber}${unsupported.length ? ` that can be marked automatically (${unsupported.join(", ")} cannot be)` : ""} — nothing was changed in the sheet, so this question keeps its old rules and otherwise needs manual marking.`, ok: false });
       return { ok: true, error: "" };

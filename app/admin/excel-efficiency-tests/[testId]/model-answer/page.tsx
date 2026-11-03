@@ -50,9 +50,13 @@ export default async function ExcelModelAnswerPage({ params }: { params: Promise
   if (versionError) return <MigrationNotice testId={test.id} detail={versionError.message} />;
   if (!version) notFound();
   const { data: questions } = await supabase.from("excel_efficiency_questions").select("id,question_number,instruction,marks").eq("version_id", version.id).order("display_order");
-  const { data: rules, error: rulesError } = await supabase.from("excel_efficiency_grading_rules").select("question_id").eq("version_id", version.id);
+  const { data: rules, error: rulesError } = await supabase.from("excel_efficiency_grading_rules").select("question_id,exact_target").eq("version_id", version.id);
   if (rulesError) return <MigrationNotice testId={test.id} detail={rulesError.message} />;
   const withRules = new Set((rules ?? []).map((rule) => rule.question_id));
+  // Rules written by hand for the paper (exact_target 'hand-written', e.g. Test 2's "Q2 checks B26:J37 because Q6
+  // reformats column A") are kept when the question is solved again here; rules rebuilt from the model answer
+  // replaced them and mis-marked whole batches (3 Nov).
+  const handWritten = new Set((rules ?? []).filter((rule) => rule.exact_target === "hand-written").map((rule) => rule.question_id));
 
   return (
     <main className="min-h-screen bg-slate-100 px-3 py-3">
@@ -63,7 +67,7 @@ export default async function ExcelModelAnswerPage({ params }: { params: Promise
           original={startingSheet(version.working_matter_snapshot as Record<string, unknown>)}
           initialDocument={version.model_answer_snapshot}
           autoGradingHref={`/admin/excel-efficiency-tests/${test.id}/auto-grading`}
-          questions={(questions ?? []).map((question) => ({ id: question.id, number: question.question_number, instruction: question.instruction ?? "", marks: Number(question.marks), graded: withRules.has(question.id) }))}
+          questions={(questions ?? []).map((question) => ({ id: question.id, number: question.question_number, instruction: question.instruction ?? "", marks: Number(question.marks), graded: withRules.has(question.id), handWritten: handWritten.has(question.id) }))}
         />
       </div>
     </main>
