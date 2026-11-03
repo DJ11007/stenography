@@ -36,3 +36,11 @@ test("answering a question again on the Model Answer page keeps its hand-written
   const page = await readFile(new URL("../app/admin/word-efficiency-tests/[testId]/model-answer/page.tsx", import.meta.url), "utf8");
   assert.match(page, /rule\.expected_operation !== "model-answer-match-v2" \|\| Boolean\(rule\.part_label\) \|\|/);
 });
+
+test("a triple-click selects the whole paragraph even when it is split between two pages", async () => {
+  // The page-split spacer is non-editable, which the browser takes for the end of a paragraph: a triple-click on
+  // paragraph 3 of Test 2 (split on an A5 page) selected only one half, so an effect reached only part of it.
+  const editor = (await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(editor, /onMouseUp=\{event=>\{endCellDrag\(\);if\(event\.detail===3\)window\.setTimeout\(selectWholeSplitParagraph,0\);/);
+  assert.match(editor, /function selectWholeSplitParagraph\(\) \{[\s\S]*?if \(!block\?\.querySelector\("\[data-page-split\]"\)\) return;[\s\S]*?range\.selectNodeContents\(block\);/);
+});
