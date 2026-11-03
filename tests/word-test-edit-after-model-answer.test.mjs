@@ -26,3 +26,13 @@ test("the test form carries each rule's extra checks, so a reworded question kee
   const actions = await readFile(new URL("../app/admin/word-efficiency-tests/actions.ts", import.meta.url), "utf8");
   assert.match(actions, /const questions=withValidGradingRules\(parseWordQuestions\(value\(form,"questions"\)\)\);/);
 });
+
+test("answering a question again on the Model Answer page keeps its hand-written (part-by-part) marking", async () => {
+  // Re-solving the paper on 2 Nov replaced Test 2's (a)(b)(c) rules and Test 3's footer rules with rules rebuilt
+  // from the document, which cannot express parts, "every word" or a date format -- whole batches were mis-marked.
+  const editor = await readFile(new URL("../app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx", import.meta.url), "utf8");
+  assert.match(editor, /const payload = questions\.map\(\(question\) => question\.keptRules\.length\s+\? \{ questionNumber: question\.number, keep: question\.keptRules \}/);
+  assert.doesNotMatch(editor, /keptRules\.length && !nextTouched\.has/);
+  const page = await readFile(new URL("../app/admin/word-efficiency-tests/[testId]/model-answer/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /rule\.expected_operation !== "model-answer-match-v2" \|\| Boolean\(rule\.part_label\) \|\|/);
+});

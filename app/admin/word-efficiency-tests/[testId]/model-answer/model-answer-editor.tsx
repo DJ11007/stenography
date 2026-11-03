@@ -139,7 +139,10 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     setAssignments(nextAssignments);
     const nextTouched = new Set(touched).add(activeNumber);
     setTouched(nextTouched);
-    const payload = questions.map((question) => question.keptRules.length && !nextTouched.has(question.number)
+    // A question marked by hand-written rules (parts (a)(b)(c), "every word", a date format...) keeps them even when
+    // it is answered again here: rules rebuilt from what changed in the document cannot express those, and
+    // re-solving the paper on 2 Nov replaced Test 2's and Test 3's (wrong marks for whole batches). Reset clears them.
+    const payload = questions.map((question) => question.keptRules.length
       ? { questionNumber: question.number, keep: question.keptRules }
       : { questionNumber: question.number, allocatedMarks: question.marks, criteria: compressRunCriteria(cleanDocument, modelAnswerRuleCriteria(cleanDocument, nextAssignments[question.number] ?? [])) });
     const ruleResult = await generateWordEfficiencyGradingRulesFromModelAnswer(versionId, payload);
@@ -147,7 +150,8 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     const nextAnswered = new Set(answeredNumbers);
     nextAnswered.add(activeNumber);
     setAnsweredNumbers(nextAnswered);
-    if (!criteria.length) setMessage({ text: `No change was detected for Q${activeNumber} — nothing was typed or changed, so this question is still ungraded and needs manual marking.`, ok: false });
+    if (active?.keptRules.length) setMessage({ text: `Q${activeNumber}'s model answer was saved. Its marking was written by hand (part by part), so it was kept as it is.`, ok: true });
+    else if (!criteria.length) setMessage({ text: `No change was detected for Q${activeNumber} — nothing was typed or changed, so this question is still ungraded and needs manual marking.`, ok: false });
     else setMessage({ text: `Saved. Q${activeNumber} is now auto-graded from your answer.`, ok: true });
     const upcoming = questions.find((question) => !nextAnswered.has(question.number));
     if (upcoming) {

@@ -85,7 +85,7 @@ test("saving an answer diffs against that question's checkpoint and regenerates 
   // Every question's expected values come from the finished document, not the moment it was saved.
   // (a question whose rules this page cannot rebuild is sent back as it was -- see word-efficiency-model-answer-words-rule-runtime.test.mjs)
   assert.match(editor, /allocatedMarks: question\.marks, criteria: compressRunCriteria\(cleanDocument, modelAnswerRuleCriteria\(cleanDocument, nextAssignments\[question\.number\] \?\? \[\]\)\) \}\);/);
-  assert.match(editor, /questions\.map\(\(question\) => question\.keptRules\.length && !nextTouched\.has\(question\.number\)/);
+  assert.match(editor, /questions\.map\(\(question\) => question\.keptRules\.length\s/);
   assert.match(editor, /generateWordEfficiencyGradingRulesFromModelAnswer\(versionId, payload\)/);
 });
 

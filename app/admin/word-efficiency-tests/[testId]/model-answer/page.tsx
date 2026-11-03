@@ -53,7 +53,8 @@ export default async function ModelAnswerPage({ params }: { params: Promise<{ te
             const rules = rulesByQuestion.get(question.id) ?? [];
             // Rules this page cannot rebuild from the finished answer (a "rule" criterion -- words, text, table... -- or a rule
             // of another kind, with its part marks) are sent back unchanged whenever another question is saved.
-            const hand = rules.some((rule) => rule.expected_operation !== "model-answer-match-v2" || (Array.isArray(rule.additional_criteria) && (rule.additional_criteria as { rule?: unknown }[]).some((criterion) => criterion && typeof criterion === "object" && "rule" in criterion)));
+            // Rules split into parts (a)(b)(c) count too: one rule rebuilt from the answer would replace the parts.
+            const hand = rules.some((rule) => rule.expected_operation !== "model-answer-match-v2" || Boolean(rule.part_label) || (Array.isArray(rule.additional_criteria) && (rule.additional_criteria as { rule?: unknown }[]).some((criterion) => criterion && typeof criterion === "object" && "rule" in criterion)));
             const keptRules = hand ? rules.map((rule) => ({ exactTarget: rule.exact_target, expectedOperation: rule.expected_operation, expectedValue: JSON.stringify(rule.expected_value ?? null), allocatedMarks: Number(rule.allocated_marks), partialMarks: rule.partial_marks === null ? null : Number(rule.partial_marks), partLabel: rule.part_label, additionalCriteria: Array.isArray(rule.additional_criteria) ? rule.additional_criteria : [] })) : [];
             return { id: question.id, number: question.question_number, instruction: question.instruction, marks: Number(question.marks), graded: rules.length > 0, keptRules, existingCriteria: rules.length && !hand ? existingModelAnswerCriteria(rules[0]) : [] };
           })}
