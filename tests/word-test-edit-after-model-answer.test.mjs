@@ -44,3 +44,14 @@ test("a triple-click selects the whole paragraph even when it is split between t
   assert.match(editor, /onMouseUp=\{event=>\{endCellDrag\(\);if\(event\.detail===3\)window\.setTimeout\(selectWholeSplitParagraph,0\);/);
   assert.match(editor, /function selectWholeSplitParagraph\(\) \{[\s\S]*?if \(!block\?\.querySelector\("\[data-page-split\]"\)\) return;[\s\S]*?range\.selectNodeContents\(block\);/);
 });
+
+test("bullets or numbering on a selection reaching a table keep the table a table", async () => {
+  // Test 2, 3 Nov: the browser's list command wrapped the table in a bullet item (<p><ul><li>…</li><li><table>), the
+  // editor then lifted the list to the top, and the table was saved as one list paragraph -- Q5 0 for every student.
+  const editor = (await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+  assert.match(editor, /document\.execCommand\(name,false,safeValue\);[^\n]*\n\s+if\(cellListsBefore&&editor\.current\)keepTablesOutOfLists\(editor\.current,cellListsBefore\);/);
+  assert.match(editor, /wrapLooseText\(editor\.current\);\n\s+if\(cellListsBefore&&editor\.current\)keepTablesOutOfLists/);
+  assert.match(editor, /function keepTablesOutOfLists\(root: HTMLElement, cellListsBefore: Set<HTMLElement>\) \{[\s\S]*?root\.querySelectorAll<HTMLElement>\("ul table, ol table"\)[\s\S]*?top\.after\(table\);/);
+  // and a list inside a table is never lifted out over the table
+  assert.match(editor, /if\(!list\.isConnected\|\|list\.closest\("td,th"\)\)continue;/);
+});

@@ -318,8 +318,11 @@ export function RichDocumentEditor({attemptId,original,initialDocument,capabilit
   // <li>s without them, and turning a bullet off leaves bare text, not a paragraph.
   const listCommand=name==="insertUnorderedList"||name==="insertOrderedList";
   const carried=listCommand?selectedBlocks().filter(block=>block.tagName==="P"||block.tagName==="LI").map(block=>({text:blockKey(block),toList:block.tagName==="P",style:{marginTop:block.style.marginTop,marginBottom:block.style.marginBottom,marginRight:block.style.marginRight,textAlign:block.style.textAlign,backgroundColor:block.style.backgroundColor,border:block.style.border,lineHeight:block.style.lineHeight},borderKind:block.dataset.borderKind})):[];
+  const cellListsBefore=listCommand&&editor.current?new Set(editor.current.querySelectorAll<HTMLElement>("td ul,td ol,th ul,th ol")):null;
   document.execCommand(name,false,safeValue);if(beforeCount!==null){pruneStrayEmptyBlocks(beforeCount);if(editor.current)reattachOrphanedListItems(editor.current)}
+  if(cellListsBefore&&editor.current)keepTablesOutOfLists(editor.current,cellListsBefore);
   if(listCommand&&editor.current)wrapLooseText(editor.current);
+  if(cellListsBefore&&editor.current)keepTablesOutOfLists(editor.current,cellListsBefore);
   if(carried.length&&editor.current){const items=[...editor.current.querySelectorAll<HTMLElement>("li")],paragraphs=[...editor.current.querySelectorAll<HTMLElement>(":scope > p")];for(const paragraph of carried){const item=(paragraph.toList?items:paragraphs).find(target=>blockKey(target)===paragraph.text);if(!item)continue;for(const [key,value]of Object.entries(paragraph.style))if(value&&!item.style[key as"marginTop"])item.style[key as"marginTop"]=value;if(paragraph.borderKind&&!item.dataset.borderKind)item.dataset.borderKind=paragraph.borderKind}}
   changed()};
  // Home > Font: the selection is wrapped in a span with the font, quoted ("Kruti Dev 010"), and the
@@ -1251,9 +1254,12 @@ savedRange.current=wrapped.range;changed();
     // execCommand sometimes nests the new <ul>/<ol> inside the original block wrapper
     // instead of replacing it, which the save model can't see (only top-level <li>/<ul>/<ol>
     // editor children round-trip as list-item blocks) -- hoist it back out when that happens.
+    // Never out of a table: there the top-level element is the table itself, and replacing it with the list destroyed
+    // the table (students who put bullets on a selection reaching the table lost it -- every table question 0).
+    if(!list.isConnected||list.closest("td,th"))continue;
     let hoisted=list;
     while(hoisted.parentElement&&hoisted.parentElement!==editor.current)hoisted=hoisted.parentElement;
-    if(hoisted!==list&&editor.current?.contains(hoisted))hoisted.replaceWith(list);
+    if(hoisted!==list&&hoisted.tagName!=="TABLE"&&editor.current?.contains(hoisted))hoisted.replaceWith(list);
     list.dataset.listStyle=value;for(const child of list.children){const item=child as HTMLElement;item.dataset.listStyle=value;if(value.startsWith("multilevel-")){if(!/^[1-9]$/.test(item.dataset.listLevel??""))item.dataset.listLevel="1"}else delete item.dataset.listLevel}
    }
    changed();
@@ -1676,6 +1682,32 @@ const HEADER_FOOTER_DISTANCE_PX = 48;
 // Removes the spacers that split paragraphs between sheets, and joins the text they had cut in two.
 function clearPageSplits(root: ParentNode) {
   for (const spacer of root.querySelectorAll<HTMLElement>("[data-page-split]")) { const parent = spacer.parentNode; spacer.remove(); parent?.normalize(); }
+}
+// Bullets or numbering on a selection that reaches a table: the browser's list command wraps the whole table in a
+// bullet item (<li><table>) or puts lists inside its cells, and the table was then saved as one list paragraph --
+// every table question scored 0 (Test 2, 3 Nov). The table goes back out between the list items before and after it,
+// and lists the command just made inside cells are undone (the ones there before are kept).
+function keepTablesOutOfLists(root: HTMLElement, cellListsBefore: Set<HTMLElement>) {
+  for (const cellList of root.querySelectorAll<HTMLElement>("td ul,td ol,th ul,th ol")) {
+    if (cellListsBefore.has(cellList)) continue;
+    [...cellList.children].forEach((item, index) => { if (index > 0) cellList.before(document.createElement("br")); while (item.firstChild) cellList.before(item.firstChild); });
+    cellList.remove();
+  }
+  // The browser may nest the new list in the paragraph before (<p><ul><li>…</li><li><table>…</ul></p>), so a table in
+  // a list at any depth goes back to the top level, after the block that holds the list.
+  for (const table of root.querySelectorAll<HTMLElement>("ul table, ol table")) {
+    if (table.parentElement?.closest("td,th")) continue;
+    const item = table.closest("li"), list = item?.parentElement;
+    if (!item || !list) continue;
+    let top: HTMLElement = list;
+    while (top.parentElement && top.parentElement !== root) top = top.parentElement;
+    const later = [...list.children].slice([...list.children].indexOf(item) + 1);
+    top.after(table);
+    if (later.length) { const rest = list.cloneNode(false) as HTMLElement; rest.removeAttribute("id"); for (const next of later) rest.appendChild(next); table.after(rest); }
+    if (!(item.textContent ?? "").trim()) item.remove();
+    if (!list.children.length) list.remove();
+    if (top !== list && top.isConnected && !(top.textContent ?? "").trim() && !top.querySelector("img,table")) top.remove();
+  }
 }
 // A triple-click selects the whole paragraph in Word, even when the paragraph is split between two pages. The
 // browser takes the non-editable page-split spacer for the end of a paragraph, so it selected only the half above
