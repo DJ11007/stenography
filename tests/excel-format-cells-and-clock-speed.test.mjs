@@ -51,3 +51,16 @@ test("Format Cells: a non-whole Indent shows Excel's 'Integer is not valid.' and
   assert.match(migration, /"props":\{"align":\["left"\],"indent":\[3\]\}/);
   assert.match(migration, /Horizontal Left indent 3 then set it as print area/);
 });
+
+// Admin's screenshots (7 Nov): the Size list ran outside its box, and Font Color was a plain list instead of
+// Excel's colour menu (Automatic / Theme Colors / Standard Colors / More Colors..., each swatch named).
+test("Format Cells Font tab: lists stay in their columns and Color is Excel's colour menu", () => {
+  const dialog = read(`${dir}/format-cells-dialog.tsx`);
+  assert.ok(dialog.includes("grid-cols-[minmax(0,1fr)_130px_80px]"));
+  assert.ok(dialog.includes("[&_select]:w-full [&_select]:min-w-0"));
+  assert.ok(dialog.includes('<ExcelColorPicker label="Color" value={color} onChange={setColor} />'));
+  assert.doesNotMatch(dialog, /<select aria-label="Color"/);
+  const picker = read(`${dir}/excel-color-picker.tsx`);
+  for (const text of ["Theme Colors", "Standard Colors", "More Colors...", "Automatic", "title={swatchName}"]) assert.ok(picker.includes(text), text);
+  assert.ok(read(`${dir}/format-cells-border-tab.tsx`).includes('<ExcelColorPicker label="Line color"'));
+});

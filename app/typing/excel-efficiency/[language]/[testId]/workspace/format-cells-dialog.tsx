@@ -4,6 +4,7 @@ import { CURRENCIES, type CurrencySymbol, type SheetCell, type UnderlineStyle } 
 import { formatCellValue } from "@/lib/excel-sheet-model";
 import { FormatCellsBorderTab, type BorderLines } from "./format-cells-border-tab";
 import { useDialogDrag } from "./excel-dialogs";
+import { ExcelColorPicker } from "./excel-color-picker";
 
 // Excel 2013's Format Cells dialog (Ctrl+1, right-click > Format Cells..., the ↘ launchers of the Font,
 // Alignment and Number groups): Number, Alignment, Font, Border, Fill and Protection tabs, applied with OK.
@@ -164,14 +165,14 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
           )}
           {tab === "Font" && (
             <div className="grid gap-2">
-              <div className="grid grid-cols-[1fr_130px_80px] gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_130px_80px] gap-2 [&>label]:min-w-0 [&_input]:w-full [&_input]:min-w-0 [&_select]:w-full [&_select]:min-w-0">
                 <label className="grid gap-1">Font:<input aria-label="Font" value={font} onChange={(event) => setFont(event.target.value)} className="border border-slate-400 px-1" /><select size={6} aria-label="Font list" value={font} onChange={(event) => setFont(listFont(event.target.value))} className="h-24 border border-slate-400">{FONTS.map((name) => <option key={name} value={listFont(name)} style={{ fontFamily: listFont(name) }}>{name}</option>)}</select></label>
                 <label className="grid gap-1">Font style:<input aria-label="Font style" value={style} readOnly className="border border-slate-400 px-1" /><select size={4} aria-label="Font style list" value={style} onChange={(event) => setStyle(event.target.value)} className="h-24 border border-slate-400">{["Regular", "Italic", "Bold", "Bold Italic"].map((name) => <option key={name}>{name}</option>)}</select></label>
                 <label className="grid gap-1">Size:<input aria-label="Size" value={size} onChange={(event) => setSize(event.target.value)} className="border border-slate-400 px-1" /><select size={6} aria-label="Size list" value={size} onChange={(event) => setSize(event.target.value)} className="h-24 border border-slate-400">{SIZES.map((value) => <option key={value} value={String(value)}>{value}</option>)}</select></label>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="grid gap-1">Underline:<select aria-label="Underline" value={underline} onChange={(event) => setUnderline(event.target.value)} className="border border-slate-400">{UNDERLINES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                <label className="grid gap-1">Color:<select aria-label="Color" value={color ?? ""} onChange={(event) => setColor(event.target.value || null)} className="border border-slate-400"><option value="">Automatic</option>{COLORS.map(([hex, name]) => <option key={hex} value={hex}>{name}</option>)}</select></label>
+                <div className="grid gap-1"><span>Color:</span><ExcelColorPicker label="Color" value={color} onChange={setColor} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <fieldset className="grid gap-1 border border-slate-300 p-2"><legend className="px-1">Effects</legend>

@@ -1,8 +1,7 @@
 "use client";
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { BorderEdge, BorderLine, BorderLineStyle } from "@/lib/excel-sheet-model";
-import { STANDARD_COLORS, THEME_COLORS } from "./excel-colors";
-import { MoreColorsDialog } from "./excel-dialogs-more";
+import { ExcelColorPicker } from "./excel-color-picker";
 
 // The Border tab of Excel 2013's Format Cells dialog: pick a line style and colour on the left, then draw it with
 // the None / Outline / Inside presets, the eight buttons round the preview, or by clicking the preview itself.
@@ -63,7 +62,6 @@ export function FormatCellsBorderTab({ lines, setLines, rows, cols }: { lines: B
   // Thin, Automatic: what Excel picks when the dialog opens.
   const [style, setStyle] = useState<BorderLineStyle | null>("thin");
   const [color, setColor] = useState<string | null>(null);
-  const [palette, setPalette] = useState(false), [moreColors, setMoreColors] = useState(false);
   const picked: BorderLine | null = style ? { style, color } : null;
   const inside = rows || cols;
   const available = (edge: BorderEdge) => (edge === "insideH" ? rows : edge === "insideV" ? cols : true);
@@ -118,36 +116,7 @@ export function FormatCellsBorderTab({ lines, setLines, rows, cols }: { lines: B
             ))}
           </div>
           <p className="mb-1 mt-3"><u>C</u>olor:</p>
-          <div className="relative">
-            <button type="button" aria-haspopup="listbox" aria-expanded={palette} onClick={() => setPalette(!palette)} className="flex h-6 w-full items-center justify-between border border-slate-400 bg-white px-1">
-              {color ? <span className="h-3.5 flex-1 border border-slate-400" style={{ backgroundColor: `#${color}` }} /> : <span className="flex-1 text-center">Automatic</span>}
-              <span aria-hidden className="ml-1 border-l border-slate-300 pl-1 text-[9px]">▼</span>
-            </button>
-            {palette && (
-              // Excel's colour menu: Automatic, Theme Colors (the ten colours, then their tints and shades), Standard
-              // Colors and More Colors...
-              <div role="listbox" aria-label="Line color" className="absolute left-0 top-7 z-10 w-[214px] border border-slate-400 bg-white text-[#262626] shadow-lg">
-                <button type="button" role="option" aria-selected={color === null} onClick={() => { setColor(null); setPalette(false); }} className={`m-1 flex w-[calc(100%-8px)] items-center gap-2 border px-1 py-0.5 ${color === null ? "border-[#f29436] bg-[#fde9d3]" : "border-transparent hover:border-[#f29436] hover:bg-[#fde9d3]"}`}><span className="h-3.5 w-3.5 border border-slate-500 bg-black" />Automatic</button>
-                <p className="bg-[#f0f0f0] px-2 py-0.5 font-semibold text-[#444]">Theme Colors</p>
-                <div className="grid gap-1 p-1.5">
-                  {THEME_COLORS.map((row, r) => (
-                    <div key={r} className={`grid grid-cols-11 gap-[3px] ${r === 0 ? "mb-1" : ""}`}>
-                      {row.map(({ hex, name }) => <button key={hex + r} type="button" role="option" aria-selected={color === hex} aria-label={name} title={name} onClick={() => { setColor(hex); setPalette(false); }} className={`h-3.5 w-3.5 border ${color === hex ? "outline outline-2 outline-[#f29436]" : "border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]"}`} style={{ backgroundColor: `#${hex}` }} />)}
-                    </div>
-                  ))}
-                </div>
-                <p className="bg-[#f0f0f0] px-2 py-0.5 font-semibold text-[#444]">Standard Colors</p>
-                <div className="grid grid-cols-11 gap-[3px] p-1.5">
-                  {STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="option" aria-selected={color === hex} aria-label={name} title={name} onClick={() => { setColor(hex); setPalette(false); }} className={`h-3.5 w-3.5 border ${color === hex ? "outline outline-2 outline-[#f29436]" : "border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]"}`} style={{ backgroundColor: `#${hex}` }} />)}
-                </div>
-                <button type="button" onClick={() => { setPalette(false); setMoreColors(true); }} className="flex w-full items-center gap-2 border-t border-slate-200 px-2 py-1 text-left hover:bg-[#fde9d3]">
-                  <svg aria-hidden viewBox="0 0 16 16" width="14" height="14"><path d="M8 8V1a7 7 0 0 1 6.06 3.5z" fill="#e8463a" /><path d="M8 8l6.06-3.5a7 7 0 0 1 0 7z" fill="#f6b026" /><path d="M8 8l6.06 3.5A7 7 0 0 1 8 15z" fill="#5cb85c" /><path d="M8 8v7a7 7 0 0 1-6.06-3.5z" fill="#3b8ed8" /><path d="M8 8L1.94 11.5a7 7 0 0 1 0-7z" fill="#7d5ec4" /><path d="M8 8L1.94 4.5A7 7 0 0 1 8 1z" fill="#e05ab0" /></svg>
-                  <span><u>M</u>ore Colors...</span>
-                </button>
-              </div>
-            )}
-            {moreColors && <MoreColorsDialog title="Colors" initial={color} onCancel={() => setMoreColors(false)} onOk={(hex) => { setColor(hex.toUpperCase()); setMoreColors(false); }} />}
-          </div>
+          <ExcelColorPicker label="Line color" value={color} onChange={setColor} />
         </fieldset>
         <div className="grid content-start gap-2">
           <p className="border-b border-slate-200 pb-0.5">Presets</p>
