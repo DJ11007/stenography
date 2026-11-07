@@ -135,6 +135,20 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const plan = fillPlan(fillDrag.source, fillDrag.target);
     return plan ? fillExtension(fillDrag.source, plan.direction, plan.count) : null;
   }, [fillDrag]); // eslint-disable-line react-hooks/exhaustive-deps -- fillPlan only reads its arguments
+  // As in Excel, while the handle is dragged a tip beside the pointer shows what the last cell will get ("Tuesday",
+  // "5"...). It is worked out from the first column (or row) of the selection; formulas show no tip, as in Excel.
+  const fillTip = useMemo(() => {
+    if (!fillDrag) return null;
+    const plan = fillPlan(fillDrag.source, fillDrag.target);
+    const extension = plan && fillExtension(fillDrag.source, plan.direction, plan.count);
+    if (!plan || !extension) return null;
+    const vertical = plan.direction === "down" || plan.direction === "up";
+    const row = vertical ? (plan.direction === "down" ? extension.r2 : extension.r1) : fillDrag.source.r1;
+    const col = vertical ? fillDrag.source.c1 : plan.direction === "right" ? extension.c2 : extension.c1;
+    const cell = cellOf(autoFill(cells, fillDrag.source, plan.direction, plan.count), refAt(row, col));
+    if (cell.formula || cell.value == null || cell.value === "") return null;
+    return formatCellValue(cell.value, cell.numberFormat, cell.decimals, cell.currency);
+  }, [fillDrag, cells]); // eslint-disable-line react-hooks/exhaustive-deps -- fillPlan only reads its arguments
   const finishFill = (source: Rect, direction: FillDirection, count: number) => {
     const extension = fillExtension(source, direction, count);
     if (!extension) return;
@@ -1152,6 +1166,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
         <QuickButton label="Redo (Ctrl+Y)" onClick={redo} disabled={submitted}>↷</QuickButton>
         <span className="flex-1 text-center text-[12px] text-slate-600">Book1 - Excel</span>
         <span className="text-[11px] font-bold text-slate-500" aria-live="polite"><StoreText store={statusStore} /></span>
+        {fillTip !== null && <FillTip text={fillTip} />}
       </div>
       <div role="tablist" aria-label="Ribbon tabs" className="flex items-end gap-0.5 bg-white px-1">
         <span className="bg-[#217346] px-4 py-1 text-[12px] text-white">FILE</span>
@@ -1845,6 +1860,18 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
 });
 
 // The text being typed into a cell or the formula bar: a tiny store both inputs read, so typing does not redraw the sheet.
+// The AutoFill tip: follows the pointer by itself, so moving the mouse does not redraw the sheet.
+function FillTip({ text }: { text: string }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const move = (event: MouseEvent) => setAt({ x: event.clientX, y: event.clientY });
+    window.addEventListener("mousemove", move);
+    return () => window.removeEventListener("mousemove", move);
+  }, []);
+  if (!at) return null;
+  return <div role="tooltip" className="pointer-events-none fixed z-[80] whitespace-nowrap border border-[#767676] bg-white px-1.5 py-0.5 text-[12px] text-[#575757] shadow" style={{ left: at.x + 12, top: at.y + 18 }}>{text}</div>;
+}
+
 function StoreText({ store }: { store: TextStore }) { return <>{useSyncExternalStore(store.subscribe, store.get, store.get)}</>; }
 type TextStore = { get: () => string; set: (value: string) => void; subscribe: (listener: () => void) => () => void };
 function createTextStore(): TextStore {

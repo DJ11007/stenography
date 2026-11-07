@@ -64,3 +64,17 @@ test("Format Cells Font tab: lists stay in their columns and Color is Excel's co
   for (const text of ["Theme Colors", "Standard Colors", "More Colors...", "Automatic", "title={swatchName}"]) assert.ok(picker.includes(text), text);
   assert.ok(read(`${dir}/format-cells-border-tab.tsx`).includes('<ExcelColorPicker label="Line color"'));
 });
+
+// Admin's screenshots (7 Nov): Excel shows the value the last cell will get beside the pointer while the fill
+// handle is dragged; and a one-line question (Test 2 Q7 days, Q8 months, Q9) showed (a)...(g) part marks.
+test("AutoFill shows the last cell's value beside the pointer while dragging", () => {
+  const editor = read(`${dir}/rich-sheet-editor.tsx`);
+  assert.ok(editor.includes("const fillTip = useMemo("));
+  assert.ok(editor.includes("{fillTip !== null && <FillTip text={fillTip} />}"));
+  assert.ok(editor.includes("function FillTip({ text }: { text: string })"));
+});
+test("results show (a) (b) (c) marks only for questions written in sections", () => {
+  const migration = read("supabase/migrations/202611072000_result_parts_only_for_sectioned_questions.sql");
+  assert.ok(migration.includes("if part_count < 2 or part_count > coalesce(sections, 0) then return null; end if;"));
+  assert.ok(migration.includes("between 2 and public.efficiency_instruction_sections(question_rows.instruction) then score_rows.part_scores else null end"));
+});
