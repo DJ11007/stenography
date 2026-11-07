@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BackButton } from "../../../../_components/back-button";
 import { QuestionContent } from "@/components/efficiency/question-content";
 import { SolutionLinkBox, type SolutionStatus } from "@/components/efficiency/paper-solution";
+import { QuestionAttemptSummary, type QuestionAttemptState } from "@/components/efficiency/question-attempt-summary";
 
 export const metadata: Metadata = { title: "Excel Efficiency Result" };
 type ResultQuestion = { number: number; instruction: string | null; section: string | null; maximumMarks: number; awardedMarks: number | null; partScores?: { label: string; awarded: number; maximum: number }[] | null; feedback: string | null; gradingStatus: string };
@@ -22,6 +23,9 @@ export default async function ExcelEfficiencyResultPage({ params }: { params: Pr
   // Paper solution (migration 202610261000): offered once the result is published and the live window is closed.
   const { data: solutionStatus } = await supabase.rpc("excel_efficiency_solution_status", { p_attempt_id: attemptId });
   const solution = (solutionStatus ?? {}) as SolutionStatus;
+  // Correct / attempted / not attempted per question (migration 202611071300); no circles when it is not there yet.
+  const { data: attemptStates } = await supabase.rpc("excel_efficiency_attempt_question_states", { p_attempt_id: attemptId });
+  const states = Array.isArray(attemptStates) ? (attemptStates as QuestionAttemptState[]) : null;
   const catalogue = `/typing/excel-efficiency/${result.language.toLowerCase() === "hindi" ? "hindi" : "english"}`;
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-10 print:bg-white print:p-0">
@@ -32,13 +36,13 @@ export default async function ExcelEfficiencyResultPage({ params }: { params: Pr
           <h1 className="mt-2 text-3xl font-black">{result.status === "published" ? "Test result" : "Test submitted successfully"}</h1>
           <p className="mt-2 text-slate-300 print:text-slate-700">{result.title}</p>
         </header>
-        <div className="p-6 sm:p-8 print:p-0 print:pt-5"><Published result={result} catalogue={catalogue} attemptId={attemptId} solution={solution} /></div>
+        <div className="p-6 sm:p-8 print:p-0 print:pt-5"><Published result={result} catalogue={catalogue} attemptId={attemptId} solution={solution} states={states} /></div>
       </section>
     </main>
   );
 }
 
-function Published({ result, catalogue, attemptId, solution }: { result: AttemptResult; catalogue: string; attemptId: string; solution: SolutionStatus }) {
+function Published({ result, catalogue, attemptId, solution, states }: { result: AttemptResult; catalogue: string; attemptId: string; solution: SolutionStatus; states: QuestionAttemptState[] | null }) {
   const groups = groupBySection(result.questions);
   const sectioned = groups.length > 1 || groups[0]?.section != null;
   const grandMaxTotal = result.questions.reduce((sum, q) => sum + q.maximumMarks, 0);
@@ -56,6 +60,7 @@ function Published({ result, catalogue, attemptId, solution }: { result: Attempt
       {result.percentage != null && <div className="mx-auto mt-5 max-w-md"><div className="h-3 w-full overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-emerald-700" style={{ width: `${Math.max(0, Math.min(100, result.percentage))}%` }} /></div></div>}
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Result" value={result.status !== "published" ? "Pending" : result.passingMarks == null ? "No pass mark configured" : result.passed ? "Pass" : "Fail"} /><Metric label="Evaluation status" value={result.status === "published" ? "Published" : "Pending"} /><Metric label="Submitted" value={date(result.submittedAt)} /><Metric label="Evaluated" value={date(result.evaluatedAt)} /></div>
       {result.overallFeedback && <section className="mt-6 rounded-2xl bg-emerald-50 p-5"><h2 className="font-black">Teacher feedback</h2><p className="mt-2 whitespace-pre-wrap text-slate-700">{result.overallFeedback}</p></section>}
+      <QuestionAttemptSummary states={states} />
       <h2 className="mt-8 text-center text-xl font-black uppercase tracking-wide text-slate-500">Detailed Result</h2>
       <div className="mt-4 overflow-x-auto"><table className="w-full border-collapse text-left text-sm"><thead><tr className="bg-slate-100"><th className="p-3">S.No.</th><th className="p-3">Question instruction</th><th className="p-3">Maximum marks</th><th className="p-3">Marks obtained</th><th className="p-3">Teacher feedback</th></tr></thead><tbody>{groups.map((group, index) => <SectionRows key={index} group={group} sectioned={sectioned} />)}<tr className="border-t-2 border-slate-400 bg-slate-100 font-black"><td className="p-3" colSpan={2}>Grand Total</td><td className="p-3">{grandMaxTotal}</td><td className="p-3">{grandAwardedTotal == null ? "Not graded" : grandAwardedTotal}</td><td className="p-3" /></tr></tbody></table></div>
       <SolutionLinkBox status={solution} href={`/typing/excel-efficiency/results/${attemptId}/solution`} />
