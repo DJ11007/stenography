@@ -201,6 +201,7 @@ export async function WordEfficiencyTestsPage({
               </div>
               <DeliveryPdfFields
                 defaultOnscreen={current?.delivery_onscreen ?? true}
+                defaultStudentToggle={(current as { student_question_toggle?: boolean } | undefined)?.student_question_toggle !== false}
                 defaultPdf={current?.delivery_pdf ?? false}
                 existingPdf={
                   editing && current?.pdf_file_name
