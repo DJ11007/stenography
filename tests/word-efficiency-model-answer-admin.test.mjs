@@ -84,7 +84,8 @@ test("saving an answer diffs against that question's checkpoint and regenerates 
   assert.match(editor, /const changes = diffWordDocuments\(before, cleanDocument\);/);
   // Every question's expected values come from the finished document, not the moment it was saved.
   // (a question whose rules this page cannot rebuild is sent back as it was -- see word-efficiency-model-answer-words-rule-runtime.test.mjs)
-  assert.match(editor, /allocatedMarks: question\.marks, criteria: compressRunCriteria\(cleanDocument, modelAnswerRuleCriteria\(cleanDocument, nextAssignments\[question\.number\] \?\? \[\]\)\) \}\);/);
+  assert.match(editor, /allocatedMarks: question\.marks, criteria: compressRunCriteria\(document, modelAnswerRuleCriteria\(document, nextAssignments\[question\.number\] \?\? \[\]\)\) \}\);/);
+  assert.match(editor, /const payload = rulesPayload\(cleanDocument, nextAssignments\);/);
   assert.match(editor, /questions\.map\(\(question\) => question\.keptRules\.length\s/);
   assert.match(editor, /generateWordEfficiencyGradingRulesFromModelAnswer\(versionId, payload\)/);
 });
@@ -101,7 +102,7 @@ test("the Model Answer editor has a confirmed Reset button that clears saved ans
   assert.match(editor, /const result = await resetWordEfficiencyModelAnswer\(versionId\);/);
   assert.match(editor, /window\.location\.reload\(\);/);
   assert.match(editor, /disabled=\{resetting \|\| !hasProgress\}/);
-  assert.match(editor, /\{resetting \? "Resetting…" : "Reset"\}/);
+  assert.match(editor, /\{resetting \? "Resetting…" : "Reset all"\}/);
 });
 
 test("resetWordEfficiencyModelAnswer is an admin-gated server action calling the matching RPC", async () => {

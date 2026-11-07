@@ -38,9 +38,11 @@ function MigrationNotice({ testId, detail }: { testId: string; detail: string })
   );
 }
 
-export default async function ExcelModelAnswerPage({ params }: { params: Promise<{ testId: string }> }) {
+export default async function ExcelModelAnswerPage({ params, searchParams }: { params: Promise<{ testId: string }>; searchParams: Promise<{ question?: string }> }) {
   await requireAdmin();
   const { testId } = await params;
+  // ?question=<n>: open on that question (after "Reset Q<n>" the page reloads there).
+  const startQuestion = Number((await searchParams).question) || null;
   const supabase = await createClient();
   const { data: test } = await supabase.from("excel_efficiency_tests").select("id,current_version_id").eq("id", testId).maybeSingle();
   if (!test?.current_version_id) notFound();
@@ -50,7 +52,7 @@ export default async function ExcelModelAnswerPage({ params }: { params: Promise
   if (versionError) return <MigrationNotice testId={test.id} detail={versionError.message} />;
   if (!version) notFound();
   const { data: questions } = await supabase.from("excel_efficiency_questions").select("id,question_number,instruction,marks").eq("version_id", version.id).order("display_order");
-  const { data: rules, error: rulesError } = await supabase.from("excel_efficiency_grading_rules").select("question_id,exact_target").eq("version_id", version.id);
+  const { data: rules, error: rulesError } = await supabase.from("excel_efficiency_grading_rules").select("question_id,exact_target,additional_criteria").eq("version_id", version.id);
   if (rulesError) return <MigrationNotice testId={test.id} detail={rulesError.message} />;
   const withRules = new Set((rules ?? []).map((rule) => rule.question_id));
   // Rules written by hand for the paper (exact_target 'hand-written', e.g. Test 2's "Q2 checks B26:J37 because Q6
@@ -66,8 +68,10 @@ export default async function ExcelModelAnswerPage({ params }: { params: Promise
           versionId={version.id}
           original={startingSheet(version.working_matter_snapshot as Record<string, unknown>)}
           initialDocument={version.model_answer_snapshot}
+          startQuestion={startQuestion}
           autoGradingHref={`/admin/excel-efficiency-tests/${test.id}/auto-grading`}
-          questions={(questions ?? []).map((question) => ({ id: question.id, number: question.question_number, instruction: question.instruction ?? "", marks: Number(question.marks), graded: withRules.has(question.id), handWritten: handWritten.has(question.id) }))}
+          questions={(questions ?? []).map((question) => ({ id: question.id, number: question.question_number, instruction: question.instruction ?? "", marks: Number(question.marks), graded: withRules.has(question.id), handWritten: handWritten.has(question.id),
+            criteria: (rules ?? []).filter((rule) => rule.question_id === question.id).flatMap((rule) => (Array.isArray(rule.additional_criteria) ? rule.additional_criteria : [])) }))}
         />
       </div>
     </main>

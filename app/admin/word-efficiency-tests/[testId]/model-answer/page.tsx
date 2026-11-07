@@ -27,9 +27,11 @@ function existingModelAnswerCriteria(rule: { exact_target: string; expected_oper
 
 export const metadata: Metadata = { title: "Model Answer | Admin" };
 
-export default async function ModelAnswerPage({ params }: { params: Promise<{ testId: string }> }) {
+export default async function ModelAnswerPage({ params, searchParams }: { params: Promise<{ testId: string }>; searchParams: Promise<{ question?: string }> }) {
   await requireAdmin();
   const { testId } = await params;
+  // ?question=<n>: open on that question (after "Reset Q<n>" the page reloads there).
+  const startQuestion = Number((await searchParams).question) || null;
   const supabase = await createClient();
   const { data: test } = await supabase.from("word_efficiency_tests").select("id,title,current_version_id").eq("id", testId).maybeSingle();
   if (!test?.current_version_id) notFound();
@@ -49,6 +51,7 @@ export default async function ModelAnswerPage({ params }: { params: Promise<{ te
           versionId={version.id}
           original={version.working_matter_snapshot}
           initialDocument={version.model_answer_snapshot}
+          startQuestion={startQuestion}
           questions={(questions ?? []).map((question) => {
             const rules = rulesByQuestion.get(question.id) ?? [];
             // Rules this page cannot rebuild from the finished answer (a "rule" criterion -- words, text, table... -- or a rule

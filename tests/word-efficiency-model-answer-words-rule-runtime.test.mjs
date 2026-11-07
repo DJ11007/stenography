@@ -140,7 +140,8 @@ test("a rule that is not a known kind is still refused", async () => {
 
 test("the Model Answer page sends back the rules it cannot rebuild, and rebuilds only the questions answered since it opened", async () => {
   const editor = await readFile(new URL("../app/admin/word-efficiency-tests/[testId]/model-answer/model-answer-editor.tsx", import.meta.url), "utf8");
-  assert.match(editor, /compressRunCriteria\(cleanDocument, modelAnswerRuleCriteria\(cleanDocument, nextAssignments\[question\.number\] \?\? \[\]\)\)/);
+  assert.match(editor, /compressRunCriteria\(document, modelAnswerRuleCriteria\(document, nextAssignments\[question\.number\] \?\? \[\]\)\)/);
+  assert.match(editor, /const payload = rulesPayload\(cleanDocument, nextAssignments\);/);
   // Kept even when the question is answered again (re-solving the paper used to replace hand-written part rules).
   assert.match(editor, /questions\.map\(\(question\) => question\.keptRules\.length\s/);
   assert.match(editor, /\{ questionNumber: question\.number, keep: question\.keptRules \}/);

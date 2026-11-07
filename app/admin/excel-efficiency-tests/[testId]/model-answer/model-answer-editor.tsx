@@ -1,19 +1,20 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { resetExcelQuestion } from "@/lib/model-answer-reset";
 import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { RichSheetEditor, type ExcelDocument } from "@/app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor";
 import { diffExcelDocuments, excelQuestionRules, excelRuleGroups } from "@/lib/excel-document-diff";
 import { resetExcelEfficiencyModelAnswer, saveExcelEfficiencyModelAnswer, saveExcelEfficiencyQuestionRules } from "../../actions";
 
-type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean; handWritten?: boolean };
+type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean; handWritten?: boolean; criteria?: unknown[] };
 
 // The admin solves the paper in the real Excel sheet, one question at a time, and presses "Save answer for Q<n>".
 // What changed since the question was opened (formatting, typed values and formulas' results, merged cells, page
 // settings...) becomes that question's marking rules, with the question's marks shared between the things it asks.
 // Questions are answered in order: the sheet as it stood when a question was opened is that question's "before".
-export function ModelAnswerEditor({ versionId, original, initialDocument, questions, autoGradingHref }: { versionId: string; original: ExcelDocument; initialDocument: unknown; questions: Question[]; autoGradingHref: string }) {
-  const firstOpen = questions.find((question) => !question.graded)?.number ?? null;
+export function ModelAnswerEditor({ versionId, original, initialDocument, questions, autoGradingHref, startQuestion = null }: { versionId: string; original: ExcelDocument; initialDocument: unknown; questions: Question[]; autoGradingHref: string; startQuestion?: number | null }) {
+  const firstOpen = (startQuestion !== null && questions.some((question) => question.number === startQuestion) ? startQuestion : null) ?? questions.find((question) => !question.graded)?.number ?? null;
   const [latest, setLatest] = useState<unknown>(initialDocument ?? null);
   const [checkpoints, setCheckpoints] = useState<Record<number, unknown>>(() => (initialDocument != null && firstOpen !== null ? { [firstOpen]: initialDocument } : {}));
   const [graded, setGraded] = useState<Set<number>>(() => new Set(questions.filter((question) => question.graded).map((question) => question.number)));
@@ -21,6 +22,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [showQuestion, setShowQuestion] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [resettingQuestion, setResettingQuestion] = useState(false);
 
   const ready = latest !== null;
   const active = questions.find((question) => question.number === activeNumber) ?? null;
@@ -32,6 +34,30 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     const result = await resetExcelEfficiencyModelAnswer(versionId).catch((error: unknown) => ({ ok: false, error: isStaleServerActionError(error) ? "This page was updated on the server. Refresh the page, then press Reset again." : "Could not reset. Check your internet connection and try again." }));
     if (!result.ok) { setResetting(false); setMessage({ text: result.error, ok: false }); return; }
     window.location.reload();
+  };
+
+  // "Reset Q<n>": only this question's answer is undone in the sheet (the cells, merges and sheet settings its marking
+  // checks look at go back to the starting sheet) and its rules are cleared, so it can be solved again. Other questions
+  // keep their answers and rules. Rules written by hand for the paper are kept.
+  const handleResetQuestion = async () => {
+    if (!active || latest === null) return;
+    const handWritten = Boolean(active.handWritten);
+    if (!confirm(`Reset Q${active.number} only? Its answer is undone in the sheet and ${handWritten ? "you can solve it again (its marking was written by hand and is kept)" : "its marking rules are cleared, so you can solve it again"}. Other questions are not changed. Changes in the sheet that were not saved yet are lost.`)) return;
+    const { document, undone } = resetExcelQuestion(latest, original, active.criteria ?? []);
+    if (!undone) {
+      setMessage({ text: `Q${active.number} has no saved answer to undo. Undo it by hand in the sheet, then press "Save answer for Q${active.number}".`, ok: false });
+      return;
+    }
+    setResettingQuestion(true); setMessage(null);
+    const fail = (error: unknown) => ({ ok: false, error: isStaleServerActionError(error) ? "This page was updated on the server. Refresh the page, then try again." : "Could not reset. Check your internet connection and try again." });
+    const saved = await saveExcelEfficiencyModelAnswer(versionId, document).catch(fail);
+    if (!saved.ok) { setResettingQuestion(false); setMessage({ text: saved.error, ok: false }); return; }
+    if (!handWritten) {
+      const cleared = await saveExcelEfficiencyQuestionRules(versionId, active.number, []).catch(fail);
+      if (!cleared.ok) { setResettingQuestion(false); setMessage({ text: cleared.error, ok: false }); return; }
+    }
+    // A full reload, as "Reset all" does: the editor must rebuild the paper from the saved answer.
+    window.location.assign(`?question=${active.number}`); // eslint-disable-line @next/next/no-location-assign-relative-destination
   };
 
   const selectQuestion = (number: number) => {
@@ -108,8 +134,10 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
             <svg viewBox="0 0 24 24" aria-hidden className={`h-4 w-4 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </button>
           <Link href={autoGradingHref} className="h-7 flex-none rounded-md border border-emerald-300 px-2 py-1 text-xs font-black text-emerald-800 hover:bg-emerald-50">Auto-grading</Link>
+          {active && <button type="button" disabled={resettingQuestion || !ready} onClick={handleResetQuestion} title={`Undo only Q${active.number}'s answer and solve it again; the other questions keep theirs`}
+            className="h-7 flex-none rounded-md border border-amber-300 px-2 text-xs font-black text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40">{resettingQuestion ? "Resetting…" : `Reset Q${active.number}`}</button>}
           <button type="button" disabled={resetting || !hasProgress} onClick={handleReset} title={hasProgress ? "Clear every saved answer and start this paper over" : "Nothing to reset yet"}
-            className="h-7 flex-none rounded-md border border-red-200 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40">{resetting ? "Resetting…" : "Reset"}</button>
+            className="h-7 flex-none rounded-md border border-red-200 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40">{resetting ? "Resetting…" : "Reset all"}</button>
         </div>
         {!ready && <p className="mt-1 text-xs text-slate-500">Loading the sheet…</p>}
         {active && showQuestion && <p className="mt-1.5 text-sm text-slate-900"><span className="font-black text-emerald-800">Q{active.number}.</span> {active.instruction} <span className="whitespace-nowrap text-[11px] font-bold text-slate-500">({active.marks} marks)</span></p>}

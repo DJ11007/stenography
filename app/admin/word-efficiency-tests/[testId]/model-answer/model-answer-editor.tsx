@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { RichDocumentEditor } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor";
 import { compressRunCriteria, diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion } from "@/lib/word-document-diff";
 import { generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
 import type { WorkingMatterSnapshot } from "@/lib/word-docx";
+import { resetWordQuestion } from "@/lib/model-answer-reset";
 
 type KeptRule = { exactTarget: string; expectedOperation: string; expectedValue: string; allocatedMarks: number; partialMarks: number | null; partLabel: string | null; additionalCriteria: unknown[] };
 type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean; keptRules: KeptRule[]; existingCriteria: ModelAnswerCriterion[] };
@@ -38,7 +39,7 @@ function countParagraphs(document: unknown): number | null {
   return Array.isArray(blocks) ? blocks.filter((block) => !["header", "footer"].includes((block as { type?: string } | null)?.type ?? "")).length : null;
 }
 
-export function ModelAnswerEditor({ versionId, original, initialDocument, questions }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; questions: Question[] }) {
+export function ModelAnswerEditor({ versionId, original, initialDocument, questions, startQuestion = null }: { versionId: string; original: WorkingMatterSnapshot; initialDocument: unknown; questions: Question[]; startQuestion?: number | null }) {
   // The question that starts active (first one with no existing grading
   // rule) needs a checkpoint -- the document as it stood before THIS
   // question's edits -- exactly like selectQuestion seeds one for every
@@ -46,7 +47,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
   // below can use it without an effect (an effect only runs after the
   // first paint, too late to matter for a value only ever read at submit
   // time -- but wrong in a subtler way too: see handleReady's comment).
-  const initialActiveNumber = questions.find((question) => !question.graded)?.number ?? null;
+  const initialActiveNumber = (startQuestion !== null && questions.some((question) => question.number === startQuestion) ? startQuestion : null) ?? questions.find((question) => !question.graded)?.number ?? null;
   const [latestDocument, setLatestDocument] = useState<unknown>(initialDocument ?? null);
   // If a document was already saved (any question answered in an earlier
   // session, including ones with no grading rule of their own yet), THAT
@@ -63,6 +64,10 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
   // Questions answered on this page since it opened: their saved rules are rebuilt; the others keep rules this page cannot rebuild.
   const [touched, setTouched] = useState<Set<number>>(new Set());
   const [showQuestion, setShowQuestion] = useState(true);
+  // The paper exactly as it starts (before any answer): what "Reset Q<n>" puts back. The editor reports it once, before the
+  // saved answer is drawn over it (see handleReady).
+  const pristine = useRef<unknown>(null);
+  const [resettingQuestion, setResettingQuestion] = useState(false);
 
   const ready = latestDocument !== null;
   const active = questions.find((question) => question.number === activeNumber) ?? null;
@@ -106,10 +111,43 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
   // very first question ever authored on a version could never be
   // auto-graded, no matter what was typed.
   const handleReady = (snapshot: unknown) => {
+    if (pristine.current === null) pristine.current = stripBlankParagraphs(snapshot);
     if (latestDocument === null) {
       setLatestDocument(snapshot);
       if (activeNumber !== null) setCheckpoints((current) => (activeNumber in current ? current : { ...current, [activeNumber]: snapshot }));
     }
+  };
+
+  // The rules of every question, as saved: hand-written ones as they are, the others rebuilt from the given document.
+  const rulesPayload = (document: unknown, nextAssignments: Record<number, Criterion[]>) => questions.map((question) => question.keptRules.length
+    ? { questionNumber: question.number, keep: question.keptRules }
+    : { questionNumber: question.number, allocatedMarks: question.marks, criteria: compressRunCriteria(document, modelAnswerRuleCriteria(document, nextAssignments[question.number] ?? [])) });
+
+  // "Reset Q<n>": only this question's answer is undone in the paper (the words, paragraph settings, page settings,
+  // header or footer its marking checks look at go back to how the paper started) and its marking rule is cleared,
+  // so it can be solved again. Other questions keep their answers and rules. A rule written by hand is kept.
+  const handleResetQuestion = async () => {
+    if (!active || pristine.current === null || latestDocument === null) return;
+    const handWritten = active.keptRules.length > 0;
+    if (!confirm(`Reset Q${active.number} only? Its answer is undone in the paper and ${handWritten ? "you can solve it again (its marking was written by hand and is kept)" : "its marking rule is cleared, so you can solve it again"}. Other questions are not changed. Changes in the paper that were not saved yet are lost.`)) return;
+    const criteria = handWritten
+      ? active.keptRules.flatMap((rule) => [...(rule.expectedOperation === "model-answer-match-v2" ? [] : [{ target: rule.exactTarget }]), ...rule.additionalCriteria])
+      : (assignments[active.number] ?? []).map((criterion) => ({ target: criterion.target }));
+    const { document, undone } = resetWordQuestion(stripBlankParagraphs(latestDocument), pristine.current, criteria);
+    if (!undone) {
+      setMessage({ text: `Q${active.number}'s answer could not be found in the paper. Undo it by hand (Ctrl+Z or format it back), then press "Save answer for Q${active.number}".`, ok: false });
+      return;
+    }
+    setResettingQuestion(true);
+    setMessage(null);
+    const saved = await saveWordEfficiencyModelAnswer(versionId, document);
+    if (!saved.ok) { setResettingQuestion(false); setMessage({ text: saved.error, ok: false }); return; }
+    if (!handWritten) {
+      const rules = await generateWordEfficiencyGradingRulesFromModelAnswer(versionId, rulesPayload(document, { ...assignments, [active.number]: [] }));
+      if (!rules.ok) { setResettingQuestion(false); setMessage({ text: rules.error, ok: false }); return; }
+    }
+    // A full reload, as "Reset all" does: the editor must rebuild the paper from the saved answer.
+    window.location.assign(`?question=${active.number}`); // eslint-disable-line @next/next/no-location-assign-relative-destination
   };
 
   // Passed as RichDocumentEditor's submitAction -- same (id, document) =>
@@ -142,9 +180,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     // A question marked by hand-written rules (parts (a)(b)(c), "every word", a date format...) keeps them even when
     // it is answered again here: rules rebuilt from what changed in the document cannot express those, and
     // re-solving the paper on 2 Nov replaced Test 2's and Test 3's (wrong marks for whole batches). Reset clears them.
-    const payload = questions.map((question) => question.keptRules.length
-      ? { questionNumber: question.number, keep: question.keptRules }
-      : { questionNumber: question.number, allocatedMarks: question.marks, criteria: compressRunCriteria(cleanDocument, modelAnswerRuleCriteria(cleanDocument, nextAssignments[question.number] ?? [])) });
+    const payload = rulesPayload(cleanDocument, nextAssignments);
     const ruleResult = await generateWordEfficiencyGradingRulesFromModelAnswer(versionId, payload);
     if (!ruleResult.ok) return { ok: false, error: ruleResult.error };
     const nextAnswered = new Set(answeredNumbers);
@@ -205,6 +241,17 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
           >
             <svg viewBox="0 0 24 24" aria-hidden className={`h-4 w-4 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </button>
+          {active && (
+            <button
+              type="button"
+              disabled={resettingQuestion || !ready}
+              onClick={handleResetQuestion}
+              title={`Undo only Q${active.number}'s answer and solve it again; the other questions keep theirs`}
+              className="h-7 flex-none rounded-md border border-amber-300 px-2 text-xs font-black text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {resettingQuestion ? "Resetting…" : `Reset Q${active.number}`}
+            </button>
+          )}
           <button
             type="button"
             disabled={resetting || !hasProgress}
@@ -212,7 +259,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
             title={hasProgress ? "Clear every saved answer and start this paper over" : "Nothing to reset yet"}
             className="h-7 flex-none rounded-md border border-red-200 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {resetting ? "Resetting…" : "Reset"}
+            {resetting ? "Resetting…" : "Reset all"}
           </button>
         </div>
         {!ready && <p className="mt-1 text-xs text-slate-500">Loading the question paper…</p>}
