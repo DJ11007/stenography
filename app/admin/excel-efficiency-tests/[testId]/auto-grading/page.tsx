@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BackButton } from "@/app/_components/back-button";
@@ -7,7 +8,11 @@ import { regradeExcelEfficiencyAttempts, setExcelEfficiencyAutoPublish } from ".
 
 export const metadata: Metadata = { title: "Excel Auto-grading | Admin" };
 
-type QuestionCheck = { number: number; hasRule: boolean; allocatedMarks: number | null; modelGets: number | null; ok: boolean };
+type QuestionCheck = {
+  number: number; hasRule: boolean; allocatedMarks: number | null; modelGets: number | null; ok: boolean;
+  // Added by migration 202611071600 (absent before it is applied)
+  instruction?: string; bySection?: boolean; issues?: string[];
+};
 type Check = { versionId: string; hasModelAnswer: boolean; ready: boolean; questions: QuestionCheck[] };
 
 function Notice({ tone, children }: { tone: "green" | "red"; children: React.ReactNode }) {
@@ -43,7 +48,7 @@ export default async function ExcelAutoGradingPage({ params, searchParams }: { p
 
         <section className="mt-6 rounded-2xl border bg-white p-6">
           <h2 className="text-xl font-black">Step 1 · Check the rules</h2>
-          <p className="mt-1 text-sm text-slate-600">Your own Model Answer is run through its own rules. Every question must earn its full marks, otherwise no student could ever earn them either.</p>
+          <p className="mt-1 text-sm text-slate-600">Every question is checked before students see it: the Model Answer must earn full marks, the untouched sheet must earn nothing, a question written in a) b) c) sections should be marked section by section, and every question needs a paper solution.</p>
           {!check ? (
             <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-800">The check could not run{error ? `: ${error.message}` : "."}</p>
           ) : (
@@ -51,16 +56,28 @@ export default async function ExcelAutoGradingPage({ params, searchParams }: { p
               {!check.hasModelAnswer && <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-900">No Model Answer is saved for this test yet. Solve the paper on the <a className="underline" href={`/admin/excel-efficiency-tests/${testId}/model-answer`}>Model Answer page</a> first.</p>}
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead><tr className="bg-slate-100"><th className="p-3">Question</th><th className="p-3">Grading rule</th><th className="p-3">Marks the rules carry</th><th className="p-3">Model Answer earns</th><th className="p-3">Result</th></tr></thead>
+                  <thead><tr className="bg-slate-100"><th className="p-3">Question</th><th className="p-3">Grading rule</th><th className="p-3">Marks the rules carry</th><th className="p-3">Model Answer earns</th><th className="p-3">Marked</th><th className="p-3">Result</th></tr></thead>
                   <tbody>
                     {check.questions.map((question) => (
-                      <tr key={question.number} className="border-b">
-                        <td className="p-3 font-black">Q{question.number}</td>
+                      <Fragment key={question.number}>
+                      <tr className={question.issues?.length ? "" : "border-b"}>
+                        <td className="p-3 align-top"><span className="font-black">Q{question.number}</span>{question.instruction && <span className="mt-1 block max-w-xs text-xs text-slate-500">{question.instruction}</span>}</td>
                         <td className="p-3">{question.hasRule ? "Yes" : <span className="font-bold text-red-700">Missing</span>}</td>
                         <td className="p-3">{question.allocatedMarks ?? "—"}</td>
                         <td className="p-3">{question.modelGets ?? "—"}</td>
-                        <td className="p-3">{question.ok ? <span className="font-black text-green-700">OK</span> : <span className="font-black text-red-700">Needs fixing</span>}</td>
+                        <td className="p-3">{question.bySection === undefined ? "—" : question.bySection ? "By section" : "Whole question"}</td>
+                        <td className="p-3">{!question.ok ? <span className="font-black text-red-700">Needs fixing</span> : question.issues?.length ? <span className="font-black text-amber-700">Check</span> : <span className="font-black text-green-700">OK</span>}</td>
                       </tr>
+                      {question.issues && question.issues.length > 0 && (
+                        <tr className="border-b">
+                          <td colSpan={6} className="px-3 pb-3">
+                            <ul className={`rounded-lg p-3 text-xs font-bold ${question.ok ? "bg-amber-50 text-amber-900" : "bg-red-50 text-red-800"}`}>
+                              {question.issues.map((issue) => <li key={issue}>• {issue}</li>)}
+                            </ul>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
