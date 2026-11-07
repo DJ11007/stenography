@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CURRENCIES, type CurrencySymbol, type SheetCell, type UnderlineStyle } from "@/lib/excel-document";
 import { formatCellValue } from "@/lib/excel-sheet-model";
 import { FormatCellsBorderTab, type BorderLines } from "./format-cells-border-tab";
@@ -69,6 +69,10 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
   const [horizontal, setHorizontal] = useState<string>(cell.align ?? "general");
   const [vertical, setVertical] = useState<string>(cell.vAlign ?? "bottom");
   const [indent, setIndent] = useState<number>(cell.indent ?? 0);
+  const [indentText, setIndentText] = useState<string>(String(cell.indent ?? 0));
+  const [invalidIndent, setInvalidIndent] = useState(false);
+  const indentRef = useRef<HTMLInputElement>(null);
+  const closeInvalidIndent = () => { setInvalidIndent(false); requestAnimationFrame(() => { indentRef.current?.focus(); indentRef.current?.select(); }); };
   const [wrap, setWrap] = useState(Boolean(cell.wrap));
   const [merge, setMerge] = useState(merged);
   const [rotate, setRotate] = useState<number>(cell.rotate ?? 0);
@@ -92,6 +96,9 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
   // number formats keeps them when only, say, the alignment is set).
   const [initialValues] = useState(() => ({ numberFormat, decimals, currency, dateKind, shrink, vertAlign, locked, hiddenFormula, horizontal, vertical, indent, wrap, rotate, font, style, size, underline, color, strike, fill }));
   const ok = () => {
+    // As in Excel 2013: the indent takes whole numbers only. Typing 0.3 (or nothing) and pressing OK shows
+    // "Integer is not valid." and the dialog stays open on the Alignment tab; nothing is applied.
+    if (!/^\s*\d+\s*$/.test(indentText)) { setTab("Alignment"); setInvalidIndent(true); return; }
     const current = { numberFormat, decimals, currency, dateKind, shrink, vertAlign, locked, hiddenFormula, horizontal, vertical, indent, wrap, rotate, font, style, size, underline, color, strike, fill };
     const full = buildPatch(current);
     const before = buildPatch(initialValues);
@@ -138,7 +145,9 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
               <div className="grid content-start gap-2">
                 <fieldset className="grid gap-2 border-t border-slate-300 pt-1"><legend className="pr-2">Text alignment</legend>
                   <label className="grid gap-1">Horizontal:<select aria-label="Horizontal" value={horizontal} onChange={(event) => setHorizontal(event.target.value)} className="w-40 border border-slate-400"><option value="general">General</option><option value="left">Left (Indent)</option><option value="center">Center</option><option value="right">Right (Indent)</option></select></label>
-                  <label className="flex items-center gap-2">Indent: <NumberBox label="Indent" min={0} max={15} value={indent} onChange={setIndent} className="w-14 border border-slate-400 px-1" /></label>
+                  <label className="flex items-center gap-2">Indent: <input ref={indentRef} type="number" aria-label="Indent" min={0} max={15} step={1} value={indentText}
+                    onChange={(event) => { const typed = event.target.value; setIndentText(typed); const n = Number(typed); if (/^\s*\d+\s*$/.test(typed)) setIndent(Math.min(15, n)); }}
+                    className="w-14 border border-slate-400 px-1" /></label>
                   <label className="grid gap-1">Vertical:<select aria-label="Vertical" value={vertical} onChange={(event) => setVertical(event.target.value)} className="w-40 border border-slate-400"><option value="top">Top</option><option value="middle">Center</option><option value="bottom">Bottom</option></select></label>
                 </fieldset>
                 <fieldset className="grid gap-1 border-t border-slate-300 pt-1"><legend className="pr-2">Text control</legend>
@@ -197,6 +206,19 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
           <button type="button" onClick={onCancel} className="min-w-20 border border-slate-400 bg-white px-4 py-1">Cancel</button>
         </div>
       </div>
+      {invalidIndent && (
+        <div role="presentation" className="fixed inset-0 z-[95] grid place-items-center" onMouseDown={(event) => event.stopPropagation()}>
+          <div role="alertdialog" aria-modal="true" aria-label="Microsoft Excel" onKeyDown={(event) => { if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeInvalidIndent(); } }}
+            className="w-[260px] border border-slate-400 bg-white text-[12px] text-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between px-3 py-1.5"><span>Microsoft Excel</span><button type="button" onClick={closeInvalidIndent} aria-label="Close">✕</button></div>
+            <div className="flex items-center gap-4 px-5 py-4">
+              <svg width="30" height="27" viewBox="0 0 30 27" aria-hidden><path d="M15 1 L29 26 H1 Z" fill="#f8c400" stroke="#b58a00" /><rect x="13.6" y="9" width="2.8" height="9" fill="#222" /><rect x="13.6" y="20" width="2.8" height="2.8" fill="#222" /></svg>
+              <p>Integer is not valid.</p>
+            </div>
+            <div className="flex justify-center pb-3"><button type="button" autoFocus onClick={closeInvalidIndent} className="min-w-20 border border-[#217346] bg-white px-4 py-1">OK</button></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

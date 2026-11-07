@@ -40,3 +40,14 @@ test("the Word clock does not redraw the document editor", () => {
   assert.match(word, /const afterSubmit=useCallback\(/);
   assert.match(read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"), /export const RichDocumentEditor = memo\(RichDocumentEditorImpl\);/);
 });
+
+// Excel 2013 (admin's screenshot, 7 Nov): Indent takes whole numbers only; 0.3 + OK shows "Integer is not valid."
+// and the dialog stays open. Test 3 Q9 now asks for indent 3 and checks it.
+test("Format Cells: a non-whole Indent shows Excel's 'Integer is not valid.' and applies nothing", () => {
+  const dialog = read(`${dir}/format-cells-dialog.tsx`);
+  assert.match(dialog, /if \(!\/\^\s\*\d\+\s\*\$\/\.test\(indentText\)\) \{ setTab\("Alignment"\); setInvalidIndent\(true\); return; \}/);
+  assert.match(dialog, /<p>Integer is not valid\.<\/p>/);
+  const migration = read("supabase/migrations/202611071800_excel_test3_q9_indent_3.sql");
+  assert.match(migration, /"props":\{"align":\["left"\],"indent":\[3\]\}/);
+  assert.match(migration, /Horizontal Left indent 3 then set it as print area/);
+});
