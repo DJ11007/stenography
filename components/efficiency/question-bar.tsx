@@ -5,7 +5,8 @@ import { QuestionContent } from "./question-content";
 
 // The exam's question paper as a bar between the ribbon and the page, laid out like the admin's Model Answer bar:
 // the question buttons in one row across the top (scrolling sideways when there are many), the chosen question's
-// marks and a Hide/Show arrow at the right, and the question text underneath with its a), b), c) parts on separate
+// marks and a labelled Hide Questions / Show Questions button at the right (the admin asked for it back after a
+// bare arrow replaced it), and the question text underneath with its a), b), c) parts on separate
 // lines. The arrow folds away only the text, so the buttons stay and the page gets the space. It used to stack the
 // buttons in a narrow block beside the text, which got cramped inside the live exam's narrower screen.
 type BarQuestion = { id: string; number: number; instruction: string | null; marks: number; section: string | null };
@@ -30,7 +31,8 @@ export function QuestionBar({ questions, current, onSelect, language, collapsed 
         {onToggle && (
           <button type="button" aria-expanded={!collapsed} aria-label={collapsed ? "Show Questions" : "Hide Questions"} title={collapsed ? "Show the question" : "Hide the question"}
             onMouseDown={event => event.preventDefault()} onClick={onToggle}
-            className="flex h-7 w-8 flex-none items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-100">
+            className="flex h-7 flex-none items-center gap-1 whitespace-nowrap rounded-md border border-blue-700 bg-blue-700 pl-2 pr-1.5 text-xs font-black text-white shadow-sm hover:bg-blue-800">
+            {collapsed ? "Show Questions" : "Hide Questions"}
             <svg aria-hidden viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${collapsed ? "" : "rotate-180"}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </button>
         )}
