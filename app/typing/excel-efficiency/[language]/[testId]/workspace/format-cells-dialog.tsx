@@ -42,6 +42,25 @@ function NumberBox({ label, value, min, max, onChange, className }: { label: str
   );
 }
 
+type DialogValues = {
+  numberFormat: SheetCell["numberFormat"]; decimals: number; currency: CurrencySymbol; dateKind: "ShortDate" | "LongDate"; shrink: boolean; vertAlign: SheetCell["vertAlign"];
+  locked: boolean; hiddenFormula: boolean; horizontal: string; vertical: string; indent: number; wrap: boolean; rotate: number; font: string; style: string; size: string;
+  underline: string; color: string | null; strike: boolean; fill: string | null;
+};
+function buildPatch(v: DialogValues): Partial<SheetCell> {
+  const sizeNumber = Number(v.size);
+  return {
+    numberFormat: v.numberFormat === "ShortDate" ? v.dateKind : v.numberFormat, decimals: ["General", "ShortDate", "Time", "Fraction", "Text"].includes(v.numberFormat ?? "General") ? null : v.decimals,
+    currency: v.numberFormat === "Currency" || v.numberFormat === "Accounting" ? (v.currency === "₹" ? null : v.currency) : null,
+    shrink: v.shrink || null, vertAlign: v.vertAlign, locked: v.locked ? null : false, hiddenFormula: v.hiddenFormula || null,
+    align: v.horizontal === "general" ? null : (v.horizontal as SheetCell["align"]), vAlign: v.vertical === "bottom" ? null : (v.vertical as SheetCell["vAlign"]),
+    indent: v.indent || null, wrap: v.wrap || null, rotate: v.rotate || null,
+    fontFamily: v.font === "Calibri" ? null : v.font, bold: v.style.includes("Bold"), italic: v.style.includes("Italic"),
+    fontSize: Number.isFinite(sizeNumber) && sizeNumber >= 1 && sizeNumber <= 409 && sizeNumber !== 11 ? sizeNumber : null,
+    underline: v.underline !== "None", underlineStyle: v.underline === "None" || v.underline === "single" ? null : (v.underline as UnderlineStyle), fontColor: v.color, strike: v.strike || null, fillColor: v.fill,
+  };
+}
+
 export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, multiRow, multiCol, onOk, onCancel }: { cell: SheetCell; merged: boolean; initialTab: FormatCellsTab; initialBorders: BorderLines; multiRow: boolean; multiCol: boolean; onOk: (result: FormatCellsResult) => void; onCancel: () => void }) {
   const [tab, setTab] = useState<FormatCellsTab>(initialTab);
   const drag = useDialogDrag();
@@ -68,19 +87,21 @@ export function FormatCellsDialog({ cell, merged, initialTab, initialBorders, mu
   const [borderLines, setBorderLines] = useState<BorderLines>(initialBorders);
   const [fill, setFill] = useState<string | null>(cell.fillColor ?? null);
 
+  // The dialog opens showing the active cell's formatting. As in Excel, OK applies only what was changed in the
+  // dialog: every other property of each selected cell stays as it was (a range with different colours, fonts or
+  // number formats keeps them when only, say, the alignment is set).
+  const [initialValues] = useState(() => ({ numberFormat, decimals, currency, dateKind, shrink, vertAlign, locked, hiddenFormula, horizontal, vertical, indent, wrap, rotate, font, style, size, underline, color, strike, fill }));
   const ok = () => {
-    const sizeNumber = Number(size);
+    const current = { numberFormat, decimals, currency, dateKind, shrink, vertAlign, locked, hiddenFormula, horizontal, vertical, indent, wrap, rotate, font, style, size, underline, color, strike, fill };
+    const full = buildPatch(current);
+    const before = buildPatch(initialValues);
+    // Properties that only mean something together are applied together.
+    const groups: (keyof SheetCell)[][] = [["numberFormat", "decimals", "currency"], ["bold", "italic"], ["underline", "underlineStyle"]];
+    const changed = new Set((Object.keys(full) as (keyof SheetCell)[]).filter((key) => JSON.stringify(full[key]) !== JSON.stringify(before[key])));
+    for (const group of groups) if (group.some((key) => changed.has(key))) group.forEach((key) => changed.add(key));
+    const patch = Object.fromEntries([...changed].map((key) => [key, full[key]])) as Partial<SheetCell>;
     onOk({
-      patch: {
-        numberFormat: numberFormat === "ShortDate" ? dateKind : numberFormat, decimals: ["General", "ShortDate", "Time", "Fraction", "Text"].includes(numberFormat) ? null : decimals,
-        currency: numberFormat === "Currency" || numberFormat === "Accounting" ? (currency === "₹" ? null : currency) : null,
-        shrink: shrink || null, vertAlign, locked: locked ? null : false, hiddenFormula: hiddenFormula || null,
-        align: horizontal === "general" ? null : (horizontal as SheetCell["align"]), vAlign: vertical === "bottom" ? null : (vertical as SheetCell["vAlign"]),
-        indent: indent || null, wrap: wrap || null, rotate: rotate || null,
-        fontFamily: font === "Calibri" ? null : font, bold: style.includes("Bold"), italic: style.includes("Italic"),
-        fontSize: Number.isFinite(sizeNumber) && sizeNumber >= 1 && sizeNumber <= 409 && sizeNumber !== 11 ? sizeNumber : null,
-        underline: underline !== "None", underlineStyle: underline === "None" || underline === "single" ? null : (underline as UnderlineStyle), fontColor: color, strike: strike || null, fillColor: fill,
-      },
+      patch,
       borderLines: Object.fromEntries(Object.entries(borderLines).filter(([edge, line]) => JSON.stringify(line) !== JSON.stringify(initialBorders[edge as keyof BorderLines]))), merge: merge === merged ? null : merge,
     });
   };

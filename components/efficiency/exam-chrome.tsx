@@ -22,6 +22,17 @@ export function useExamCountdown(remainingAtLoadSeconds: number, lead = 2) {
   return { remaining, expired: remaining <= lead };
 }
 
+// The countdown as its own small component: its ticks (twice a second) redraw only the clock, not the whole
+// workspace around it. A spreadsheet or document redrawn on every tick made typing and clicking lag on slower PCs.
+// onExpire runs once, when `expired` (above) turns true.
+export function ExamClock({ remainingSeconds, lead = 2, onExpire, className }: { remainingSeconds: number; lead?: number; onExpire?: () => void; className?: string }) {
+  const { remaining, expired } = useExamCountdown(remainingSeconds, lead);
+  const expireRef = useRef(onExpire);
+  useEffect(() => { expireRef.current = onExpire; });
+  useEffect(() => { if (expired) expireRef.current?.(); }, [expired]);
+  return <span aria-live="polite" className={className}>{formatClock(remaining)}</span>;
+}
+
 export function formatClock(seconds: number) {
   const hours = Math.floor(seconds / 3600), minutes = Math.floor((seconds % 3600) / 60), rest = seconds % 60;
   const mm = String(minutes).padStart(2, "0"), ss = String(rest).padStart(2, "0");

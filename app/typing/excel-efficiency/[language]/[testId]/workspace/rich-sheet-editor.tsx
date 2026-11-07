@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { columnIndex, columnLetters, FUNCTION_LIBRARY, type FunctionCategory } from "@/lib/excel-formula";
@@ -67,7 +67,9 @@ type SaveAction = (id: string, document: unknown) => Promise<{ ok: boolean; erro
 // mode "authoring": the admin solves the paper on the Model Answer page. The same sheet, but its autosave and its
 // button save the model answer (autosaveAction / submitAction), the button can be pressed again and again
 // (oneTimeSubmit false) and nothing is locked or sent to a results page.
-export function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar, mode = "attempt", autosaveAction, submitAction, submitLabel = "Submit", submitConfirmMessage = "Submit your final sheet? You cannot edit it afterward.", oneTimeSubmit = true, onReady, afterSubmit }: { afterSubmit?: () => void; attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode; mode?: "attempt" | "authoring"; autosaveAction?: SaveAction; submitAction?: SaveAction; submitLabel?: string; submitConfirmMessage?: string | null; oneTimeSubmit?: boolean; onReady?: (document: ExcelDocument) => void }) {
+// memo: the sheet redraws only when its own props change, not on every redraw of the page around it (the exam
+// clock ticks, the Live Exam page). Redrawing the whole grid is the slow part of this workspace.
+export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, original, initialDocument, locked, autoSubmit = false, questionBar, mode = "attempt", autosaveAction, submitAction, submitLabel = "Submit", submitConfirmMessage = "Submit your final sheet? You cannot edit it afterward.", oneTimeSubmit = true, onReady, afterSubmit }: { afterSubmit?: () => void; attemptId: string; original: ExcelDocument | ExcelDocumentV2; initialDocument?: ExcelDocument | ExcelDocumentV2 | null; locked: boolean; autoSubmit?: boolean; questionBar?: ReactNode; mode?: "attempt" | "authoring"; autosaveAction?: SaveAction; submitAction?: SaveAction; submitLabel?: string; submitConfirmMessage?: string | null; oneTimeSubmit?: boolean; onReady?: (document: ExcelDocument) => void }) {
   const router = useRouter();
   const start = useMemo(() => toExcelDocumentV3(initialDocument) ?? toExcelDocumentV3(original)!, []); // eslint-disable-line react-hooks/exhaustive-deps -- the starting sheet only
   // The saved sheet never has fewer rows/columns than the starting sheet.
@@ -88,7 +90,10 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
   const [clip, setClip] = useState<Clip | null>(null);
   const [headerDialog, setHeaderDialog] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [status, setStatus] = useState("Ready");
+  // The autosave line ("Saving…", "Saved") lives in its own little store: changing it redraws that text only, not the
+  // whole sheet (two full redraws on every autosave made the sheet lag).
+  const [statusStore] = useState(() => { const store = createTextStore(); store.set("Ready"); return store; });
+  const setStatus = statusStore.set;
   const [submitted, setSubmitted] = useState(locked);
   const [finalSubmitting, setFinalSubmitting] = useState(false);
   const [lastFont, setLastFont] = useState("FF0000"), [lastFill, setLastFill] = useState("FFFF00");
@@ -1146,7 +1151,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         <QuickButton label="Undo (Ctrl+Z)" onClick={undo} disabled={submitted}>↶</QuickButton>
         <QuickButton label="Redo (Ctrl+Y)" onClick={redo} disabled={submitted}>↷</QuickButton>
         <span className="flex-1 text-center text-[12px] text-slate-600">Book1 - Excel</span>
-        <span className="text-[11px] font-bold text-slate-500" aria-live="polite">{status}</span>
+        <span className="text-[11px] font-bold text-slate-500" aria-live="polite"><StoreText store={statusStore} /></span>
       </div>
       <div role="tablist" aria-label="Ribbon tabs" className="flex items-end gap-0.5 bg-white px-1">
         <span className="bg-[#217346] px-4 py-1 text-[12px] text-white">FILE</span>
@@ -1751,7 +1756,7 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
         {/* Submit / Save answer: a small button at the end of the status bar, as in the Word workspace. */}
         <span className="flex items-center gap-1.5 py-0.5 pl-1 pr-2">
           {staleDeploy && <button type="button" onClick={() => window.location.reload()} className="word-statusbar-button word-statusbar-refresh">Refresh page</button>}
-          <button type="button" disabled={submitted} title={`Autosave: ${status}`} onClick={() => { if (editing) commitEdit(); if (submitted) return; if (submitConfirmMessage === null) void submitNow(false); else setConfirmSubmitOpen(true); }} className="word-statusbar-button">{submitLabel}</button>
+          <button type="button" disabled={submitted} title="Your work is saved automatically" onClick={() => { if (editing) commitEdit(); if (submitted) return; if (submitConfirmMessage === null) void submitNow(false); else setConfirmSubmitOpen(true); }} className="word-statusbar-button">{submitLabel}</button>
         </span>
       </div>
       <ConfirmDialog open={confirmSubmitOpen} title="Submit your test?" message={submitConfirmMessage ?? ""} confirmLabel="Yes, submit" cancelLabel="Not yet" onCancel={() => setConfirmSubmitOpen(false)} onConfirm={() => { setConfirmSubmitOpen(false); void submitNow(false); }} />
@@ -1837,9 +1842,10 @@ export function RichSheetEditor({ attemptId, original, initialDocument, locked, 
       {headerDialog && <HeaderFooterDialog header={sheet.header} footer={sheet.footer} onCancel={() => setHeaderDialog(false)} onOk={(header, footer) => { setHeaderDialog(false); const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? ""))); change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header"); }} />}
     </div>
   );
-}
+});
 
 // The text being typed into a cell or the formula bar: a tiny store both inputs read, so typing does not redraw the sheet.
+function StoreText({ store }: { store: TextStore }) { return <>{useSyncExternalStore(store.subscribe, store.get, store.get)}</>; }
 type TextStore = { get: () => string; set: (value: string) => void; subscribe: (listener: () => void) => () => void };
 function createTextStore(): TextStore {
   let value = "";
