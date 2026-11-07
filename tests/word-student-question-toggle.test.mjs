@@ -18,7 +18,7 @@ test("Word admin form, save action, start page and workspace follow the hide/sho
   assert.match(instructions, /studentToggle=\{\(version as \{student_question_toggle\?:boolean\}\)\.student_question_toggle!==false\}/);
   const workspace = await read("../app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx");
   assert.match(workspace, /const canToggle=snapshot\.question_toggle!==false;const\[showQuestions,setShowQuestions\]=useState\(Boolean\(snapshot\.show_questions\)\|\|!canToggle\);/);
-  assert.match(workspace, /onToggle=\{canToggle\?\(\)=>setShowQuestions\(value=>!value\):undefined\}/);
+  assert.match(workspace, /onToggle=\{canToggle\?toggleQuestions:undefined\}/);
   const migration = await read("../supabase/migrations/202611071200_word_efficiency_student_question_toggle.sql");
   assert.match(migration, /add column if not exists student_question_toggle boolean not null default true/);
   assert.match(migration, /'show_questions',coalesce\(p_show_questions,false\) or not coalesce\(/);

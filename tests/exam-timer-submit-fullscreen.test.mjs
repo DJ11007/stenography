@@ -13,7 +13,9 @@ test("the exam clock is anchored to the server: time left is worked out on the s
  }
  for(const[dir,file]of[[WORD,"word-workspace.tsx"],[EXCEL,"excel-workspace.tsx"]]){
   const workspace=await read(dir+file);
-  assert.match(workspace,/useExamCountdown\(remainingSeconds\)/);
+  // The countdown ticks inside ExamClock, so its ticks redraw only the clock, not the whole workspace.
+  assert.match(workspace,/<ExamClock remainingSeconds=\{remainingSeconds\} onExpire=\{onExpire\}/);
+  assert.doesNotMatch(workspace,/useExamCountdown/);
   assert.doesNotMatch(workspace,/Date\.now\(\)/,"the workspace must not read the PC clock");
   assert.doesNotMatch(workspace,/startedAt/);
  }

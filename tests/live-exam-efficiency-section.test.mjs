@@ -20,10 +20,10 @@ test("a part's Word / Excel attempt is started only while the part is open, and 
 test("the Word and Excel screens in exam mode: no Exit, and submitting hands back to the exam", async () => {
   const word = await read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx");
   assert.match(word, /\{!liveExam&&<BackButton href=\{catalogueHref\} label="Exit"/);
-  assert.match(word, /afterSubmit=\{liveExam\?\.onSubmitted\}/);
+  assert.match(word, /afterSubmit=\{liveExam\?afterSubmit:undefined\}/);
   const excel = await read("app/typing/excel-efficiency/[language]/[testId]/workspace/excel-workspace.tsx");
   assert.match(excel, /\{!liveExam && <BackButton href=\{catalogueHref\} label="Exit"/);
-  assert.match(excel, /<RichSheetEditor afterSubmit=\{liveExam\?\.onSubmitted\}/);
+  assert.match(excel, /<RichSheetEditor afterSubmit=\{liveExam \? afterSubmit : undefined\}/);
   const docEditor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   assert.equal(docEditor.split("(afterSubmit?afterSubmit():router.push(`/typing/word-efficiency/results/${attemptId}`))").length - 1, 2);
   const sheetEditor = await read("app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor.tsx");

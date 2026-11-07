@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ConfirmDialog } from "@/components/efficiency/exam-chrome";
 import { selectionFullyUnderlined, stripUnderline } from "@/lib/word-editor-dom";
@@ -99,7 +99,7 @@ const ratioParts=(ratio:string)=>{const match=/^\s*([\d.]+)\s*\/\s*([\d.]+)\s*$/
 // prop defaults to the original hardcoded action/label/confirm/lock, so a
 // caller that omits them (every existing student workspace) behaves
 // byte-for-byte as before.
-export function RichDocumentEditor({attemptId,original,initialDocument,capabilities:rawCapabilities,locked,mode="attempt",autosaveAction,submitAction,submitLabel="Submit Final Document",submitConfirmMessage="Submit your final document? You cannot edit it afterward.",oneTimeSubmit=true,submitPortalId,autoSubmit=false,documentLanguage="English (U.S.)",snapshotRef,randomText,fullHeight=false,paragraphDefaults,onReady,onSaved,questionBar,hideSubmit=false,showUnavailableTools=false,afterSubmit}:{
+function RichDocumentEditorImpl({attemptId,original,initialDocument,capabilities:rawCapabilities,locked,mode="attempt",autosaveAction,submitAction,submitLabel="Submit Final Document",submitConfirmMessage="Submit your final document? You cannot edit it afterward.",oneTimeSubmit=true,submitPortalId,autoSubmit=false,documentLanguage="English (U.S.)",snapshotRef,randomText,fullHeight=false,paragraphDefaults,onReady,onSaved,questionBar,hideSubmit=false,showUnavailableTools=false,afterSubmit}:{
  // Shown between the ribbon and the page (the exam's current question).
  questionBar?:ReactNode;hideSubmit?:boolean;afterSubmit?:()=>void;attemptId:string;original:WorkingMatterSnapshot;initialDocument?:unknown;capabilities:unknown;locked:boolean;mode?:"attempt"|"authoring";autosaveAction?:typeof autosaveWordDocument;submitAction?:typeof submitWordDocument;submitLabel?:string;submitConfirmMessage?:string|null;oneTimeSubmit?:boolean;submitPortalId?:string;autoSubmit?:boolean;documentLanguage?:string;snapshotRef?:{current:(()=>unknown)|null};randomText?:{language:()=>"English"|"Hindi"};fullHeight?:boolean;paragraphDefaults?:{spaceAfter:number;lineHeight:number};onReady?:(snapshot:ReturnType<typeof toSnapshot>)=>void;onSaved?:(snapshot:ReturnType<typeof toSnapshot>)=>void;showUnavailableTools?:boolean}){
  const router=useRouter();
@@ -2119,3 +2119,6 @@ function approvedSize(value:string){const size=Math.round(Number.parseFloat(valu
 function shownSpacing(block:HTMLElement){const style=getComputedStyle(block);const size=Number.parseFloat(style.fontSize)||16;const height=Number.parseFloat(style.lineHeight);const line=Number.isFinite(height)&&height>0?String(Math.round(height/size*100)/100):"1.15";const after=Math.round((Number.parseFloat(style.marginBottom)||0)*0.75*10)/10;return{line,after}}
 function approvedColor(value:string){const hex=value.match(/^#([0-9a-f]{6})$/i)?.[1];if(hex)return hex.toUpperCase();const rgba=value.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);if(!rgba)return null;if(rgba[4]!==undefined&&Number(rgba[4])<=0)return null;return rgba.slice(1,4).map(part=>Number(part).toString(16).padStart(2,"0")).join("").toUpperCase()}function approvedCssColor(value:string){return approvedColor(value)}
 function escapeHtml(value:string){return value.replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]!))}function safeId(value:string){return value.replace(/[^a-z0-9_-]/gi,"").slice(0,50)}function bounded(value:string,min:number,max:number){const number=Number(value);return Number.isFinite(number)?Math.max(min,Math.min(max,number)):min}function changeCase(value:string){if(!value)return value;if(value===value.toUpperCase())return value.toLowerCase();if(value===value.toLowerCase())return value.replace(/\b\p{L}/gu,char=>char.toUpperCase());return value.toUpperCase()}function safeImageSource(value:string){return /^data:image\/(?:png|jpeg|webp|gif);base64,[a-z0-9+/=]+$/i.test(value)&&value.length<750000}
+
+// memo: the exam page around the editor redraws (clock, question bar) must not redraw the whole editor and ribbon.
+export const RichDocumentEditor = memo(RichDocumentEditorImpl);

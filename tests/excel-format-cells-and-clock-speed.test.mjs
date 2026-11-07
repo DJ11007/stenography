@@ -30,3 +30,13 @@ test("the clock, the Live Exam page and the autosave line do not redraw the shee
   assert.doesNotMatch(editor, /useState\("Ready"\)/);
   assert.match(read("components/efficiency/exam-chrome.tsx"), /export function ExamClock\(/);
 });
+
+// The Word page had the same clock: every tick redrew the whole document editor and its ribbon.
+test("the Word clock does not redraw the document editor", () => {
+  const word = read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx");
+  assert.match(word, /<ExamClock remainingSeconds=\{remainingSeconds\} onExpire=\{onExpire\}/);
+  assert.doesNotMatch(word, /useExamCountdown/);
+  assert.match(word, /const questionBar=useMemo\(/);
+  assert.match(word, /const afterSubmit=useCallback\(/);
+  assert.match(read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx"), /export const RichDocumentEditor = memo\(RichDocumentEditorImpl\);/);
+});
