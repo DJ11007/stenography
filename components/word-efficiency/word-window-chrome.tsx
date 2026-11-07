@@ -1,6 +1,8 @@
 "use client";
 import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
+export const ZOOM_MIN = 10, ZOOM_MAX = 500;
+
 // Microsoft Word 2013-style window chrome that wraps the exam editor: the title
 // bar with the Quick Access Toolbar, the horizontal/vertical rulers and the
 // status bar. These are presentational -- every value shown (indents, margins,
@@ -151,7 +153,12 @@ export function WordStatusBar({ page, pages, words, language, mode, onMode, zoom
     { id: "print", label: "Print Layout", icon: <svg {...iconProps}><rect x="3.5" y="2.5" width="9" height="11" fill="#fff" /><path d="M5.5 5.5h5M5.5 7.5h5M5.5 9.5h5" /></svg> },
     { id: "web", label: "Web Layout", icon: <svg {...iconProps}><circle cx="8" cy="8" r="5.5" /><path d="M2.5 8h11M8 2.5c-2 2.2-2 8.8 0 11M8 2.5c2 2.2 2 8.8 0 11" /></svg> },
   ];
-  const clamped = Math.min(200, Math.max(25, zoom));
+  // Word's zoom runs from 10% to 500% with 100% in the middle of the slider: the left half covers 10-100%, the
+  // right half 100-500%. The slider used to stop at 25% and 200%, so the smaller and larger zooms students use to
+  // check a whole page or a detail were out of reach.
+  const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+  const position = clamped <= 100 ? (clamped - ZOOM_MIN) / (100 - ZOOM_MIN) * 50 : 50 + (clamped - 100) / (ZOOM_MAX - 100) * 50;
+  const fromPosition = (value: number) => Math.round(value <= 50 ? ZOOM_MIN + value / 50 * (100 - ZOOM_MIN) : 100 + (value - 50) / 50 * (ZOOM_MAX - 100));
   return <footer className="word-statusbar" data-word-statusbar aria-label="Status bar">
     <div className="word-statusbar-left" aria-live="polite">
       <span>PAGE {page} OF {pages}</span>
@@ -163,9 +170,9 @@ export function WordStatusBar({ page, pages, words, language, mode, onMode, zoom
       <div className="word-view-buttons" role="group" aria-label="Document views">
         {modes.map(item => <button key={item.id} type="button" title={item.label} aria-label={item.label} aria-pressed={mode === item.id} onClick={() => onMode(item.id)}>{item.icon}</button>)}
       </div>
-      <button type="button" className="word-zoom-step" aria-label="Zoom out" title="Zoom out" onClick={() => onZoom(Math.max(25, Math.round((zoom - 10) / 5) * 5))}>−</button>
-      <input type="range" className="word-zoom-slider" aria-label="Zoom" min={25} max={200} step={5} value={clamped} onChange={event => onZoom(Number(event.target.value))} />
-      <button type="button" className="word-zoom-step" aria-label="Zoom in" title="Zoom in" onClick={() => onZoom(Math.min(200, Math.round((zoom + 10) / 5) * 5))}>+</button>
+      <button type="button" className="word-zoom-step" aria-label="Zoom out" title="Zoom out" onClick={() => onZoom(Math.max(ZOOM_MIN, Math.round((zoom - 10) / 10) * 10 || ZOOM_MIN))}>−</button>
+      <input type="range" className="word-zoom-slider" aria-label="Zoom" min={0} max={100} step={0.125} value={position} aria-valuetext={`${clamped}%`} onChange={event => onZoom(fromPosition(Number(event.target.value)))} />
+      <button type="button" className="word-zoom-step" aria-label="Zoom in" title="Zoom in" onClick={() => onZoom(Math.min(ZOOM_MAX, Math.round((zoom + 10) / 10) * 10))}>+</button>
       <button type="button" className="word-zoom-value" title="Zoom to 100%" onClick={() => onZoom(100)}>{zoom}%</button>
       {actions ? <span className="word-statusbar-actions">{actions}</span> : null}
     </div>
