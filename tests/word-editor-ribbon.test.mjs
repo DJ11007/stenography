@@ -296,7 +296,7 @@ test("zoom opens a real percentage dialog instead of doing nothing, and is track
 test("sort opens an Ascending/Descending dialog and only reorders the selected paragraphs, not the whole document unconditionally",async()=>{
   const editor=await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   const tools=await read("lib/word-editor-browser-tools.ts");
-  assert.match(editor,/if\(id==="sort"\)\{setDialog\(\{kind:"sort",value:"Ascending"\}\);return false\}/);
+  assert.match(editor,/if\(insideTable\)\{onTableTool\("sortDialog"\);return false\}setDialog\(\{kind:"sort",value:"Ascending"\}\);return false\}/);
   assert.match(editor,/dialog\.kind==="sort"&&<ChoiceForm label="Sort" options=\{\["Ascending","Descending"\]\}/);
   assert.match(editor,/const applySort=\(value:string\)=>\{setDialog\(null\);if\(!editor\.current\)return;sortSelectedBlocks\(editor\.current,selectedBlocks\(\),value==="Descending"\?"desc":"asc"\);changed\(\)\}/);
   assert.match(tools,/const targets=selected\.length>1\?selected:all/);

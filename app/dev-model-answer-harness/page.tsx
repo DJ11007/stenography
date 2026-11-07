@@ -34,6 +34,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     if (initial && version.startsWith("d5e201a5")) { for (const run of initial.blocks?.[1]?.runs ?? []) { run.color = "00B050"; run.highlight = run.text === "Guru" ? "FF00FF" : null; } (initial as { pageLayout?: Record<string, unknown> }).pageLayout!.border = "1.5px solid rgb(0, 0, 0) sides:bottom,right"; }
     return <Harness original={saved.working_matter_snapshot as never} initial={initial} capabilities={saved.editor_capabilities} questions={questions as never} />;
   }
+  // ?test=7n / 8n: the new Hindi Test 7 / Test 8 papers from tests/fixtures/hindi-word-tests-7-8.json.
+  if (which === "7n" || which === "8n") {
+    const spec = JSON.parse(await (await import("node:fs/promises")).readFile(`${process.cwd()}/tests/fixtures/hindi-word-tests-7-8.json`, "utf8")) as { tests: { matter: never; questions: { instruction: string }[] }[] };
+    const paper = spec.tests[which === "7n" ? 0 : 1];
+    const marks = Math.floor((25 / paper.questions.length) * 100) / 100;
+    const list = paper.questions.map((question, index) => ({ id: `q${index + 1}`, question_version_id: `q${index + 1}`, number: index + 1, display_order: index + 1, instruction: question.instruction, marks, section: null, is_visible: true }));
+    return <Harness original={paper.matter} capabilities={test4.editor_capabilities} questions={list as never} />;
+  }
   const data = which === "1" ? test1 : which === "2v2" ? test2v2 : which === "3" ? test3 : which === "4" ? test4 : test2;
   // ?file=<name>: a solved document from tests/fixtures opened on this test (no admin session needed).
   const looseFixture = file && /^[a-z0-9-]+$/.test(file) ? JSON.parse(await (await import("node:fs/promises")).readFile(`${process.cwd()}/tests/fixtures/word-efficiency-${file}.json`, "utf8")) : null;

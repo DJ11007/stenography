@@ -30,7 +30,7 @@ test("Ctrl+E / Ctrl+L / Ctrl+R / Ctrl+J align the paragraph, as in Word", async 
 test("Undo / Redo restore whole document states (the browser's own undo scrambled paragraphs after list, border or page-setup changes)", async () => {
   const editor = await read(EDITOR);
   assert.match(editor, /undo:\(\)=>stepHistory\(-1\),redo:\(\)=>stepHistory\(1\)/);
-  assert.match(editor, /const changed=\(\)=>\{if\(submitted\)return;paginationDirty\.current=true;applyParagraphDefaults\(\);if\(!historyTimer\.current\)historyTimer\.current=setTimeout\(recordHistory,0\);/);
+  assert.match(editor, /const changed=\(\)=>\{if\(submitted\)return;paginationDirty\.current=true;if\(editor\.current\)ensureTrailingParagraph\(editor\.current\);applyParagraphDefaults\(\);if\(!historyTimer\.current\)historyTimer\.current=setTimeout\(recordHistory,0\);/);
   // after an undo the next ribbon command must act where the cursor now is, not on the replaced content
   assert.match(editor, /restoreState\(page,log\.states\[target\],caret\);\{const restored=getSelection\(\);savedRange\.current=/);
 });
