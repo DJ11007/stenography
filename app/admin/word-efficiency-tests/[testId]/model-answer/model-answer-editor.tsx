@@ -159,7 +159,9 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     const cleanDocument = stripBlankParagraphs(document);
     // Rules point at paragraphs by position, so solving a question must never add, delete, split or merge
     // paragraphs. Refuse the save (before anything is stored) and say exactly what changed.
-    if (activeNumber !== null) {
+    // A question marked by hand-written checks (which find paragraphs by kind and place, not by saved position) may add
+    // blocks: "insert a page break / a table" questions must.
+    if (activeNumber !== null && !active?.keptRules.length) {
       const expected = countParagraphs(checkpoints[activeNumber] ?? latestDocument ?? cleanDocument);
       const actual = countParagraphs(cleanDocument);
       if (expected !== null && actual !== expected) {
