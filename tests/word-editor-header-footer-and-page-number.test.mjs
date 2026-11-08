@@ -75,7 +75,9 @@ test("Page Number gains a real Style gallery (Plain Number / Page X / Accent Bar
   assert.match(editor, /const PAGE_NUMBER_STYLES:\{id:string;label:string\}\[\]=\[\{id:"plain",label:"Plain Number"\},\{id:"pageX",label:"Page X"\},\{id:"accentBar",label:"Accent Bar"\}\];/);
   assert.match(editor, /Number format/);
   assert.match(editor, /Start at/);
-  assert.match(editor, /data-field="page-number\|\$\{position\}\|\$\{alignment\}"/);
+  // Current Position takes its side from the tabs before the cursor (left / center / right).
+  assert.match(editor, /data-field="page-number\|\$\{position\}\|\$\{side\}"/);
+  assert.match(editor, /const side=position==="current"\?tabAlignmentAtCaret\(alignment\):alignment;/);
 });
 
 test("Remove Page Numbers deletes every page-number field in the document", async () => {
