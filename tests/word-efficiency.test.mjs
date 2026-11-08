@@ -74,9 +74,9 @@ test("the admin Word Efficiency page wraps both the Managed tests list and the A
  assert.match(page,/import \{ SearchableList \} from "\.\/searchable-list";/);
  assert.match(page,/import \{ TestNavigator \} from "\.\/test-navigator";/);
  assert.match(page,/\{editing && <TestNavigator tests=\{\[\.\.\.\(tests \?\? \[\]\)\]\.sort\(\(a, b\) => a\.title\.localeCompare\(b\.title\)\)\.map\(\(test\) => \(\{ id: test\.id, title: test\.title \}\)\)\} currentId=\{editing\.id\} \/>\}/);
- assert.match(page,/<SearchableList placeholder={`Search \${language} tests`} emptyLabel={`No \${language} Word Efficiency tests yet\.`}/);
+ assert.match(page,/<SearchableList onReorder={saveWordTestOrder} placeholder={`Search \${language} tests`} emptyLabel={`No \${language} Word Efficiency tests yet\.`}/);
  assert.match(page,/<SearchableList placeholder="Search attempts by number or status" emptyLabel="No attempts for this test\." maxHeightClassName="max-h-\[420px\]"/);
- assert.match(searchableList,/const filtered = q \? items\.filter\(\(item\) => item\.searchText\.toLowerCase\(\)\.includes\(q\)\) : items;/);
+ assert.match(searchableList,/const filtered = q \? ordered\.filter\(\(item\) => item\.searchText\.toLowerCase\(\)\.includes\(q\)\) : ordered;/);
  assert.match(searchableList,/overflow-y-auto/);
  assert.match(navigator,/router\.push\(`\?edit=\$\{tests\[nextIndex\]\.id\}`\)/);
 });

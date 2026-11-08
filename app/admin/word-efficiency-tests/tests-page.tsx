@@ -24,6 +24,8 @@ import { SaveLocalDraftButton } from "./draft-preserver";
 import{PermanentDeleteDangerZone}from"./permanent-delete-danger-zone";
 import { formatIST } from "@/lib/format-datetime";
 import { SearchableList } from "./searchable-list";
+import { inTitleSequence, missingSequenceColumn } from "@/lib/efficiency-order";
+import { saveWordTestOrder } from "../efficiency-order-actions";
 import { TestNavigator } from "./test-navigator";
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
 
@@ -40,12 +42,9 @@ export async function WordEfficiencyTestsPage({
   await requireAdmin();
   const params = await searchParams;
   const supabase = await createClient();
-  const { data: tests, error } = await supabase
-    .from("word_efficiency_tests")
-    .select(
-      "id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at",
-    )
-    .order("updated_at", { ascending: false });
+  // `sequence` (the order the admin dragged the tests into) needs migration 202611081000; without it, the list still loads.
+  let { data: tests, error } = await supabase.from("word_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,sequence").order("updated_at", { ascending: false });
+  if (missingSequenceColumn(error)) ({ data: tests, error } = await supabase.from("word_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at").order("updated_at", { ascending: false }) as unknown as { data: typeof tests; error: typeof error });
   const { data: versions } = await supabase.from("word_efficiency_versions").select("*");
   const { data: attempts } = await supabase
     .from("word_efficiency_attempts")
@@ -277,14 +276,14 @@ export async function WordEfficiencyTestsPage({
               // Archive, Permanently Delete).
               <div className="mt-4 grid gap-5 xl:grid-cols-2">
                 {(["English", "Hindi"] as const).map((language) => {
-                  const languageTests = (tests ?? []).filter((test) => (test.language === "Hindi" ? "Hindi" : "English") === language);
+                  const languageTests = inTitleSequence((tests ?? []).filter((test) => (test.language === "Hindi" ? "Hindi" : "English") === language));
                   return (
                     <section key={language} data-test-language={language} className={`rounded-2xl border-t-4 bg-white/60 p-4 shadow-sm ${language === "Hindi" ? "border-orange-500" : "border-blue-600"}`}>
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <h3 className="text-lg font-black">{language} Efficiency Tests</h3>
                         <span className={`rounded-full px-3 py-1 text-xs font-black ${language === "Hindi" ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"}`}>{languageTests.length}</span>
                       </div>
-                      <SearchableList placeholder={`Search ${language} tests`} emptyLabel={`No ${language} Word Efficiency tests yet.`} maxHeightClassName="max-h-[460px]" items={languageTests.map((test) => {
+                      <SearchableList onReorder={saveWordTestOrder} placeholder={`Search ${language} tests`} emptyLabel={`No ${language} Word Efficiency tests yet.`} maxHeightClassName="max-h-[460px]" items={languageTests.map((test) => {
                   const version = map.get(test.current_version_id);
                   const count = (attempts ?? []).filter(
                     (attempt) => attempt.test_id === test.id,
