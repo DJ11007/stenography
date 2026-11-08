@@ -1,6 +1,6 @@
 // Pure helpers behind the Excel Efficiency workspace: cell references and ranges, merged cells, inserting
 // and deleting rows/columns, formula values, borders and the used part of a sheet.
-import { columnIndex, columnLetters, computedCellValue, serialToDate, type SheetCells } from "./excel-formula.ts";
+import { columnIndex, columnLetters, computedCellValue, serialToDate, type FormulaCache, type SheetCells } from "./excel-formula.ts";
 import type { ConditionalFormat, ConditionalStyle, SheetCell, SheetSettings } from "./excel-document.ts";
 
 export type Rect = { r1: number; c1: number; r2: number; c2: number };
@@ -96,9 +96,10 @@ export function recomputeFormulas(cells: Record<string, SheetCell>, names?: Reco
   const plain: SheetCells = Object.fromEntries(Object.entries(cells).map(([ref, cell]) => [ref, { value: cell.value, formula: cell.formula }]));
   let changed = false;
   const next: Record<string, SheetCell> = {};
+  const cache: FormulaCache = new Map();
   for (const [ref, cell] of Object.entries(cells)) {
     if (!cell.formula) { next[ref] = cell; continue; }
-    const value = computedCellValue(ref, plain, names);
+    const value = computedCellValue(ref, plain, names, cache);
     const stored = typeof value === "string" ? value.slice(0, 1000) : value;
     if (stored !== cell.value) changed = true;
     next[ref] = { ...cell, value: stored };

@@ -378,7 +378,18 @@ function evaluateTokens(tokens: string[], resolve: (ref: string) => Scalar, name
   return result;
 }
 
-export function evaluateFormula(formula: string, cells: SheetCells, depth = 0, names?: Record<string, string>): number | string {
+/** Values already worked out in one recalculation, so a cell many formulas read (RANK over 200 totals) is worked out once.
+ *  Error values are never kept: one can come from the depth limit, which depends on where the evaluation started. */
+export type FormulaCache = Map<string, number | string>;
+const cachedFormulaValue = (ref: string, formula: string, cells: SheetCells, depth: number, names: Record<string, string> | undefined, cache: FormulaCache | undefined) => {
+  const hit = cache?.get(ref);
+  if (hit !== undefined) return hit;
+  const value = evaluateFormula(formula, cells, depth, names, cache);
+  if (cache && !(typeof value === "string" && ERROR_TEXT.test(value))) cache.set(ref, value);
+  return value;
+};
+
+export function evaluateFormula(formula: string, cells: SheetCells, depth = 0, names?: Record<string, string>, cache?: FormulaCache): number | string {
   if (depth > 20) return "#REF!";
   if (!formula.startsWith("=")) return formula;
   // Excel accepts lower-case references and functions (=sum(i3:i4)) and absolute references ($I$3).
@@ -386,7 +397,7 @@ export function evaluateFormula(formula: string, cells: SheetCells, depth = 0, n
   const resolve = (ref: string): Scalar => {
     const cell = cells[ref];
     if (!cell) return null;
-    const value = cell.formula ? evaluateFormula(cell.formula, cells, depth + 1, names) : cell.value;
+    const value = cell.formula ? cachedFormulaValue(ref, cell.formula, cells, depth + 1, names, cache) : cell.value;
     if (typeof value === "string" && ERROR_TEXT.test(value)) fail(value);
     if (value === "TRUE" && cell.formula) return true;
     if (value === "FALSE" && cell.formula) return false;
@@ -403,9 +414,9 @@ export function evaluateFormula(formula: string, cells: SheetCells, depth = 0, n
   }
 }
 
-export function computedCellValue(ref: string, cells: SheetCells, names?: Record<string, string>): number | string | null {
+export function computedCellValue(ref: string, cells: SheetCells, names?: Record<string, string>, cache?: FormulaCache): number | string | null {
   const cell = cells[ref];
   if (!cell) return null;
-  if (cell.formula) return evaluateFormula(cell.formula, cells, 0, names);
+  if (cell.formula) return cachedFormulaValue(ref, cell.formula, cells, 0, names, cache);
   return cell.value;
 }
