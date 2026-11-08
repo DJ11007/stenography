@@ -48,7 +48,7 @@ test("the designer applies Word's default paragraph spacing in the editor itself
 test("the admin test list keeps English and Hindi tests in separate sections of compact rows, with details and delete behind ▾ More", async () => {
   const page = (await readFile(new URL("../app/admin/word-efficiency-tests/tests-page.tsx", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   assert.match(page, /\{\(\["English", "Hindi"\] as const\)\.map\(\(language\) => \{/);
-  assert.match(page, /const languageTests = \(tests \?\? \[\]\)\.filter\(\(test\) => \(test\.language === "Hindi" \? "Hindi" : "English"\) === language\);/);
+  assert.match(page, /const languageTests = inTitleSequence\(\(tests \?\? \[\]\)\.filter\(\(test\) => \(test\.language === "Hindi" \? "Hindi" : "English"\) === language\)\);/);
   assert.match(page, /<details className="group mt-2">/);
   const details = page.slice(page.indexOf('<details className="group mt-2">'), page.indexOf("</details>"));
   for (const part of ["Model Answer", "duplicateWordEfficiencyTest", 'label="Archive"', "<PermanentDeleteDangerZone"]) assert.ok(details.includes(part), `${part} is inside ▾ More`);

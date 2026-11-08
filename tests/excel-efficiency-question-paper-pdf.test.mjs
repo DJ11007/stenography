@@ -50,7 +50,7 @@ test("the Excel admin list is the Word page's Managed tests: English and Hindi a
   assert.match(page, /href="\/admin\/excel-efficiency-tests\?new=1&language=English"[^>]*>\+ Create English Test</);
   assert.match(page, /href="\/admin\/excel-efficiency-tests\?new=1&language=Hindi"[^>]*>\+ Create Hindi Test</);
   assert.match(page, /\(\["English", "Hindi"\] as const\)\.map\(\(language\) =>/);
-  assert.match(page, /<SearchableList placeholder=\{`Search \$\{language\} tests`\}/);
+  assert.match(page, /<SearchableList onReorder=\{saveExcelTestOrder\} placeholder=\{`Search \$\{language\} tests`\}/);
   assert.match(page, /<span className="transition-transform group-open:rotate-180" aria-hidden>▾<\/span> More/);
   assert.match(page, /defaultValue=\{current\?\.language \?\? newLanguage\}/);
 });

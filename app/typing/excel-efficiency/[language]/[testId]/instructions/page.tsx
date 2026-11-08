@@ -5,6 +5,8 @@ import { SafeInstructions } from "../../../../word-efficiency/_components/safe-i
 import { formatExcelDuration, type ExcelLanguage } from "@/lib/excel-efficiency";
 import { getPublishedExcelTest } from "@/lib/excel-efficiency-server";
 import { StudentTestLaunch } from "./student-test-launch";
+import { QuestionPaperDownload } from "@/components/efficiency/question-paper-download";
+import { questionPaperReady } from "@/lib/question-paper";
 
 export const metadata: Metadata = { title: "Excel Efficiency Instructions", description: "Review Excel Efficiency test instructions before starting." };
 
@@ -20,6 +22,8 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
   // section the same test is practice, any time, with the duration choice.
   const live = Boolean(test.is_live) && query.live === "1";
   const hasPdf = Boolean(version.delivery_pdf && version.pdf_path);
+  // The printable question paper (admin turns it on per test); not offered for the live attempt.
+  const paperReady = !live && await questionPaperReady("excel", test.id);
   // Set by the admin (migration 202610252100): on-screen questions, and whether the student may hide/show them.
   const onscreen = version.delivery_onscreen !== false || !hasPdf;
   const studentToggle = onscreen && version.student_question_toggle !== false;
@@ -41,6 +45,7 @@ export default async function ExcelInstructionsPage({ params, searchParams }: { 
           </header>
           <div className="grid gap-7 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_360px]">
             <section>
+              {paperReady && <QuestionPaperDownload href={`/typing/excel-efficiency/${route.language}/${test.id}/paper`} hindi={language === "Hindi"} />}
               <h2 className="text-xl font-black">Test instructions</h2>
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5" lang={language === "Hindi" ? "hi" : "en"}>
                 <SafeInstructions markdown={version.instructions_markdown} />

@@ -15,6 +15,7 @@ import { formatIST } from "@/lib/format-datetime";
 import { SearchableList } from "../word-efficiency-tests/searchable-list";
 import { inTitleSequence, missingSequenceColumn } from "@/lib/efficiency-order";
 import { saveExcelTestOrder } from "../efficiency-order-actions";
+import { QuestionPaperToggle } from "../question-paper-toggle";
 
 export const metadata: Metadata = { title: "Excel Efficiency Tests | Admin" };
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
@@ -26,6 +27,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
   // `sequence` (the order the admin dragged the tests into) needs migration 202611081000; without it, the list still loads.
   let { data: tests, error } = await supabase.from("excel_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,sequence").order("updated_at", { ascending: false });
   if (missingSequenceColumn(error)) ({ data: tests, error } = await supabase.from("excel_efficiency_tests").select("id,slug,title,language,status,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at").order("updated_at", { ascending: false }) as unknown as { data: typeof tests; error: typeof error });
+  // Which tests students can download the question paper of (no column before migration 202611081300: none).
+  const { data: paperRows } = await supabase.from("excel_efficiency_tests").select("id,question_paper_ready");
+  const paperReady = new Set((paperRows ?? []).filter((row) => row.question_paper_ready === true).map((row) => row.id as string));
   const { data: versions } = await supabase.from("excel_efficiency_versions").select("*");
   const { data: attempts } = await supabase.from("excel_efficiency_attempts").select("id,test_id,status,result,prepared_at,submitted_at,student_id");
   const map = new Map((versions ?? []).map((version) => [version.id, version as ExcelVersion]));
@@ -160,6 +164,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
                                 <Link href={`?edit=${test.id}#attempts`} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-xs font-bold text-violet-800">Attempts</Link>
                                 <Link href={`/admin/excel-efficiency-tests/${test.id}/auto-grading`} className="rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-bold text-green-800">Auto-grading</Link>
                               </div>
+                              <QuestionPaperToggle subject="excel" testId={test.id} language={test.language === "Hindi" ? "Hindi" : "English"} ready={paperReady.has(test.id)} />
                             </div>
                             <details className="group mt-2">
                               <summary aria-label={`More for ${test.title}: details, delete and other actions`} title="More: details, delete and other actions" className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
