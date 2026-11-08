@@ -6,7 +6,7 @@ export type SheetCell = { value: string | number | null; formula: string | null;
 // merges: merged ranges of the uploaded sheet ("A1:G1"), so the starting sheet looks as it does in Excel.
 export type WorkingSheetSnapshot = { schemaVersion: 1; language: "English" | "Hindi"; rows: number; cols: number; cells: Record<string, SheetCell>; merges?: string[]; source?: { fileName: string; sizeBytes: number; bucket?: string; storagePath?: string } };
 
-const MAX_XLSX_BYTES = 10 * 1024 * 1024, MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024, MAX_ROWS = 200, MAX_COLS = 26;
+const MAX_XLSX_BYTES = 10 * 1024 * 1024, MAX_UNCOMPRESSED_BYTES = 40 * 1024 * 1024, MAX_ROWS = 300, MAX_COLS = 26;
 // trimValues defaults to true in fast-xml-parser, which strips leading/
 // trailing space off every text node -- including a rich-text run inside a
 // shared string (si/r/t), the same word-glue corruption fixed in

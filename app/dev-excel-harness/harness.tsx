@@ -3,7 +3,7 @@ import { ExcelWorkspace } from "../typing/excel-efficiency/[language]/[testId]/w
 import type { ExcelDocument } from "@/lib/excel-document";
 
 // EXCEL EFFICIENCY TEST 1's 10 questions (version d12f2b8b), copied here for the dev-only preview.
-const questions = [
+const test1Questions = [
   "Apply following formatting to range A27:L27. (a) Merge and Center (b) Font color-red (c) Font Size 14pt",
   "Apply following formatting to range A28:L31. (a) Merge across (b) font red (c) Font size 14",
   "Merge the cells and Middle align for the following ranges (a) A1:G1 (b) A6:G6 (c) A9:G9",
@@ -16,7 +16,8 @@ const questions = [
   "Remove the Headings of column and Row.",
 ].map((instruction, index) => ({ id: `q${index}`, number: index + 1, display_order: index + 1, instruction, marks: 2.5, section: null, is_visible: true }));
 
-export function ExcelHarness({ original }: { original: ExcelDocument }) {
-  const snapshot = { title: "EFFICIENCY TEST 1", language: "English", instructions_markdown: "", duration_seconds: 600, question_count: 10, maximum_marks: 25, questions, show_questions: true, delivery_onscreen: true, question_toggle: true };
-  return <ExcelWorkspace attemptId="00000000-0000-0000-0000-000000000000" snapshot={snapshot} status="in_progress" remainingSeconds={600} original={original} />;
+type HarnessQuestion = (typeof test1Questions)[number];
+export function ExcelHarness({ original, title = "EFFICIENCY TEST 1", questions = test1Questions }: { original: ExcelDocument; title?: string; questions?: HarnessQuestion[] }) {
+  const snapshot = { title, language: "English", instructions_markdown: "", duration_seconds: 3600, question_count: questions.length, maximum_marks: 25, questions, show_questions: true, delivery_onscreen: true, question_toggle: true };
+  return <ExcelWorkspace attemptId="00000000-0000-0000-0000-000000000000" snapshot={snapshot} status="in_progress" remainingSeconds={3600} original={original} />;
 }

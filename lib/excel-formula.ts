@@ -17,6 +17,7 @@ export const FUNCTION_LIBRARY: FunctionInfo[] = [
   { name: "FALSE", category: "Logical", syntax: "FALSE()", description: "Returns the logical value FALSE." },
   { name: "IF", category: "Logical", syntax: "IF(logical_test,[value_if_true],[value_if_false])", description: "Checks whether a condition is met, and returns one value if TRUE, and another value if FALSE." },
   { name: "IFERROR", category: "Logical", syntax: "IFERROR(value,value_if_error)", description: "Returns value_if_error if expression is an error and the value of the expression itself otherwise." },
+  { name: "IFS", category: "Logical", syntax: "IFS(logical_test1,value_if_true1,[logical_test2,value_if_true2],...)", description: "Checks whether one or more conditions are met and returns a value that corresponds to the first TRUE condition (Excel 2019 and later; in Excel 2013 use nested IF)." },
   { name: "NOT", category: "Logical", syntax: "NOT(logical)", description: "Changes FALSE to TRUE, or TRUE to FALSE." },
   { name: "OR", category: "Logical", syntax: "OR(logical1,[logical2],...)", description: "Checks whether any of the arguments are TRUE, and returns TRUE or FALSE. Returns FALSE only if all arguments are FALSE." },
   { name: "TRUE", category: "Logical", syntax: "TRUE()", description: "Returns the logical value TRUE." },
@@ -57,14 +58,17 @@ export const FUNCTION_LIBRARY: FunctionInfo[] = [
   { name: "SQRT", category: "Math & Trig", syntax: "SQRT(number)", description: "Returns the square root of a number." },
   { name: "SUM", category: "Math & Trig", syntax: "SUM(number1,[number2],...)", description: "Adds all the numbers in a range of cells." },
   { name: "SUMIF", category: "Math & Trig", syntax: "SUMIF(range,criteria,[sum_range])", description: "Adds the cells specified by a given condition or criteria." },
+  { name: "SUMIFS", category: "Math & Trig", syntax: "SUMIFS(sum_range,criteria_range1,criteria1,[criteria_range2,criteria2],...)", description: "Adds the cells specified by a given set of conditions or criteria." },
   { name: "SUMPRODUCT", category: "Math & Trig", syntax: "SUMPRODUCT(array1,[array2],...)", description: "Returns the sum of the products of corresponding ranges or arrays." },
   { name: "TRUNC", category: "Math & Trig", syntax: "TRUNC(number,[num_digits])", description: "Truncates a number to an integer by removing the decimal, or fractional, part of the number." },
   { name: "AVERAGE", category: "Statistical", syntax: "AVERAGE(number1,[number2],...)", description: "Returns the average (arithmetic mean) of its arguments, which can be numbers or names, arrays, or references that contain numbers." },
   { name: "AVERAGEIF", category: "Statistical", syntax: "AVERAGEIF(range,criteria,[average_range])", description: "Finds average (arithmetic mean) for the cells specified by a given condition or criteria." },
+  { name: "AVERAGEIFS", category: "Statistical", syntax: "AVERAGEIFS(average_range,criteria_range1,criteria1,[criteria_range2,criteria2],...)", description: "Finds average (arithmetic mean) for the cells specified by a given set of conditions or criteria." },
   { name: "COUNT", category: "Statistical", syntax: "COUNT(value1,[value2],...)", description: "Counts the number of cells in a range that contain numbers." },
   { name: "COUNTA", category: "Statistical", syntax: "COUNTA(value1,[value2],...)", description: "Counts the number of cells in a range that are not empty." },
   { name: "COUNTBLANK", category: "Statistical", syntax: "COUNTBLANK(range)", description: "Counts the number of empty cells in a specified range of cells." },
   { name: "COUNTIF", category: "Statistical", syntax: "COUNTIF(range,criteria)", description: "Counts the number of cells within a range that meet the given condition." },
+  { name: "COUNTIFS", category: "Statistical", syntax: "COUNTIFS(criteria_range1,criteria1,[criteria_range2,criteria2],...)", description: "Counts the number of cells specified by a given set of conditions or criteria." },
   { name: "LARGE", category: "Statistical", syntax: "LARGE(array,k)", description: "Returns the k-th largest value in a data set. For example, the fifth largest number." },
   { name: "MAX", category: "Statistical", syntax: "MAX(number1,[number2],...)", description: "Returns the largest value in a set of values. Ignores logical values and text." },
   { name: "MEDIAN", category: "Statistical", syntax: "MEDIAN(number1,[number2],...)", description: "Returns the median, or the number in the middle of the set of given numbers." },
@@ -170,6 +174,17 @@ function callFunction(name: string, args: Value[]): Value {
   const n = (i: number, fallback?: number) => (args[i] === undefined ? (fallback ?? fail("#VALUE!")) : toNumber(args[i]));
   const t = (i: number) => (args[i] === undefined ? "" : toText(args[i]));
   const range = (i: number): Range => { const value = args[i]; return isRange(value) ? value : { kind: "range", rows: [[scalar(value ?? null)]] }; };
+  // COUNTIFS/SUMIFS/AVERAGEIFS: which positions meet every (criteria_range, criteria) pair from argument "from" on.
+  const matchingRows = (from: number, length: number): boolean[] => {
+    if (args.length <= from || (args.length - from) % 2) fail("#VALUE!");
+    const keep = Array.from({ length }, () => true);
+    for (let i = from; i < args.length; i += 2) {
+      const keys = range(i).rows.flat(), test = criteriaTest(args[i + 1] ?? null);
+      if (keys.length !== length) fail("#VALUE!");
+      keys.forEach((key, at) => { if (!test(key)) keep[at] = false; });
+    }
+    return keep;
+  };
   switch (name) {
     // Math & Trig
     case "SUM": return numbersOf(args).reduce((a, b) => a + b, 0);
@@ -184,12 +199,15 @@ function callFunction(name: string, args: Value[]): Value {
     case "MOD": { const d = n(1); if (d === 0) fail("#DIV/0!"); const x = n(0); return x - d * Math.floor(x / d); }
     case "PI": return Math.PI;
     case "SUMIF": { const test = criteriaTest(args[1] ?? null), keys = range(0).rows.flat(), sums = args[2] !== undefined ? range(2).rows.flat() : keys; return keys.reduce<number>((total, key, i) => total + (test(key) && typeof sums[i] === "number" ? (sums[i] as number) : 0), 0); }
+    case "SUMIFS": { const values = range(0).rows.flat(), keep = matchingRows(1, values.length); return values.reduce<number>((total, value, i) => total + (keep[i] && typeof value === "number" ? value : 0), 0); }
     case "SUMPRODUCT": { const lists = args.map((_, i) => range(i).rows.flat()); const length = lists[0]?.length ?? 0; if (lists.some((list) => list.length !== length)) fail("#VALUE!"); let total = 0; for (let i = 0; i < length; i++) total += lists.reduce((p, list) => p * (typeof list[i] === "number" ? (list[i] as number) : 0), 1); return total; }
     // Statistical
     case "AVERAGE": { const values = numbersOf(args); return values.length ? values.reduce((a, b) => a + b, 0) / values.length : fail("#DIV/0!"); }
     case "AVERAGEIF": { const test = criteriaTest(args[1] ?? null), keys = range(0).rows.flat(), values = args[2] !== undefined ? range(2).rows.flat() : keys; const picked = keys.flatMap((key, i) => (test(key) && typeof values[i] === "number" ? [values[i] as number] : [])); return picked.length ? picked.reduce((a, b) => a + b, 0) / picked.length : fail("#DIV/0!"); }
     case "COUNT": return args.flatMap(cellsOf).filter((v) => typeof v === "number").length;
     case "COUNTA": return args.flatMap(cellsOf).filter((v) => v !== null && v !== "").length;
+    case "COUNTIFS": { const length = range(0).rows.flat().length; return matchingRows(0, length).filter(Boolean).length; }
+    case "AVERAGEIFS": { const values = range(0).rows.flat(), keep = matchingRows(1, values.length); const picked = values.filter((value, i): value is number => keep[i] && typeof value === "number"); return picked.length ? picked.reduce((a, b) => a + b, 0) / picked.length : fail("#DIV/0!"); }
     case "COUNTBLANK": return range(0).rows.flat().filter((v) => v === null || v === "").length;
     case "COUNTIF": { const test = criteriaTest(args[1] ?? null); return range(0).rows.flat().filter((v) => test(v)).length; }
     case "MAX": { const values = numbersOf(args); return values.length ? Math.max(...values) : 0; }
@@ -199,6 +217,7 @@ function callFunction(name: string, args: Value[]): Value {
     case "RANK": { const value = n(0), list = numbersOf([args[1] ?? null]); if (!list.includes(value)) fail("#N/A"); const ascending = args[2] !== undefined && n(2) !== 0; return 1 + list.filter((v) => (ascending ? v < value : v > value)).length; }
     // Logical
     case "IF": return toBool(args[0] ?? false) ? (args[1] === undefined ? true : scalar(args[1])) : (args[2] === undefined ? false : scalar(args[2]));
+    case "IFS": { if (args.length < 2 || args.length % 2) fail("#N/A"); for (let i = 0; i < args.length; i += 2) if (toBool(args[i])) return scalar(args[i + 1]); return fail("#N/A"); }
     case "AND": return args.flatMap(cellsOf).filter((v) => v !== null).every((v) => toBool(v));
     case "OR": return args.flatMap(cellsOf).filter((v) => v !== null).some((v) => toBool(v));
     case "NOT": return !toBool(args[0] ?? false);

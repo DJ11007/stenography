@@ -4,7 +4,7 @@ import { columnIndex, columnLetters, computedCellValue, serialToDate, type Sheet
 import type { ConditionalFormat, ConditionalStyle, SheetCell, SheetSettings } from "./excel-document.ts";
 
 export type Rect = { r1: number; c1: number; r2: number; c2: number };
-export const MAX_ROWS = 200, MAX_COLS = 26;
+export const MAX_ROWS = 300, MAX_COLS = 26;
 export const DEFAULT_FONT = "Calibri", DEFAULT_FONT_SIZE = 11;
 export const EMPTY_CELL: SheetCell = { value: null, formula: null, bold: false, italic: false, underline: false, fontColor: null, fillColor: null, border: null, numberFormat: "General", align: null };
 export const STYLE_KEYS = ["bold", "italic", "underline", "fontColor", "fillColor", "border", "numberFormat", "align", "fontSize", "fontFamily", "vAlign", "wrap", "rotate", "indent", "strike", "decimals", "underlineStyle", "vertAlign", "shrink", "currency", "locked", "hiddenFormula"] as const;

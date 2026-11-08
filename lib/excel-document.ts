@@ -147,7 +147,7 @@ function validateSheet(sheet: unknown) {
   if ("name" in sheet && (typeof sheet.name !== "string" || sheet.name.length < 1 || sheet.name.length > 31 || /[[\]:*?/\\]/.test(sheet.name))) throw new Error("Invalid sheet name.");
   if (sheet.freeze != null && (typeof sheet.freeze !== "string" || !CELL_REF.test(sheet.freeze))) throw new Error("Invalid freeze panes.");
   if (sheet.filter != null && (typeof sheet.filter !== "string" || !RANGE.test(sheet.filter))) throw new Error("Invalid filter range.");
-  if ("filterHidden" in sheet && (!object(sheet.filterHidden) || Object.entries(sheet.filterHidden).some(([col, values]) => !/^[A-Z]{1,2}$/.test(col) || !Array.isArray(values) || values.length > 200))) throw new Error("Invalid filter.");
+  if ("filterHidden" in sheet && (!object(sheet.filterHidden) || Object.entries(sheet.filterHidden).some(([col, values]) => !/^[A-Z]{1,2}$/.test(col) || !Array.isArray(values) || values.length > 300))) throw new Error("Invalid filter.");
   if ("protected" in sheet && typeof sheet.protected !== "boolean") throw new Error("Invalid sheet protection.");
   if (sheet.printTitleRows != null && (typeof sheet.printTitleRows !== "string" || !/^\$?[0-9]{1,3}:\$?[0-9]{1,3}$/.test(sheet.printTitleRows))) throw new Error("Invalid print titles.");
   if (sheet.printTitleCols != null && (typeof sheet.printTitleCols !== "string" || !/^\$?[A-Z]{1,2}:\$?[A-Z]{1,2}$/.test(sheet.printTitleCols))) throw new Error("Invalid print titles.");
@@ -156,14 +156,14 @@ function validateSheet(sheet: unknown) {
     || ("value" in rule && !["string", "number"].includes(typeof rule.value)) || ("value2" in rule && !["string", "number"].includes(typeof rule.value2))))) throw new Error("Invalid conditional formatting.");
   if ("charts" in sheet && (!Array.isArray(sheet.charts) || sheet.charts.length > 10 || sheet.charts.some((chart) => !object(chart) || Object.keys(chart).some((key) => !["id", "type", "range", "title", "anchor"].includes(key))
     || !CHART_TYPES.has(String(chart.type)) || typeof chart.range !== "string" || !RANGE.test(chart.range) || typeof chart.anchor !== "string" || !CELL_REF.test(chart.anchor) || typeof chart.title !== "string" || chart.title.length > 255))) throw new Error("Invalid chart.");
-  if ("hiddenRows" in sheet && (!Array.isArray(sheet.hiddenRows) || sheet.hiddenRows.some((row) => typeof row !== "number" || row < 1 || row > 200))) throw new Error("Invalid hidden rows.");
+  if ("hiddenRows" in sheet && (!Array.isArray(sheet.hiddenRows) || sheet.hiddenRows.some((row) => typeof row !== "number" || row < 1 || row > 300))) throw new Error("Invalid hidden rows.");
   if ("hiddenCols" in sheet && (!Array.isArray(sheet.hiddenCols) || sheet.hiddenCols.some((col) => typeof col !== "number" || col < 0 || col > 25))) throw new Error("Invalid hidden columns.");
   if ("colWidths" in sheet && (!object(sheet.colWidths) || Object.entries(sheet.colWidths).some(([col, width]) => !/^[A-Z]{1,2}$/.test(col) || typeof width !== "number" || width < 0 || width > 255))) throw new Error("Invalid column widths.");
   if ("rowHeights" in sheet && (!object(sheet.rowHeights) || Object.entries(sheet.rowHeights).some(([row, height]) => !/^[0-9]{1,3}$/.test(row) || typeof height !== "number" || height < 0 || height > 409))) throw new Error("Invalid row heights.");
-  if ("autoFitRows" in sheet && (!Array.isArray(sheet.autoFitRows) || sheet.autoFitRows.length > 200 || sheet.autoFitRows.some((row) => typeof row !== "number" || row < 1 || row > 200))) throw new Error("Invalid AutoFit rows.");
+  if ("autoFitRows" in sheet && (!Array.isArray(sheet.autoFitRows) || sheet.autoFitRows.length > 300 || sheet.autoFitRows.some((row) => typeof row !== "number" || row < 1 || row > 300))) throw new Error("Invalid AutoFit rows.");
   if ("autoFitCols" in sheet && (!Array.isArray(sheet.autoFitCols) || sheet.autoFitCols.length > 26 || sheet.autoFitCols.some((col) => typeof col !== "string" || !/^[A-Z]{1,2}$/.test(col)))) throw new Error("Invalid AutoFit columns.");
   if (sheet.tabColor != null && !hexColor(sheet.tabColor)) throw new Error("Invalid tab color.");
-  if ("rowBreaks" in sheet && (!Array.isArray(sheet.rowBreaks) || sheet.rowBreaks.length > 100 || sheet.rowBreaks.some((row) => typeof row !== "number" || row < 2 || row > 200))) throw new Error("Invalid page breaks.");
+  if ("rowBreaks" in sheet && (!Array.isArray(sheet.rowBreaks) || sheet.rowBreaks.length > 100 || sheet.rowBreaks.some((row) => typeof row !== "number" || row < 2 || row > 300))) throw new Error("Invalid page breaks.");
   if (sheet.scale != null && (typeof sheet.scale !== "number" || sheet.scale < 10 || sheet.scale > 400)) throw new Error("Invalid scale.");
   for (const key of ["fitWidth", "fitHeight"] as const) if (sheet[key] != null && (typeof sheet[key] !== "number" || (sheet[key] as number) < 1)) throw new Error("Invalid fit to pages.");
   for (const key of ["centerHorizontally", "centerVertically"] as const) if (key in sheet && typeof sheet[key] !== "boolean") throw new Error("Invalid page centering.");
@@ -182,7 +182,7 @@ export function validateExcelDocument(value: unknown) {
   if (!object(value) || (value.schemaVersion !== "2" && value.schemaVersion !== "3")) throw new Error("Invalid structured sheet snapshot.");
   const allowed = value.schemaVersion === "3" ? ["schemaVersion", "rows", "cols", "cells", "merges", "sheet", "operations", "savedAt"] : ["schemaVersion", "rows", "cols", "cells", "operations", "savedAt"];
   if (!["schemaVersion", "rows", "cols", "cells", "operations", "savedAt"].every((key) => key in value) || Object.keys(value).some((key) => !allowed.includes(key))) throw new Error("Unknown sheet document field.");
-  if (typeof value.rows !== "number" || value.rows < 1 || value.rows > 200) throw new Error("Invalid row count.");
+  if (typeof value.rows !== "number" || value.rows < 1 || value.rows > 300) throw new Error("Invalid row count.");
   if (typeof value.cols !== "number" || value.cols < 1 || value.cols > 26) throw new Error("Invalid column count.");
   if (!Array.isArray(value.operations) || value.operations.length > 256 || value.operations.some((op) => typeof op !== "string" || op.length > 60)) throw new Error("Invalid operation history.");
   if (typeof value.savedAt !== "string" || value.savedAt.length > 64 || !Number.isFinite(Date.parse(value.savedAt))) throw new Error("Invalid saved timestamp.");
