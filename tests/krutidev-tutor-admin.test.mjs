@@ -222,11 +222,12 @@ test("the Kruti Dev lessons manager saves Content exactly as typed (Kruti Dev ke
   // Save is blocked only for genuinely ambiguous "mixed" input (which
   // can't render correctly in either font); plain Kruti Dev keystrokes,
   // however unusual-looking, are always safely storable verbatim.
-  assert.match(manager, /disabled=\{savePending \|\| detectedFormat === "mixed"\}/);
+  assert.match(manager, /disabled=\{savePending \|\| hasBrokenUnit\}/);
   // The row list's own Kruti Dev preview (row.krutidev) and the live
   // editor's preview (livePreview) both resolve through the one shared
   // function, not a locally re-implemented conversion.
-  assert.match(manager, /const livePreview = useMemo\(\(\) => \(liveContent\.trim\(\) \? krutiDevTypingTarget\(liveContent\) : ""\), \[liveContent\]\);/);
+  assert.match(manager, /const livePreview = useMemo\(\(\) => units\.map\(\(unit\) => krutiDevTypingTarget\(unit\)\)\.join\(/);
+  assert.match(manager, /krutiDevExerciseUnits\(editingKind, liveContent\)/);
 });
 
 // Real reported bug, the actual root cause: krutiDevTypingTarget is the
@@ -261,7 +262,8 @@ test("the student-facing tutor page's toTarget is krutiDevTypingTarget itself, n
 test("the admin list's per-row Kruti Dev preview also uses the shared krutiDevTypingTarget, not an unconditional toTypeableKrutiDev that would corrupt Kruti-Dev-typed content", async () => {
   const page = await read("app/admin/krutidev-lessons/page.tsx");
   assert.match(page, /import \{ krutiDevTypingTarget \} from "@\/lib\/hindi-font-converter";/);
-  assert.match(page, /return \{ \.\.\.row, krutidev: krutiDevTypingTarget\(row\.content\) \};/);
+  assert.match(page, /krutiDevExerciseUnits\(row\.kind, row\.content\)/);
+  assert.match(page, /units\.map\(\(unit\) => krutiDevTypingTarget\(unit\)\)\.join\(krutiDevExerciseJoiner\(row\.kind\)\)/);
 });
 
 // Real reported bug, found via pixel-level canvas measurement while
@@ -308,3 +310,4 @@ test("the student-facing Kruti Dev tutor's passage box and typing textarea both 
   assert.match(tutor, /paddingLeft: kdLeadingPad\(fontPx, "1rem"\)/);
   assert.match(tutor, /paddingLeft: kdLeadingPad\(fontPx, "0\.75rem"\)/);
 });
+
