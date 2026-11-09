@@ -9,9 +9,9 @@ import { ExcelHarness } from "./harness";
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   if (process.env.NODE_ENV === "production") notFound();
   const params = await searchParams;
-  const paper = params.test && /^[45]$/.test(params.test) ? params.test : null;
+  const paper = params.test && /^[456]$/.test(params.test) ? params.test : null;
   if (paper) {
-    // ?test=4 / ?test=5: that paper's working matter as an attempt starts it (excel_efficiency_initial_editor_document).
+    // ?test=4 / 5 / 6: that paper's working matter as an attempt starts it (excel_efficiency_initial_editor_document).
     const matter = JSON.parse(await readFile(path.join(process.cwd(), `tests/fixtures/excel-test${paper}-initial.json`), "utf8"));
     const rules = JSON.parse(await readFile(path.join(process.cwd(), `tests/fixtures/excel-test${paper}-rules.json`), "utf8")) as { n: number; marks: number; text: string }[];
     const start = JSON.parse(JSON.stringify({ schemaVersion: "3", rows: matter.rows, cols: matter.cols, cells: matter.cells, merges: [], sheet: {}, operations: [], savedAt: "1970-01-01T00:00:00.000Z" }));
