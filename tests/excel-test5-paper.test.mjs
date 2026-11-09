@@ -19,7 +19,7 @@ const contains = (big, small) => Object.entries(small).every(([k, v]) => big?.[k
 const cellsOf = (range) => { const [a, b = a] = range.split(":"); const out = []; for (let r = +a.slice(1); r <= +b.slice(1); r++) for (let c = a.charCodeAt(0); c <= b.charCodeAt(0); c++) out.push(String.fromCharCode(c) + r); return out; };
 function matches(doc, c) {
   if (c.rule === "anyOf") return c.criteria.some((x) => matches(doc, x));
-  if (c.rule === "value") { const cell = doc.cells[c.cell] ?? {}; if (c.formula && !cell.formula) return false; return same(cell.value, c.equals, c.caseSensitive); }
+  if (c.rule === "value") { const cell = doc.cells[c.cell] ?? {}; return same(cell.value, c.equals, c.caseSensitive); }
   if (c.rule === "cells") return cellsOf(c.range).every((ref) => Object.entries(c.props).every(([k, v]) => same(doc.cells[ref]?.[k] ?? null, v)));
   if (c.rule === "sheet") {
     const actual = doc.sheet?.[c.path];
@@ -81,4 +81,15 @@ test("the practice .xlsx opens with the same cells as the test sheet", async () 
   const sheet = parseWorkingSheetXlsx(bytes, "English");
   assert.deepEqual(Object.keys(matter.cells).filter((ref) => sheet.cells[ref]?.value !== matter.cells[ref].value), []);
   // (the admin .xlsx importer reads built-in date formats as Number; real Excel shows the dates)
+});
+
+test("Flash Fill, typing or Paste Values give the same marks as formulas: the answer is checked, not the method", () => {
+  // Q1 (PROPER + TRIM) and Q7 (the Emp Code) are the questions Flash Fill suits: plain text, no formula in the cell
+  const flash = solved((cells) => { for (let r = 2; r <= 201; r++) for (const c of ["H", "N"]) cells[`${c}${r}`].formula = null; });
+  assert.equal(flash[0], 2);
+  assert.equal(flash[6], 2);
+  // every formula in the sheet replaced by its value
+  assert.equal(total(solved((cells) => { for (const cell of Object.values(cells)) cell.formula = null; })), 25);
+  // a Flash Fill that guessed one name wrong still loses the question
+  assert.equal(solved((cells) => { for (let r = 2; r <= 201; r++) cells[`H${r}`].formula = null; cells.H7.value = "wrong"; })[0], 0);
 });

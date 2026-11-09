@@ -19,7 +19,7 @@ const cellsOf = (range) => { const [a, b = a] = range.split(":"); const out = []
 function matches(doc, c) {
   if (c.rule === "anyOf") return c.criteria.some((x) => matches(doc, x));
   if (c.rule === "allOf") return c.criteria.every((x) => matches(doc, x));
-  if (c.rule === "value") { const cell = doc.cells[c.cell] ?? {}; if (c.formula && !cell.formula) return false; return same(cell.value, c.equals); }
+  if (c.rule === "value") { const cell = doc.cells[c.cell] ?? {}; return same(cell.value, c.equals); }
   if (c.rule === "cells") return cellsOf(c.range).every((ref) => Object.entries(c.props).every(([k, v]) => same(doc.cells[ref]?.[k] ?? (k === "wrap" || k === "bold" ? false : null), v)));
   if (c.rule === "sheet") {
     const actual = doc.sheet?.[c.path];
@@ -47,15 +47,16 @@ test("200 students in rows 2-201, some absent (AB) in English only; the summary 
   for (let r = 2; r <= 11; r++) { assert.ok(matter.cells[`S${r}`].value); assert.equal(matter.cells[`T${r}`], undefined); }
 });
 
-test("other correct ways earn the marks too; typed answers, a wrong range or a half-filled column do not", () => {
+test("other correct ways earn the marks too (even typed values); a wrong answer, a wrong range or a half-filled column do not", () => {
   const solved = (change) => { const doc = clone(model); change(doc.cells, doc); doc.cells = recomputeFormulas(doc.cells); return marks(doc); };
   // Percentage as a fraction (=K2/400 with % style), grade with IFS, hostel with = instead of <>
   const ways = solved((cells) => { for (let r = 2; r <= 201; r++) { cells[`L${r}`].formula = `=K${r}/400`; cells[`N${r}`].formula = `=IFS(L${r}>=0.75,"A",L${r}>=0.6,"B",L${r}>=0.4,"C",L${r}<0.4,"D")`; cells[`Q${r}`].formula = `=IF(D${r}="Jaipur","Day Scholar","Hostel")`; } cells.T4.formula = '=COUNTIF(K2:K201,">=160")'; });
   assert.equal(total(ways), 25);
   // =F2+G2+H2+I2 gives #VALUE! for the AB rows
   assert.equal(solved((cells) => { for (let r = 2; r <= 201; r++) cells[`K${r}`].formula = `=F${r}+G${r}+H${r}+I${r}`; })[1], 0);
-  // the answer typed instead of a formula
-  assert.equal(solved((cells) => { cells.T2 = { ...cells.T2, formula: null, value: 200 }; })[8], 0);
+  // the right answer typed instead of a formula counts (the answer is checked, not the method); a wrong one does not
+  assert.equal(solved((cells) => { cells.T2 = { ...cells.T2, formula: null, value: 200 }; })[8], 2);
+  assert.equal(solved((cells) => { cells.T2 = { ...cells.T2, formula: null, value: 199 }; })[8], 0);
   // AVERAGEIF without ROUND
   assert.equal(solved((cells) => { cells.T11.formula = '=AVERAGEIF(D2:D201,"Jodhpur",K2:K201)'; })[12], 0);
   // only the first 100 rows filled

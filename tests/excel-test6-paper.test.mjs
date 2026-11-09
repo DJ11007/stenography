@@ -24,7 +24,7 @@ const cellsOf = (range) => {
 };
 function matches(doc, c) {
   if (c.rule === "anyOf") return c.criteria.some((x) => matches(doc, x));
-  if (c.rule === "value") { const cell = doc.cells[c.cell] ?? {}; if (c.formula && !cell.formula) return false; return same(cell.value, c.equals); }
+  if (c.rule === "value") { const cell = doc.cells[c.cell] ?? {}; return same(cell.value, c.equals); }
   if (c.rule === "cells") return cellsOf(c.range).every((ref) => Object.entries(c.props).every(([k, v]) => same(doc.cells[ref]?.[k] ?? null, v)));
   if (c.rule === "sheet") {
     const actual = doc.sheet?.[c.path];
@@ -75,9 +75,14 @@ test("other correct ways of writing a formula keep the marks", () => {
   assert.equal(total(ways), 25);
 });
 
-test("typing the answer instead of a formula, or a wrong range, loses the marks of that question", () => {
-  // a typed number for Discount (no formula)
-  assert.equal(solved((cells) => { for (let r = 2; r <= 31; r++) cells[`G${r}`].formula = null; })[2], 0);
+test("the answer counts however it was made (Flash Fill, typed, pasted values); a wrong answer or range loses the marks", () => {
+  // every formula replaced by its plain value, as Flash Fill / typing / Paste Values leave it
+  const asValues = solved((cells) => { for (const cell of Object.values(cells)) cell.formula = null; });
+  assert.equal(total(asValues), 25);
+  // a typed number for Discount (no formula) is fine when it is the right number...
+  assert.equal(solved((cells) => { for (let r = 2; r <= 31; r++) cells[`G${r}`].formula = null; })[2], 2);
+  // ...and wrong when it is not
+  assert.equal(solved((cells) => { for (let r = 2; r <= 31; r++) { cells[`G${r}`].formula = null; cells[`G${r}`].value = 1; } })[2], 0);
   // Net Amount = Amount + Discount
   assert.equal(solved((cells) => { for (let r = 2; r <= 31; r++) cells[`H${r}`].formula = `=F${r}+G${r}`; })[3], 0);
   // an IF with the wrong limit (500 instead of 1000)

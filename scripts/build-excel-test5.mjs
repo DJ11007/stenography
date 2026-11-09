@@ -183,7 +183,7 @@ const templates = Object.fromEntries(Object.entries(ROW_FORMULAS).map(([c, f]) =
 const columnValues = Object.fromEntries(Object.keys(ROW_FORMULAS).map((c) => [c, Array.from({ length: EMPLOYEES }, (_, i) => value(`${c}${i + 2}`))]));
 const summaryFormulas = Object.fromEntries(Object.entries(SUMMARY_FORMULAS).map(([ref, f]) => [ref, [f, value(ref)]]));
 const fixedCells = { ...EXTRA, ...Object.fromEntries(HEADERS.map((text, i) => [`${col(i)}1`, initialCells[`${col(i)}1`]])) };
-const instructions = "1. Carefully read the instructions and solve the questions accordingly.\n2. All questions are mandatory.\n3. The sheet has 200 employees (rows 2 to 201). Fill a formula in row 2, then double-click the fill handle to copy it down to row 201.\n4. **Maximum marks** and question-wise marks are shown with the questions.\n5. Complete each task directly in the spreadsheet using formulas, not by typing the answers.";
+const instructions = "1. Carefully read the instructions and solve the questions accordingly.\n2. All questions are mandatory.\n3. The sheet has 200 employees (rows 2 to 201). Fill a formula in row 2, then double-click the fill handle to copy it down to row 201.\n4. **Maximum marks** and question-wise marks are shown with the questions.\n5. Complete each task directly in the spreadsheet. Any method is fine (formula, drag and fill, Flash Fill or typing): the answer in the cells is what is checked.";
 
 const sql = `-- English EXCEL EFFICIENCY TEST 5 (built by scripts/build-excel-test5.mjs; do not edit by hand): a salary sheet of
 -- 200 employees -- $ references, VLOOKUP + IFERROR, RANK, PROPER/TRIM, UPPER/LEFT/RIGHT/&, YEAR, SUMIF/SUMIFS,

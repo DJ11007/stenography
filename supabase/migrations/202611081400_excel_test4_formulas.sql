@@ -63,7 +63,7 @@ begin
 2. All questions are mandatory.
 3. The sheet has 200 students (rows 2 to 201). Fill a formula in row 2, then double-click the fill handle to copy it down to row 201.
 4. **Maximum marks** and question-wise marks are shown with the questions.
-5. Complete each task directly in the spreadsheet using formulas, not by typing the answers.$q$, 15, 25, array[600, 900, 1200], 9, working, admin_id, false, true, true, model) returning id into v_id;
+5. Complete each task directly in the spreadsheet. Any method is fine (formula, drag and fill, Flash Fill or typing): the answer in the cells is what is checked.$q$, 15, 25, array[600, 900, 1200], 9, working, admin_id, false, true, true, model) returning id into v_id;
  update public.excel_efficiency_tests set current_version_id = v_id, current_version_number = 1 where id = t_id;
 
  for item in select value from jsonb_array_elements(questions) loop

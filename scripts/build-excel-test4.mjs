@@ -179,7 +179,7 @@ const questionsJson = QUESTIONS.map((q, i) => ({ n: i + 1, marks: q.marks, text:
 const templates = Object.fromEntries(Object.entries(ROW_FORMULAS).map(([c, f]) => [c, f("#")]));
 const columnValues = Object.fromEntries(Object.keys(ROW_FORMULAS).map((c) => [c, Array.from({ length: STUDENTS }, (_, i) => value(`${c}${i + 2}`))]));
 const summaryFormulas = Object.fromEntries(Object.entries(SUMMARY_FORMULAS).map(([ref, f]) => [ref, [f, value(ref)]]));
-const instructions = "1. Carefully read the instructions and solve the questions accordingly.\n2. All questions are mandatory.\n3. The sheet has 200 students (rows 2 to 201). Fill a formula in row 2, then double-click the fill handle to copy it down to row 201.\n4. **Maximum marks** and question-wise marks are shown with the questions.\n5. Complete each task directly in the spreadsheet using formulas, not by typing the answers.";
+const instructions = "1. Carefully read the instructions and solve the questions accordingly.\n2. All questions are mandatory.\n3. The sheet has 200 students (rows 2 to 201). Fill a formula in row 2, then double-click the fill handle to copy it down to row 201.\n4. **Maximum marks** and question-wise marks are shown with the questions.\n5. Complete each task directly in the spreadsheet. Any method is fine (formula, drag and fill, Flash Fill or typing): the answer in the cells is what is checked.";
 
 const sql = `-- English EXCEL EFFICIENCY TEST 4 (built by scripts/build-excel-test4.mjs; do not edit by hand).
 -- 1) A sheet may now have up to 300 rows (was 200): this paper has 200 students + a heading row.
