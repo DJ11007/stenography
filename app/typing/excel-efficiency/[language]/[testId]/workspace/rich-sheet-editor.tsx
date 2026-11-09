@@ -55,6 +55,8 @@ const PROTECTED_MESSAGE = "The cell or chart you're trying to change is on a pro
 const TABLE_STYLES: [string, string, string, string][] = [["Table Style Light 9", "4472C4", "FFFFFF", "FFFFFF"], ["Table Style Medium 2", "4472C4", "FFFFFF", "D9E1F2"], ["Table Style Medium 3", "ED7D31", "FFFFFF", "FCE4D6"], ["Table Style Medium 4", "A5A5A5", "FFFFFF", "EDEDED"], ["Table Style Medium 7", "70AD47", "FFFFFF", "E2EFDA"]];
 const FUNCTION_MENUS: [string, FunctionCategory][] = [["Financial", "Financial"], ["Logical", "Logical"], ["Text", "Text"], ["Date & Time", "Date & Time"], ["Lookup & Reference", "Lookup & Reference"], ["Math & Trig", "Math & Trig"]];
 const DEFAULT_ROW_PX = 20;
+// Sheets with more filled cells than this (the 200-row papers start at 1,400-2,000, Test 6 has ~170-300) autosave at most this often.
+const BIG_SHEET_CELLS = 800, BIG_SHEET_SAVE_GAP_MS = 8000;
 // Excel column width (characters of the default font) to screen pixels, and row height (points) to pixels.
 const widthToPx = (width: number) => (width <= 0 ? 0 : Math.round(width * 7 + 5));
 const pointsToPx = (points: number) => Math.round((points * 4) / 3);
@@ -190,8 +192,14 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     try { recent = Date.now() - Number(sessionStorage.getItem("excel-deploy-reload") ?? 0) < 60_000; sessionStorage.setItem("excel-deploy-reload", String(Date.now())); } catch { recent = true; }
     if (!recent) window.location.reload();
   };
+  // Load: on a 200-row paper (Tests 4/5) one autosave sends ~1 MB and costs the database ~160 ms to validate, and 100+
+  // students edit at once, so big sheets save at most every BIG_SHEET_SAVE_GAP_MS (the last save also goes with Submit).
+  // Small sheets keep the quick 800 ms save. See docs/load-test-efficiency.md.
+  const lastSaveAt = useRef(0), lastCellCount = useRef(0);
   const saveDocument = async () => {
     const document = buildDocument() as ExcelDocument;
+    lastSaveAt.current = Date.now();
+    lastCellCount.current = Object.keys(document.cells ?? {}).length;
     setStatus("Saving…");
     try {
       const result = await (autosaveAction ?? autosaveExcelDocument)(attemptId, document);
@@ -207,7 +215,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   useEffect(() => {
     if (revision === 0 || submitted) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(() => { void saveDocument(); }, 800);
+    const big = lastCellCount.current > BIG_SHEET_CELLS || Object.keys(cells).length > BIG_SHEET_CELLS;
+    const wait = big ? Math.max(800, BIG_SHEET_SAVE_GAP_MS - (Date.now() - lastSaveAt.current)) : 800;
+    autosaveTimer.current = setTimeout(() => { void saveDocument(); }, wait);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [revision]); // eslint-disable-line react-hooks/exhaustive-deps -- saves after each change
 
