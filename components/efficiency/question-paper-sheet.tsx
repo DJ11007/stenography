@@ -29,10 +29,24 @@ export function QuestionPaperSheet({ paper, backHref }: { paper: QuestionPaper; 
       )}
       <article lang={paper.language === "Hindi" ? "hi" : "en"} style={paper.language === "Hindi" ? { fontFamily: HINDI_FONTS } : undefined}
         className="mx-auto max-w-[210mm] bg-white px-[14mm] py-[12mm] text-slate-950 shadow-xl print:max-w-none print:p-0 print:shadow-none">
-        <header className="border-b-2 border-slate-900 pb-3 text-center">
-          <p className="text-xs font-black uppercase tracking-[.25em] text-slate-600">Samradhi Classes · sctyping.com</p>
-          <h1 className="mt-1 text-2xl font-black">{subjectName} Efficiency Test</h1>
-          <p className="mt-0.5 text-lg font-bold">{paper.title}{paper.language === "Hindi" ? " (Hindi)" : ""}</p>
+        <header className="border-b-2 border-slate-900 pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a plain img prints reliably; next/image's lazy loading and srcset are built for the browser, not the print pipeline */}
+              <img src="/samradhi-classes-logo.png" alt="Samradhi Classes logo" width={44} height={44} className="h-11 w-11 shrink-0 rounded-full object-cover" />
+              <div>
+                <p className="text-base font-black leading-tight">SAMRADHI CLASSES</p>
+                <p className="text-[10px] font-semibold leading-tight text-slate-600">sctyping.com &middot; +91 7014371324</p>
+              </div>
+            </div>
+            <p className="max-w-[60%] text-right text-[9px] leading-tight text-slate-600">
+              26, Bairwa Colony, near Shri Ram Marriage Garden, near Sanganer Airport, behind Choudhary Petrol Pump, Sanganer, Jaipur &ndash; 302029
+            </p>
+          </div>
+          <div className="mt-2 text-center">
+            <h1 className="text-2xl font-black">{subjectName} Efficiency Test</h1>
+            <p className="mt-0.5 text-lg font-bold">{paper.title}{paper.language === "Hindi" ? " (Hindi)" : ""}</p>
+          </div>
         </header>
         <dl className="mt-3 flex flex-wrap justify-between gap-x-6 gap-y-1 border-b border-slate-300 pb-3 text-sm">
           <div><dt className="inline font-bold">Time: </dt><dd className="inline">{minutes} minute{minutes === 1 ? "" : "s"}</dd></div>
