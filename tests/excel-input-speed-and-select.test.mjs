@@ -8,8 +8,17 @@ const sheet = () => read("app/typing/excel-efficiency/[language]/[testId]/worksp
 test("clicking the Name Box or the Font Size box selects its text, as in Excel", async () => {
   const source = await sheet();
   assert.match(source, /onFocus: \(event: React\.FocusEvent<HTMLInputElement>\) => \{ event\.currentTarget\.select\(\);/);
-  assert.match(source, /<input aria-label="Name Box" value=\{nameBox \?\? nameBoxValue\} onFocus=\{\(event\) => \{ setNameBox\(nameBoxValue\); selectAllOnFocus\.onFocus\(event\); \}\} onMouseUp=\{selectAllOnFocus\.onMouseUp\}/);
+  assert.match(source, /<StoreInput store=\{nameBoxStore\} live=\{nameBoxEditing\} fallback=\{nameBoxValue\} aria-label="Name Box"/);
+  assert.match(source, /onFocus=\{\(event\) => \{ nameBoxStore\.set\(nameBoxValue\); setNameBoxEditing\(true\); selectAllOnFocus\.onFocus\(event\); \}\} onMouseUp=\{selectAllOnFocus\.onMouseUp\}/);
   assert.match(source, /<input aria-label="Font Size" disabled=\{disabled\} value=\{text \?\? String\(value\)\} \{\.\.\.selectAllOnFocus\}/);
+});
+
+test("the Name Box lives in its own store too, so typing an address does not redraw the grid", async () => {
+  const source = await sheet();
+  assert.match(source, /const \[nameBoxStore\] = useState\(createTextStore\);/);
+  assert.match(source, /const \[nameBoxEditing, setNameBoxEditing\] = useState\(false\);/);
+  assert.match(source, /onText=\{\(value\) => nameBoxStore\.set\(value\.toUpperCase\(\)\)\}/);
+  assert.match(source, /if \(event\.key === "Enter"\) goToName\(nameBoxStore\.get\(\)\);/);
 });
 
 test("typed text lives in a small store, so a keystroke redraws only the cell editor and the formula bar, not the grid", async () => {

@@ -19,6 +19,7 @@ import {
 import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, useDialogDrag, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
 import { ChartView } from "./excel-chart";
 import { STANDARD_COLORS, THEME_COLORS } from "./excel-colors";
+import { THEME_GRID } from "@/lib/word-colors";
 import { DataValidationDialog, DefineNameDialog, GoToSpecialDialog, HyperlinkDialog, InsertDeleteCellsDialog, ManageRulesDialog, MoreColorsDialog, NameManagerDialog, PasteSpecialDialog, SeriesDialog, TextToColumnsDialog, type GoToSpecialChoice, type PasteSpecialChoice, type SeriesChoice, type ShiftChoice } from "./excel-dialogs-more";
 import { CURRENCIES, type CurrencySymbol, type DataValidation } from "@/lib/excel-document";
 import { autoFill, autoFillDownLastRow, fillDirectionFor, fillExtension, type FillDirection } from "@/lib/excel-autofill";
@@ -51,8 +52,66 @@ type DialogState =
   | { kind: "hyperlink" } | { kind: "defineName" } | { kind: "nameManager" } | { kind: "validation" } | { kind: "textToColumns" }
   | { kind: "manageRules" } | { kind: "moreColors"; target: "font" | "fill" | "tab" };
 const PROTECTED_MESSAGE = "The cell or chart you're trying to change is on a protected sheet. To make a change, unprotect the sheet (REVIEW > Unprotect Sheet).";
-// Format as Table styles: header fill and font, banded row fill.
-const TABLE_STYLES: [string, string, string, string][] = [["Table Style Light 9", "4472C4", "FFFFFF", "FFFFFF"], ["Table Style Medium 2", "4472C4", "FFFFFF", "D9E1F2"], ["Table Style Medium 3", "ED7D31", "FFFFFF", "FCE4D6"], ["Table Style Medium 4", "A5A5A5", "FFFFFF", "EDEDED"], ["Table Style Medium 7", "70AD47", "FFFFFF", "E2EFDA"]];
+// Format as Table's full Excel 2013 gallery: 21 Light + 28 Medium + 11 Dark, each [name, header fill, header font,
+// banded row fill], cycling the 7 theme families (Black, Accent1-6) the same way Excel's own gallery does.
+// TABLE_STYLE_COUNTS below gives the boundary of each group for the categorized menu.
+// A few names a published test's grading rule checks by exact colour are pinned to their original values, so
+// clicking them keeps giving the result a student's submission is checked against.
+const TABLE_FAMILY_COLS = [1, 4, 5, 6, 7, 8, 9]; // Black,Text1 then Accent1-6, in THEME_GRID's column order
+const tableTint = (row: number, familyIndex: number) => THEME_GRID[row][TABLE_FAMILY_COLS[familyIndex]].hex;
+const TABLE_STYLE_OVERRIDES: Record<string, [string, string, string]> = {
+  "Table Style Light 9": ["4472C4", "FFFFFF", "FFFFFF"], "Table Style Medium 2": ["4472C4", "FFFFFF", "D9E1F2"],
+  "Table Style Medium 3": ["ED7D31", "FFFFFF", "FCE4D6"], "Table Style Medium 4": ["A5A5A5", "FFFFFF", "EDEDED"], "Table Style Medium 7": ["70AD47", "FFFFFF", "E2EFDA"],
+};
+const TABLE_STYLE_COUNTS = { Light: 21, Medium: 28, Dark: 11 };
+const TABLE_STYLES: [string, string, string, string][] = (() => {
+  const out: [string, string, string, string][] = [];
+  const base = (f: number) => tableTint(0, f);
+  const push = (name: string, header: string, band: string) => { const o = TABLE_STYLE_OVERRIDES[name]; out.push(o ? [name, ...o] : [name, header, "FFFFFF", band]); };
+  let n = 0;
+  for (const band of [() => "FFFFFF", (f: number) => tableTint(1, f), (f: number) => tableTint(2, f)]) for (let f = 0; f < 7; f++) push(`Table Style Light ${++n}`, base(f), band(f));
+  n = 0;
+  for (const [header, band] of [[base, (f: number) => tableTint(1, f)], [base, (f: number) => tableTint(2, f)], [base, (f: number) => tableTint(3, f)], [(f: number) => tableTint(4, f), (f: number) => tableTint(1, f)]] as [(f: number) => string, (f: number) => string][])
+    for (let f = 0; f < 7; f++) push(`Table Style Medium ${++n}`, header(f), band(f));
+  n = 0;
+  for (let f = 0; f < 7; f++) push(`Table Style Dark ${++n}`, base(f), tableTint(4, f));
+  for (let f = 0; f < 4; f++) push(`Table Style Dark ${++n}`, tableTint(5, f), base(f));
+  return out;
+})();
+// Cell Styles' full Excel 2013 gallery, grouped as Excel groups it: Good/Bad/Neutral, Data and Model, Titles and
+// Headings, the 24 Themed Cell Styles (20%/40%/60%/plain x Accent1-6), then the 5 Number Format styles.
+const cellAccentTint = (row: number, accent: number) => THEME_GRID[row][4 + accent].hex; // Accent1-6 are THEME_GRID columns 4-9
+const CELL_STYLE_LIST: { name: string; patch: Partial<SheetCell>; category: string }[] = [
+  { name: "Normal", patch: { bold: false, italic: false, fontColor: null, fillColor: null, fontSize: null, border: null }, category: "Good, Bad and Neutral" },
+  { name: "Bad", patch: { fillColor: "FFC7CE", fontColor: "9C0006" }, category: "Good, Bad and Neutral" },
+  { name: "Good", patch: { fillColor: "C6EFCE", fontColor: "006100" }, category: "Good, Bad and Neutral" },
+  { name: "Neutral", patch: { fillColor: "FFEB9C", fontColor: "9C5700" }, category: "Good, Bad and Neutral" },
+  { name: "Calculation", patch: { bold: true, fontColor: "FA7D00", fillColor: "F2F2F2", border: "trbl" }, category: "Data and Model" },
+  { name: "Check Cell", patch: { bold: true, fontColor: "FFFFFF", fillColor: "A5A5A5", border: "trbl" }, category: "Data and Model" },
+  { name: "Explanatory Text", patch: { italic: true, fontColor: "7F7F7F" }, category: "Data and Model" },
+  { name: "Input", patch: { fontColor: "3F3F76", fillColor: "FFCC99", border: "trbl" }, category: "Data and Model" },
+  { name: "Linked Cell", patch: { fontColor: "FA7D00", border: "b=" }, category: "Data and Model" },
+  { name: "Note", patch: { fillColor: "FFFFCC", border: "trbl" }, category: "Data and Model" },
+  { name: "Output", patch: { bold: true, fontColor: "3F3F3F", fillColor: "F2F2F2", border: "trbl" }, category: "Data and Model" },
+  { name: "Warning Text", patch: { fontColor: "FF0000" }, category: "Data and Model" },
+  { name: "Heading 1", patch: { fontSize: 15, bold: true, fontColor: "44546A", border: "B" }, category: "Titles and Headings" },
+  { name: "Heading 2", patch: { fontSize: 13, bold: true, fontColor: "44546A", border: "B" }, category: "Titles and Headings" },
+  { name: "Heading 3", patch: { fontSize: 11, bold: true, fontColor: "44546A", border: "b" }, category: "Titles and Headings" },
+  { name: "Heading 4", patch: { bold: true, fontColor: "44546A" }, category: "Titles and Headings" },
+  { name: "Title", patch: { fontSize: 18, fontColor: "44546A", fontFamily: "Calibri Light" }, category: "Titles and Headings" },
+  { name: "Total", patch: { bold: true, border: "tB" }, category: "Titles and Headings" },
+  ...([1, 2, 3] as const).flatMap((row) => Array.from({ length: 6 }, (_, a) => ({
+    name: `${row === 1 ? "20" : row === 2 ? "40" : "60"}% - Accent${a + 1}`,
+    patch: { fillColor: cellAccentTint(row, a), ...(row === 3 ? { fontColor: "FFFFFF" } : {}) },
+    category: "Themed Cell Styles",
+  }))),
+  ...Array.from({ length: 6 }, (_, a) => ({ name: `Accent${a + 1}`, patch: { fillColor: cellAccentTint(0, a), fontColor: "FFFFFF" }, category: "Themed Cell Styles" })),
+  { name: "Comma", patch: { numberFormat: "Number", decimals: 2 }, category: "Number Format" },
+  { name: "Comma [0]", patch: { numberFormat: "Number", decimals: 0 }, category: "Number Format" },
+  { name: "Currency", patch: { numberFormat: "Currency", decimals: 2 }, category: "Number Format" },
+  { name: "Currency [0]", patch: { numberFormat: "Currency", decimals: 0 }, category: "Number Format" },
+  { name: "Percent", patch: { numberFormat: "Percentage", decimals: 0 }, category: "Number Format" },
+];
 const FUNCTION_MENUS: [string, FunctionCategory][] = [["Financial", "Financial"], ["Logical", "Logical"], ["Text", "Text"], ["Date & Time", "Date & Time"], ["Lookup & Reference", "Lookup & Reference"], ["Math & Trig", "Math & Trig"]];
 const DEFAULT_ROW_PX = 20;
 // Sheets with more filled cells than this (the 200-row papers start at 1,400-2,000, Test 6 has ~170-300) autosave at most this often.
@@ -60,6 +119,8 @@ const BIG_SHEET_CELLS = 800, BIG_SHEET_SAVE_GAP_MS = 8000;
 // Excel column width (characters of the default font) to screen pixels, and row height (points) to pixels.
 const widthToPx = (width: number) => (width <= 0 ? 0 : Math.round(width * 7 + 5));
 const pointsToPx = (points: number) => Math.round((points * 4) / 3);
+const colWidthFromPx = (px: number) => Math.max(0, (px - 5) / 7);
+const rowPointsFromPx = (px: number) => Math.max(0, (px * 3) / 4);
 
 const cellOf = (cells: Record<string, SheetCell>, ref: string): SheetCell => cells[ref] ?? EMPTY_CELL;
 const styleOf = (cell: SheetCell) => Object.fromEntries(STYLE_KEYS.map((key) => [key, cell[key] ?? null])) as Partial<SheetCell>;
@@ -103,6 +164,11 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const dragging = useRef(false);
   // The fill handle (the small square at the corner of the selection) being dragged: what was selected, and where the mouse is.
   const [fillDrag, setFillDrag] = useState<{ source: Rect; target: { row: number; col: number } } | null>(null);
+  // Dragging a column/row header border to resize it, as in Excel: resizeInfo (a ref, not state, so mousemove
+  // doesn't re-run this effect) holds what's being dragged; resizeGuide (state) is the live cursor position, used
+  // only to draw the thin guide line and size tooltip -- the grid itself isn't resized live, only on mouse-up.
+  const resizeInfo = useRef<{ kind: "col" | "row"; index: number; start: number; startSize: number } | null>(null);
+  const [resizeGuide, setResizeGuide] = useState<{ x: number; y: number } | null>(null);
   // Where a Format Painter drag began: read on mouse-up, so a quick click paints only the clicked cell even
   // before the new selection has rendered.
   const paintStart = useRef<{ row: number; col: number } | null>(null);
@@ -154,7 +220,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const finishFill = (source: Rect, direction: FillDirection, count: number) => {
     const extension = fillExtension(source, direction, count);
     if (!extension) return;
-    change("autoFill", { cells: autoFill(cells, source, direction, count) });
+    change("autoFill", { cells: autoFill(cells, source, direction, count) }, false, rectRefs(extension));
     selectRect({ r1: Math.min(source.r1, extension.r1), c1: Math.min(source.c1, extension.c1), r2: Math.max(source.r2, extension.r2), c2: Math.max(source.c2, extension.c2) });
   };
   // Mouse released after dragging the handle. Registered again after every render so it sees the latest sheet.
@@ -243,14 +309,19 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
 
   // ---------- changing the sheet (one undo step each) ----------
   const record = (op: string) => setOperations((current) => (current.includes(op) ? current : [...current, op]));
-  const change = (op: string, next: Partial<Snapshot>, unlockedEdit = false) => {
+  // touchedRefs: the cells this specific edit actually changed (a typed value, a fill, a paste...), when the
+  // caller happens to know them cheaply -- lets recomputeFormulas skip formulas nothing could have affected,
+  // instead of re-evaluating every formula cell on every keystroke (the main cost on a sheet with thousands of
+  // them, e.g. a 500-row paper). Left out for edits whose effect is harder to pin down (sort, insert/delete,
+  // structural changes): those still get a full, always-correct recompute.
+  const change = (op: string, next: Partial<Snapshot>, unlockedEdit = false, touchedRefs?: Iterable<string>) => {
     if (submitted) return;
     // A protected sheet refuses every change but unprotecting it and typing into unlocked cells, as Excel does.
     if (sheet.protected && op !== "unprotectSheet" && !unlockedEdit) { setNotice(PROTECTED_MESSAGE); return; }
     undoStack.current.push({ cells, merges, sheet }); if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
     const names = (next.sheet ?? sheet).definedNames;
-    if (next.cells) setCells(recomputeFormulas(next.cells, names));
+    if (next.cells) setCells(recomputeFormulas(next.cells, names, touchedRefs));
     else if (next.sheet && next.sheet.definedNames !== sheet.definedNames) setCells(recomputeFormulas(cells, names));
     if (next.merges) setMerges(next.merges);
     if (next.sheet) setSheet(next.sheet);
@@ -266,7 +337,10 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const formatSelection = (patch: Partial<SheetCell>, op: string, rect = selection) => {
     const next = { ...cells };
     for (const ref of rectRefs(rect)) next[ref] = { ...cellOf(next, ref), ...patch };
-    change(op, { cells: next });
+    // A style-only patch (bold, fill colour, number format...) never changes a cell's value or formula, so no
+    // formula anywhere can read a different result from it -- skip recomputing, instead of just confirming
+    // (the expensive way) that nothing changed. formatSelection is never called with a value/formula in patch.
+    change(op, { cells: next }, false, []);
   };
   const toggle = (key: "bold" | "italic" | "underline" | "wrap") => formatSelection({ [key]: !active[key] }, key);
 
@@ -350,15 +424,15 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       const fn = entry.formula?.match(/^=\s*([A-Z]+)\s*\(/i)?.[1]?.toUpperCase();
       // As in Excel, a cell given a date function shows a date (if it still has the General format).
       const dated = (typedDate !== null || (fn && ["TODAY", "DATE", "NOW"].includes(fn))) && (current.numberFormat ?? "General") === "General" ? { numberFormat: "ShortDate" as const } : {};
-      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry, ...dated } } }, Boolean(sheet.protected && current.locked === false));
+      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry, ...dated } } }, Boolean(sheet.protected && current.locked === false), [editing.ref]);
     }
     setEditing(null);
     if (move === "down") moveBy(1, 0); else if (move === "right") moveBy(0, 1);
     focusGrid();
   };
-  const clearContents = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...next[ref], value: null, formula: null }; change("clearContents", { cells: next }); };
-  const clearFormats = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...EMPTY_CELL, value: next[ref].value, formula: next[ref].formula }; change("clearFormats", { cells: next }); };
-  const clearAll = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) delete next[ref]; change("clearContents", { cells: next, merges: unmergeRanges(merges, selection) }); };
+  const clearContents = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...next[ref], value: null, formula: null }; change("clearContents", { cells: next }, false, rectRefs(selection)); };
+  const clearFormats = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...EMPTY_CELL, value: next[ref].value, formula: next[ref].formula }; change("clearFormats", { cells: next }, false, rectRefs(selection)); };
+  const clearAll = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) delete next[ref]; change("clearContents", { cells: next, merges: unmergeRanges(merges, selection) }, false, rectRefs(selection)); };
 
   // ---------- clipboard and Format Painter ----------
   const copy = (cut = false) => {
@@ -381,7 +455,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       // Relative references move with the paste, as in Excel (a cut keeps them).
       next[refAt(row, col)] = { ...source, formula: clip.cut ? source.formula : shiftFormula(source.formula, focus.row - clip.rect.r1, focus.col - clip.rect.c1) };
     }
-    change("paste", { cells: next });
+    const destination = rectRefs({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) });
+    change("paste", { cells: next }, false, clip.cut ? [...destination, ...rectRefs(clip.rect)] : destination);
     selectRect({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) });
     if (clip.cut) setClip(null);
     setNotice(null);
@@ -392,13 +467,15 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const lines = text.replace(/\r/g, "").replace(/\n$/, "").split("\n").slice(0, MAX_ROWS);
     if (!lines.length || (lines.length === 1 && lines[0] === "")) return;
     const next = { ...cells };
+    const touched: string[] = [];
     lines.forEach((line, i) => line.split("\t").slice(0, MAX_COLS).forEach((part, j) => {
       const row = focus.row + i, col = focus.col + j;
       if (row > MAX_ROWS || col >= MAX_COLS) return;
       const ref = refAt(row, col);
       next[ref] = { ...cellOf(next, ref), ...parseEntry(part) };
+      touched.push(ref);
     }));
-    change("paste", { cells: next });
+    change("paste", { cells: next }, false, touched);
   };
   const startPainter = (sticky: boolean) => { setPainter({ style: styleOf(active), sticky }); setNotice(sticky ? "Format Painter is on: click the cells to format. Press Esc or click Format Painter to stop." : "Click (or drag over) the cells to give them this formatting."); };
   const applyPainter = (rect: Rect) => {
@@ -643,22 +720,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       const source = clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] ?? EMPTY_CELL, target = cellOf(next, refAt(row, col));
       next[refAt(row, col)] = mode === "values" ? { ...target, value: source.value, formula: null } : { ...target, ...styleOf(source) };
     }
-    change(mode === "values" ? "pasteValues" : "pasteFormatting", { cells: next });
+    change(mode === "values" ? "pasteValues" : "pasteFormatting", { cells: next }, false, rectRefs({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) }));
   };
-  const CELL_STYLES: [string, Partial<SheetCell>][] = [
-    ["Normal", { bold: false, italic: false, fontColor: null, fillColor: null, fontSize: null, border: null }],
-    ["Bad", { fillColor: "FFC7CE", fontColor: "9C0006" }], ["Good", { fillColor: "C6EFCE", fontColor: "006100" }], ["Neutral", { fillColor: "FFEB9C", fontColor: "9C5700" }],
-    ["Title", { fontSize: 18, fontColor: "44546A", fontFamily: "Calibri Light" }], ["Heading 1", { fontSize: 15, bold: true, fontColor: "44546A", border: "B" }],
-    ["Heading 2", { fontSize: 13, bold: true, fontColor: "44546A", border: "B" }], ["Total", { bold: true, border: "tB" }],
-    ["Accent1", { fillColor: "4472C4", fontColor: "FFFFFF" }], ["Note", { fillColor: "FFFFCC", border: "trbl" }],
-    ["Heading 3", { fontSize: 11, bold: true, fontColor: "44546A", border: "b" }], ["Heading 4", { bold: true, fontColor: "44546A" }],
-    ["Calculation", { bold: true, fontColor: "FA7D00", fillColor: "F2F2F2", border: "trbl" }], ["Check Cell", { bold: true, fontColor: "FFFFFF", fillColor: "A5A5A5", border: "trbl" }],
-    ["Explanatory Text", { italic: true, fontColor: "7F7F7F" }], ["Input", { fontColor: "3F3F76", fillColor: "FFCC99", border: "trbl" }],
-    ["Linked Cell", { fontColor: "FA7D00", border: "b=" }], ["Output", { bold: true, fontColor: "3F3F3F", fillColor: "F2F2F2", border: "trbl" }], ["Warning Text", { fontColor: "FF0000" }],
-    ["20% - Accent1", { fillColor: "D9E1F2" }], ["40% - Accent1", { fillColor: "B4C6E7" }], ["60% - Accent1", { fillColor: "8EA9DB", fontColor: "FFFFFF" }],
-    ["Accent2", { fillColor: "ED7D31", fontColor: "FFFFFF" }], ["Accent6", { fillColor: "70AD47", fontColor: "FFFFFF" }],
-    ["Comma", { numberFormat: "Number", decimals: 2 }], ["Currency", { numberFormat: "Currency", decimals: 2 }], ["Percent", { numberFormat: "Percentage", decimals: 0 }],
-  ];
   const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); void saveDocument(); };
   const openContextMenu = (event: React.MouseEvent, row: number, col: number) => {
     event.preventDefault();
@@ -746,7 +809,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       next[ref] = row === rect.r1 ? { ...cell, bold: true, fillColor: header, fontColor: headerFont } : { ...cell, fillColor: (row - rect.r1) % 2 === 0 ? band : "FFFFFF" };
     }
     next = applyBorder(next, rect, "all");
-    change("formatAsTable", { cells: next, sheet: { ...sheet, filter: rangeString(rect), filterHidden: {} } });
+    change("formatAsTable", { cells: next, sheet: { ...sheet, filter: rangeString(rect), filterHidden: {} } }, false, []);
   };
 
   const insertChart = (type: ChartType) => {
@@ -818,6 +881,53 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     }
     change("autoFitColumnWidth", { sheet: withAutoFit({ ...sheet, colWidths: widths }, "autoFitCols", [...fitted]) });
   };
+  // Dragging a single column/row border (not tied to the current selection, unlike setColumnWidth/setRowHeight above).
+  const setColumnWidthAt = (col: number, width: number) => {
+    const letter = columnLetters(col), widths = { ...(sheet.colWidths ?? {}) }, fitted = new Set(sheet.autoFitCols ?? []);
+    fitted.delete(letter); widths[letter] = Math.round(Math.max(0, width) * 100) / 100;
+    change("columnWidth", { sheet: withAutoFit({ ...sheet, colWidths: widths }, "autoFitCols", [...fitted]) });
+  };
+  const setRowHeightAt = (row: number, points: number) => {
+    const heights = { ...(sheet.rowHeights ?? {}) }, fitted = new Set(sheet.autoFitRows ?? []);
+    fitted.delete(row); heights[String(row)] = Math.round(Math.max(0, points) * 100) / 100;
+    change("rowHeight", { sheet: withAutoFit({ ...sheet, rowHeights: heights }, "autoFitRows", [...fitted]) });
+  };
+  const autoFitColumnAt = (col: number) => {
+    let longest = 0;
+    for (const [ref, cell] of Object.entries(cells)) { const at = parseRef(ref); if (at?.col === col && cell.value != null && !mergeAt(merges, at.row, col)) longest = Math.max(longest, formatCellValue(cell.value, cell.numberFormat, cell.decimals).length * ((cell.fontSize ?? DEFAULT_FONT_SIZE) / DEFAULT_FONT_SIZE) * (cell.bold ? 1.1 : 1)); }
+    const letter = columnLetters(col), widths = { ...(sheet.colWidths ?? {}) }, fitted = new Set(sheet.autoFitCols ?? []);
+    widths[letter] = Math.min(255, Math.max(2, Math.ceil(longest + 1))); fitted.add(letter);
+    change("autoFitColumnWidth", { sheet: withAutoFit({ ...sheet, colWidths: widths }, "autoFitCols", [...fitted]) });
+  };
+  const autoFitRowAt = (row: number) => {
+    const heights = { ...(sheet.rowHeights ?? {}) }, fitted = new Set(sheet.autoFitRows ?? []);
+    delete heights[String(row)]; fitted.add(row);
+    change("autoFitRowHeight", { sheet: withAutoFit({ ...sheet, rowHeights: heights }, "autoFitRows", [...fitted]) });
+  };
+  const beginColResize = (event: React.MouseEvent, col: number) => {
+    event.preventDefault(); event.stopPropagation();
+    resizeInfo.current = { kind: "col", index: col, start: event.clientX, startSize: colPx(col) };
+    setResizeGuide({ x: event.clientX, y: event.clientY });
+  };
+  const beginRowResize = (event: React.MouseEvent, row: number) => {
+    event.preventDefault(); event.stopPropagation();
+    resizeInfo.current = { kind: "row", index: row, start: event.clientY, startSize: rowHeight(row) };
+    setResizeGuide({ x: event.clientX, y: event.clientY });
+  };
+  // Listeners stay attached for the component's life (resizeInfo.current gates them, not this effect) so a drag
+  // started under an older `sheet` still commits against the latest one -- re-subscribing here only keeps the
+  // closure fresh, it doesn't affect whether a drag is in progress.
+  useEffect(() => {
+    const move = (event: MouseEvent) => { if (!resizeInfo.current) return; setResizeGuide({ x: event.clientX, y: event.clientY }); };
+    const up = (event: MouseEvent) => {
+      const info = resizeInfo.current; if (!info) return;
+      resizeInfo.current = null; setResizeGuide(null);
+      const pos = info.kind === "col" ? event.clientX : event.clientY, newPx = Math.max(0, info.startSize + (pos - info.start));
+      if (info.kind === "col") setColumnWidthAt(info.index, colWidthFromPx(newPx)); else setRowHeightAt(info.index, rowPointsFromPx(newPx));
+    };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+    return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+  }, [sheet]); // eslint-disable-line react-hooks/exhaustive-deps -- re-subscribing only refreshes the `sheet` closure; resizeInfo.current is what actually gates a drag
   const applyInput = (purpose: InputPurpose, value: string, chartId?: string) => {
     if (purpose === "rowHeight") setRowHeight(Number(value));
     else if (purpose === "columnWidth") setColumnWidth(Number(value));
@@ -1106,12 +1216,17 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const setDefaultWidth = (width: number) => { const widths = { ...(sheet.colWidths ?? {}) }; for (let col = 0; col < MAX_COLS; col++) { const letter = columnLetters(col); if (widths[letter] === undefined || widths[letter] === sheet.colWidths?.[letter]) widths[letter] = widths[letter] ?? width; } change("columnWidth", { sheet: { ...sheet, colWidths: widths } }); };
 
   const nameBoxValue = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? activeRef : (activeMerge && activeMerge.r1 === selection.r1 && activeMerge.c1 === selection.c1 && activeMerge.r2 === selection.r2 && activeMerge.c2 === selection.c2) ? refAt(activeMerge.r1, activeMerge.c1) : rangeString(selection);
-  const [nameBox, setNameBox] = useState<string | null>(null);
+  // Its own store (like the Formula Bar's editText and the status line's statusStore above): typing in the Name
+  // Box only redraws the Name Box, not the whole sheet -- on a big sheet a plain useState here made every
+  // keystroke in it (even just clicking in, which focuses and preselects the text) repaint the entire grid.
+  const [nameBoxStore] = useState(createTextStore);
+  const [nameBoxEditing, setNameBoxEditing] = useState(false);
   const goToName = (text: string) => {
+    // A1 and a1 are the same address, as in Excel: parseRange/parseRef already uppercase before matching.
     const named = Object.entries(sheet.definedNames ?? {}).find(([name]) => name.toUpperCase() === text.trim().toUpperCase())?.[1];
     const rect = parseRange(named ?? text.trim());
     if (rect) { selectRect(rect); setNotice(null); } else setNotice("Type a cell, a range such as A27:L27, or a defined name.");
-    setNameBox(null); focusGrid();
+    setNameBoxEditing(false); focusGrid();
   };
   const formulaBarValue = sheet.protected && active.hiddenFormula ? "" : (active.formula ?? (active.value == null ? "" : String(active.value)));
   const zoom = sheet.zoom || 100;
@@ -1177,6 +1292,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
         <span className="flex-1 text-center text-[12px] text-slate-600">Book1 - Excel</span>
         <span className="text-[11px] font-bold text-slate-500" aria-live="polite"><StoreText store={statusStore} /></span>
         {fillTip !== null && <FillTip text={fillTip} />}
+        {resizeGuide !== null && resizeInfo.current && <ResizeGuide guide={resizeGuide} info={resizeInfo.current} />}
       </div>
       <div role="tablist" aria-label="Ribbon tabs" className="flex items-end gap-0.5 bg-white px-1">
         <span className="bg-[#217346] px-4 py-1 text-[12px] text-white">FILE</span>
@@ -1318,11 +1434,36 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
               <MenuItem onClick={() => { clearConditional(true); setMenu(null); }}>Clear Rules from Entire Sheet</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "manageRules" })}>Manage Rules...</MenuItem>
             </MenuButton>
-            <MenuButton id="formatTable" menu={menu} setMenu={setMenu} label="Format as Table" icon={<Icon name="table" big />} big disabled={submitted}>
-              {TABLE_STYLES.map((style) => <MenuItem key={style[0]} onClick={() => { formatAsTable(style); setMenu(null); }}><span className="mr-2 inline-flex h-3 w-6 border border-slate-300" style={{ background: `linear-gradient(#${style[1]} 40%, #${style[3]} 40%)` }} />{style[0]}</MenuItem>)}
+            <MenuButton id="formatTable" menu={menu} setMenu={setMenu} label="Format as Table" icon={<Icon name="table" big />} big disabled={submitted} panelClassName="w-[292px] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg">
+              {(["Light", "Medium", "Dark"] as const).map((group) => {
+                const start = group === "Light" ? 0 : group === "Medium" ? TABLE_STYLE_COUNTS.Light : TABLE_STYLE_COUNTS.Light + TABLE_STYLE_COUNTS.Medium;
+                return (
+                  <div key={group}>
+                    <MenuHeading>{group}</MenuHeading>
+                    <div className="grid grid-cols-7 gap-1 px-2 py-1.5">
+                      {TABLE_STYLES.slice(start, start + TABLE_STYLE_COUNTS[group]).map((style) => (
+                        <button key={style[0]} type="button" role="menuitem" title={style[0]} aria-label={style[0]} onMouseDown={(event) => event.preventDefault()} onClick={() => { formatAsTable(style); setMenu(null); }}
+                          className="h-6 w-9 border border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]" style={{ background: `linear-gradient(#${style[1]} 45%, #${style[3]} 45%)` }} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="border-t border-[#e1e1e1] px-2 py-1 text-[11px] text-slate-500">New Table Style...</div>
             </MenuButton>
-            <MenuButton id="cellStyles" menu={menu} setMenu={setMenu} label="Cell Styles" icon={<Icon name="cellStyles" big />} big disabled={submitted}>
-              {CELL_STYLES.map(([name, patch]) => <MenuItem key={name} onClick={() => { formatSelection(patch, "cellStyle"); setMenu(null); }}>{name}</MenuItem>)}
+            <MenuButton id="cellStyles" menu={menu} setMenu={setMenu} label="Cell Styles" icon={<Icon name="cellStyles" big />} big disabled={submitted} panelClassName="w-[420px] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg">
+              {["Good, Bad and Neutral", "Data and Model", "Titles and Headings", "Themed Cell Styles", "Number Format"].map((category) => (
+                <div key={category}>
+                  <MenuHeading>{category}</MenuHeading>
+                  <div className="flex flex-wrap gap-1 px-2 py-1.5">
+                    {CELL_STYLE_LIST.filter((s) => s.category === category).map(({ name, patch }) => (
+                      <button key={name} type="button" role="menuitem" title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => { formatSelection(patch, "cellStyle"); setMenu(null); }}
+                        style={{ background: patch.fillColor ? `#${patch.fillColor}` : "#FFFFFF", color: patch.fontColor ? `#${patch.fontColor}` : "#000000", fontWeight: patch.bold ? 700 : 400, fontStyle: patch.italic ? "italic" : "normal", fontFamily: patch.fontFamily ?? undefined }}
+                        className="rounded-none border border-slate-300 px-2 py-0.5 text-[11px] hover:outline hover:outline-1 hover:outline-[#f29436]">{name}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </MenuButton>
           </Group>
           <Group label="Cells">
@@ -1353,7 +1494,17 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
               <MenuHeading>Organize Sheets</MenuHeading>
               <MenuItem onClick={() => { setMenu(null); setRenamingSheet(sheetName); }}>Rename Sheet</MenuItem>
               <MenuItem onClick={() => { setMenu(null); setNotice("This test uses one worksheet: Move or Copy Sheet is not needed."); }}>Move or Copy Sheet...</MenuItem>
-              <div className="px-3 py-1"><p className="mb-1 text-[11px] text-[#444]">Tab Color</p><div className="grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`Tab Color ${name}`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => setTabColor(hex)} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
+              <p className="bg-[#f0f0f0] px-2 py-0.5 text-[11px] font-semibold text-[#444]">Tab Color</p>
+              <p className="bg-[#f0f0f0] px-2 py-0.5 text-[11px] font-semibold text-[#444]">Theme Colors</p>
+              <div className="grid gap-[3px] px-2 py-1.5">
+                {THEME_COLORS.map((row, r) => (
+                  <div key={r} className={`grid grid-cols-11 gap-[3px] ${r === 0 ? "mb-1" : ""}`}>
+                    {row.map(({ hex, name }) => <button key={`${hex}-${r}`} type="button" role="menuitem" aria-label={`Tab Color ${name}`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => setTabColor(hex)} className="h-[14px] w-[14px] border border-slate-300 hover:outline hover:outline-1 hover:outline-[#f29436]" style={{ backgroundColor: `#${hex}` }} />)}
+                  </div>
+                ))}
+              </div>
+              <p className="bg-[#f0f0f0] px-2 py-0.5 text-[11px] font-semibold text-[#444]">Standard Colors</p>
+              <div className="px-3 py-1.5"><div className="grid grid-cols-10 gap-0.5">{STANDARD_COLORS.map(([hex, name]) => <button key={hex} type="button" role="menuitem" aria-label={`Tab Color ${name}`} title={name} onMouseDown={(event) => event.preventDefault()} onClick={() => setTabColor(hex)} className="h-4 w-4 border border-slate-200" style={{ backgroundColor: `#${hex}` }} />)}</div>
                 <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => setTabColor(null)} className="mt-1 w-full text-left text-[12px] hover:bg-[#d5e1f2]">No Color</button>
                 <button type="button" role="menuitem" onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "moreColors", target: "tab" })} className="w-full text-left text-[12px] hover:bg-[#d5e1f2]">More Colors...</button></div>
               <MenuHeading>Protection</MenuHeading>
@@ -1399,7 +1550,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
             <MenuButton id="find" menu={menu} setMenu={setMenu} label="Find & Select" icon={<Icon name="find" big />} big>
               <MenuItem onClick={() => openDialog({ kind: "find", tab: "Find" })}>Find...</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "find", tab: "Replace" })}>Replace...</MenuItem>
-              <MenuItem onClick={() => { setMenu(null); setNameBox(nameBoxValue); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[aria-label="Name Box"]')?.select()); }}>Go To...</MenuItem>
+              <MenuItem onClick={() => { setMenu(null); nameBoxStore.set(nameBoxValue); setNameBoxEditing(true); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[aria-label="Name Box"]')?.select()); }}>Go To...</MenuItem>
               <MenuItem onClick={() => openDialog({ kind: "goToSpecial" })}>Go To Special...</MenuItem>
               <MenuSeparator />
               <MenuItem onClick={() => { setMenu(null); goToSpecial("formulas"); }}>Formulas</MenuItem>
@@ -1588,7 +1739,11 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       {ribbon}
       {questionBar}
       {sheet.formulaBar && <div className="flex items-center gap-2 border-b border-slate-300 bg-white px-2 py-1">
-        <input aria-label="Name Box" value={nameBox ?? nameBoxValue} onFocus={(event) => { setNameBox(nameBoxValue); selectAllOnFocus.onFocus(event); }} onMouseUp={selectAllOnFocus.onMouseUp} onChange={(event) => setNameBox(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBox ?? ""); if (event.key === "Escape") { setNameBox(null); focusGrid(); } }} onBlur={() => setNameBox(null)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
+        <StoreInput store={nameBoxStore} live={nameBoxEditing} fallback={nameBoxValue} aria-label="Name Box"
+          onFocus={(event) => { nameBoxStore.set(nameBoxValue); setNameBoxEditing(true); selectAllOnFocus.onFocus(event); }} onMouseUp={selectAllOnFocus.onMouseUp}
+          onText={(value) => nameBoxStore.set(value.toUpperCase())}
+          onKeyDown={(event) => { if (event.key === "Enter") goToName(nameBoxStore.get()); if (event.key === "Escape") { setNameBoxEditing(false); focusGrid(); } }}
+          onBlur={() => setNameBoxEditing(false)} className="h-6 w-24 shrink-0 rounded-sm border border-slate-300 px-1 text-[12px]" />
         <button type="button" aria-label="Insert Function" title="Insert Function" disabled={submitted} onMouseDown={(event) => event.preventDefault()} onClick={() => openDialog({ kind: "insertFunction" })} className="px-1 font-serif text-[13px] italic text-slate-500 hover:bg-slate-100 disabled:opacity-50">fx</button>
         <StoreInput inputRef={formulaBarRef} store={editText} live={Boolean(editing)} fallback={formulaBarValue} aria-label="Formula bar" disabled={submitted}
           onFocus={() => { if (!editing) beginEdit(undefined, true); }}
@@ -1616,7 +1771,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                   <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.shiftKey) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
                     onContextMenu={(event) => { event.preventDefault(); if (!(col >= selection.c1 && col <= selection.c2 && wholeCols)) { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                     style={{ left: freeze && col < freeze.col ? frozenLeft(col) : undefined, padding: hiddenColSet.has(col) ? 0 : undefined }}
-                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_0_-2px_0_#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}</th>
+                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_0_-2px_0_#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}
+                    {!submitted && <span role="separator" aria-label={`Resize column ${columnLetters(col)}`} onMouseDown={(event) => beginColResize(event, col)} onDoubleClick={(event) => { event.stopPropagation(); autoFitColumnAt(col); }} className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize" />}</th>
                 ))}
               </tr>
             </thead>}
@@ -1630,7 +1786,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                     {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.shiftKey) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
                       onContextMenu={(event) => { event.preventDefault(); if (!(row >= selection.r1 && row <= selection.r2 && wholeRows)) { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                       style={{ top: frozenRow ? frozenTop(row) : undefined, height: rowHeight(row) }}
-                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_-2px_0_0_#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}</th>}
+                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_-2px_0_0_#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}
+                      {!submitted && <span role="separator" aria-label={`Resize row ${row}`} onMouseDown={(event) => beginRowResize(event, row)} onDoubleClick={(event) => { event.stopPropagation(); autoFitRowAt(row); }} className="absolute bottom-0 left-0 z-10 h-1.5 w-full cursor-row-resize" />}</th>}
                     {Array.from({ length: displayCols }, (_, col) => {
                       const merged = mergeAt(merges, row, col);
                       if (merged && (merged.r1 !== row || merged.c1 !== col)) return null;
@@ -1881,6 +2038,18 @@ function FillTip({ text }: { text: string }) {
   if (!at) return null;
   return <div role="tooltip" className="pointer-events-none fixed z-[80] whitespace-nowrap border border-[#767676] bg-white px-1.5 py-0.5 text-[12px] text-[#575757] shadow" style={{ left: at.x + 12, top: at.y + 18 }}>{text}</div>;
 }
+// The guide line and "Width: 10.43 (79 pixels)" tooltip shown while dragging a column/row border, as in Excel --
+// the grid itself resizes only once, on mouse-up (see the resizeInfo effect above).
+function ResizeGuide({ guide, info }: { guide: { x: number; y: number }; info: { kind: "col" | "row"; start: number; startSize: number } }) {
+  const newPx = Math.max(0, info.startSize + ((info.kind === "col" ? guide.x : guide.y) - info.start));
+  const label = info.kind === "col" ? `Width: ${colWidthFromPx(newPx).toFixed(2)} (${newPx} pixels)` : `Height: ${rowPointsFromPx(newPx).toFixed(2)} (${newPx} pixels)`;
+  return <>
+    {info.kind === "col"
+      ? <div className="pointer-events-none fixed top-0 z-[90] h-screen w-px bg-[#217346]" style={{ left: guide.x }} />
+      : <div className="pointer-events-none fixed left-0 z-[90] h-px w-screen bg-[#217346]" style={{ top: guide.y }} />}
+    <div role="tooltip" className="pointer-events-none fixed z-[90] whitespace-nowrap border border-[#767676] bg-white px-1.5 py-0.5 text-[12px] text-[#575757] shadow" style={{ left: guide.x + 12, top: guide.y + 18 }}>{label}</div>
+  </>;
+}
 
 function StoreText({ store }: { store: TextStore }) { return <>{useSyncExternalStore(store.subscribe, store.get, store.get)}</>; }
 type TextStore = { get: () => string; set: (value: string) => void; subscribe: (listener: () => void) => () => void };
@@ -2078,8 +2247,9 @@ function BorderMenuIcon({ style }: { style: BorderStyle }) {
 function MenuItem({ children, onClick, checked, disabled, icon }: { children: React.ReactNode; onClick: () => void; checked?: boolean; disabled?: boolean; icon?: React.ReactNode }) {
   return <button type="button" role="menuitem" disabled={disabled} aria-disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick} className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-[#d5e1f2] disabled:cursor-default disabled:text-[#a6a6a6] disabled:hover:bg-transparent ${checked ? "font-semibold text-[#217346]" : ""}`}><span className="flex w-3.5 justify-center">{icon ?? (checked ? "✓" : "")}</span>{children}</button>;
 }
-function MenuButton({ id, menu, setMenu, label, icon, children, disabled, big, onMain }: { id: string; menu: string | null; setMenu: (value: string | null) => void; label: string; icon: React.ReactNode; children: React.ReactNode; disabled?: boolean; big?: boolean; onMain?: () => void }) {
+function MenuButton({ id, menu, setMenu, label, icon, children, disabled, big, onMain, panelClassName }: { id: string; menu: string | null; setMenu: (value: string | null) => void; label: string; icon: React.ReactNode; children: React.ReactNode; disabled?: boolean; big?: boolean; onMain?: () => void; panelClassName?: string }) {
   const open = menu === id;
+  const panel = <Popover label={`${label} menu`} className={panelClassName ?? "min-w-[12rem] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg"}>{children}</Popover>;
   if (big) return (
     <span data-xl-menu className="relative flex">
       <span className="flex flex-col items-stretch">
@@ -2088,7 +2258,7 @@ function MenuButton({ id, menu, setMenu, label, icon, children, disabled, big, o
         <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => setMenu(open ? null : id)} aria-label={onMain ? `${label} options` : `${label} menu`} aria-expanded={open}
           className="flex h-[26px] flex-col items-center border border-transparent px-1 text-[11px] leading-[12px] hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40">{label}<span className="text-[9px]">▾</span></button>
       </span>
-      {open && <Menu>{children}</Menu>}
+      {open && panel}
     </span>
   );
   return (
@@ -2096,7 +2266,7 @@ function MenuButton({ id, menu, setMenu, label, icon, children, disabled, big, o
       {onMain && <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onMain} aria-label={label} title={label} className="flex h-[22px] items-center border border-transparent px-1 hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40">{icon}</button>}
       <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => setMenu(open ? null : id)} aria-label={onMain ? `${label} options` : label} aria-haspopup="menu" aria-expanded={open} title={label}
         className="flex h-[22px] items-center gap-0.5 whitespace-nowrap border border-transparent px-1 hover:border-[#c6c6c6] hover:bg-white disabled:opacity-40">{!onMain && icon}<span className="text-[9px]">▾</span></button>
-      {open && <Menu>{children}</Menu>}
+      {open && panel}
     </span>
   );
 }

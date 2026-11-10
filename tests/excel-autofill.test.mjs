@@ -97,7 +97,7 @@ test("the sheet shows the fill handle on the selection's corner, drags it with a
   assert.match(editor, /data-fill-handle/);
   assert.match(editor, /onMouseDown=\{\(event\) => \{ event\.stopPropagation\(\); event\.preventDefault\(\); focusGrid\(\); setFillDrag\(/);
   assert.match(editor, /autoFillDownLastRow\(cells, selection\)/);
-  assert.match(editor, /change\("autoFill", \{ cells: autoFill\(cells, source, direction, count\) \}\)/);
+  assert.match(editor, /change\("autoFill", \{ cells: autoFill\(cells, source, direction, count\) \}/);
   assert.match(editor, /fillPreview && rectContains\(fillPreview, row, col\)/);
   assert.match(editor, /!submitted && !isEditing/, "no handle once submitted or while typing in the cell");
   const document = await readFile(new URL("../lib/excel-document.ts", import.meta.url), "utf8");

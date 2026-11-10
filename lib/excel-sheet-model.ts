@@ -91,18 +91,59 @@ export function parseEntry(raw: string): { value: string | number | null; formul
   return { value: raw.slice(0, 1000), formula: null };
 }
 
-/** Every formula cell's value worked out again (formulas depend on other cells). */
-export function recomputeFormulas(cells: Record<string, SheetCell>, names?: Record<string, string>): Record<string, SheetCell> {
+const VOLATILE_FORMULA_RE = /\b(NOW|TODAY)\s*\(/;
+const REF_TOKEN_RE = /\$?[A-Z]{1,2}\$?[0-9]{1,3}(?::\$?[A-Z]{1,2}\$?[0-9]{1,3})?/g;
+/** Whether a formula's text reads `ref` -- as a lone cell, or inside an A1:B2-style range. */
+function formulaReferencesCell(formula: string, ref: { row: number; col: number }): boolean {
+  for (const token of formula.match(REF_TOKEN_RE) ?? []) {
+    if (token.includes(":")) {
+      const range = parseRange(token);
+      if (range && ref.row >= range.r1 && ref.row <= range.r2 && ref.col >= range.c1 && ref.col <= range.c2) return true;
+    } else {
+      const at = parseRef(token);
+      if (at && at.row === ref.row && at.col === ref.col) return true;
+    }
+  }
+  return false;
+}
+
+/** Every formula cell's value worked out again (formulas depend on other cells).
+ * `touchedRefs`, when given, is the set of cells this edit actually changed (a single typed cell, a fill, a
+ * paste...): only formulas that read one of them -- or, in later rounds, a cell whose own value just changed
+ * because of them -- are re-evaluated, instead of every formula cell in the sheet. This is a large win on a
+ * sheet with thousands of formula cells (e.g. a 500-row paper), where the overwhelming majority of formulas
+ * cannot possibly be affected by a single edit. Left out (or if the sheet has a volatile function -- NOW/TODAY,
+ * whose value can change without any cell being touched), every formula cell is recomputed, as before. */
+export function recomputeFormulas(cells: Record<string, SheetCell>, names?: Record<string, string>, touchedRefs?: Iterable<string>): Record<string, SheetCell> {
   const plain: SheetCells = Object.fromEntries(Object.entries(cells).map(([ref, cell]) => [ref, { value: cell.value, formula: cell.formula }]));
   let changed = false;
   const next: Record<string, SheetCell> = {};
   const cache: FormulaCache = new Map();
-  for (const [ref, cell] of Object.entries(cells)) {
-    if (!cell.formula) { next[ref] = cell; continue; }
-    const value = computedCellValue(ref, plain, names, cache);
-    const stored = typeof value === "string" ? value.slice(0, 1000) : value;
-    if (stored !== cell.value) changed = true;
-    next[ref] = { ...cell, value: stored };
+  let pending = touchedRefs ? new Set(touchedRefs) : null;
+  if (pending) for (const cell of Object.values(cells)) if (cell.formula && VOLATILE_FORMULA_RE.test(cell.formula)) { pending = null; break; }
+  if (!pending) {
+    for (const [ref, cell] of Object.entries(cells)) {
+      if (!cell.formula) { next[ref] = cell; continue; }
+      const value = computedCellValue(ref, plain, names, cache);
+      const stored = typeof value === "string" ? value.slice(0, 1000) : value;
+      if (stored !== cell.value) changed = true;
+      next[ref] = { ...cell, value: stored };
+    }
+    return changed ? next : cells;
+  }
+  for (const [ref, cell] of Object.entries(cells)) next[ref] = cell;
+  let round = 0;
+  while (pending.size && round < 20) {
+    round++;
+    const parsedPending = [...pending].map(parseRef).filter((p): p is { row: number; col: number } => p !== null);
+    const newlyChanged = new Set<string>();
+    for (const [ref, cell] of Object.entries(next)) {
+      if (!cell.formula || !parsedPending.some((p) => formulaReferencesCell(cell.formula!, p))) continue;
+      const value = computedCellValue(ref, plain, names, cache);
+      const stored = typeof value === "string" ? value.slice(0, 1000) : value;
+      if (stored !== cell.value) { changed = true; next[ref] = { ...cell, value: stored }; newlyChanged.add(ref); }
+    }
+    pending = newlyChanged;
   }
   return changed ? next : cells;
 }
