@@ -78,5 +78,5 @@ function readDocument(document: unknown): ExcelDocument | null {
   if (!document || typeof document !== "object") return null;
   const sheet = toExcelDocumentV3(document as ExcelDocument | ExcelDocumentV2);
   if (!sheet) return null;
-  return { ...sheet, rows: Math.min(Math.max(sheet.rows, 1), 300), cols: Math.min(Math.max(sheet.cols, 1), 26), cells: sheet.cells && typeof sheet.cells === "object" ? sheet.cells : {} };
+  return { ...sheet, rows: Math.min(Math.max(sheet.rows, 1), 500), cols: Math.min(Math.max(sheet.cols, 1), 26), cells: sheet.cells && typeof sheet.cells === "object" ? sheet.cells : {} };
 }
