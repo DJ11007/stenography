@@ -1418,21 +1418,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           </Group>
           <Group label="Styles">
             <MenuButton id="conditional" menu={menu} setMenu={setMenu} label="Conditional Formatting" icon={<Icon name="conditional" big />} big disabled={submitted}>
-              <MenuHeading>Highlight Cells Rules</MenuHeading>
-              {HIGHLIGHT_RULES.map(([type, label]) => <MenuItem key={type} onClick={() => openDialog({ kind: "conditional", type })}>{label}</MenuItem>)}
-              <MenuHeading>Top/Bottom Rules</MenuHeading>
-              {([["top", "Top 10 Items..."], ["topPercent", "Top 10%..."], ["bottom", "Bottom 10 Items..."], ["bottomPercent", "Bottom 10%..."], ["aboveAverage", "Above Average..."], ["belowAverage", "Below Average..."]] as [ConditionalType, string][]).map(([type, label]) => <MenuItem key={type} onClick={() => openDialog({ kind: "conditional", type })}>{label}</MenuItem>)}
-              <MenuHeading>Data Bars</MenuHeading>
-              <div className="flex gap-1 px-3 py-1">{(["blueBar", "greenBar", "redBar", "orangeBar"] as const).map((style) => <button key={style} type="button" role="menuitem" aria-label={CONDITIONAL_STYLES[style].label} title={CONDITIONAL_STYLES[style].label} onMouseDown={(event) => event.preventDefault()} onClick={() => { addConditional({ type: "dataBar", style }); setMenu(null); }} className="grid h-7 w-7 content-center gap-0.5 border border-[#c6c6c6] p-0.5 hover:border-[#2a8dd4]">{[90, 60, 30].map((w) => <span key={w} className="block h-1.5" style={{ width: `${w}%`, background: `#${CONDITIONAL_STYLES[style].bar}` }} />)}</button>)}</div>
-              <MenuHeading>Color Scales</MenuHeading>
-              <div className="flex gap-1 px-3 py-1">{(["greenYellowRed", "redYellowGreen", "greenWhite", "redWhite"] as const).map((style) => <button key={style} type="button" role="menuitem" aria-label={CONDITIONAL_STYLES[style].label} title={CONDITIONAL_STYLES[style].label} onMouseDown={(event) => event.preventDefault()} onClick={() => { addConditional({ type: "colorScale", style }); setMenu(null); }} className="h-7 w-7 border border-[#c6c6c6] hover:border-[#2a8dd4]" style={{ background: `linear-gradient(${[...(CONDITIONAL_STYLES[style].scale ?? [])].reverse().map((c) => `#${c}`).join(",")})` }} />)}</div>
-              <MenuHeading>Icon Sets</MenuHeading>
-              {(["arrows3", "trafficLights3"] as const).map((style) => <MenuItem key={style} onClick={() => { addConditional({ type: "iconSet", style }); setMenu(null); }}>{CONDITIONAL_STYLES[style].label}</MenuItem>)}
-              <MenuSeparator />
-              <MenuItem onClick={() => openDialog({ kind: "conditional", type: "greaterThan" })}>New Rule...</MenuItem>
-              <MenuItem onClick={() => { clearConditional(false); setMenu(null); }}>Clear Rules from Selected Cells</MenuItem>
-              <MenuItem onClick={() => { clearConditional(true); setMenu(null); }}>Clear Rules from Entire Sheet</MenuItem>
-              <MenuItem onClick={() => openDialog({ kind: "manageRules" })}>Manage Rules...</MenuItem>
+              <ConditionalFormattingMenuItems openDialog={openDialog} addConditional={addConditional} clearConditional={clearConditional} close={() => setMenu(null)} />
             </MenuButton>
             <MenuButton id="formatTable" menu={menu} setMenu={setMenu} label="Format as Table" icon={<Icon name="table" big />} big disabled={submitted} panelClassName="w-[292px] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg">
               {(["Light", "Medium", "Dark"] as const).map((group) => {
@@ -2194,7 +2180,7 @@ function Small({ label, icon, onClick, onDoubleClick, active, disabled, showLabe
   return <button type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick} onDoubleClick={onDoubleClick} aria-label={label} aria-pressed={active} title={label}
     className={`flex h-[22px] min-w-[22px] items-center justify-center gap-1 whitespace-nowrap border px-1 ${active ? "border-[#2a8dd4] bg-[#cde6f7]" : "border-transparent hover:border-[#c6c6c6] hover:bg-white"} disabled:opacity-40`}>{icon}{showLabel && <span>{label}</span>}</button>;
 }
-function Popover({ children, className, label, role = "menu" }: { children: React.ReactNode; className: string; label?: string; role?: string }) {
+function Popover({ children, className, label, role = "menu", side = "below" }: { children: React.ReactNode; className: string; label?: string; role?: string; side?: "below" | "right" }) {
   const marker = useRef<HTMLSpanElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<{ left: number; top: number; maxHeight: number } | null>(null);
@@ -2202,14 +2188,22 @@ function Popover({ children, className, label, role = "menu" }: { children: Reac
     const anchor = (marker.current?.parentElement?.closest("[data-xl-menu]") ?? marker.current?.parentElement) as HTMLElement | null;
     if (!anchor) return;
     const measure = () => {
-      const box = anchor.getBoundingClientRect(), width = panel.current?.offsetWidth ?? 200;
+      const box = anchor.getBoundingClientRect(), width = panel.current?.offsetWidth ?? 200, height = panel.current?.offsetHeight ?? 200;
+      if (side === "right") {
+        // A nested flyout (e.g. Conditional Formatting's "Highlight Cells Rules ▸"): open beside the row that owns
+        // it, flipping to its left when there isn't room on the right, as Excel's own submenus do.
+        const left = box.right + width + 4 > window.innerWidth ? Math.max(4, box.left - width) : box.right;
+        const top = Math.max(4, Math.min(box.top, window.innerHeight - height - 4));
+        setPlace({ left, top, maxHeight: Math.max(160, window.innerHeight - top - 10) });
+        return;
+      }
       const left = Math.max(4, Math.min(box.left, window.innerWidth - width - 4));
       setPlace({ left, top: box.bottom + 2, maxHeight: Math.max(160, window.innerHeight - box.bottom - 10) });
     };
     measure();
     window.addEventListener("resize", measure); window.addEventListener("scroll", measure, true);
     return () => { window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
-  }, []);
+  }, [side]);
   return <>
     <span ref={marker} hidden />
     {typeof document !== "undefined" && createPortal(
@@ -2366,6 +2360,94 @@ function ConditionalIcon({ icon }: { icon: string }) {
 }
 function MenuHeading({ children }: { children: React.ReactNode }) {
   return <div className="bg-[#eeeeee] px-3 py-0.5 text-[11px] font-semibold text-[#444]">{children}</div>;
+}
+// A menu row that opens a nested flyout to the right on click, exactly like Excel's "Highlight Cells Rules ▸" /
+// "Clear Rules ▸" rows -- only one flyout of a given menu is open at a time (siblings share `sub`/`setSub`).
+function FlyoutItem({ id, sub, setSub, icon, label, children }: { id: string; sub: string | null; setSub: (value: string | null) => void; icon?: React.ReactNode; label: string; children: React.ReactNode }) {
+  const open = sub === id;
+  return (
+    <span data-xl-menu className="relative flex w-full">
+      <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={open} onMouseDown={(event) => event.preventDefault()} onClick={() => setSub(open ? null : id)}
+        className={`flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-[#d5e1f2] ${open ? "bg-[#d5e1f2]" : ""}`}>
+        <span className="flex w-3.5 shrink-0 justify-center">{icon}</span>
+        <span className="flex-1">{label}</span>
+        <span className="text-[9px] text-[#666]">▸</span>
+      </button>
+      {open && <Popover side="right" label={`${label} menu`} className="min-w-[14rem] border border-[#c6c6c6] bg-white py-1 text-[12px] text-[#262626] shadow-lg">{children}</Popover>}
+    </span>
+  );
+}
+// Small 16x16 previews for the Conditional Formatting menu's five rule-type rows.
+function CFMenuIcon({ kind }: { kind: "highlight" | "topBottom" | "dataBar" | "colorScale" | "iconSet" }) {
+  const content: Record<typeof kind, React.ReactNode> = {
+    highlight: <><rect x={2} y={2} width={12} height={12} fill="#fff" stroke="#999" /><rect x={4} y={5} width={4} height={3} fill="#FFC7CE" /><rect x={4} y={9} width={8} height={3} fill="#FFEB9C" /></>,
+    topBottom: <><path d="M8 2 L11 6 H9.5 V7.5 H6.5 V6 H5 Z" fill="#70ad47" /><path d="M8 14 L11 10 H9.5 V8.5 H6.5 V10 H5 Z" fill="#c00000" /></>,
+    dataBar: <><rect x={2} y={3} width={11} height={2.5} fill="#8eb4e3" /><rect x={2} y={7} width={7} height={2.5} fill="#8eb4e3" /><rect x={2} y={11} width={4} height={2.5} fill="#8eb4e3" /></>,
+    colorScale: <><rect x={2} y={2} width={12} height={4} fill="#F8696B" /><rect x={2} y={6} width={12} height={4} fill="#FFEB84" /><rect x={2} y={10} width={12} height={4} fill="#63BE7B" /></>,
+    iconSet: <><circle cx={4} cy={8} r={2.6} fill="#F8696B" /><circle cx={8} cy={8} r={2.6} fill="#FFC000" /><circle cx={12} cy={8} r={2.6} fill="#63BE7B" /></>,
+  };
+  return <svg aria-hidden width={14} height={14} viewBox="0 0 16 16" className="shrink-0">{content[kind]}</svg>;
+}
+const TOP_BOTTOM_RULES: [ConditionalType, string][] = [["top", "Top 10 Items..."], ["topPercent", "Top 10%..."], ["bottom", "Bottom 10 Items..."], ["bottomPercent", "Bottom 10%..."], ["aboveAverage", "Above Average..."], ["belowAverage", "Below Average..."]];
+// Excel 2013's Conditional Formatting menu, exactly: five rule-type rows that each fly out a submenu to the
+// right, then New Rule..., Clear Rules (its own flyout) and Manage Rules.... Only one flyout is open at a time
+// (`sub`), and it resets whenever this menu is reopened since it only exists while the parent panel is mounted.
+function ConditionalFormattingMenuItems({ openDialog, addConditional, clearConditional, close }: {
+  openDialog: (dialog: { kind: "conditional"; type: ConditionalType } | { kind: "manageRules" }) => void;
+  addConditional: (rule: { type: ConditionalType; value?: string | number; value2?: string | number; style: NonNullable<SheetSettings["conditionalFormats"]>[number]["style"] }) => void;
+  clearConditional: (entireSheet: boolean) => void;
+  close: () => void;
+}) {
+  const [sub, setSub] = useState<string | null>(null);
+  return (
+    <>
+      <FlyoutItem id="highlight" sub={sub} setSub={setSub} icon={<CFMenuIcon kind="highlight" />} label="Highlight Cells Rules">
+        {HIGHLIGHT_RULES.map(([type, label]) => <MenuItem key={type} onClick={() => { openDialog({ kind: "conditional", type }); close(); }}>{label}</MenuItem>)}
+        <MenuSeparator />
+        <MenuItem onClick={() => { openDialog({ kind: "conditional", type: "greaterThan" }); close(); }}>More Rules...</MenuItem>
+      </FlyoutItem>
+      <FlyoutItem id="topBottom" sub={sub} setSub={setSub} icon={<CFMenuIcon kind="topBottom" />} label="Top/Bottom Rules">
+        {TOP_BOTTOM_RULES.map(([type, label]) => <MenuItem key={type} onClick={() => { openDialog({ kind: "conditional", type }); close(); }}>{label}</MenuItem>)}
+        <MenuSeparator />
+        <MenuItem onClick={() => { openDialog({ kind: "conditional", type: "top" }); close(); }}>More Rules...</MenuItem>
+      </FlyoutItem>
+      <FlyoutItem id="dataBars" sub={sub} setSub={setSub} icon={<CFMenuIcon kind="dataBar" />} label="Data Bars">
+        <div className="grid grid-cols-4 gap-1 px-3 py-1.5">
+          {(["blueBar", "greenBar", "redBar", "orangeBar"] as const).map((style) => (
+            <button key={style} type="button" role="menuitem" aria-label={CONDITIONAL_STYLES[style].label} title={CONDITIONAL_STYLES[style].label}
+              onMouseDown={(event) => event.preventDefault()} onClick={() => { addConditional({ type: "dataBar", style }); close(); }}
+              className="grid h-7 w-7 content-center gap-0.5 border border-[#c6c6c6] p-0.5 hover:border-[#2a8dd4]">
+              {[90, 60, 30].map((w) => <span key={w} className="block h-1.5" style={{ width: `${w}%`, background: `#${CONDITIONAL_STYLES[style].bar}` }} />)}
+            </button>
+          ))}
+        </div>
+      </FlyoutItem>
+      <FlyoutItem id="colorScales" sub={sub} setSub={setSub} icon={<CFMenuIcon kind="colorScale" />} label="Color Scales">
+        <div className="grid grid-cols-4 gap-1 px-3 py-1.5">
+          {(["greenYellowRed", "redYellowGreen", "greenWhite", "redWhite"] as const).map((style) => (
+            <button key={style} type="button" role="menuitem" aria-label={CONDITIONAL_STYLES[style].label} title={CONDITIONAL_STYLES[style].label}
+              onMouseDown={(event) => event.preventDefault()} onClick={() => { addConditional({ type: "colorScale", style }); close(); }}
+              className="h-7 w-7 border border-[#c6c6c6] hover:border-[#2a8dd4]"
+              style={{ background: `linear-gradient(${[...(CONDITIONAL_STYLES[style].scale ?? [])].reverse().map((c) => `#${c}`).join(",")})` }} />
+          ))}
+        </div>
+      </FlyoutItem>
+      <FlyoutItem id="iconSets" sub={sub} setSub={setSub} icon={<CFMenuIcon kind="iconSet" />} label="Icon Sets">
+        {(["arrows3", "trafficLights3"] as const).map((style) => (
+          <MenuItem key={style} icon={<ConditionalIcon icon={CONDITIONAL_STYLES[style].icons![0]} />} onClick={() => { addConditional({ type: "iconSet", style }); close(); }}>
+            {CONDITIONAL_STYLES[style].label}
+          </MenuItem>
+        ))}
+      </FlyoutItem>
+      <MenuSeparator />
+      <MenuItem onClick={() => { openDialog({ kind: "conditional", type: "greaterThan" }); close(); }}>New Rule...</MenuItem>
+      <FlyoutItem id="clearRules" sub={sub} setSub={setSub} label="Clear Rules">
+        <MenuItem onClick={() => { clearConditional(false); close(); }}>Clear Rules from Selected Cells</MenuItem>
+        <MenuItem onClick={() => { clearConditional(true); close(); }}>Clear Rules from Entire Sheet</MenuItem>
+      </FlyoutItem>
+      <MenuItem onClick={() => { openDialog({ kind: "manageRules" }); close(); }}>Manage Rules...</MenuItem>
+    </>
+  );
 }
 function MenuSeparator() {
   return <div className="my-1 border-t border-[#e1e1e1]" />;
