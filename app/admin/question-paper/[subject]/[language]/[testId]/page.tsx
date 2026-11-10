@@ -6,6 +6,9 @@ import { loadQuestionPaper } from "@/lib/question-paper";
 
 type Props = { params: Promise<{ subject: string; language: string; testId: string }> };
 
+// Depends on live admin state (question_paper_ready) and the test's current questions: never prerender/cache it.
+export const dynamic = "force-dynamic";
+
 // The admin's preview of a test's printable question paper (students' pages are under /typing, which admins cannot
 // open): the same sheet, shown before "Question paper" is turned on.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

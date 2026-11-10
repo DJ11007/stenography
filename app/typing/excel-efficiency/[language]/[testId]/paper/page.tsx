@@ -5,6 +5,9 @@ import { loadQuestionPaper } from "@/lib/question-paper";
 
 type Props = { params: Promise<{ language: string; testId: string }> };
 
+// Depends on live admin state (question_paper_ready) and the signed-in user's own role: never prerender/cache it.
+export const dynamic = "force-dynamic";
+
 // The Excel Efficiency test's printable question paper (see lib/question-paper.ts). The page title is the PDF's name.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const route = await params;

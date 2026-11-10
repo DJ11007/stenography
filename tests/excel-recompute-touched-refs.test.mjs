@@ -10,6 +10,13 @@ import { recomputeFormulas, EMPTY_CELL } from "../lib/excel-sheet-model.ts";
 const cell = (value, extra = {}) => ({ ...EMPTY_CELL, value, ...extra });
 const formula = (text, extra = {}) => ({ ...EMPTY_CELL, value: null, formula: text, ...extra });
 
+test("typing a brand-new formula directly into a cell computes that cell's own value, not just its dependents' (regression: a student's SUM formula showed blank)", () => {
+  const cells = { F2: cell(80), G2: cell(64), H2: cell(91), I2: cell(70), K2: formula("=SUM(F2:I2)", { value: null }) };
+  const touched = recomputeFormulas(cells, undefined, ["K2"]);
+  assert.equal(touched.K2.value, 305, "K2 is itself the touched ref -- its own formula must still be evaluated, not just cells that read K2");
+  assert.deepEqual(touched, recomputeFormulas(cells));
+});
+
 test("a chain of formulas (F -> J -> K -> L) all update when only the root cell is touched", () => {
   const cells = { F2: cell(10), G2: cell(5), H2: cell(2), J2: formula("=SUM(F2:H2)"), K2: formula("=J2*2"), L2: formula("=IF(K2>=30,\"big\",\"small\")") };
   const full = recomputeFormulas(cells);

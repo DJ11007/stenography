@@ -135,10 +135,14 @@ export function recomputeFormulas(cells: Record<string, SheetCell>, names?: Reco
   let round = 0;
   while (pending.size && round < 20) {
     round++;
+    // Round 1 only: a touched ref's OWN formula must be (re)computed too -- not just formulas that read it. This
+    // matters most right after typing a brand-new formula into a cell: that cell IS the touched ref, its formula
+    // doesn't reference itself, so without this it would never get evaluated at all and would stay blank.
+    const selfPending = round === 1 ? pending : null;
     const parsedPending = [...pending].map(parseRef).filter((p): p is { row: number; col: number } => p !== null);
     const newlyChanged = new Set<string>();
     for (const [ref, cell] of Object.entries(next)) {
-      if (!cell.formula || !parsedPending.some((p) => formulaReferencesCell(cell.formula!, p))) continue;
+      if (!cell.formula || !(selfPending?.has(ref) || parsedPending.some((p) => formulaReferencesCell(cell.formula!, p)))) continue;
       const value = computedCellValue(ref, plain, names, cache);
       const stored = typeof value === "string" ? value.slice(0, 1000) : value;
       if (stored !== cell.value) { changed = true; next[ref] = { ...cell, value: stored }; newlyChanged.add(ref); }
