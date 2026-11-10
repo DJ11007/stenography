@@ -132,10 +132,10 @@ const QUESTIONS = [
     solution: "1. Select **E2:E201** and click HOME → **Italic** (Ctrl+I).\n2. Select **I2:I201** (the Rajasthan GK column) and click HOME → **Center** (Ctrl+E).\n\nChecked: E2:E201 italic, I2:I201 centred." },
   { marks: 2, text: "Give the sheet tab a Blue Tab Color, and Bold the Total column K2:K201.",
     criteria: [{ rule: "sheet", path: "tabColor", equals: ["0070C0", "2E75B6", "1F4E78"] }, { rule: "cells", range: "K2:K201", props: { bold: [true] } }],
-    solution: "1. **Right-click** the sheet tab → **Tab Color** → Standard Colors → **Blue**.\n2. Select **K2:K201** and click HOME → **Bold** (Ctrl+B).\n\nChecked: the tab colour is blue, and K2:K201 is bold." },
-  { marks: 2, text: "Apply Number Format with 0 decimal places to the Typing Speed column J2:J201, and Center alignment to J2:J201.",
+    solution: "1. HOME → **Format ▾** (in the Cells group) → **Tab Color** → Standard Colors → **Blue**.\n2. Select **K2:K201** and click HOME → **Bold**.\n\nChecked: the tab colour is blue, and K2:K201 is bold." },
+  { marks: 2, text: "Apply Number Format with 0 decimal places (no digits after the decimal point) to the Typing Speed column J2:J201, and Center alignment to J2:J201.",
     criteria: [{ rule: "cells", range: "J2:J201", props: { numberFormat: ["Number", "General"], decimals: [0], align: ["center"] } }],
-    solution: "1. Select **J2:J201**.\n2. Right-click → **Format Cells** (Ctrl+1) → **Number** → **Number** → 0 decimal places → **OK**.\n3. HOME → **Center** (Ctrl+E).\n\nChecked: J2:J201 with 0 decimals and centred." },
+    solution: "**Decimal places** means how many digits are shown after the decimal point (the dot). For example, with **2 decimal places** the number 27 would show as **27.00**; with **0 decimal places** it shows as plain **27** -- no dot, no digits after it at all. (A number like 27.8 would be rounded and shown as **28**.)\n1. Select **J2:J201** (click J2, then drag down to J201, or click J2 then Shift-click J201).\n2. HOME → the **Number Format** box (it shows \"General\") → choose **Number** from the list. This switches it to 2 decimal places by default.\n3. Click the **Decrease Decimal** button in the Number group (the **.00 → .0** icon) **twice** to bring it down from 2 decimal places to 0.\n4. With J2:J201 still selected, click HOME → **Center**.\n\nChecked: J2:J201 with 0 decimals and centred." },
 ];
 const total = QUESTIONS.reduce((a, q) => a + q.marks, 0);
 if (total !== 25 || QUESTIONS.length !== 15) throw new Error(`total ${total}`);
