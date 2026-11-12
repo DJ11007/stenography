@@ -2,7 +2,7 @@ import { createClient } from "./supabase/server";
 import { normalizeExamCategoryPage, examCategoryPageBounds, sortExamCategoryNavigatorItems, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
 export { normalizeExamCategoryPage, examCategoryPageBounds, examCategoryPageCount, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
 
-export type ExamCategoryNavigatorItem={id:string;slug:string;title:string;publishedAt:string|null};
+export type ExamCategoryNavigatorItem={id:string;slug:string;title:string;publishedAt:string|null;passageWords:number|null;passageCharacters:number|null};
 export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"|"Hindi";page:unknown;sort?:"newest"|"oldest"};
 
 // Admin-uploaded exercises tied to one of the 25 hardcoded exam categories
@@ -25,11 +25,14 @@ export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"
 // order instead of publish order.
 export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilters){
  const supabase=await createClient();const oldest=filters.sort==="oldest";
- const query=supabase.from("tests").select("id,slug,title,published_at",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
+ const query=supabase.from("tests").select("id,slug,title,published_at,current_version_id",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
  const requested=normalizeExamCategoryPage(filters.page);const from=(requested-1)*EXAM_CATEGORY_PAGE_SIZE;const{data,error,count}=await query.order("published_at",{ascending:oldest}).order("id",{ascending:true}).range(from,from+EXAM_CATEGORY_PAGE_SIZE-1);
  if(error){console.error("Exam category navigator query failed",{code:error.code,message:error.message});throw new Error(`Exam exercises could not be loaded (${error.code||"database error"}).`);}
  const total=count??0;const bounds=examCategoryPageBounds(requested,total);
- const items:ExamCategoryNavigatorItem[]=(data??[]).map(test=>({id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at}));
+ const versionIds=(data??[]).flatMap(test=>test.current_version_id?[test.current_version_id]:[]);
+ const{data:versions}=versionIds.length?await supabase.from("test_versions").select("id,passage_words,passage_characters").in("id",versionIds):{data:[]};
+ const versionMap=new Map((versions??[]).map(version=>[version.id,version]));
+ const items:ExamCategoryNavigatorItem[]=(data??[]).map(test=>{const version=test.current_version_id?versionMap.get(test.current_version_id):null;return{id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at,passageWords:version?.passage_words??null,passageCharacters:version?.passage_characters??null};});
  return{items:sortExamCategoryNavigatorItems(items,oldest?"ascending":"descending"),total,...bounds};
 }
 

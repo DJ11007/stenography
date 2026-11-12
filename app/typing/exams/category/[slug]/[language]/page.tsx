@@ -5,6 +5,8 @@ import { getExamCategory, examCategoryPresetId } from "@/lib/exam-categories";
 import { getExamCategoryNavigator } from "@/lib/exam-category-navigator-server";
 import { TypingBrandHeader } from "../../../../_components/typing-brand";
 import { ExamCategoryIcon } from "../../../_components/exam-category-icon";
+import { WordLengthTag } from "../../../../_components/word-length-tag";
+import { wordLengthStatsFromCounts } from "@/lib/word-length-stats";
 
 function languageFromSegment(segment: string) {
   return segment === "hindi" ? ("Hindi" as const) : segment === "english" ? ("English" as const) : null;
@@ -82,7 +84,10 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
                 // page), this resolves to the exact same rules either way.
                 <Link key={item.id} href={`/tests/${item.slug}?viewAs=${slug}`} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{(page - 1) * 50 + index + 1}</span>
-                  <span className="min-w-0 truncate font-black text-slate-800">{item.title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-black text-slate-800">{item.title}</span>
+                    <WordLengthTag stats={wordLengthStatsFromCounts(item.passageCharacters, item.passageWords)} />
+                  </span>
                 </Link>
               ))}
             </div>}
