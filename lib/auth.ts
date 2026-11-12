@@ -35,8 +35,17 @@ export async function requireAdmin() {
     redirect("/student");
   }
 
-  const { data: verifiedToken } = await supabase.auth.getClaims();
-  if (verifiedToken?.claims.aal !== "aal2") {
+  // Same as app/auth/actions.ts's signIn(): a thrown/failed getClaims() must fall back to "not AAL2-verified"
+  // (sending the admin to the MFA check page, same as a genuinely unverified session) rather than crash the
+  // request -- every /admin page render calls this, so an unhandled throw here takes down the whole admin area.
+  let aal: string | undefined;
+  try {
+    const { data: verifiedToken } = await supabase.auth.getClaims();
+    aal = verifiedToken?.claims.aal;
+  } catch (claimsError) {
+    console.error("getClaims failed in requireAdmin; treating as not AAL2-verified", claimsError);
+  }
+  if (aal !== "aal2") {
     redirect("/account/security?next=/admin");
   }
 

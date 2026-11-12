@@ -48,10 +48,17 @@ export async function signIn(_: AuthFormState, formData: FormData): Promise<Auth
   const role = profile?.is_active && profile.approved !== false && (profile.role === "admin" || profile.role === "student")
     ? profile.role
     : null;
-  const { data: verifiedToken } = await supabase.auth.getClaims(signInData.session?.access_token);
-  const currentLevel = verifiedToken?.claims.aal === "aal2"
-    ? "aal2"
-    : verifiedToken?.claims.aal === "aal1" ? "aal1" : null;
+  // getClaims() must never take the whole sign-in down with it: a bad response from Supabase's claims endpoint
+  // (seen in production as a crash on this exact request, 502 from the app server, only for accounts with an
+  // enrolled MFA factor -- i.e. admins) should fall back to "not yet AAL2-verified" rather than throw, same as a
+  // genuinely unverified session. The MFA/security-settings flow this falls back to still gates /admin either way.
+  let currentLevel: "aal1" | "aal2" | null = null;
+  try {
+    const { data: verifiedToken } = await supabase.auth.getClaims(signInData.session?.access_token);
+    currentLevel = verifiedToken?.claims.aal === "aal2" ? "aal2" : verifiedToken?.claims.aal === "aal1" ? "aal1" : null;
+  } catch (claimsError) {
+    console.error("getClaims failed during sign-in; treating as not AAL2-verified", claimsError);
+  }
   const decision = decideSignInDestination(loginKind, role, currentLevel);
 
   if (decision.type === "deny-admin") {
