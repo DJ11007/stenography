@@ -28,8 +28,6 @@ import { inTitleSequence, missingSequenceColumn } from "@/lib/efficiency-order";
 import { saveWordTestOrder } from "../efficiency-order-actions";
 import { QuestionPaperToggle } from "../question-paper-toggle";
 import { TestNavigator } from "./test-navigator";
-import { describeMatter } from "@/lib/word-matter-draft";
-import { WordLengthTag } from "@/app/typing/_components/word-length-tag";
 const localDateTime = (value: string | null | undefined) => value ? new Date(value).toISOString().slice(0, 16) : "";
 
 // Shared by the two admin pages: "manage" (the list of tests with a Create Test button, attempts and
@@ -304,7 +302,6 @@ export async function WordEfficiencyTestsPage({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <div className="min-w-[13rem] flex-1">
                           <h4 className="truncate font-black">{test.title}</h4>
-                          <WordLengthTag stats={version?.working_matter_snapshot ? describeMatter(version.working_matter_snapshot).wordLength : null} />
                           <p className="text-xs text-slate-500">
                             {version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks · {count} attempt{count === 1 ? "" : "s"}
                           </p>
