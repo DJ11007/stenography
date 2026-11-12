@@ -49,6 +49,12 @@ export default function LoginForm({ admin = false }: { admin?: boolean }) {
           )}
         </div>
       )}
+      {state.multiSession && (
+        <label className="flex items-start gap-2.5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          <input type="checkbox" name="forceLogoutOthers" defaultChecked className="mt-0.5" />
+          <span>Log me out of other devices/browsers and sign in here.</span>
+        </label>
+      )}
       <button disabled={pending} type="submit" className="w-full rounded-lg bg-blue-700 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">{pending ? "Signing in..." : "Sign in"}</button>
       <nav aria-label="Account recovery" className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
         {admin ? (

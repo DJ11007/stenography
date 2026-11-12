@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { decideSignInDestination, type LoginKind } from "@/lib/auth-routing";
 
-export type AuthFormState = { error?: string; success?: string; whatsapp?: boolean };
+export type AuthFormState = { error?: string; success?: string; whatsapp?: boolean; multiSession?: boolean };
 
 function getCredentials(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -16,6 +16,7 @@ function getCredentials(formData: FormData) {
 export async function signIn(_: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const { email, password } = getCredentials(formData);
   const loginKind: LoginKind = formData.get("loginType") === "admin" ? "admin" : "student";
+  const forceLogoutOthers = formData.get("forceLogoutOthers") === "on";
   if (!email || !password) return { error: "Enter your email and password." };
 
   const supabase = await createClient();
@@ -53,12 +54,33 @@ export async function signIn(_: AuthFormState, formData: FormData): Promise<Auth
   // enrolled MFA factor -- i.e. admins) should fall back to "not yet AAL2-verified" rather than throw, same as a
   // genuinely unverified session. The MFA/security-settings flow this falls back to still gates /admin either way.
   let currentLevel: "aal1" | "aal2" | null = null;
+  let currentSessionId: string | undefined;
   try {
     const { data: verifiedToken } = await supabase.auth.getClaims(signInData.session?.access_token);
     currentLevel = verifiedToken?.claims.aal === "aal2" ? "aal2" : verifiedToken?.claims.aal === "aal1" ? "aal1" : null;
+    currentSessionId = verifiedToken?.claims.session_id as string | undefined;
   } catch (claimsError) {
     console.error("getClaims failed during sign-in; treating as not AAL2-verified", claimsError);
   }
+
+  // One active session per student at a time. count_other_active_sessions() (migration
+  // 202611121700) only ever reports a count for auth.uid() -- the account we just signed in
+  // as -- never an arbitrary user. A student who hasn't ticked the checkbox gets the
+  // just-created session signed back out (so declining really does decline) and is asked to
+  // tick it and retry; ticking it uses Supabase's own signOut({ scope: "others" }) to revoke
+  // every other session for this account, no custom "revoke" function needed. Admin logins are
+  // untouched -- an admin legitimately works from more than one device/browser.
+  if (role === "student" && currentSessionId) {
+    const { data: otherSessionCount } = await supabase.rpc("count_other_active_sessions", { p_current_session_id: currentSessionId });
+    if ((otherSessionCount ?? 0) > 0) {
+      if (!forceLogoutOthers) {
+        await supabase.auth.signOut({ scope: "local" });
+        return { error: "This account is already signed in on another device or browser. Tick the box below to log out there and continue here.", multiSession: true };
+      }
+      await supabase.auth.signOut({ scope: "others" });
+    }
+  }
+
   const decision = decideSignInDestination(loginKind, role, currentLevel);
 
   if (decision.type === "deny-admin") {
