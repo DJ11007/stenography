@@ -47,7 +47,7 @@ test("stenography's report includes a candidate header, dual word-based accuracy
   assert.match(source, /function StenographyHeader\(/);
   assert.match(source, /function StenographyStatsTables\(/);
   assert.match(source, /const student = useTypingStudent\(\);/);
-  assert.match(source, /<StenographyHeader title=\{preset\.title\} studentName=\{student\.name\}\/>/);
+  assert.match(source, /<StenographyHeader title=\{preset\.title\} studentName=\{student\.name\} passageWords=\{summary\.passageWords\}\/>/);
   assert.match(source, /<StenographyStatsTables summary=\{summary\}\/>/);
   assert.match(source, /Accuracy against full passage/);
   assert.match(source, /Accuracy against typed words/);

@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatIST } from "@/lib/format-datetime";
 import { BackButton } from "@/app/_components/back-button";
+import { WordLengthTag } from "@/app/typing/_components/word-length-tag";
 
 export const metadata: Metadata = { title: "Test Results | Admin" };
 
@@ -27,7 +28,7 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
 
   const { data: test } = await supabase.from("tests").select("id,title,slug,mode,current_version_id").eq("id", testId).maybeSingle();
   if (!test) notFound();
-  const { data: version } = test.current_version_id ? await supabase.from("test_versions").select("required_wpm,required_accuracy").eq("id", test.current_version_id).maybeSingle() : { data: null };
+  const { data: version } = test.current_version_id ? await supabase.from("test_versions").select("required_wpm,required_accuracy,passage_words").eq("id", test.current_version_id).maybeSingle() : { data: null };
 
   const { data: attemptRows } = await supabase.from("test_attempts").select(`id,student_id,started_at,submitted_at,${TYPING_RESULT_SUMMARY}`).eq("test_id", testId).order("submitted_at", { ascending: false }).limit(1000);
   const attempts = (attemptRows ?? []).map((row) => withResultSummary(row as unknown as Record<string, unknown>) as unknown as { id: string; student_id: string; result: unknown; started_at: string; submitted_at: string | null });
@@ -60,6 +61,7 @@ export default async function AdminTestResultsPage({ params }: { params: Promise
         <header className="mt-4 rounded-2xl bg-slate-900 p-6 text-white shadow">
           <p className="text-xs font-black uppercase tracking-widest text-blue-300">Test results</p>
           <h1 className="mt-1 text-2xl font-black">{test.title}</h1>
+          <WordLengthTag words={version?.passage_words} />
           <p className="mt-2 text-sm text-slate-300">{ranked.length} attempt{ranked.length === 1 ? "" : "s"}{requiredWpm != null && requiredAccuracy != null ? ` · Pass requires ${requiredWpm} WPM and ${requiredAccuracy}% accuracy` : ""}</p>
         </header>
 
