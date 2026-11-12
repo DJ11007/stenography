@@ -21,7 +21,7 @@ export async function getPublishedStenographyTasks(language: "English" | "Hindi"
   const [{ data: versions, error: versionError }, { data: attempts }] = await Promise.all([
     supabase
       .from("test_versions")
-      .select("id,title,input_system_id,duration_seconds,required_wpm,required_accuracy,passage_words,configuration")
+      .select("id,title,input_system_id,duration_seconds,required_wpm,required_accuracy,passage_words,passage_characters,configuration")
       .in("id", versionIds),
     // "Done" only reflects this student's own attempts -- never another
     // student's, and never shown at all when there's no signed-in user
@@ -40,7 +40,7 @@ export async function getPublishedStenographyTasks(language: "English" | "Hindi"
       testId: test.id, slug: test.slug, title: version.title, category: normalizeTaskCategory(configuration.task_category),
       language, inputSystemId: version.input_system_id, durationSeconds: version.duration_seconds,
       requiredWpm: Number(version.required_wpm), requiredAccuracy: Number(version.required_accuracy),
-      passageWords: version.passage_words ?? 0, publishedAt: test.published_at,
+      passageWords: version.passage_words ?? 0, passageCharacters: version.passage_characters ?? 0, publishedAt: test.published_at,
       hasAudio: Boolean(configuration.audio_path), completed: completedIds.has(test.id),
     } satisfies StenographyTaskSummary];
   });

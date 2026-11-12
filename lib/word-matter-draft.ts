@@ -1,4 +1,5 @@
 import type { WorkingMatterSnapshot } from "./word-docx";
+import { wordLengthStatsFromText, type WordLengthStats } from "./word-length-stats.ts";
 
 // The working document is designed on its own full-screen page and handed back to the test form.
 // Between the two pages it is parked in this browser's localStorage under a key for the test being
@@ -52,8 +53,9 @@ export function clearAllMatterDrafts() {
 }
 
 // A short readable summary of a document, for the card on the test form.
-export function describeMatter(matter: WorkingMatterSnapshot): { paragraphs: number; tables: number; words: number; preview: string[] } {
+export function describeMatter(matter: WorkingMatterSnapshot): { paragraphs: number; tables: number; words: number; wordLength: WordLengthStats | null; preview: string[] } {
   const texts = matter.paragraphs.map(item => (item.type === "table" ? item.rows.flat().join(" ") : item.runs.map(run => run.text).join("")));
-  const words = texts.join(" ").split(/\s+/).filter(Boolean).length;
-  return { paragraphs: matter.paragraphs.length, tables: matter.paragraphs.filter(item => item.type === "table").length, words, preview: texts.filter(text => text.trim()).slice(0, 3).map(text => (text.length > 160 ? `${text.slice(0, 160)}…` : text)) };
+  const joined = texts.join(" ");
+  const words = joined.split(/\s+/).filter(Boolean).length;
+  return { paragraphs: matter.paragraphs.length, tables: matter.paragraphs.filter(item => item.type === "table").length, words, wordLength: wordLengthStatsFromText(joined), preview: texts.filter(text => text.trim()).slice(0, 3).map(text => (text.length > 160 ? `${text.slice(0, 160)}…` : text)) };
 }

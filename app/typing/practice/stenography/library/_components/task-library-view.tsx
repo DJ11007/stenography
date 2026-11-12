@@ -3,6 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { STENOGRAPHY_TASK_CATEGORIES, type StenographyTaskSummary } from "@/lib/stenography-task-library";
 import { WordLengthTag } from "@/app/typing/_components/word-length-tag";
+import { wordLengthStatsFromCounts } from "@/lib/word-length-stats";
 
 function practiceHref(task: StenographyTaskSummary) {
   return task.language === "English"
@@ -68,7 +69,7 @@ export function StenographyTaskLibraryView({ tasks }: { tasks: StenographyTaskSu
                 {task.hasAudio && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-black text-blue-800">🎧 Audio</span>}
                 {task.completed && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-black text-emerald-800">✓ Done</span>}
               </div>
-              <WordLengthTag words={task.passageWords} />
+              <WordLengthTag stats={wordLengthStatsFromCounts(task.passageCharacters, task.passageWords)} />
               <p className="mt-1 text-xs text-slate-500">{task.passageWords} words · {Math.round(task.durationSeconds / 60)} min · {task.requiredWpm} WPM required · {task.requiredAccuracy}% accuracy</p>
             </div>
             <Link href={practiceHref(task)} className="shrink-0 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-black text-white hover:bg-green-700">Practice</Link>

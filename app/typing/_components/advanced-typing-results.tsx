@@ -11,6 +11,7 @@ import { ACCURACY_METHOD_FORMULAS, accuracyMethodOf, ALL_HALF_ERROR_CATEGORIES, 
 import { TypingBrandHeader } from "./typing-brand";
 import { useTypingStudent } from "./typing-student-provider";
 import { WordLengthTag } from "./word-length-tag";
+import { wordLengthStatsFromText } from "@/lib/word-length-stats";
 
 type ResultTab = "combined" | "original" | "typed" | "errors" | "categories" | "self";
 type Props = { preset: ExamPreset; inputSystem: InputSystem; passage: string; typedText: string; score: TypingScore; backspaces: number; onRestart: () => void; returnHref?: string; returnLabel?: string; mode: "practice" | "exam" };
@@ -80,7 +81,7 @@ export function AdvancedTypingResults({ preset, inputSystem, passage, typedText,
       // typing layout below, just assembled and labeled for a dictation
       // transcript instead of a typing drill.
       <>
-        <StenographyHeader title={preset.title} studentName={student.name} passageWords={summary.passageWords}/>
+        <StenographyHeader title={preset.title} studentName={student.name} passage={passage}/>
         {insufficientAttempt
           ? <InsufficientAttemptBanner title={preset.title} minimumStrokes={minimumStrokesRequired} achievedStrokes={score.totalCharacters}/>
           : <ResultBanner label={resultLabel} passed={resultPassed} title={preset.title} requiredWpm={preset.speedRequirement} achievedWpm={summary.netWpm} requiredAccuracy={preset.accuracyRequirement} achievedAccuracy={summary.accuracy}/>}
@@ -171,7 +172,7 @@ function InsufficientAttemptBanner({ title, minimumStrokes, achievedStrokes }: {
 // from context (useTypingStudent) rather than a new prop, since
 // TypingBrandHeader inside this same component already requires that
 // context to be present everywhere AdvancedTypingResults is used.
-function StenographyHeader({ title, studentName, passageWords }: { title: string; studentName: string; passageWords?: number }) { return <section className="rounded-3xl bg-white p-4 shadow sm:p-5"><p className="text-xs font-black uppercase tracking-wide text-slate-500">Stenography attempt review</p><h1 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{title}</h1><WordLengthTag words={passageWords} /><p className="mt-1 text-sm font-bold text-slate-600">{studentName}</p></section>; }
+function StenographyHeader({ title, studentName, passage }: { title: string; studentName: string; passage: string }) { return <section className="rounded-3xl bg-white p-4 shadow sm:p-5"><p className="text-xs font-black uppercase tracking-wide text-slate-500">Stenography attempt review</p><h1 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{title}</h1><WordLengthTag stats={wordLengthStatsFromText(passage)} /><p className="mt-1 text-sm font-bold text-slate-600">{studentName}</p></section>; }
 // Two different, both-legitimate accuracy readings on the same attempt --
 // the same distinction a real stenography evaluation sheet draws by
 // showing "words wrong" both counted against the full dictated passage

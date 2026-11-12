@@ -304,7 +304,7 @@ export async function WordEfficiencyTestsPage({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                         <div className="min-w-[13rem] flex-1">
                           <h4 className="truncate font-black">{test.title}</h4>
-                          <WordLengthTag words={version?.working_matter_snapshot ? describeMatter(version.working_matter_snapshot).words : null} />
+                          <WordLengthTag stats={version?.working_matter_snapshot ? describeMatter(version.working_matter_snapshot).wordLength : null} />
                           <p className="text-xs text-slate-500">
                             {version?.question_count ?? 0} questions · {version?.maximum_marks ?? 0} marks · {count} attempt{count === 1 ? "" : "s"}
                           </p>

@@ -15,6 +15,7 @@ import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { createTestAssetUploadUrl, loadTestVersionPassage, deleteManagedTest, duplicateManagedTest, saveExamManagedTest, saveLearningManagedTest, saveLiveExamManagedTest, saveLiveStenographyManagedTest, saveManagedTest, savePracticeManagedTest, saveStenographyManagedTest, setManagedTestStatus, type TestFormState } from "./actions";
 import { PermanentDeleteDangerZone } from "./permanent-delete-danger-zone";
 import { WordLengthTag } from "@/app/typing/_components/word-length-tag";
+import { wordLengthStatsFromCounts } from "@/lib/word-length-stats";
 
 type Version = { id:string; description:string|null; language:"English"|"Hindi"; mode:ManagedTestMode; input_system_id:string; duration_seconds:number; passage:string; required_wpm:number; required_accuracy:number; backspace_mode:string; word_method:string; highlight_mode:string; visibility:"public"|"private"; passage_characters:number; passage_words:number; configuration?:Record<string,unknown>|null };
 export type ManagedTestRow = { id:string; title:string; slug:string; description:string|null; language:string|null; status:ManagedTestStatus; mode:ManagedTestMode; input_system_id:string; visibility:"public"|"private"; duration_seconds:number|null; current_version_id:string|null; current_version_number:number; updated_at:string; is_live:boolean; live_starts_at:string|null; live_ends_at:string|null; results_publish_at:string|null; results_delay_minutes:number|null; currentVersion:Version|null; attempts:number; created_by?:string|null; created_at?:string|null; creatorName?:string|null };
@@ -492,7 +493,7 @@ function TestRow({test,onEdit,learningOnly}:{test:ManagedTestRow;onEdit:()=>void
         <form action={deleteManagedTest} onSubmit={(event)=>{if(!confirm(test.attempts?"This test has attempts and cannot be deleted. Archive it instead.":`Permanently delete ${test.title}?`))event.preventDefault();}}><input type="hidden" name="testId" value={test.id}/><button disabled={test.attempts>0} title={test.attempts>0?"Has attempts -- use Permanently delete below instead":"Delete"} aria-label="Delete" className={`${ICON_BUTTON} disabled:opacity-40 ${test.attempts>0?"":"bg-red-50 text-red-700 hover:bg-red-100"}`}>🗑</button></form>
       </div>
     </div>
-    <WordLengthTag words={version?.passage_words} />
+    <WordLengthTag stats={wordLengthStatsFromCounts(version?.passage_characters, version?.passage_words)} />
     {test.attempts>0 && <PermanentDeleteDangerZone testId={test.id} title={test.title} attemptCount={test.attempts}/>}
   </article>;
 }
