@@ -86,6 +86,7 @@ export async function saveCoursePackage(_: HomepageActionState, formData: FormDa
     p_is_popular: formData.get("isPopular") === "on",
     p_is_published: formData.get("isPublished") === "on",
     p_display_order: Number(formData.get("displayOrder") ?? 0) || 0,
+    p_modules: ["typing", "stenography", "efficiency"].filter((module) => formData.get(`module_${module}`) === "on"),
   });
   if (error) return { error: error.message };
   revalidatePath("/admin/homepage");

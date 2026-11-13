@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SiteHeader } from "../_components/site-header";
 import { SiteFooter } from "../_components/site-footer";
 import { getPublishedCoursePackages } from "@/lib/homepage-content-server";
-import { COURSE_PACKAGE_CATEGORIES, type CoursePackage } from "@/lib/homepage-content";
+import { COURSE_MODULE_LABELS, COURSE_PACKAGE_CATEGORIES, type CoursePackage } from "@/lib/homepage-content";
 import { QrPaymentButton } from "./qr-payment-button";
 
 export const metadata: Metadata = {
@@ -121,6 +121,11 @@ export default async function CoursesPage() {
                     <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600">
                       {plan.features.map((feature) => <li key={feature} className="flex gap-2"><span aria-hidden>✓</span><span>{feature}</span></li>)}
                     </ul>
+                    {plan.modules.length > 0 && (
+                      <p className="mt-3 flex flex-wrap gap-1.5">
+                        {plan.modules.map((module) => <span key={module} className={`rounded-full px-2.5 py-1 text-[11px] font-black ${theme.chip}`}>✓ {COURSE_MODULE_LABELS[module]}</span>)}
+                      </p>
+                    )}
                     {plan.couponCode && (
                       <p className="mt-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-2 text-xs font-black text-amber-900">
                         Coupon <span className="font-mono">{plan.couponCode}</span>{plan.couponDescription ? ` — ${plan.couponDescription}` : ""}

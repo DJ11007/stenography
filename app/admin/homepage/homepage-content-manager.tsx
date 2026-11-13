@@ -2,9 +2,10 @@
 import { useActionState, useRef, useState, useTransition } from "react";
 import { deleteCoursePackage, deleteFeedback, deleteOfficialWebsite, deleteVacancyNotice, extractVacancyDraft, saveCoursePackage, saveOfficialWebsite, saveVacancyNotice, setFeedbackApproved, type HomepageActionState } from "./actions";
 import type { ExtractedVacancyDraft } from "@/lib/vacancy-extraction";
-import { COURSE_PACKAGE_CATEGORIES } from "@/lib/homepage-content";
+import { COURSE_MODULE_LABELS, COURSE_PACKAGE_CATEGORIES, type CourseModule } from "@/lib/homepage-content";
 
-type CoursePackageRow = { id: string; title: string; category: string; duration_label: string; price_label: string; original_price_label: string | null; features: string[]; coupon_code: string | null; coupon_description: string | null; is_popular: boolean; is_published: boolean; display_order: number };
+const ALL_COURSE_MODULES: CourseModule[] = ["typing", "stenography", "efficiency"];
+type CoursePackageRow = { id: string; title: string; category: string; duration_label: string; price_label: string; original_price_label: string | null; features: string[]; coupon_code: string | null; coupon_description: string | null; is_popular: boolean; is_published: boolean; display_order: number; modules: string[] };
 type VacancyNoticeRow = { id: string; slug: string; category: "jobs" | "admit-cards" | "results"; title: string; organization: string; summary: string; status: string; important_dates: string[]; application_fees: string[]; eligibility: string[]; age_limit: string[]; notification_url: string | null; official_url: string | null; is_published: boolean; display_order: number; vacancy_breakdown: { postName: string; totalPosts: string; eligibility: string }[]; useful_links: { label: string; url: string }[]; notice_documents: { label: string; url: string }[] };
 type FeedbackRow = { id: string; display_name: string; rating: number | null; message: string; is_approved: boolean; created_at: string };
 type OfficialWebsiteRow = { id: string; name: string; url: string; description: string; is_published: boolean; display_order: number };
@@ -57,7 +58,7 @@ function CoursePackagesTab({ rows }: { rows: CoursePackageRow[] }) {
         {rows.length === 0 && <p className="text-sm text-slate-500">No course packages yet.</p>}
         {rows.map((row) => (
           <div key={row.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
-            <div><p className="font-black"><span className="mr-2 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-black text-blue-800">{row.category}</span>{row.title} — {row.duration_label} — {row.price_label}{!row.is_published && <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-600">Hidden</span>}{row.is_popular && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Popular</span>}</p><p className="mt-1 text-xs text-slate-500">{row.features.join(" · ") || "No features listed"}</p></div>
+            <div><p className="font-black"><span className="mr-2 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-black text-blue-800">{row.category}</span>{row.title} — {row.duration_label} — {row.price_label}{!row.is_published && <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-600">Hidden</span>}{row.is_popular && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">Popular</span>}</p><p className="mt-1 text-xs text-slate-500">{row.features.join(" · ") || "No features listed"}</p><p className="mt-1 flex flex-wrap gap-1">{row.modules.length ? row.modules.map((module) => <span key={module} className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">{COURSE_MODULE_LABELS[module as CourseModule] ?? module}</span>) : <span className="text-[11px] font-bold text-amber-700">No modules tagged yet</span>}</p></div>
             <div className="flex shrink-0 gap-2">
               <button type="button" onClick={() => setEditing(row)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-black hover:bg-slate-50">Edit</button>
               <form action={deleteAction}><input type="hidden" name="id" value={row.id} /><button type="submit" className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-black text-red-700 hover:bg-red-50">Delete</button></form>
@@ -75,6 +76,10 @@ function CoursePackagesTab({ rows }: { rows: CoursePackageRow[] }) {
           <label className="text-xs font-bold">Price label<input name="priceLabel" defaultValue={draft?.price_label ?? ""} placeholder="₹599" className="input mt-1 w-full" required /></label>
           <label className="text-xs font-bold">Original price (optional, shown struck through)<input name="originalPriceLabel" defaultValue={draft?.original_price_label ?? ""} placeholder="₹799" className="input mt-1 w-full" /></label>
           <label className="text-xs font-bold sm:col-span-2">Features (one per line)<textarea name="features" defaultValue={(draft?.features ?? []).join("\n")} rows={4} className="input mt-1 w-full" /></label>
+          <div className="text-xs font-bold sm:col-span-2">
+            Modules granted<span className="ml-1 font-normal text-slate-500">(which of the three access-control modules this package should unlock — a bookkeeping aid for when you grant access after a purchase; it does not change any student's access by itself)</span>
+            <div className="mt-1 flex flex-wrap gap-4">{ALL_COURSE_MODULES.map((module) => <label key={module} className="flex items-center gap-2 font-bold text-slate-700"><input type="checkbox" name={`module_${module}`} defaultChecked={draft?.modules.includes(module) ?? false} /> {COURSE_MODULE_LABELS[module]}</label>)}</div>
+          </div>
           <label className="text-xs font-bold">Coupon code (optional)<input name="couponCode" defaultValue={draft?.coupon_code ?? ""} placeholder="SAVE100" className="input mt-1 w-full" /></label>
           <label className="text-xs font-bold">Coupon description<input name="couponDescription" defaultValue={draft?.coupon_description ?? ""} placeholder="Flat ₹100 off" className="input mt-1 w-full" /></label>
           <label className="text-xs font-bold">Display order<input name="displayOrder" type="number" defaultValue={draft?.display_order ?? 0} className="input mt-1 w-full" /></label>

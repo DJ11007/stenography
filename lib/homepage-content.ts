@@ -32,7 +32,16 @@ export type CoursePackage = {
   couponCode: string | null;
   couponDescription: string | null;
   isPopular: boolean;
+  modules: CourseModule[];
 };
+
+/** The three real access-control modules (profiles.can_access_typing/
+ * stenography/efficiency) a course package can be tagged with -- purely a
+ * bookkeeping aid so an admin knows which of those to grant after
+ * processing a purchase, and so a prospective student sees what's included
+ * before buying. Not itself an access-control mechanism. */
+export type CourseModule = "typing" | "stenography" | "efficiency";
+export const COURSE_MODULE_LABELS: Record<CourseModule, string> = { typing: "Typing", stenography: "Stenography", efficiency: "Efficiency" };
 
 /** Suggested categories shown in the admin's category field and used to
  * order the homepage Buy Now tabs. Not an enum -- a package's `category` is
@@ -73,14 +82,16 @@ export function mapVacancyRow(row: VacancyRow): Vacancy {
 
 type CoursePackageRow = {
   id: string; title: string; category: string | null; duration_label: string; price_label: string; original_price_label: string | null;
-  features: string[] | null; coupon_code: string | null; coupon_description: string | null; is_popular: boolean;
+  features: string[] | null; coupon_code: string | null; coupon_description: string | null; is_popular: boolean; modules: string[] | null;
 };
+
+const isCourseModule = (value: string): value is CourseModule => value === "typing" || value === "stenography" || value === "efficiency";
 
 export function mapCoursePackageRow(row: CoursePackageRow): CoursePackage {
   return {
     id: row.id, title: row.title, category: row.category ?? "Typing", durationLabel: row.duration_label, priceLabel: row.price_label,
     originalPriceLabel: row.original_price_label, features: row.features ?? [], couponCode: row.coupon_code,
-    couponDescription: row.coupon_description, isPopular: row.is_popular,
+    couponDescription: row.coupon_description, isPopular: row.is_popular, modules: (row.modules ?? []).filter(isCourseModule),
   };
 }
 
