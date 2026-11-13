@@ -115,6 +115,29 @@ export async function setStudentAccessLocked(_: StudentActionState, formData: Fo
   return { success: locked ? "Test access locked." : "Test access unlocked." };
 }
 
+// Per-module access: Typing, Stenography and Efficiency (Word + Excel
+// combined) can each be independently granted, so a package can match what
+// a real exam actually needs -- e.g. Typing + Stenography only for an SSC
+// Stenographer post, or all three for RHC. Independent of the existing
+// test-limit/validity/lock package above; a student can be "active" there
+// and still be missing a module. Checkboxes default to checked (see the
+// migration's own default-true columns), so an admin only unchecks what a
+// student's purchase explicitly excludes.
+export async function setStudentModuleAccess(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const typing = formData.get("typing") === "true";
+  const stenography = formData.get("stenography") === "true";
+  const efficiency = formData.get("efficiency") === "true";
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_student_module_access", { p_student_id: studentId, p_typing: typing, p_stenography: stenography, p_efficiency: efficiency });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  revalidatePath("/admin/track");
+  return { success: "Module access saved." };
+}
+
 // "Clear seat" -- a defined, non-destructive reset of the access package
 // back to its blank/default state (unlimited tests, no expiry, no grace,
 // but locked so the seat isn't silently usable again until an admin

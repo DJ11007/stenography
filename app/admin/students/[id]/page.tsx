@@ -65,7 +65,7 @@ export default async function AdminStudentDetailPage({ params }: { params: Promi
             <StudentPhotoUpload studentId={student.id} photoUrl={await studentPhotoUrl(supabase, student.id)} initials={(student.full_name || "S").split(/\s+/u).slice(0, 2).map((part: string) => part[0]?.toUpperCase()).join("") || "S"} />
           </div>
           <div className="mt-5">
-            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} freePracticeLimit={student.free_practice_test_limit} freeExamLimit={student.free_exam_test_limit} />
+            <StudentAccessControls studentId={student.id} testLimit={access?.test_limit ?? null} validityDays={access?.validity_expires_at ? Math.max(0, Math.ceil((new Date(access.validity_expires_at).getTime() - Date.now()) / 86400000)) : null} graceDays={access?.grace_days ?? 0} accessLocked={access?.access_locked ?? false} classInfo={student.class_info} freePracticeLimit={student.free_practice_test_limit} freeExamLimit={student.free_exam_test_limit} canAccessTyping={access?.can_access_typing ?? true} canAccessStenography={access?.can_access_stenography ?? true} canAccessEfficiency={access?.can_access_efficiency ?? true} />
           </div>
         </section>
       </div>

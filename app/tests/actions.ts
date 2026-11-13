@@ -45,7 +45,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // direct call to this action. A live scheduled exam is unaffected by the
   // exam cap, same as the pre-render gate.
   const [{ error: accessError }, practiceLimitResult, examLimitResult] = await Promise.all([
-    supabase.rpc("assert_student_access_allowed"),
+    supabase.rpc("assert_student_access_allowed", { p_module: v.mode === "stenography" ? "stenography" : "typing" }),
     v.mode === "practice" && !liveSection ? supabase.rpc("assert_practice_test_allowed") : Promise.resolve(null),
     v.mode === "exam" && !test.is_live && !liveSection ? supabase.rpc("assert_exam_test_allowed") : Promise.resolve(null),
   ]);

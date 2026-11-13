@@ -16,13 +16,22 @@ export type PracticeAttemptPayload = {
   marksObtained?: number | null; marksQualified?: boolean | null; marksNetWpm?: number | null; examCategorySlug?: string | null;
 };
 
-export async function recordPracticeAttempt(payload: PracticeAttemptPayload): Promise<{ status: "scored" } | null> {
+export async function recordPracticeAttempt(payload: PracticeAttemptPayload): Promise<{ status: "scored" } | { status: "locked" } | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
   const startedAt = new Date(payload.startedAt);
   if (!payload.presetId || !payload.title || !["practice", "exam"].includes(payload.mode) || Number.isNaN(startedAt.getTime())) return null;
   if (!Number.isFinite(payload.elapsedSeconds) || payload.elapsedSeconds < 0 || payload.typedText.length > 100000 || payload.passage.length > 100000) return null;
+  // Real reported gap: unlike admin-managed tests (recordManagedAttempt), a
+  // built-in practice attempt (Official Pattern, stenography sample, a
+  // student's own matter) never checked the student's access at all -- a
+  // locked or module-restricted student could still save unlimited
+  // attempts here. Defense-in-depth backstop, same as recordManagedAttempt's
+  // own comment: the real UX gate is the practice navigator refusing to
+  // render, this only matters against a direct call to this action.
+  const { error: accessError } = await supabase.rpc("assert_student_access_allowed", { p_module: payload.preset.category === "stenography" ? "stenography" : "typing" });
+  if (accessError) return { status: "locked" };
   const score = payload.score;
   const result = {
     grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds,

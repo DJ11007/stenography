@@ -46,7 +46,7 @@ test("a migration adds the admin_set_student_password RPC with the same AAL2 gat
 
 test("the access-controls panel wires all four new forms: lock/unlock, clear seat, class info, and set password", async () => {
   const controls = await read("app/admin/students/student-access-controls.tsx");
-  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
+  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentModuleAccess, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
   assert.match(controls, /useActionState\(clearStudentAccessPackage, initial\)/);
   assert.match(controls, /useActionState\(setStudentClassInfo, initial\)/);
   assert.match(controls, /useActionState\(setStudentPassword, initial\)/);

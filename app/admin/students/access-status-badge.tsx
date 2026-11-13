@@ -9,6 +9,9 @@ export type StudentAccessStatus = {
   grace_days: number;
   access_locked: boolean;
   status: "active" | "grace" | "locked";
+  can_access_typing: boolean;
+  can_access_stenography: boolean;
+  can_access_efficiency: boolean;
 };
 
 export type AccessRow = StudentAccessStatus & {

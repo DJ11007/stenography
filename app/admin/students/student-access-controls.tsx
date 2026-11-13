@@ -1,13 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState } from "./actions";
+import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentModuleAccess, setStudentPassword, type StudentActionState } from "./actions";
 import { PasswordInput } from "@/app/_components/password-input";
 
 const initial: StudentActionState = {};
 
-export function StudentAccessControls({ studentId, testLimit, validityDays, graceDays, accessLocked, classInfo, freePracticeLimit, freeExamLimit }: { studentId: string; testLimit: number | null; validityDays: number | null; graceDays: number; accessLocked: boolean; classInfo: string | null; freePracticeLimit: number | null; freeExamLimit: number | null }) {
+export function StudentAccessControls({ studentId, testLimit, validityDays, graceDays, accessLocked, classInfo, freePracticeLimit, freeExamLimit, canAccessTyping, canAccessStenography, canAccessEfficiency }: { studentId: string; testLimit: number | null; validityDays: number | null; graceDays: number; accessLocked: boolean; classInfo: string | null; freePracticeLimit: number | null; freeExamLimit: number | null; canAccessTyping: boolean; canAccessStenography: boolean; canAccessEfficiency: boolean }) {
   const [packageState, packageAction, packagePending] = useActionState(setStudentAccessPackage, initial);
+  const [moduleState, moduleAction, modulePending] = useActionState(setStudentModuleAccess, initial);
   const [lockState, lockAction, lockPending] = useActionState(setStudentAccessLocked, initial);
   const [clearState, clearAction, clearPending] = useActionState(clearStudentAccessPackage, initial);
   const [classInfoState, classInfoAction, classInfoPending] = useActionState(setStudentClassInfo, initial);
@@ -42,6 +43,19 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
       </form>
       {packageState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{packageState.error}</p>}
       {packageState.success && <p className="mt-2 text-xs font-bold text-green-700">{packageState.success}</p>}
+
+      <form action={moduleAction} className="mt-5 border-t border-slate-200 pt-4">
+        <input type="hidden" name="studentId" value={studentId} />
+        <p className="text-xs font-bold text-slate-600">Modules this student can access<span className="ml-1 font-normal text-slate-400">(independent of the access package above -- match whatever the student's real exam actually needs, e.g. Typing + Stenography only for an SSC Stenographer post)</span></p>
+        <div className="mt-2 flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" name="typing" value="true" defaultChecked={canAccessTyping} className="h-4 w-4" />Typing</label>
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" name="stenography" value="true" defaultChecked={canAccessStenography} className="h-4 w-4" />Stenography</label>
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" name="efficiency" value="true" defaultChecked={canAccessEfficiency} className="h-4 w-4" />Efficiency (Word + Excel)</label>
+          <button disabled={modulePending} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-black text-white disabled:opacity-60">{modulePending ? "Saving…" : "Save module access"}</button>
+        </div>
+      </form>
+      {moduleState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{moduleState.error}</p>}
+      {moduleState.success && <p className="mt-2 text-xs font-bold text-green-700">{moduleState.success}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <form action={lockAction} onSubmit={(event) => { if (!confirm(accessLocked ? "Unlock this student's test access?" : "Lock this student out of taking new tests? Their account can still sign in.")) event.preventDefault(); }}>

@@ -27,7 +27,7 @@ test("recordManagedAttempt has a server-side backstop for the free-practice limi
 
 test("an admin can set a student's free-practice-test limit from the student detail page", async () => {
   const controls = await read("app/admin/students/student-access-controls.tsx");
-  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
+  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentModuleAccess, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
   assert.match(controls, /useActionState\(setStudentFreePracticeLimit, initial\)/);
   assert.match(controls, /name="freePracticeLimit"/);
 
