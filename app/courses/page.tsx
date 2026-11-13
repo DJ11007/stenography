@@ -3,6 +3,7 @@ import { SiteHeader } from "../_components/site-header";
 import { SiteFooter } from "../_components/site-footer";
 import { getPublishedCoursePackages } from "@/lib/homepage-content-server";
 import { COURSE_PACKAGE_CATEGORIES, type CoursePackage } from "@/lib/homepage-content";
+import { QrPaymentButton } from "./qr-payment-button";
 
 export const metadata: Metadata = {
   title: "Govt Exam Typing, Stenography & Efficiency Courses – Fees & Plans",
@@ -61,7 +62,7 @@ export default async function CoursesPage() {
         <div className="mx-auto max-w-5xl text-center">
           <p className="text-xs font-black uppercase tracking-[.25em] text-indigo-300">Samradhi Classes</p>
           <h1 className="mt-3 text-3xl font-black sm:text-4xl">Choose Your Course</h1>
-          <p className="mx-auto mt-3 max-w-2xl text-slate-300">Every plan below is set up by our teaching team. Pick your subject, compare plans, and enroll directly by phone or WhatsApp — no online payment needed.</p>
+          <p className="mx-auto mt-3 max-w-2xl text-slate-300">Every plan below is set up by our teaching team. Pick your subject, compare plans, and enroll by phone, WhatsApp, or scan-to-pay with any UPI app.</p>
           {groups.length > 0 && (
             <nav aria-label="Jump to a course category" className="mt-7 flex flex-wrap justify-center gap-2">
               {groups.map(({ category }) => {
@@ -131,6 +132,7 @@ export default async function CoursesPage() {
                         <WhatsAppIcon className="h-5 w-5" />
                       </a>
                     </div>
+                    <QrPaymentButton title={plan.title} category={plan.category} durationLabel={plan.durationLabel} priceLabel={plan.priceLabel} />
                   </article>
                 ))}
               </div>
