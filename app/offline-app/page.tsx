@@ -47,6 +47,7 @@ export default function OfflineAppPage() {
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <Feature title="Every exam board, offline" body="SSC CHSL/CGL, RRB NTPC, AIIMS CRE, BSF/CRPF/SSB HCM, Delhi Police HCM, DSSSB, Rajasthan boards, several High Courts, and more -- the exact same researched patterns as the website, bundled right into the app." />
           <Feature title="English and Hindi" body="Includes every Hindi input system: Kruti Dev 010, Mangal, and the Remington/InScript Unicode layouts." />
+          <Feature title="Stenography dictation" body="Listen to a passage read aloud -- by your computer's own voice, or a clip you record yourself -- then transcribe it from memory, just like a real shorthand test." />
           <Feature title="Your results, saved locally" body="Every attempt is saved on your own computer so you can track your WPM and accuracy over time -- nothing is uploaded anywhere." />
           <Feature title="Works with zero internet" body="Once installed and activated, the app never needs a connection again -- practice anywhere, anytime." />
         </div>
