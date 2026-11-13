@@ -11,6 +11,8 @@ function logRpcFailure(label: string, error: { message: string; code: string; de
 
 export type PublicLiveResult = { student_name: string; test_title: string; language: string; net_wpm: number; accuracy: number; submitted_at: string };
 export type LiveTestTopRanker = { student_id: string; student_name: string; net_wpm: number };
+export type LeaderboardPeriod = "day" | "week" | "month" | "all";
+export type TopRankersByPeriod = Record<LeaderboardPeriod, LiveTestTopRanker[]>;
 export type LiveEfficiencyTest = { id: string; subject: "word" | "excel"; slug: string; title: string; language: string; is_live: boolean; live_starts_at: string | null; live_ends_at: string | null; results_publish_at: string | null; duration_options: number[]; results_delay_minutes?: number | null };
 
 export async function getPublishedLiveResults(limit = 30): Promise<PublicLiveResult[]> {
@@ -22,11 +24,25 @@ export async function getPublishedLiveResults(limit = 30): Promise<PublicLiveRes
 
 // Per-language top-10 leaderboard for the homepage (the RPC itself caps
 // at 20 -- see published_live_test_top_rankers' own migration comment).
-export async function getLiveTestTopRankers(language: string, limit = 10): Promise<LiveTestTopRanker[]> {
+export async function getLiveTestTopRankers(language: string, limit = 10, period: LeaderboardPeriod = "all"): Promise<LiveTestTopRanker[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("published_live_test_top_rankers", { p_language: language, p_limit: limit });
-  if (error) { logRpcFailure(`Top rankers listing failed (${language})`, error); return []; }
+  const { data, error } = await supabase.rpc("published_live_test_top_rankers", { p_language: language, p_limit: limit, p_period: period });
+  if (error) { logRpcFailure(`Top rankers listing failed (${language}, ${period})`, error); return []; }
   return (data ?? []) as LiveTestTopRanker[];
+}
+
+// All four period views for one language in one round trip -- powers the
+// homepage podium's Today/This Week/This Month/All-time tabs with zero
+// client-side fetch latency when a student switches tabs (every period's
+// data is already on the page; the tabs just pick which array to render).
+export async function getLiveTestTopRankersAllPeriods(language: string, limit = 10): Promise<TopRankersByPeriod> {
+  const [day, week, month, all] = await Promise.all([
+    getLiveTestTopRankers(language, limit, "day"),
+    getLiveTestTopRankers(language, limit, "week"),
+    getLiveTestTopRankers(language, limit, "month"),
+    getLiveTestTopRankers(language, limit, "all"),
+  ]);
+  return { day, week, month, all };
 }
 
 export async function getLiveEfficiencyTests(): Promise<LiveEfficiencyTest[]> {

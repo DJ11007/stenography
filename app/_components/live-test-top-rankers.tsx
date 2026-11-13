@@ -1,4 +1,14 @@
-import type { LiveTestTopRanker } from "@/lib/live-test-results-server";
+"use client";
+
+import { useState } from "react";
+import type { LiveTestTopRanker, TopRankersByPeriod } from "@/lib/live-test-results-server";
+
+const PERIODS: { id: keyof TopRankersByPeriod; label: string }[] = [
+  { id: "day", label: "Today" },
+  { id: "week", label: "This Week" },
+  { id: "month", label: "This Month" },
+  { id: "all", label: "All-time" },
+];
 
 const CROWN = ["🥇", "🥈", "🥉"];
 // Same gold/silver/bronze gradient values as lib/game-rooms.ts's
@@ -24,7 +34,9 @@ const TONE = [
 // + the success-story card) one shared, STATIC height instead, with this
 // card's own natural 10-row content as the height that static value is
 // based on (see the comment there).
-function Podium({ language, heading, rankers }: { language: string; heading: string; rankers: LiveTestTopRanker[] }) {
+const PERIOD_PHRASE: Record<keyof TopRankersByPeriod, string> = { day: "today", week: "this week", month: "this month", all: "yet" };
+
+function Podium({ language, heading, rankers, period }: { language: string; heading: string; rankers: LiveTestTopRanker[]; period: keyof TopRankersByPeriod }) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">{heading}</h3>
@@ -51,7 +63,7 @@ function Podium({ language, heading, rankers }: { language: string; heading: str
           ))}
         </div>
       ) : (
-        <p className="mt-2.5 text-sm text-slate-500">No published results yet for {language}.</p>
+        <p className="mt-2.5 text-sm text-slate-500">No published {language} results {PERIOD_PHRASE[period]}.</p>
       )}
     </div>
   );
@@ -71,11 +83,28 @@ function Podium({ language, heading, rankers }: { language: string; heading: str
 // heading instead (it visually sat above Hindi anyway), and "Live-test
 // leaderboard" text no longer appears anywhere; English keeps its plain
 // "English" heading.
-export function LiveTestTopRankers({ english, hindi }: { english: LiveTestTopRanker[]; hindi: LiveTestTopRanker[] }) {
+// Real requested feature: speedosoftware.com (a competitor) lets students
+// switch between daily/weekly/monthly leaderboards instead of one fixed
+// ranking. All four periods are fetched server-side up front (see
+// getLiveTestTopRankersAllPeriods) so switching tabs here is instant --
+// no client fetch, just picking which already-loaded array to render. One
+// shared tab row controls both language columns at once (a single ranking
+// period makes more sense here than two independently-set ones).
+export function LiveTestTopRankers({ english, hindi }: { english: TopRankersByPeriod; hindi: TopRankersByPeriod }) {
+  const [period, setPeriod] = useState<keyof TopRankersByPeriod>("all");
   return (
-    <div className="grid h-full gap-4 sm:grid-cols-2">
-      <Podium language="Hindi" heading="Top Rankers — Hindi Live Test" rankers={hindi} />
-      <Podium language="English" heading="English" rankers={english} />
+    <div className="flex h-full flex-col">
+      <div className="mb-3 flex gap-1.5 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Leaderboard period">
+        {PERIODS.map(({ id, label }) => (
+          <button key={id} type="button" role="tab" aria-selected={period === id} onClick={() => setPeriod(id)} className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-black transition ${period === id ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="grid flex-1 gap-4 sm:grid-cols-2">
+        <Podium language="Hindi" heading="Top Rankers — Hindi Live Test" rankers={hindi[period]} period={period} />
+        <Podium language="English" heading="English" rankers={english[period]} period={period} />
+      </div>
     </div>
   );
 }

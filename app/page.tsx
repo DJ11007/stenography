@@ -20,7 +20,7 @@ import { ALL_EXAMS, examsByGroup } from "@/lib/seo-exams";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
-import { getPublishedLiveResults, getLiveTestTopRankers, getUpcomingLiveExams, getLiveExamTopRankers } from "@/lib/live-test-results-server";
+import { getPublishedLiveResults, getLiveTestTopRankersAllPeriods, getUpcomingLiveExams, getLiveExamTopRankers } from "@/lib/live-test-results-server";
 import { LiveExamHomeSection } from "./_components/live-exam-home-section";
 
 const EXAM_CATEGORIES = [
@@ -132,8 +132,8 @@ export default async function Home() {
   const supabase = await createClient();
   const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user, upcomingLiveExams, liveExamRankers] = await Promise.all([
     getPublishedLiveResults(20),
-    getLiveTestTopRankers("English"),
-    getLiveTestTopRankers("Hindi"),
+    getLiveTestTopRankersAllPeriods("English"),
+    getLiveTestTopRankersAllPeriods("Hindi"),
     getPublishedVacancies(),
     getApprovedFeedback(6),
     getPublishedOfficialWebsites(),
