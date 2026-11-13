@@ -5,10 +5,20 @@ import { krutiDevToUnicode, unicodeToKrutiDev } from "./hindi-font-converter.ts"
 export const MY_MATTERS_KEY = "samradhi-my-test-matters-v1";
 export const MAX_MATTER_FILE_BYTES = 1_000_000;
 export const MAX_MATTER_CHARACTERS = 100_000;
+// Well under the stenography-audio bucket's own 50MB ceiling (migration
+// 202608270034) -- a real dictation practice clip is a few minutes long,
+// and keeping this smaller keeps a student's upload quick on a weak connection.
+export const MAX_DICTATION_AUDIO_BYTES = 20_000_000;
+const DICTATION_AUDIO_MIME_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/webm"];
 export function validateDurationMinutes(value: unknown) { return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 60 ? value : 10; }
+export function validateDictationAudioFile(file: Pick<File, "name" | "size" | "type">): string | null {
+  if (file.size > MAX_DICTATION_AUDIO_BYTES) return `Audio must be ${Math.round(MAX_DICTATION_AUDIO_BYTES / 1_000_000)} MB or smaller.`;
+  if (file.type && !DICTATION_AUDIO_MIME_TYPES.includes(file.type)) return "Please upload an MP3, WAV, OGG, M4A or WebM audio file.";
+  return null;
+}
 export type MatterMode = "learn" | "practice" | "exam" | "stenography";
 export type MatterVisibility = "private" | "public";
-export type MyTestMatter = { id: string; title: string; language: TypingLanguage; mode: MatterMode; inputSystemId: string; passage: string; durationSeconds: number; requiredWpm: number; requiredAccuracy: number; backspaceMode: BackspaceMode; wordMethod: WordMethod; highlightMode: HighlightMode; visibility: MatterVisibility; createdAt: string; updatedAt: string };
+export type MyTestMatter = { id: string; title: string; language: TypingLanguage; mode: MatterMode; inputSystemId: string; passage: string; durationSeconds: number; requiredWpm: number; requiredAccuracy: number; backspaceMode: BackspaceMode; wordMethod: WordMethod; highlightMode: HighlightMode; visibility: MatterVisibility; createdAt: string; updatedAt: string; audioPath?: string | null };
 export type MatterDraft = Omit<MyTestMatter, "id" | "createdAt" | "updatedAt">;
 
 // Real reported bug, recurring: an admin pasting/typing Kruti Dev text
