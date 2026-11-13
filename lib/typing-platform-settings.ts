@@ -11,6 +11,7 @@ export type UniversalTypingPreferences = {
   wordMethod: WordMethod;
   autoScroll: boolean;
   showScrollbar: boolean;
+  keyboardSound: boolean;
   inputSystemId: string;
   durationMinutes: number;
   /** A student-chosen passage length (150-700 words), applied by resampling
@@ -32,6 +33,7 @@ export const DEFAULT_PLATFORM_PREFERENCES: UniversalTypingPreferences = {
   wordMethod: "spaces",
   autoScroll: false,
   showScrollbar: true,
+  keyboardSound: false,
   inputSystemId: "",
   durationMinutes: 10,
   passageWordCount: null,
@@ -51,6 +53,7 @@ export function parsePlatformPreferences(value: unknown): UniversalTypingPrefere
     wordMethod: validWordMethod(data.wordMethod) ? data.wordMethod : DEFAULT_PLATFORM_PREFERENCES.wordMethod,
     autoScroll: typeof data.autoScroll === "boolean" ? data.autoScroll : DEFAULT_PLATFORM_PREFERENCES.autoScroll,
     showScrollbar: typeof data.showScrollbar === "boolean" ? data.showScrollbar : DEFAULT_PLATFORM_PREFERENCES.showScrollbar,
+    keyboardSound: typeof data.keyboardSound === "boolean" ? data.keyboardSound : DEFAULT_PLATFORM_PREFERENCES.keyboardSound,
     inputSystemId: typeof data.inputSystemId === "string" ? data.inputSystemId : "",
     durationMinutes: typeof data.durationMinutes === "number" && Number.isInteger(data.durationMinutes) && data.durationMinutes >= 1 && data.durationMinutes <= 60 ? data.durationMinutes : 10,
     passageWordCount: typeof data.passageWordCount === "number" && Number.isInteger(data.passageWordCount) && data.passageWordCount >= 150 && data.passageWordCount <= 700 ? data.passageWordCount : null,
