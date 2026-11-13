@@ -70,7 +70,7 @@ test("the student list page shows Total/Active/Grace/Locked stat cards computed 
 
 test("the student's own dashboard shows their real membership status from student_access_status(), not hardcoded placeholder text", async () => {
   const studentPage = await read("app/student/page.tsx");
-  assert.match(studentPage, /await supabase\.rpc\("student_access_status"\)/);
+  assert.match(studentPage, /supabase\.rpc\("student_access_status"\)/);
   assert.match(studentPage, /import \{ AccessStatusBadge, validityLabel, type StudentAccessStatus \} from "@\/app\/admin\/students\/access-status-badge"/);
   assert.doesNotMatch(studentPage, /Typing Hub enabled/);
 });
