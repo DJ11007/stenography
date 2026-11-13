@@ -52,7 +52,15 @@ export default function OfflineAppPage() {
           <Feature title="Works with zero internet" body="Once installed and activated, the app never needs a connection again -- practice anywhere, anytime." />
         </div>
 
-        <div className="mt-12 rounded-3xl border border-slate-200 bg-slate-50 p-7">
+        <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+          <p className="font-black">Seeing a blue &quot;Windows protected your PC&quot; screen?</p>
+          <p className="mt-1">
+            That&apos;s normal for a brand-new app and nothing to worry about -- click <strong>More info</strong>, then{" "}
+            <strong>Run anyway</strong> to continue installing.
+          </p>
+        </div>
+
+        <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-7">
           <h2 className="text-xl font-black text-slate-900">How activation works</h2>
           <ol className="mt-4 list-decimal space-y-2 pl-5 text-slate-700">
             <li>Install the app and open it -- it shows you a one-time Device ID.</li>
