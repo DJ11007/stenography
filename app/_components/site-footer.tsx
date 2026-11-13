@@ -32,6 +32,7 @@ export function SiteFooter() {
               Open in Google Maps
             </a>
           </div>
+          <p className="mt-3 text-xs font-bold text-blue-300">Support available 9 AM – 7 PM, every day</p>
         </div>
 
         <nav aria-label="Company links" className="text-center md:text-left">

@@ -30,6 +30,7 @@ export default function ContactPage() {
           <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-6">
             <h2 className="text-lg font-black text-slate-950">Call us</h2>
             <p className="mt-2 text-sm text-slate-600">For admissions, course fees and general queries.</p>
+            <p className="mt-1 text-xs font-bold text-blue-700">Available 9 AM – 7 PM, every day</p>
             <a
               href="tel:+917014371324"
               className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-black text-white transition-colors hover:bg-blue-800"
