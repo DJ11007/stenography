@@ -99,7 +99,7 @@ test("the banded marks are stored with the attempt, attached to shared exercises
   const admin = await read("lib/admin-tests.ts");
   assert.match(admin, /speedMarksMethod: effectiveCategory\?\.slug === "delhi-police-hcm"/);
   const results = await read("app/typing/_components/advanced-typing-results.tsx");
-  assert.match(results, /<SpeedBandMarksPanel result=\{speedMarksResult\} method=\{preset\.speedMarksMethod\}\/>/);
+  assert.match(results, /<SpeedBandMarksPanel result=\{speedMarksResult\} method=\{preset\.speedMarksMethod\} score=\{score\}\/>/);
   assert.match(results, /categoryResult\.categorySpeedMarks && categoryPreset\.speedMarksMethod/);
 });
 
