@@ -104,6 +104,22 @@ export default function TypingHubPage() {
             </article>
           ))}
         </div>
+
+        <Link
+          href="/offline-app"
+          className="mt-8 flex flex-col items-start gap-4 rounded-3xl border border-indigo-200 bg-indigo-50 p-7 transition hover:-translate-y-1 hover:shadow-lg sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="text-sm font-black uppercase tracking-widest text-indigo-600">New -- for Windows</p>
+            <h3 className="mt-2 text-2xl font-black text-slate-900">Offline Typing App</h3>
+            <p className="mt-2 max-w-xl text-slate-600">
+              Practice every exam board&apos;s pattern without any internet connection -- download, install, and activate once.
+            </p>
+          </div>
+          <span className="inline-flex shrink-0 rounded-xl bg-indigo-600 px-5 py-3 font-black text-white">
+            Download for Windows →
+          </span>
+        </Link>
       </section>
     </main>
   );
