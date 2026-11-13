@@ -13,7 +13,7 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 // blank.
 test("LiveTestTopRankers arranges the two podiums side by side, Hindi left, English right", async () => {
   const component = await read("app/_components/live-test-top-rankers.tsx");
-  assert.match(component, /<div className="grid h-full gap-4 sm:grid-cols-2">/);
+  assert.match(component, /<div className="grid flex-1 gap-4 sm:grid-cols-2">/);
   const hindiIndex = component.indexOf('<Podium language="Hindi"');
   const englishIndex = component.indexOf('<Podium language="English"');
   assert.ok(hindiIndex > 0 && englishIndex > hindiIndex, "Hindi podium must render before English (left column)");
@@ -43,9 +43,9 @@ test("shows crowns for ranks 1-3 and a numbered badge for ranks 4-10, with no sc
   assert.match(component, /<span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-\[11px\] text-slate-600">\{i \+ 1\}<\/span>/);
 });
 
-test("getLiveTestTopRankers defaults to the top 10 per language", async () => {
+test("getLiveTestTopRankers defaults to the top 10 per language, all-time by default", async () => {
   const server = await read("lib/live-test-results-server.ts");
-  assert.match(server, /export async function getLiveTestTopRankers\(language: string, limit = 10\): Promise<LiveTestTopRanker\[\]>/);
+  assert.match(server, /export async function getLiveTestTopRankers\(language: string, limit = 10, period: LeaderboardPeriod = "all"\): Promise<LiveTestTopRanker\[\]>/);
 });
 
 // Real bug found live: a long student name (e.g. "mahesh kumar bairwa")
@@ -66,8 +66,8 @@ test("the name span has min-w-0 so truncate can actually engage, preventing hori
 // its plain "English" heading with no such text added.
 test("Podium takes a separate heading prop -- the Hindi card's heading now carries the 'Top Rankers' wording, English stays plain", async () => {
   const component = await read("app/_components/live-test-top-rankers.tsx");
-  assert.match(component, /function Podium\(\{ language, heading, rankers \}: \{ language: string; heading: string; rankers: LiveTestTopRanker\[\] \}\)/);
+  assert.match(component, /function Podium\(\{ language, heading, rankers, period \}: \{ language: string; heading: string; rankers: LiveTestTopRanker\[\]; period: keyof TopRankersByPeriod \}\)/);
   assert.match(component, /<h3 className="text-xs font-black uppercase tracking-widest text-slate-500">\{heading\}<\/h3>/);
-  assert.match(component, /<Podium language="Hindi" heading="Top Rankers — Hindi Live Test" rankers=\{hindi\} \/>/);
-  assert.match(component, /<Podium language="English" heading="English" rankers=\{english\} \/>/);
+  assert.match(component, /<Podium language="Hindi" heading="Top Rankers — Hindi Live Test" rankers=\{hindi\[period\]\} period=\{period\} \/>/);
+  assert.match(component, /<Podium language="English" heading="English" rankers=\{english\[period\]\} period=\{period\} \/>/);
 });
