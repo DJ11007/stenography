@@ -1,14 +1,15 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentModuleAccess, setStudentPassword, type StudentActionState } from "./actions";
+import { clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentModuleAccess, setStudentPassword, setStudentTelegramExempt, type StudentActionState } from "./actions";
 import { PasswordInput } from "@/app/_components/password-input";
 
 const initial: StudentActionState = {};
 
-export function StudentAccessControls({ studentId, testLimit, validityDays, graceDays, accessLocked, classInfo, freePracticeLimit, freeExamLimit, canAccessTyping, canAccessStenography, canAccessEfficiency }: { studentId: string; testLimit: number | null; validityDays: number | null; graceDays: number; accessLocked: boolean; classInfo: string | null; freePracticeLimit: number | null; freeExamLimit: number | null; canAccessTyping: boolean; canAccessStenography: boolean; canAccessEfficiency: boolean }) {
+export function StudentAccessControls({ studentId, testLimit, validityDays, graceDays, accessLocked, classInfo, freePracticeLimit, freeExamLimit, canAccessTyping, canAccessStenography, canAccessEfficiency, telegramJoined, telegramLockExempt }: { studentId: string; testLimit: number | null; validityDays: number | null; graceDays: number; accessLocked: boolean; classInfo: string | null; freePracticeLimit: number | null; freeExamLimit: number | null; canAccessTyping: boolean; canAccessStenography: boolean; canAccessEfficiency: boolean; telegramJoined: boolean; telegramLockExempt: boolean }) {
   const [packageState, packageAction, packagePending] = useActionState(setStudentAccessPackage, initial);
   const [moduleState, moduleAction, modulePending] = useActionState(setStudentModuleAccess, initial);
+  const [telegramState, telegramAction, telegramPending] = useActionState(setStudentTelegramExempt, initial);
   const [lockState, lockAction, lockPending] = useActionState(setStudentAccessLocked, initial);
   const [clearState, clearAction, clearPending] = useActionState(clearStudentAccessPackage, initial);
   const [classInfoState, classInfoAction, classInfoPending] = useActionState(setStudentClassInfo, initial);
@@ -56,6 +57,17 @@ export function StudentAccessControls({ studentId, testLimit, validityDays, grac
       </form>
       {moduleState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{moduleState.error}</p>}
       {moduleState.success && <p className="mt-2 text-xs font-bold text-green-700">{moduleState.success}</p>}
+
+      <div className="mt-5 border-t border-slate-200 pt-4">
+        <p className="text-xs font-bold text-slate-600">Telegram join requirement<span className="ml-1 font-normal text-slate-400">(students who haven&apos;t clicked &quot;I&apos;ve Joined&quot; by the platform-wide deadline are automatically locked out — this student&apos;s own status: {telegramJoined ? <span className="font-black text-green-700">Joined</span> : <span className="font-black text-amber-700">Not joined yet</span>})</span></p>
+        <form action={telegramAction} className="mt-2">
+          <input type="hidden" name="studentId" value={studentId} />
+          <input type="hidden" name="exempt" value={String(!telegramLockExempt)} />
+          <button disabled={telegramPending} className={`rounded-lg px-4 py-2 text-sm font-black disabled:opacity-60 ${telegramLockExempt ? "bg-amber-100 text-amber-800 hover:bg-amber-200" : "bg-slate-200 text-slate-800 hover:bg-slate-300"}`}>{telegramPending ? "Saving…" : telegramLockExempt ? "Remove Telegram exemption" : "Exempt from Telegram requirement"}</button>
+        </form>
+      </div>
+      {telegramState.error && <p role="alert" className="mt-2 text-xs font-bold text-red-700">{telegramState.error}</p>}
+      {telegramState.success && <p className="mt-2 text-xs font-bold text-green-700">{telegramState.success}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <form action={lockAction} onSubmit={(event) => { if (!confirm(accessLocked ? "Unlock this student's test access?" : "Lock this student out of taking new tests? Their account can still sign in.")) event.preventDefault(); }}>

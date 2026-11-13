@@ -12,6 +12,8 @@ export type StudentAccessStatus = {
   can_access_typing: boolean;
   can_access_stenography: boolean;
   can_access_efficiency: boolean;
+  telegram_joined: boolean;
+  telegram_lock_exempt: boolean;
 };
 
 export type AccessRow = StudentAccessStatus & {

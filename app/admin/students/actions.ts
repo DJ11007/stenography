@@ -138,6 +138,24 @@ export async function setStudentModuleAccess(_: StudentActionState, formData: Fo
   return { success: "Module access saved." };
 }
 
+// Students who haven't self-reported joining Telegram by the platform-wide
+// deadline (public.telegram_requirement) are automatically locked -- see
+// derive_student_access_status(). This is the manual override: exempting a
+// specific student lets them through regardless of the deadline, independent
+// of the access-package lock/limit above.
+export async function setStudentTelegramExempt(_: StudentActionState, formData: FormData): Promise<StudentActionState> {
+  await requireAdmin();
+  const studentId = String(formData.get("studentId") ?? "");
+  const exempt = formData.get("exempt") === "true";
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_student_telegram_exempt", { p_student_id: studentId, p_exempt: exempt });
+  if (error) return { error: error.message };
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${studentId}`);
+  revalidatePath("/admin/track");
+  return { success: exempt ? "Student exempted from the Telegram join requirement." : "Telegram join requirement re-enabled for this student." };
+}
+
 // "Clear seat" -- a defined, non-destructive reset of the access package
 // back to its blank/default state (unlimited tests, no expiry, no grace,
 // but locked so the seat isn't silently usable again until an admin

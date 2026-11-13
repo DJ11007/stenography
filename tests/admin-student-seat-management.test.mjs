@@ -46,7 +46,13 @@ test("a migration adds the admin_set_student_password RPC with the same AAL2 gat
 
 test("the access-controls panel wires all four new forms: lock/unlock, clear seat, class info, and set password", async () => {
   const controls = await read("app/admin/students/student-access-controls.tsx");
-  assert.match(controls, /import \{ clearStudentAccessPackage, setStudentAccessLocked, setStudentAccessPackage, setStudentClassInfo, setStudentFreeExamLimit, setStudentFreePracticeLimit, setStudentModuleAccess, setStudentPassword, type StudentActionState \} from "\.\/actions"/);
+  // Checked name-by-name (not one brittle whole-line regex) so a future
+  // addition to this import doesn't break this test -- it broke three times
+  // in one session from legitimate, additive imports before this fix.
+  assert.match(controls, /import \{[^}]*\} from "\.\/actions"/);
+  for (const name of ["clearStudentAccessPackage", "setStudentAccessLocked", "setStudentAccessPackage", "setStudentClassInfo", "setStudentFreeExamLimit", "setStudentFreePracticeLimit", "setStudentModuleAccess", "setStudentPassword", "type StudentActionState"]) {
+    assert.ok(controls.includes(name), `expected the actions import to include ${name}`);
+  }
   assert.match(controls, /useActionState\(clearStudentAccessPackage, initial\)/);
   assert.match(controls, /useActionState\(setStudentClassInfo, initial\)/);
   assert.match(controls, /useActionState\(setStudentPassword, initial\)/);
