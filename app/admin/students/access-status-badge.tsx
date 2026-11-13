@@ -14,6 +14,7 @@ export type StudentAccessStatus = {
   can_access_efficiency: boolean;
   telegram_joined: boolean;
   telegram_lock_exempt: boolean;
+  telegram_locked: boolean;
 };
 
 export type AccessRow = StudentAccessStatus & {
@@ -25,7 +26,11 @@ export type AccessRow = StudentAccessStatus & {
 
 export function AccessStatusBadge({ access }: { access: StudentAccessStatus | null }) {
   if (!access) return <span className="text-slate-400">—</span>;
-  const label = access.status === "locked" ? "Locked" : access.status === "grace" ? "Grace period" : access.tests_today > 0 ? "Test today" : "No test today";
+  // Telegram-reason locks get their own label (both here and on the
+  // dashboard) so a student isn't just told "locked" with no idea why, and
+  // so an admin scanning the student list can immediately tell who needs a
+  // Telegram nudge apart from everyone else locked for other reasons.
+  const label = access.status === "locked" ? (access.telegram_locked ? "Locked (Telegram)" : "Locked") : access.status === "grace" ? "Grace period" : access.tests_today > 0 ? "Test today" : "No test today";
   const tone = access.status === "locked" ? "bg-red-100 text-red-800" : access.status === "grace" ? "bg-amber-100 text-amber-900" : access.tests_today > 0 ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-600";
   return <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>{label}</span>;
 }
