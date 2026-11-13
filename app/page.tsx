@@ -11,7 +11,6 @@ import { VacancyCarousel } from "./_components/vacancy-carousel";
 import { VacancySections } from "./_components/vacancy-sections";
 import { FeedbackSection } from "./_components/feedback-section";
 import { WhatsAppButton } from "./_components/whatsapp-button";
-import { HomepageTypingDemo } from "./_components/homepage-typing-demo";
 import { BuyNowButton } from "./_components/buy-now-button";
 import type { Metadata } from "next";
 import { JsonLd } from "./_components/json-ld";
@@ -262,8 +261,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-      <HomepageTypingDemo />
 
       <LiveExamHomeSection upcoming={upcomingLiveExams} rankers={liveExamRankers} />
 
