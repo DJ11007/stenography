@@ -396,17 +396,45 @@ function AnalysisWord({ entry, onSelect }: { entry: WordAnalysisEntry; onSelect:
 // Several exams (BSF/CRPF/CISF/ITBP/SSB Head Constable, RRB NTPC, UPSSSC...) forgive a share of
 // the typed words' worth of mistakes before any word is deducted. Without this note a result
 // with, say, 60 mistakes listed can show Net Speed equal to Gross Speed, which looks like a bug.
-// A half mistake counts as half; only the mistakes beyond the allowance cost words.
+// How much a half mistake actually counts for varies BY EXAM -- RRB NTPC/CRPF HCM/SSB HCM weigh
+// it at half a full mistake (halfErrorPenalty = fullErrorPenalty / 2), but BSF HCM's own rule
+// ("10 words for each mistake", no half-mistake concession) weighs it the SAME as a full mistake
+// (halfErrorPenalty = fullErrorPenalty). Always describing it as "counts as half" was wrong for
+// BSF HCM specifically (a real reported mismatch, confirmed against BSF HCM's rule and five
+// independent sources) -- the wording below is derived from each exam's own penalty values
+// instead of being hardcoded, so it's correct whichever ratio a given exam actually uses.
 function MistakeAllowanceNote({ profile, score, wordMethod }: { profile: ExamPreset["scoringProfile"]; score: TypingScore; wordMethod: ExamPreset["wordMethod"] }) {
   const percent = profile.errorRelaxationPercent ?? 0;
   const grace = profile.errorGraceCount ?? 0;
   if (!percent && !grace) return null;
+  const round1 = (value: number) => Math.round(value * 10) / 10;
   const grossWords = wordMethod === "characters" ? score.totalCharacters / 5 : score.spaceWords;
   const allowed = (percent / 100) * grossWords + grace;
   const counted = profile.fullErrorPenalty > 0 ? score.analysis.totalPenalty / profile.fullErrorPenalty : 0;
   const beyond = Math.max(0, counted - allowed);
-  const rule = percent ? `${percent}% of the words typed` : `${grace} mistakes`;
-  return <section aria-label="Mistake allowance" className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><h3 className="font-black">Mistake allowance for this exam</h3><p className="mt-1">This exam forgives {rule} before any words are deducted (a half mistake counts as half a mistake). You made <strong>{number(Math.round(counted * 10) / 10)}</strong> mistakes in this scoring, the allowance was <strong>{number(Math.round(allowed * 10) / 10)}</strong>, so <strong>{number(Math.round(beyond * 10) / 10)}</strong> counted against you{beyond === 0 ? " — that is why Net Speed equals Gross Speed" : ` (${number(Math.round(beyond * profile.fullErrorPenalty * 10) / 10)} words deducted)`}.</p></section>;
+  const wordsDeducted = beyond * profile.fullErrorPenalty;
+  const rule = percent ? `${percent}% of the words you typed` : `${grace} mistakes`;
+  const halfWeight = profile.fullErrorPenalty > 0 ? profile.halfErrorPenalty / profile.fullErrorPenalty : 0.5;
+  const halfRule = halfWeight === 1
+    ? "a half mistake is treated as a FULL mistake for this exam, with no half-mistake concession"
+    : halfWeight === 0.5
+      ? "a half mistake counts as half a mistake"
+      : `a half mistake counts as ${number(halfWeight)} of a full mistake for this exam`;
+  return <section aria-label="Mistake allowance" className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+    <h3 className="font-black">How your result was calculated for this exam</h3>
+    <p className="mt-1">This exam forgives {rule} before any words are deducted. {halfRule}.</p>
+    <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <ResultMetric label="Words typed (gross)" value={number(round1(grossWords))}/>
+      <ResultMetric label="Full mistakes" value={String(score.analysis.fullErrors)}/>
+      <ResultMetric label="Half mistakes" value={String(score.analysis.halfErrors)}/>
+      <ResultMetric label="Total mistakes" value={number(round1(counted))}/>
+      <ResultMetric label="Allowed before penalty" value={number(round1(allowed))}/>
+      <ResultMetric label="Excess mistakes" value={number(round1(beyond))}/>
+      <ResultMetric label="Words deducted" value={number(round1(wordsDeducted))}/>
+      <ResultMetric label="Net words" value={number(round1(Math.max(0, grossWords - wordsDeducted)))}/>
+    </dl>
+    <p className="mt-3">{beyond === 0 ? "No mistakes counted against you — that is why Net Speed equals Gross Speed." : `${number(round1(beyond))} mistake${beyond === 1 ? "" : "s"} beyond the allowance × ${profile.fullErrorPenalty} words each = ${number(round1(wordsDeducted))} words deducted from your gross words before Net Speed is calculated.`}</p>
+  </section>;
 }
 function ErrorScoringGuide({ profile,textLanguage,entries,savedPenalty }: { profile:ExamPreset["scoringProfile"];textLanguage:"hi"|"en";entries:WordAnalysisEntry[];savedPenalty:number }) { const definitions=buildErrorGuide(profile,textLanguage); const representedPenalty=guidePenaltyTotal(entries,profile); const reconciled=Math.abs(representedPenalty-savedPenalty)<Number.EPSILON; return <details className="group error-scoring-guide mt-6 rounded-3xl border border-blue-200 bg-white shadow print:shadow-none"><summary className="cursor-pointer list-none rounded-3xl px-5 py-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 sm:px-7"><span className="flex items-center justify-between gap-4"><span><span className="block text-xs font-black uppercase tracking-[.16em] text-blue-700">Error Representation &amp; Scoring Guide</span><span className="mt-1 block text-xl font-black text-slate-950">How errors are represented</span></span><ChevronIcon/></span></summary><div className="border-t border-blue-100 px-4 py-5 sm:px-7"><p role="status" className={`rounded-xl p-3 text-sm font-bold ${reconciled?"bg-green-50 text-green-900":"bg-red-50 text-red-900"}`}>{reconciled?`Guide penalties reconcile with the saved score: ${number(savedPenalty)}.`:`Guide penalty ${number(representedPenalty)} does not reconcile with saved penalty ${number(savedPenalty)}.`}</p><div className="mt-5 hidden overflow-hidden rounded-2xl border border-slate-200 md:block"><table className="w-full border-collapse text-left text-sm"><thead className="bg-slate-900 text-white"><tr><th className="p-3">Visual example</th><th className="p-3">Error type</th><th className="p-3">Explanation</th><th className="p-3">Scoring category</th><th className="p-3">Applied penalty</th></tr></thead><tbody>{definitions.map((definition)=><GuideTableRow key={definition.key} definition={definition}/>)}</tbody></table></div><div className="mt-5 grid gap-3 md:hidden">{definitions.map((definition)=><GuideCard key={definition.key} definition={definition}/>)}</div></div></details>; }
 function GuideExample({definition}:{definition:ErrorGuideDefinition}) { const expected=definition.example.expected; const typed=definition.example.typed; return <span className="inline-flex flex-wrap items-baseline gap-1" aria-label={`${definition.label} example: typed ${typed??"nothing"}; expected ${expected??"nothing"}`}><span className={definition.example.decoration==="repeat"?"rounded bg-orange-100 px-1 font-bold text-orange-900 line-through decoration-2":definition.example.decoration==="strike"?"font-bold text-red-700 line-through decoration-2":"font-bold text-red-700"}>{typed}</span>{expected&&<span className="font-semibold text-slate-500">[{expected}]</span>}</span>; }
