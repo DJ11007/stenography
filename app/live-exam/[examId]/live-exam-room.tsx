@@ -6,7 +6,7 @@ import { TypingStudentProvider } from "@/app/typing/_components/typing-student-p
 import { formatDuration } from "@/lib/live-exam";
 import { WordWorkspace } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace";
 import { ExcelWorkspace } from "@/app/typing/excel-efficiency/[language]/[testId]/workspace/excel-workspace";
-import { finalizeLiveExamEfficiency, loadLiveExamTypingSection, recordLiveExamEfficiency, startLiveExamEfficiencySection, type LiveEfficiencySection, type LiveTypingSection } from "../actions";
+import { finalizeLiveExamEfficiency, loadLiveExamTypingSection, recordLiveExamEfficiency, startLiveExamAttempt, startLiveExamEfficiencySection, type LiveEfficiencySection, type LiveTypingSection } from "../actions";
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { clearLiveExamDraft, clearPendingAttempt, readLiveExamDraft, readPendingAttempt } from "@/lib/pending-attempts";
 import { createClient } from "@/lib/supabase/client";
@@ -121,7 +121,16 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   const [finalDone, setFinalDone] = useState(false);
   useEffect(() => { try { if (localStorage.getItem(finalKey) === "1") setFinalDone(true); } catch { /* storage unavailable */ } }, [finalKey]); // eslint-disable-line react-hooks/set-state-in-effect -- read once after mount
 
-  if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} instructions={instructions} candidate={candidate} preview={preview} onLogin={() => { try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ } setLoggedIn(true); }} />;
+  // Per-student-window exams: the student's own clock starts now, at actual login -- not back when this
+  // page first loaded (before they had even seen this screen) -- then the room re-fetches so it opens
+  // already anchored to this moment, instead of to whatever a stale pre-login snapshot had.
+  const handleLogin = async () => {
+    try { sessionStorage.setItem(loginKey, "1"); } catch { /* storage unavailable */ }
+    if (state.availableUntil && !preview) await startLiveExamAttempt(initial.id);
+    await refresh();
+    setLoggedIn(true);
+  };
+  if (!loggedIn) return <ExamLogin title={state.title} startsAt={state.startsAt} availableUntil={state.availableUntil} instructions={instructions} candidate={candidate} preview={preview} onLogin={handleLogin} />;
 
   const running = phase.kind === "section" ? phase.section.label : phase.kind === "gap" ? "Break" : phase.kind === "waiting" ? "Not started" : "Completed";
   return (
@@ -228,7 +237,7 @@ function enterFullScreen() {
   void document.documentElement.requestFullscreen().catch(() => { /* refused: the button stays */ });
 }
 
-function ExamLogin({ title, startsAt, instructions, candidate, preview, onLogin }: { title: string; startsAt: string; instructions: string[]; candidate: Candidate; preview: boolean; onLogin: () => void }) {
+function ExamLogin({ title, startsAt, availableUntil, instructions, candidate, preview, onLogin }: { title: string; startsAt: string; availableUntil?: string | null; instructions: string[]; candidate: Candidate; preview: boolean; onLogin: () => void | Promise<void> }) {
   const [loginId, setLoginId] = useState(""), [password, setPassword] = useState("");
   const [problem, setProblem] = useState<string | null>(null), [checking, setChecking] = useState(false), [peripheral, setPeripheral] = useState(false);
   const submit = async (event: React.FormEvent) => {
@@ -237,12 +246,13 @@ function ExamLogin({ title, startsAt, instructions, candidate, preview, onLogin 
     setProblem(null);
     // Only this account: a different login ID is refused before anything is sent, so the session never switches.
     if (!candidate.loginId || loginId.trim().toLowerCase() !== candidate.loginId.toLowerCase()) { setProblem("This login ID does not match the account you are signed in with."); return; }
-    if (preview) { onLogin(); return; }
     setChecking(true);
-    const { error } = await createClient().auth.signInWithPassword({ email: candidate.loginId, password });
+    if (!preview) {
+      const { error } = await createClient().auth.signInWithPassword({ email: candidate.loginId, password });
+      if (error) { setChecking(false); setProblem("Wrong password. Type the password of your account."); return; }
+    }
+    await onLogin();
     setChecking(false);
-    if (error) { setProblem("Wrong password. Type the password of your account."); return; }
-    onLogin();
   };
   return (
     <main className="min-h-screen bg-[#eef2f7]">
@@ -250,7 +260,7 @@ function ExamLogin({ title, startsAt, instructions, candidate, preview, onLogin 
       <div className="mx-auto grid max-w-5xl gap-6 p-4 sm:p-8 lg:grid-cols-[360px_1fr]">
         <form onSubmit={submit} className="h-fit rounded-2xl bg-white p-6 shadow-md">
           <h2 className="text-xl font-black text-slate-900">Candidate login</h2>
-          <p className="mt-1 text-sm text-slate-600">Exam starts {istDateTime(startsAt)}</p>
+          <p className="mt-1 text-sm text-slate-600">{availableUntil ? `Open until ${istDateTime(availableUntil)} — log in below whenever you are ready; your own timed attempt starts the moment you log in.` : `Exam starts ${istDateTime(startsAt)}`}</p>
           <label className="mt-5 grid gap-1.5 text-sm font-bold text-slate-700">Login ID<input className="input" type="email" autoComplete="username" required value={loginId} onChange={(event) => setLoginId(event.target.value)} placeholder="your login email" /></label>
           <label className="mt-3 grid gap-1.5 text-sm font-bold text-slate-700">Password<PasswordInput className="input w-full" autoComplete="current-password" required={!preview} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           {problem && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-800">{problem}</p>}

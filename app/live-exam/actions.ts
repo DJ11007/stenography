@@ -7,6 +7,14 @@ import type { ExamPreset } from "@/lib/typing-curriculum";
 
 export type LiveTypingSection = { preset: ExamPreset; managedTest: { testId: string; versionId: string; mode: "learn" | "practice" | "exam" | "stenography"; isLive: false } };
 
+// Per-student-window exams only: seeds this student's own start anchor at the moment their login actually
+// succeeds -- not merely when the exam page loads (which happens before they have even seen the login
+// screen). A no-op for legacy exams, admins, and a student who already has an anchor.
+export async function startLiveExamAttempt(examId: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.rpc("start_live_exam_attempt", { p_exam_id: examId });
+}
+
 // A typing section's test, handed to the exam page only once that section has started (so its passage is not in the
 // page beforehand). Its rules and marks are the exam pattern's (RSMSSB LDC → the Rajasthan LDC scheme).
 export async function loadLiveExamTypingSection(sectionId: string): Promise<{ ok: true; section: LiveTypingSection } | { ok: false; error: string }> {
