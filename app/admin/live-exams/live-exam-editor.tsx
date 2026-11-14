@@ -7,7 +7,7 @@ import { saveLiveExam } from "./actions";
 
 export type TestOption = { id: string; title: string; kind: LiveExamSectionKind; language: LiveExamLanguage; group: string };
 const GROUP_ORDER = ["Exam Simulator", "Live tests", "Practice / Take Tests", "Learning"];
-type Initial = { examId: string | null; title: string; pattern: string; startsAt: string; resultsAt: string; status: string; instructions: string; sections: LiveExamSection[] };
+type Initial = { examId: string | null; title: string; pattern: string; startsAt: string; resultsAt: string; availableUntil: string; resultsDelayMinutes: string; status: string; instructions: string; sections: LiveExamSection[] };
 
 const UPLOAD_LINK: Record<LiveExamSectionKind, (language: LiveExamLanguage) => string> = {
   typing: () => "/admin/exam-tests",
@@ -37,8 +37,8 @@ export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: I
         <h2 className="text-xl font-black">Exam details</h2>
         <label className="grid gap-2 text-sm font-bold text-slate-700">Title<input className="input" name="title" required defaultValue={initial.title} placeholder="RSMSSB LDC Live Exam — 2 Nov" /></label>
         <div className="grid gap-4 sm:grid-cols-3">
-          <label className="grid gap-2 text-sm font-bold text-slate-700">Date &amp; start time (India time)<input className="input" name="startsAt" type="datetime-local" required defaultValue={initial.startsAt} /></label>
-          <label className="grid gap-2 text-sm font-bold text-slate-700">Results shown from (India time)<input className="input" name="resultsAt" type="datetime-local" defaultValue={initial.resultsAt} /><span className="text-xs font-normal text-slate-500">Empty = shown when the exam ends.</span></label>
+          <label className="grid gap-2 text-sm font-bold text-slate-700">Date &amp; start time (India time)<input className="input" name="startsAt" type="datetime-local" required defaultValue={initial.startsAt} /><span className="text-xs font-normal text-slate-500">Earliest any student can begin.</span></label>
+          <label className="grid gap-2 text-sm font-bold text-slate-700">Open for new attempts until (India time)<input className="input" name="availableUntil" type="datetime-local" defaultValue={initial.availableUntil} /><span className="text-xs font-normal text-slate-500">Empty = one shared clock for everyone, exactly the exam&apos;s own length from the start time above (the old behavior). Set this to let students join at different times over a longer window -- each student then gets their own full-length attempt starting the moment they open it, right up to this date.</span></label>
           <label className="grid gap-2 text-sm font-bold text-slate-700">Status
             <select className="input" name="status" defaultValue={initial.status}>
               <option value="draft">Draft (only admins see it)</option>
@@ -46,6 +46,10 @@ export function LiveExamEditor({ initial, pattern, tests, locked }: { initial: I
               <option value="cancelled">Cancelled</option>
             </select>
           </label>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <label className="grid gap-2 text-sm font-bold text-slate-700">Results shown from (India time)<input className="input" name="resultsAt" type="datetime-local" defaultValue={initial.resultsAt} /><span className="text-xs font-normal text-slate-500">Only used with one shared clock (no window set above). Empty = shown when the exam ends.</span></label>
+          <label className="grid gap-2 text-sm font-bold text-slate-700">Results delay per student (minutes)<input className="input" name="resultsDelayMinutes" type="number" min={1} max={1440} step={1} defaultValue={initial.resultsDelayMinutes} /><span className="text-xs font-normal text-slate-500">Only used with a window set above: each student&apos;s own result appears this many minutes after they finish their own attempt.</span></label>
         </div>
       </section>
 

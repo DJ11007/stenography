@@ -13,14 +13,14 @@ export const metadata: Metadata = { title: "Live Exam Center | Admin" };
 // The section each typing test is listed under in the builder's dropdown.
 const TYPING_GROUP: Record<string, string> = { exam: "Exam Simulator", practice: "Practice / Take Tests", learn: "Learning" };
 
-type ExamRow = { id: string; title: string; pattern: string; starts_at: string; results_at: string | null; status: string; instructions: string | null; live_exam_sections: { duration_seconds: number; gap_after_seconds: number }[] };
+type ExamRow = { id: string; title: string; pattern: string; starts_at: string; results_at: string | null; available_until: string | null; results_delay_minutes: number; status: string; instructions: string | null; live_exam_sections: { duration_seconds: number; gap_after_seconds: number }[] };
 
 // Live Exam Center (docs/live-exam-center-plan.md): timed exams made of sections that reuse tests already on the site.
 export default async function AdminLiveExamsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   await requireAdmin();
   const query = await searchParams;
   const supabase = await createClient();
-  const { data: exams, error } = await supabase.from("live_exams").select("id,title,pattern,starts_at,results_at,status,instructions,live_exam_sections(duration_seconds,gap_after_seconds)").order("starts_at", { ascending: false });
+  const { data: exams, error } = await supabase.from("live_exams").select("id,title,pattern,starts_at,results_at,available_until,results_delay_minutes,status,instructions,live_exam_sections(duration_seconds,gap_after_seconds)").order("starts_at", { ascending: false });
 
   const editing = query.edit ? (exams as ExamRow[] | null)?.find((exam) => exam.id === query.edit) ?? null : null;
   const newPattern = query.new ? patternById(query.new) : null;
@@ -49,7 +49,9 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
     const pattern = editing ? patternById(editing.pattern) : newPattern;
     editor = <LiveExamEditor key={editing?.id ?? query.new} locked={locked} pattern={pattern} tests={tests} initial={{
       examId: editing?.id ?? null, title: editing?.title ?? (pattern ? `${pattern.name} Live Exam` : ""), pattern: editing?.pattern ?? newPattern?.id ?? "custom",
-      startsAt: isoToIstInput(editing?.starts_at), resultsAt: isoToIstInput(editing?.results_at), status: editing?.status ?? "draft", instructions: editing?.instructions ?? "", sections,
+      startsAt: isoToIstInput(editing?.starts_at), resultsAt: isoToIstInput(editing?.results_at),
+      availableUntil: isoToIstInput(editing?.available_until), resultsDelayMinutes: String(editing?.results_delay_minutes ?? 5),
+      status: editing?.status ?? "draft", instructions: editing?.instructions ?? "", sections,
     }} />;
   }
 
@@ -58,7 +60,7 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
       <div className="mx-auto max-w-5xl">
         <BackButton href="/admin" label="Admin dashboard" />
         <h1 className="mt-2 text-3xl font-black">Live Exam Center</h1>
-        <p className="mt-1 text-slate-600">Timed exams made of sections — typing, Word, Excel — that use tests you have already uploaded. Every student follows the same clock from the start time, with breaks between sections.</p>
+        <p className="mt-1 text-slate-600">Timed exams made of sections — typing, Word, Excel — that use tests you have already uploaded, with breaks between sections. By default every student follows the same clock from the start time; set "Open for new attempts until" on an exam to let students join over a longer window instead, each getting their own full-length attempt from the moment they start.</p>
         {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-800">The Live Exam Center needs its database update first (migration 202611011000). {error.message}</p>}
         {query.error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-800">{query.error}</p>}
         {query.saved && <p role="status" className="mt-4 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800">Exam saved.</p>}
@@ -89,7 +91,11 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
                 <li key={exam.id} className="flex flex-wrap items-center gap-3 py-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-black text-slate-900">{exam.title}</p>
-                    <p className="text-xs text-slate-500">{patternById(exam.pattern)?.name ?? "Custom"} · starts {formatIST(exam.starts_at)} · {exam.live_exam_sections.length} sections · {Math.round(length / 60)} min</p>
+                    <p className="text-xs text-slate-500">
+                      {patternById(exam.pattern)?.name ?? "Custom"} · starts {formatIST(exam.starts_at)}
+                      {exam.available_until && <> · open until {formatIST(exam.available_until)} ({exam.results_delay_minutes}-min results delay)</>}
+                      {" "}· {exam.live_exam_sections.length} sections · {Math.round(length / 60)} min
+                    </p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-black ${exam.status === "published" ? "bg-green-100 text-green-800" : exam.status === "cancelled" ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-800"}`}>{exam.status}</span>
                   <Link href={`?edit=${exam.id}`} className="rounded-lg border px-3 py-1.5 text-sm font-bold hover:bg-slate-50">Edit</Link>

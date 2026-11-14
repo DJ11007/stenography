@@ -16,17 +16,20 @@ export async function saveLiveExam(form: FormData) {
   const title = String(form.get("title") ?? "").trim();
   const startsAt = istInputToIso(String(form.get("startsAt") ?? ""));
   const resultsAt = istInputToIso(String(form.get("resultsAt") ?? ""));
+  const availableUntil = istInputToIso(String(form.get("availableUntil") ?? ""));
+  const resultsDelayMinutes = Number(form.get("resultsDelayMinutes") ?? 5) || 5;
   let sections: LiveExamSection[] = [];
   try { sections = JSON.parse(String(form.get("sections") ?? "[]")); } catch { sections = []; }
   const problem = !title ? "Give the exam a title."
     : !startsAt ? "Set the date and start time."
     : resultsAt && resultsAt < startsAt ? "The result time cannot be before the start time."
+    : availableUntil && availableUntil <= startsAt ? "The \"open until\" date must be after the start time."
     : !sections.length ? "Add at least one section."
     : sections.find((section) => !section.testId) ? `Choose a test for "${sections.find((section) => !section.testId)!.label}".`
     : null;
   if (problem) back(`${editQuery}&error=${encodeURIComponent(problem)}`);
   const payload = {
-    title, pattern: String(form.get("pattern") ?? "custom"), startsAt, resultsAt, status: String(form.get("status") ?? "draft"),
+    title, pattern: String(form.get("pattern") ?? "custom"), startsAt, resultsAt, availableUntil, resultsDelayMinutes, status: String(form.get("status") ?? "draft"),
     instructions: String(form.get("instructions") ?? "").trim(),
     sections: sections.map((section) => ({ ...section, durationSeconds: Math.round(section.durationSeconds), gapAfterSeconds: Math.round(section.gapAfterSeconds) })),
   };
