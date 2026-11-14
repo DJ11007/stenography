@@ -21,6 +21,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancies } from "@/lib/homepage-content-server";
 import { getPublishedLiveResults, getLiveTestTopRankersAllPeriods, getUpcomingLiveExams, getLiveExamTopRankers } from "@/lib/live-test-results-server";
 import { LiveExamHomeSection } from "./_components/live-exam-home-section";
+import { OfflineAppBanner } from "./_components/offline-app-banner";
 
 const EXAM_CATEGORIES = [
   {
@@ -259,6 +260,12 @@ export default async function Home() {
               <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="border-b border-blue-100 bg-white px-4 py-8">
+        <div className="mx-auto max-w-7xl">
+          <Reveal><OfflineAppBanner /></Reveal>
         </div>
       </section>
 
