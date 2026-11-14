@@ -13,7 +13,7 @@ export async function loadLiveExamTypingSection(sectionId: string): Promise<{ ok
   const supabase = await createClient();
   const { data: section } = await supabase.from("live_exam_sections").select("id,exam_id,kind,test_id,live_exams(pattern)").eq("id", sectionId).maybeSingle();
   if (!section || section.kind !== "typing") return { ok: false, error: "This part is not available." };
-  const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: section.exam_id });
+  const { data: timeline } = await supabase.rpc("live_exam_timeline_for_student", { p_exam_id: section.exam_id });
   const slot = ((timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[]).find((row) => row.section_id === sectionId);
   const now = Date.now();
   if (!slot || now < Date.parse(slot.starts_at) - 20000) return { ok: false, error: "This part has not started yet." };
@@ -37,7 +37,7 @@ export type LiveEfficiencySection =
 async function openSection(supabase: Awaited<ReturnType<typeof createClient>>, sectionId: string, kinds: string[]) {
   const { data: section } = await supabase.from("live_exam_sections").select("id,exam_id,kind,test_id").eq("id", sectionId).maybeSingle();
   if (!section || !kinds.includes(section.kind)) return { error: "This part is not available." } as const;
-  const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: section.exam_id });
+  const { data: timeline } = await supabase.rpc("live_exam_timeline_for_student", { p_exam_id: section.exam_id });
   const slot = ((timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[]).find((row) => row.section_id === sectionId);
   const now = Date.now();
   if (!slot || now < Date.parse(slot.starts_at)) return { error: "This part has not started yet." } as const;
@@ -115,7 +115,7 @@ export async function finalizeLiveExamEfficiency(examId: string): Promise<{ ok: 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, handedIn: 0 };
   const { data: sections } = await supabase.from("live_exam_sections").select("id,kind,test_id").eq("exam_id", examId).in("kind", ["word", "excel"]);
-  const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: examId });
+  const { data: timeline } = await supabase.rpc("live_exam_timeline_for_student", { p_exam_id: examId });
   const { data: linked } = await supabase.from("live_exam_section_attempts").select("section_id").eq("exam_id", examId);
   const done = new Set((linked ?? []).map((row) => row.section_id as string));
   let handedIn = 0;

@@ -186,7 +186,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
 async function openLiveExamTypingSection(supabase: Awaited<ReturnType<typeof createClient>>, sectionId: string, testId: string, startedAt: string) {
   const { data: section } = await supabase.from("live_exam_sections").select("id,exam_id,kind,test_id").eq("id", sectionId).maybeSingle();
   if (!section || section.kind !== "typing" || section.test_id !== testId) return null;
-  const { data: timeline } = await supabase.rpc("live_exam_timeline", { p_exam_id: section.exam_id });
+  const { data: timeline } = await supabase.rpc("live_exam_timeline_for_student", { p_exam_id: section.exam_id });
   const rows = (timeline ?? []) as { section_id: string; starts_at: string; ends_at: string }[];
   const slot = rows.find((row) => row.section_id === sectionId);
   if (!slot) return null;
