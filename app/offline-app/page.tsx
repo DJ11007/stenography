@@ -48,6 +48,8 @@ export default function OfflineAppPage() {
           <Feature title="Every exam board, offline" body="SSC CHSL/CGL, RRB NTPC, AIIMS CRE, BSF/CRPF/SSB HCM, Delhi Police HCM, DSSSB, Rajasthan boards, several High Courts, and more -- the exact same researched patterns as the website, bundled right into the app." />
           <Feature title="English and Hindi" body="Includes every Hindi input system: Kruti Dev 010, Mangal, and the Remington/InScript Unicode layouts." />
           <Feature title="Stenography dictation" body="Listen to a passage read aloud -- by your computer's own voice, or a clip you record yourself -- then transcribe it from memory, just like a real shorthand test." />
+          <Feature title="Word &amp; Excel Efficiency" body="Build a document or spreadsheet using the same formatting tools -- bold, fonts, tables, cell formatting, formulas -- and submit for the same marking rules as the website's efficiency tests." />
+          <Feature title="Practice settings that matter" body="Font size, highlight mode, auto-scroll, keyboard click sound, and full-screen mode -- free to adjust in practice, locked to the real pattern in Exam Simulator so the exam stays authentic." />
           <Feature title="Your results, saved locally" body="Every attempt is saved on your own computer so you can track your WPM and accuracy over time -- nothing is uploaded anywhere." />
           <Feature title="Works with zero internet" body="Once installed and activated, the app never needs a connection again -- practice anywhere, anytime." />
         </div>
