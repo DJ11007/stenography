@@ -23,7 +23,7 @@ export async function saveLiveExam(form: FormData) {
   const problem = !title ? "Give the exam a title."
     : !startsAt ? "Set the date and start time."
     : resultsAt && resultsAt < startsAt ? "The result time cannot be before the start time."
-    : availableUntil && availableUntil <= startsAt ? "The \"open until\" date must be after the start time."
+    : availableUntil && availableUntil <= startsAt ? "The live test end must be after the start time."
     : !sections.length ? "Add at least one section."
     : sections.find((section) => !section.testId) ? `Choose a test for "${sections.find((section) => !section.testId)!.label}".`
     : null;

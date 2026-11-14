@@ -60,7 +60,7 @@ export default async function AdminLiveExamsPage({ searchParams }: { searchParam
       <div className="mx-auto max-w-5xl">
         <BackButton href="/admin" label="Admin dashboard" />
         <h1 className="mt-2 text-3xl font-black">Live Exam Center</h1>
-        <p className="mt-1 text-slate-600">Timed exams made of sections — typing, Word, Excel — that use tests you have already uploaded, with breaks between sections. By default every student follows the same clock from the start time; set "Open for new attempts until" on an exam to let students join over a longer window instead, each getting their own full-length attempt from the moment they start.</p>
+        <p className="mt-1 text-slate-600">Timed exams made of sections — typing, Word, Excel — that use tests you have already uploaded, with breaks between sections. By default every student follows the same clock from the start time; set a "Live test end" on an exam to let students join over a longer window instead, each getting their own full-length attempt from the moment they start.</p>
         {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-800">The Live Exam Center needs its database update first (migration 202611011000). {error.message}</p>}
         {query.error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm font-bold text-red-800">{query.error}</p>}
         {query.saved && <p role="status" className="mt-4 rounded-xl bg-green-50 p-4 text-sm font-bold text-green-800">Exam saved.</p>}
