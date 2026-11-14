@@ -19,6 +19,9 @@ export type LiveExamSectionState = {
 };
 export type LiveExamState = {
   id: string; title: string; pattern: string; status: string; instructions: string | null; startsAt: string; resultsAt: string | null;
+  // Per-student-window exams only (see supabase/migrations/202611141500_live_exam_per_student_window.sql):
+  // null/absent for a legacy exam, where resultsAt above still governs everyone's reveal time together.
+  availableUntil?: string | null; resultsAvailableAt?: string | null; resultsReady?: boolean;
   serverNow: string; phase: "waiting" | "section" | "gap" | "finished"; sections: LiveExamSectionState[];
 };
 type Candidate = { name: string; loginId: string; rollNumber: string; photoUrl?: string | null };
@@ -157,9 +160,15 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
               <p className="text-5xl">✓</p>
               <h2 className="mt-3 text-3xl font-black text-slate-900">Exam completed</h2>
               <p className="mt-2 text-slate-600">All parts of this exam are over. Thank you.</p>
-              {!preview && (!state.resultsAt || now >= Date.parse(state.resultsAt))
+              {!preview && (state.availableUntil
+                ? Boolean(state.resultsReady)
+                : (!state.resultsAt || now >= Date.parse(state.resultsAt)))
                 ? <OwnResult examId={state.id} sections={state.sections} />
-                : <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm font-bold text-blue-900">{state.resultsAt ? `Results will be shown from ${istDateTime(state.resultsAt)}.` : "Results will be shown soon."}</p>}
+                : <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm font-bold text-blue-900">
+                    {state.availableUntil
+                      ? (state.resultsAvailableAt ? `Your result will be shown from ${istDateTime(state.resultsAvailableAt)}.` : "Your result will be shown soon.")
+                      : (state.resultsAt ? `Results will be shown from ${istDateTime(state.resultsAt)}.` : "Results will be shown soon.")}
+                  </p>}
             </div>
           )}
         </section>
