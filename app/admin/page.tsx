@@ -74,6 +74,13 @@ const groups = [
     ],
   },
   {
+    heading: "SCTyping desktop app",
+    description: "Control what students see inside the installed offline app.",
+    items: [
+      ["/admin/app-control", "App control", "Hide, free-open or lock any section, exam board or efficiency test in the app; set the notice banner and trial limits.", "Manage →"],
+    ],
+  },
+  {
     heading: "Tools",
     description: "Utilities that support test authoring.",
     items: [
