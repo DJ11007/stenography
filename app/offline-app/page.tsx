@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteFooter } from "../_components/site-footer";
 import { SiteHeader } from "../_components/site-header";
+import { SCTYPING_LATEST } from "@/lib/sctyping-release";
 
 export const metadata = {
   title: "SCTyping – Offline Typing App for Windows – Samradhi Classes",
@@ -40,7 +41,7 @@ export default function OfflineAppPage() {
         >
           ⬇ Download for Windows
         </a>
-        <p className="mt-3 text-xs text-blue-200">Free download &middot; ~4&nbsp;MB &middot; Windows 10/11 (64-bit)</p>
+        <p className="mt-3 text-xs text-blue-200">Version {SCTYPING_LATEST.version} &middot; Free trial &middot; ~4&nbsp;MB &middot; Windows 10/11 (64-bit)</p>
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-14">

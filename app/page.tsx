@@ -271,7 +271,20 @@ export default async function Home() {
               Free Typing Test
               <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
             </Link>
+            {/* Plain <a>, not next/link: the route counts a download, and a prefetch would count one nobody asked for. */}
+            <a
+              href="/offline-app/download"
+              download
+              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-300 px-6 py-3 font-black text-emerald-950 shadow-lg shadow-emerald-900/30 transition-all hover:-translate-y-0.5 hover:brightness-105"
+            >
+              <span aria-hidden>⬇</span>
+              Download SCTyping App
+              <span className="rounded-md bg-white/50 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide">Windows</span>
+            </a>
           </div>
+          <p className="animate-fade-in-up mt-3 text-xs text-blue-100/80" style={{ animationDelay: "220ms" }}>
+            Free trial · works offline · <Link href="/offline-app" className="font-bold underline">what&apos;s inside the app</Link>
+          </p>
 
           {siteStats && (
             <div
