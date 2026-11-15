@@ -10,7 +10,7 @@ export function OfflineAppBanner({ className = "" }: { className?: string }) {
     >
       <div>
         <p className="text-sm font-black uppercase tracking-widest text-indigo-600">New -- for Windows</p>
-        <h3 className="mt-2 text-2xl font-black text-slate-900">Offline Typing App</h3>
+        <h3 className="mt-2 text-2xl font-black text-slate-900">SCTyping — Offline Typing App</h3>
         <p className="mt-2 max-w-xl text-slate-600">
           Practice every exam board&apos;s pattern without any internet connection -- download, install, and activate once.
         </p>

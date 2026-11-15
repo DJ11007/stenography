@@ -22,6 +22,7 @@ import { getApprovedFeedback, getPublishedOfficialWebsites, getPublishedVacancie
 import { getPublishedLiveResults, getLiveTestTopRankersAllPeriods, getUpcomingLiveExams, getLiveExamTopRankers } from "@/lib/live-test-results-server";
 import { LiveExamHomeSection } from "./_components/live-exam-home-section";
 import { OfflineAppBanner } from "./_components/offline-app-banner";
+import { getSiteStats } from "@/lib/site-stats-server";
 
 const EXAM_CATEGORIES = [
   {
@@ -104,6 +105,16 @@ function MyResultCard({ label, tone, href, title, metrics }: { label: string; to
     </Link>
   );
 }
+function SiteStat({ value, label, href }: { value: number; label: string; href?: string }) {
+  const body = (
+    <>
+      <span className="block text-3xl font-black tabular-nums text-white sm:text-4xl">{value.toLocaleString("en-IN")}+</span>
+      <span className="mt-1 block text-xs font-bold uppercase tracking-widest text-blue-100">{label}</span>
+    </>
+  );
+  const className = "min-w-[11rem] rounded-2xl border border-white/25 bg-white/10 px-6 py-4 text-center backdrop-blur-sm";
+  return href ? <Link href={href} className={`${className} transition hover:bg-white/20`}>{body}</Link> : <div className={className}>{body}</div>;
+}
 function Icon({ name, className }: { name: IconName; className: string }) {
   const common = {
     "aria-hidden": true,
@@ -130,7 +141,7 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const supabase = await createClient();
-  const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user, upcomingLiveExams, liveExamRankers] = await Promise.all([
+  const [liveResults, topRankersEnglish, topRankersHindi, vacancies, feedback, officialWebsites, user, upcomingLiveExams, liveExamRankers, siteStats] = await Promise.all([
     getPublishedLiveResults(20),
     getLiveTestTopRankersAllPeriods("English"),
     getLiveTestTopRankersAllPeriods("Hindi"),
@@ -140,6 +151,7 @@ export default async function Home() {
     getCurrentUser(),
     getUpcomingLiveExams(5),
     getLiveExamTopRankers(10),
+    getSiteStats(),
   ]);
 
   // Personalized "my latest result" cards, in the requested Typing ->
@@ -260,6 +272,17 @@ export default async function Home() {
               <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
             </Link>
           </div>
+
+          {siteStats && (
+            <div
+              className="animate-fade-in-up mx-auto mt-8 flex max-w-2xl flex-wrap justify-center gap-4"
+              style={{ animationDelay: "240ms" }}
+            >
+              <SiteStat value={siteStats.students} label="Registered Students" />
+              {/* Hidden until the first counted download, so a brand-new counter never shows "0". */}
+              {siteStats.downloads > 0 && <SiteStat value={siteStats.downloads} label="SCTyping App Downloads" href="/offline-app" />}
+            </div>
+          )}
         </div>
       </section>
 

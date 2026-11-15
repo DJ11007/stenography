@@ -3,14 +3,15 @@ import { SiteFooter } from "../_components/site-footer";
 import { SiteHeader } from "../_components/site-header";
 
 export const metadata = {
-  title: "Offline Typing App (Windows) – Samradhi Classes",
+  title: "SCTyping – Offline Typing App for Windows – Samradhi Classes",
   description:
-    "Download the free Samradhi Classes offline typing app for Windows. Practice every exam board's typing pattern -- SSC, Railway, AIIMS, BSF, Delhi Police, High Courts and more -- with no internet connection needed after install.",
+    "Download SCTyping, the Samradhi Classes offline typing app for Windows. Learn typing, practice every exam board's typing pattern -- SSC, Railway, AIIMS, BSF, Delhi Police, High Courts and more -- and stenography, with no internet connection needed after install.",
   alternates: { canonical: "/offline-app" },
 };
 
 const SUPPORT_PHONE = "917014371324";
-const DOWNLOAD_HREF = "/downloads/samradhi-offline-typing-setup.exe";
+// Goes through the counting route (app/offline-app/download/route.ts), not straight to the file.
+const DOWNLOAD_HREF = "/offline-app/download";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -27,7 +28,7 @@ export default function OfflineAppPage() {
 
       <section className="bg-gradient-to-br from-blue-700 via-indigo-800 to-violet-900 px-6 py-14 text-center text-white sm:py-20">
         <p className="text-xs font-black uppercase tracking-widest text-blue-100">For Windows computers</p>
-        <h1 className="mt-3 text-3xl font-black sm:text-5xl">Samradhi Classes — Offline Typing App</h1>
+        <h1 className="mt-3 text-3xl font-black sm:text-5xl">SCTyping — Offline Typing App</h1>
         <p className="mx-auto mt-4 max-w-2xl text-blue-100">
           Every exam board&apos;s typing pattern, right on your computer. No internet connection, no account sign-in, no
           interruptions once it&apos;s installed and activated.
@@ -45,6 +46,7 @@ export default function OfflineAppPage() {
       <section className="mx-auto max-w-5xl px-4 py-14">
         <h2 className="text-2xl font-black text-slate-900">What&apos;s inside</h2>
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          <Feature title="Learn typing from zero" body="Step-by-step Hindi (Kruti Dev) and English lessons -- keys, then words, then paragraphs -- with an on-screen keyboard showing which finger presses the next key." />
           <Feature title="Every exam board, offline" body="SSC CHSL/CGL, RRB NTPC, AIIMS CRE, BSF/CRPF/SSB HCM, Delhi Police HCM, DSSSB, Rajasthan boards, several High Courts, and more -- the exact same researched patterns as the website, bundled right into the app." />
           <Feature title="English and Hindi" body="Includes every Hindi input system: Kruti Dev 010, Mangal, and the Remington/InScript Unicode layouts." />
           <Feature title="Stenography dictation" body="Listen to a passage read aloud -- by your computer's own voice, or a clip you record yourself -- then transcribe it from memory, just like a real shorthand test." />
@@ -65,9 +67,9 @@ export default function OfflineAppPage() {
         <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-7">
           <h2 className="text-xl font-black text-slate-900">How activation works</h2>
           <ol className="mt-4 list-decimal space-y-2 pl-5 text-slate-700">
-            <li>Install the app and open it -- it shows you a one-time Device ID.</li>
-            <li>Send that Device ID to us on WhatsApp (button is right there in the app).</li>
-            <li>We reply with your activation key -- paste it in and you&apos;re set, permanently, on that computer.</li>
+            <li>Install the app and try it free -- every section works, with tests limited to 1 minute in the trial.</li>
+            <li>Click <strong>Trial — Activate</strong> at the top of the app and send us the Device ID it shows, on WhatsApp.</li>
+            <li>We reply with your activation key -- paste it in and the full app unlocks, permanently, on that computer.</li>
           </ol>
           <a
             href={`https://wa.me/${SUPPORT_PHONE}?text=${encodeURIComponent("Hi, I'd like to know more about the offline typing app.")}`}
