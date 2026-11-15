@@ -6,12 +6,15 @@ import type { AppAccess, AppControlGroup, AppRule, AppSettings } from "@/lib/app
 
 const ACCESS_LABEL: Record<AppAccess, string> = { default: "Normal (trial limits apply)", free: "Free for everyone (no trial limits)", activated: "Locked until activated" };
 
-export function AppControlManager({ groups, initialRules, initialSettings }: { groups: AppControlGroup[]; initialRules: AppRule[]; initialSettings: AppSettings }) {
+export function AppControlManager({ groups, initialRules, initialSettings, showSettings }: { groups: AppControlGroup[]; initialRules: AppRule[]; initialSettings: AppSettings; showSettings: boolean }) {
   const [rules, setRules] = useState<Record<string, AppRule>>(() => Object.fromEntries(initialRules.map((r) => [r.key, r])));
   const [settings, setSettings] = useState<AppSettings>(initialSettings);
   const [state, setState] = useState<AppControlState>({});
   const [pending, start] = useTransition();
-  const changed = useMemo(() => Object.values(rules).filter((r) => !r.visible || r.access !== "default").length, [rules]);
+  const changed = useMemo(() => {
+    const keys = new Set(groups.flatMap((group) => group.items.map((item) => item.key)));
+    return Object.values(rules).filter((r) => keys.has(r.key) && (!r.visible || r.access !== "default")).length;
+  }, [rules, groups]);
 
   const get = (key: string): AppRule => rules[key] ?? { key, visible: true, access: "default" };
   const patch = (key: string, next: Partial<AppRule>) => setRules((current) => ({ ...current, [key]: { ...get(key), ...next } }));
@@ -21,11 +24,12 @@ export function AppControlManager({ groups, initialRules, initialSettings }: { g
     return copy;
   });
 
-  const save = () => start(async () => setState(await saveAppControl(Object.values(rules), settings)));
+  const scope = groups.flatMap((group) => group.items.map((item) => item.key));
+  const save = () => start(async () => setState(await saveAppControl(scope, Object.values(rules), showSettings ? settings : null)));
 
   return (
     <div className="mt-6 space-y-6 pb-24">
-      <section className="rounded-2xl bg-white p-6 shadow">
+      {showSettings && <section className="rounded-2xl bg-white p-6 shadow">
         <h2 className="text-lg font-black text-slate-900">Notice &amp; trial limits</h2>
         <label className="mt-4 block text-sm font-semibold text-slate-700">Notice banner shown at the top of the app (leave empty for none)
           <input value={settings.notice} maxLength={300} onChange={(e) => setSettings({ ...settings, notice: e.target.value })} placeholder="e.g. New SSC CGL tests added — update the app!" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900" />
@@ -38,7 +42,7 @@ export function AppControlManager({ groups, initialRules, initialSettings }: { g
             <input inputMode="numeric" value={settings.trialWords} onChange={(e) => setSettings({ ...settings, trialWords: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900" />
           </label>
         </div>
-      </section>
+      </section>}
 
       {groups.map((group) => (
         <section key={group.heading} className="rounded-2xl bg-white p-6 shadow">
