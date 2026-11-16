@@ -4,13 +4,14 @@ import { useMemo, useState, useTransition } from "react";
 import { addWebsiteTestsToApp, saveAppTest, updateAppTests, type AppTestActionState } from "./actions";
 
 export type WebsiteTestRow = { id: string; title: string; language: string; mode: string; minutes: number; board: string | null };
-export type AppTestRow = { id: string; source_test_id: string | null; title: string; language: string; mode: string; board: string | null; duration_seconds: number; required_wpm: number | null; required_accuracy: number | null; backspace_mode: string; encoding: string; published: boolean; words: number };
+export type AppTestRow = { id: string; source_test_id: string | null; title: string; language: string; mode: string; board: string | null; duration_seconds: number; required_wpm: number | null; required_accuracy: number | null; backspace_mode: string; encoding: string; published: boolean; words: number; has_audio?: boolean };
 
 type Tab = "add" | "create" | "inapp";
 const field = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900";
 const emptyForm = { id: null as string | null, title: "", language: "English", mode: "exam", minutes: "10", wpm: "", accuracy: "", backspace: "full", passage: "" };
 
-export function TypingAppManager({ available, inApp }: { available: WebsiteTestRow[]; inApp: AppTestRow[] }) {
+export function TypingAppManager({ available, inApp, kind = "typing" }: { available: WebsiteTestRow[]; inApp: AppTestRow[]; kind?: "typing" | "steno" }) {
+  const steno = kind === "steno";
   const [tab, setTab] = useState<Tab>("add");
   const [state, setState] = useState<AppTestActionState>({});
   const [pending, start] = useTransition();
@@ -19,9 +20,9 @@ export function TypingAppManager({ available, inApp }: { available: WebsiteTestR
   // Add from website
   const [query, setQuery] = useState("");
   const [lang, setLang] = useState("all");
-  const [kind, setKind] = useState("all");
+  const [mode, setKind] = useState("all");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const shown = useMemo(() => available.filter((t) => (lang === "all" || t.language === lang) && (kind === "all" || t.mode === kind) && t.title.toLowerCase().includes(query.trim().toLowerCase())), [available, lang, kind, query]);
+  const shown = useMemo(() => available.filter((t) => (lang === "all" || t.language === lang) && (mode === "all" || t.mode === mode) && t.title.toLowerCase().includes(query.trim().toLowerCase())), [available, lang, mode, query]);
   const toggle = (id: string) => setPicked((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   // Create / edit
@@ -37,8 +38,8 @@ export function TypingAppManager({ available, inApp }: { available: WebsiteTestR
     <div className="mt-6">
       <div className="flex flex-wrap gap-2">
         {tabButton("add", `1. Add from website tests (${available.length})`)}
-        {tabButton("create", form.id ? "2. Edit test" : "2. Create a new test")}
-        {tabButton("inapp", `3. Tests in the app (${inApp.length})`)}
+        {!steno && tabButton("create", form.id ? "2. Edit test" : "2. Create a new test")}
+        {tabButton("inapp", `${steno ? "2" : "3"}. Tests in the app (${inApp.length})`)}
       </div>
       {(state.error || state.success) && <p role="status" className={`mt-4 rounded-xl px-4 py-3 text-sm font-semibold ${state.error ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>{state.error ?? state.success}</p>}
 
@@ -49,7 +50,7 @@ export function TypingAppManager({ available, inApp }: { available: WebsiteTestR
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name…" className={field} />
             <select value={lang} onChange={(e) => setLang(e.target.value)} className={field}><option value="all">English + Hindi</option><option>English</option><option>Hindi</option></select>
-            <select value={kind} onChange={(e) => setKind(e.target.value)} className={field}><option value="all">Exam + Practice</option><option value="exam">Exam tests</option><option value="practice">Practice tests</option></select>
+            {!steno && <select value={mode} onChange={(e) => setKind(e.target.value)} className={field}><option value="all">Exam + Practice</option><option value="exam">Exam tests</option><option value="practice">Practice tests</option></select>}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
             <button type="button" onClick={() => setPicked(new Set([...picked, ...shown.map((t) => t.id)]))} className="rounded-full bg-slate-100 px-3 py-1">Tick all {shown.length} shown</button>
@@ -71,7 +72,7 @@ export function TypingAppManager({ available, inApp }: { available: WebsiteTestR
         </section>
       )}
 
-      {tab === "create" && (
+      {tab === "create" && !steno && (
         <section className="mt-4 rounded-2xl bg-white p-6 shadow">
           <h2 className="text-lg font-black text-slate-900">{form.id ? "Edit test" : "Create a new test for the app"}</h2>
           <p className="mt-1 text-sm text-slate-600">This test is only for the app. For Hindi, paste normal Hindi (Unicode); the app converts it to Kruti Dev automatically.</p>
@@ -103,7 +104,7 @@ export function TypingAppManager({ available, inApp }: { available: WebsiteTestR
                 <li key={t.id} className="flex flex-wrap items-center gap-3 py-3">
                   <div className="min-w-0 flex-1">
                     <p className={`font-semibold ${t.published ? "text-slate-900" : "text-slate-400 line-through"}`}>{t.title}</p>
-                    <p className="text-xs text-slate-500">{t.language} · {t.mode === "exam" ? "Exam Simulator" : "Quick Practice"} · {Math.round(t.duration_seconds / 60)} min · {t.words} words · {t.source_test_id ? "from website" : "created for app"}{t.published ? "" : " · hidden"}</p>
+                    <p className="text-xs text-slate-500">{t.language} · {t.mode === "exam" ? "Exam Simulator" : t.mode === "steno" ? (t.has_audio ? "Stenography, with audio" : "Stenography, NO audio") : "Quick Practice"} · {Math.round(t.duration_seconds / 60)} min · {t.words} words · {t.source_test_id ? "from website" : "created for app"}{t.published ? "" : " · hidden"}</p>
                   </div>
                   {!t.source_test_id && <button type="button" onClick={() => { edit(t); setTab("create"); setState({}); }} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">Edit</button>}
                   <button type="button" disabled={pending} onClick={() => run(() => updateAppTests([t.id], t.published ? "hide" : "show"))} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{t.published ? "Hide" : "Show"}</button>

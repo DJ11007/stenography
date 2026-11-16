@@ -21,7 +21,7 @@ export default async function AppControlAreaPage({ params }: { params: Promise<{
     case "general": groups = [{ heading: "Sections on the app home page", items: APP_SECTION_ITEMS }]; break;
     case "learn": groups = [{ heading: "Learn Typing lessons", items: APP_LEARN_ITEMS }]; break;
     case "exam": groups = [{ heading: "Exam boards", items: EXAM_CATEGORIES.map((c) => ({ key: `exam:${c.slug}`, label: c.name, hint: c.fullName })) }]; break;
-    case "steno": groups = [{ heading: "Exam boards", items: STENOGRAPHY_CATEGORIES.map((c) => ({ key: `steno:${c.slug}`, label: c.name, hint: c.fullName })) }]; break;
+    case "steno-boards": groups = [{ heading: "Exam boards", items: STENOGRAPHY_CATEGORIES.map((c) => ({ key: `steno:${c.slug}`, label: c.name, hint: c.fullName })) }]; break;
     case "word": {
       const { data } = await supabase.from("word_efficiency_tests").select("slug,title,language").eq("status", "published").order("title");
       groups = [{ heading: "Published Word tests", items: (data ?? []).map((t) => ({ key: `word:${t.slug}`, label: t.title, hint: t.language })) }];
@@ -33,7 +33,7 @@ export default async function AppControlAreaPage({ params }: { params: Promise<{
       break;
     }
   }
-  const backHref = area.id === "word" || area.id === "excel" ? "/admin/app-control/efficiency" : area.id === "learn" || area.id === "exam" ? "/admin/app-control/typing" : "/admin/app-control";
+  const backHref = area.id === "word" || area.id === "excel" ? "/admin/app-control/efficiency" : area.id === "learn" || area.id === "exam" ? "/admin/app-control/typing" : area.id === "steno-boards" ? "/admin/app-control/steno" : "/admin/app-control";
   const settings = (control?.settings ?? {}) as Record<string, string>;
   return (
     <main className="min-h-screen bg-slate-100 p-6">

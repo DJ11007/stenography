@@ -29,7 +29,7 @@ export default async function AppControlTypingPage() {
             <Link href="/admin/app-control/general" className="rounded-full bg-white/15 px-4 py-2 hover:bg-white/25">Quick Practice on / off →</Link>
           </div>
         </div>
-        <TypingAppManager available={available} inApp={(appTests ?? []) as AppTestRow[]} />
+        <TypingAppManager available={available} inApp={((appTests ?? []) as AppTestRow[]).filter((t) => t.mode !== "steno")} />
       </div>
     </main>
   );
