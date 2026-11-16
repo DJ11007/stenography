@@ -12,14 +12,6 @@ const sections = [
     tone: "bg-blue-600",
   },
   {
-    title: "Practice Tests",
-    description: "Flexible practice with editable backspace, highlighting, calculation and scrolling settings.",
-    href: "/typing/practice",
-    action: "Choose practice",
-    icon: "◎",
-    tone: "bg-green-600",
-  },
-  {
     title: "Stenography",
     description: "Shorthand dictation and transcription practice in English and Hindi.",
     href: "/typing/practice/stenography",

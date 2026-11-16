@@ -21,11 +21,6 @@ export default function ExamCataloguePage() {
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">EN / HI</span>
         </Link>
       ))}
-      <Link href="/typing/practice" className="group flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-600 text-sm font-black text-white" aria-hidden="true">A—Z</span>
-        <span className="text-sm font-bold leading-tight text-slate-800 group-hover:text-blue-700">A to Z Exams</span>
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">Custom practice</span>
-      </Link>
       <Link href="/typing/learn" className="group flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
         <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-700 text-sm font-black text-white" aria-hidden="true">⌨</span>
         <span className="text-sm font-bold leading-tight text-slate-800 group-hover:text-blue-700">Keyboard Practice</span>

@@ -19,21 +19,22 @@ export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"
 // rendering), so it's retroactive: a newly published exercise appears on
 // every category's list immediately, no admin re-save needed.
 //
-// Fetched in date order (page boundaries come from published_at), then
-// re-sorted within that page by sortExamCategoryNavigatorItems() so
-// plainly-numbered titles ("CHAPTER - 8") display in their natural serial
-// order instead of publish order.
+// Every exercise of the language is fetched (titles only, cheap), put in serial order by
+// sortExamCategoryNavigatorItems(), and THEN cut into pages -- so page 1 really holds exercises 1-50 of each
+// group, not "the 50 published first, re-sorted".
 export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilters){
  const supabase=await createClient();const oldest=filters.sort==="oldest";
- const query=supabase.from("tests").select("id,slug,title,published_at,current_version_id",{count:"exact"}).eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language);
- const requested=normalizeExamCategoryPage(filters.page);const from=(requested-1)*EXAM_CATEGORY_PAGE_SIZE;const{data,error,count}=await query.order("published_at",{ascending:oldest}).order("id",{ascending:true}).range(from,from+EXAM_CATEGORY_PAGE_SIZE-1);
+ const{data:all,error}=await supabase.from("tests").select("id,slug,title,published_at,current_version_id").eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language).order("published_at",{ascending:true}).order("id",{ascending:true}).limit(2000);
  if(error){console.error("Exam category navigator query failed",{code:error.code,message:error.message});throw new Error(`Exam exercises could not be loaded (${error.code||"database error"}).`);}
+ const sorted=sortExamCategoryNavigatorItems((all??[]).map(test=>({...test})),oldest?"ascending":"descending");
+ const requested=normalizeExamCategoryPage(filters.page);const count=sorted.length;
+ const pageBounds=examCategoryPageBounds(requested,count);const data=sorted.slice(pageBounds.from,pageBounds.from+EXAM_CATEGORY_PAGE_SIZE);
  const total=count??0;const bounds=examCategoryPageBounds(requested,total);
  const versionIds=(data??[]).flatMap(test=>test.current_version_id?[test.current_version_id]:[]);
  const{data:versions}=versionIds.length?await supabase.from("test_versions").select("id,passage_words,passage_characters").in("id",versionIds):{data:[]};
  const versionMap=new Map((versions??[]).map(version=>[version.id,version]));
  const items:ExamCategoryNavigatorItem[]=(data??[]).map(test=>{const version=test.current_version_id?versionMap.get(test.current_version_id):null;return{id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at,passageWords:version?.passage_words??null,passageCharacters:version?.passage_characters??null};});
- return{items:sortExamCategoryNavigatorItems(items,oldest?"ascending":"descending"),total,...bounds};
+ return{items,total,...bounds};
 }
 
 // Every published exam exercise of one language, in the category page's default (oldest, serial-number)
