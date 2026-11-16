@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { addWebsiteTestsToApp, saveAppTest, updateAppTests, type AppTestActionState } from "./actions";
+import { addAllNewWebsiteTests, addWebsiteTestsToApp, saveAppTest, updateAppTests, type AppTestActionState } from "./actions";
 
 export type WebsiteTestRow = { id: string; title: string; language: string; mode: string; minutes: number; board: string | null };
 export type AppTestRow = { id: string; source_test_id: string | null; title: string; language: string; mode: string; board: string | null; duration_seconds: number; required_wpm: number | null; required_accuracy: number | null; backspace_mode: string; encoding: string; published: boolean; words: number; has_audio?: boolean };
@@ -45,7 +45,14 @@ export function TypingAppManager({ available, inApp, kind = "typing" }: { availa
 
       {tab === "add" && (
         <section className="mt-4 rounded-2xl bg-white p-6 shadow">
-          <h2 className="text-lg font-black text-slate-900">Add tests you made on the website</h2>
+          <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-emerald-900">Add all new tests in one click</h2>
+              <p className="mt-1 text-sm text-emerald-900">Sends every {steno ? "stenography" : "typing"} test from the website that is not in the app yet ({available.length} now). Tests already in the app are skipped, so after you add more tests on the website, just press this again.</p>
+            </div>
+            <button type="button" disabled={pending || available.length === 0} onClick={() => run(() => addAllNewWebsiteTests(kind), () => { setPicked(new Set()); setTab("inapp"); })} className="rounded-xl bg-emerald-700 px-6 py-3 font-black text-white disabled:opacity-50">{pending ? "Adding…" : available.length ? `Add all ${available.length} new tests` : "All tests already added ✓"}</button>
+          </div>
+          <h2 className="mt-6 text-lg font-black text-slate-900">Or choose tests yourself</h2>
           <p className="mt-1 text-sm text-slate-600">Tick the tests to send to the app, then press <b>Add to app</b>. The passage, time, speed and accuracy are copied. Tests already in the app are not shown here.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name…" className={field} />
@@ -53,7 +60,10 @@ export function TypingAppManager({ available, inApp, kind = "typing" }: { availa
             {!steno && <select value={mode} onChange={(e) => setKind(e.target.value)} className={field}><option value="all">Exam + Practice</option><option value="exam">Exam tests</option><option value="practice">Practice tests</option></select>}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
-            <button type="button" onClick={() => setPicked(new Set([...picked, ...shown.map((t) => t.id)]))} className="rounded-full bg-slate-100 px-3 py-1">Tick all {shown.length} shown</button>
+            <label className="flex cursor-pointer items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-blue-900">
+              <input type="checkbox" checked={shown.length > 0 && shown.every((t) => picked.has(t.id))} onChange={(e) => setPicked(e.target.checked ? new Set([...picked, ...shown.map((t) => t.id)]) : new Set([...picked].filter((id) => !shown.some((t) => t.id === id))))} />
+              Select all {shown.length}{query || lang !== "all" || mode !== "all" ? " shown" : ""}
+            </label>
             <button type="button" onClick={() => setPicked(new Set())} className="rounded-full bg-slate-100 px-3 py-1">Clear</button>
             <span className="text-slate-500">{picked.size} ticked</span>
           </div>
