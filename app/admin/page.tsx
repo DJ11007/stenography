@@ -78,6 +78,7 @@ const groups = [
     heading: "SCTyping desktop app",
     description: "Control what students see inside the installed offline app.",
     items: [
+      ["/admin/app-activation", "App Activation", "Paste a student's Device ID from the SCTyping app and get their activation key, ready to copy or send on WhatsApp.", "Make key →"],
       ["/admin/app-control", "App control", "Hide, free-open or lock any section, exam board or efficiency test in the app; set the notice banner and trial limits.", "Manage →"],
     ],
   },
