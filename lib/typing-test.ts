@@ -1,6 +1,8 @@
 import { segmentGraphemes } from "./typing-language.ts";
 
-export type BackspaceMode = "full" | "word" | "disabled";
+// "twoWord": backspace may reach back into the previous word too, never further (an option some exam software
+// offers between "current word" and "full"). Only a student-side choice; admin-set tests keep the three DB values.
+export type BackspaceMode = "full" | "word" | "twoWord" | "disabled";
 export type HighlightMode = "character" | "word" | "none";
 export type WordMethod = "characters" | "spaces";
 
@@ -30,7 +32,7 @@ export const PRACTICE_DURATION_MINUTES: readonly number[] = [
 ];
 
 const isBackspaceMode = (value: unknown): value is BackspaceMode =>
-  value === "full" || value === "word" || value === "disabled";
+  value === "full" || value === "word" || value === "twoWord" || value === "disabled";
 
 const isHighlightMode = (value: unknown): value is HighlightMode =>
   value === "character" || value === "word" || value === "none";
@@ -1033,6 +1035,11 @@ export function isAllowedTypingEdit({
   }
   if (mode === "disabled") {
     return false;
+  }
+  if (mode === "twoWord") {
+    // Everything from the start of the deletion to the end of the text may cross at most one word gap: the
+    // current word and the one before it can be corrected, anything earlier is locked.
+    return (previousValue.slice(selectionStart).match(/\s+/g)?.length ?? 0) <= 1;
   }
 
   return !/\s/.test(removedText);
