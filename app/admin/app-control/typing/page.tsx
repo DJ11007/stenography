@@ -22,11 +22,10 @@ export default async function AppControlTypingPage() {
         <div className="mt-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 p-7 text-white shadow-xl">
           <p className="text-xs font-black uppercase tracking-[.2em] text-blue-300">SCTyping desktop app</p>
           <h1 className="mt-2 text-3xl font-black">Typing Test</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-300">Choose which typing tests students get in the app. Add tests you already made on the website, or create a new one just for the app. Exam tests appear inside each exam board in the Exam Simulator; practice tests appear in Quick Practice.</p>
+          <p className="mt-2 max-w-2xl text-sm text-slate-300">Choose which typing tests students get in the app. Add tests you already made on the website, or create a new one just for the app. They appear inside every exam board in the app's Exam Simulator.</p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm font-bold">
             <Link href="/admin/app-control/exam" className="rounded-full bg-white/15 px-4 py-2 hover:bg-white/25">Show / hide exam boards →</Link>
             <Link href="/admin/app-control/learn" className="rounded-full bg-white/15 px-4 py-2 hover:bg-white/25">Show / hide Learn Typing →</Link>
-            <Link href="/admin/app-control/general" className="rounded-full bg-white/15 px-4 py-2 hover:bg-white/25">Quick Practice on / off →</Link>
           </div>
         </div>
         <TypingAppManager available={available} inApp={((appTests ?? []) as AppTestRow[]).filter((t) => t.mode !== "steno")} />

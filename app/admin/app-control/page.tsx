@@ -3,8 +3,8 @@ import { requireAdmin } from "@/lib/auth";
 import { BackButton } from "../../_components/back-button";
 
 const CARDS = [
-  { href: "/admin/app-control/typing", title: "Typing Test", text: "Add website typing tests to the app, create new ones, and show or hide exam boards, lessons and Quick Practice.", cta: "Manage typing →", tone: "from-blue-600 to-indigo-700" },
-  { href: "/admin/app-control/steno", title: "Stenography", text: "Show, hide or lock each stenography exam board in the app.", cta: "Manage stenography →", tone: "from-emerald-600 to-teal-700" },
+  { href: "/admin/app-control/typing", title: "Typing Test", text: "Add website typing tests to the app, create new ones, and show or hide exam boards and lessons.", cta: "Manage typing →", tone: "from-blue-600 to-indigo-700" },
+  { href: "/admin/app-control/steno", title: "Stenography", text: "Add website stenography tests (with their audio) to the app, and show or hide exam boards.", cta: "Manage stenography →", tone: "from-emerald-600 to-teal-700" },
   { href: "/admin/app-control/efficiency", title: "Efficiency Test", text: "Show, hide or lock the Word and Excel efficiency tests in the app.", cta: "Manage efficiency →", tone: "from-amber-500 to-orange-600" },
 ] as const;
 

@@ -10,7 +10,6 @@ export type AppControlGroup = { heading: string; items: AppControlItem[] };
 
 export const APP_SECTION_ITEMS: AppControlItem[] = [
   { key: "section:learn", label: "Learn Typing" },
-  { key: "section:practice", label: "Quick Practice" },
   { key: "section:exam", label: "Exam Simulator" },
   { key: "section:steno", label: "Stenography" },
   { key: "section:efficiency", label: "Word / Excel Efficiency" },
