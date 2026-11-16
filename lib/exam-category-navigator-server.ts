@@ -2,6 +2,8 @@ import { createClient } from "./supabase/server";
 import { normalizeExamCategoryPage, examCategoryPageBounds, sortExamCategoryNavigatorItems, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
 export { normalizeExamCategoryPage, examCategoryPageBounds, examCategoryPageCount, EXAM_CATEGORY_PAGE_SIZE } from "./exam-category-navigator";
 
+const isLiveTestTitle=(title:string)=>/^\s*LIVE\s*TEST/i.test(title);
+
 export type ExamCategoryNavigatorItem={id:string;slug:string;title:string;publishedAt:string|null;passageWords:number|null;passageCharacters:number|null};
 export type ExamCategoryNavigatorFilters={categorySlug:string;language:"English"|"Hindi";page:unknown;sort?:"newest"|"oldest"};
 
@@ -26,7 +28,8 @@ export async function getExamCategoryNavigator(filters:ExamCategoryNavigatorFilt
  const supabase=await createClient();const oldest=filters.sort==="oldest";
  const{data:all,error}=await supabase.from("tests").select("id,slug,title,published_at,current_version_id").eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",filters.language).order("published_at",{ascending:true}).order("id",{ascending:true}).limit(2000);
  if(error){console.error("Exam category navigator query failed",{code:error.code,message:error.message});throw new Error(`Exam exercises could not be loaded (${error.code||"database error"}).`);}
- const sorted=sortExamCategoryNavigatorItems((all??[]).map(test=>({...test})),oldest?"ascending":"descending");
+ // Old "LIVE TEST" copies are not exam exercises: they never appear in a board's list (owner's request, 16 Nov 2026).
+ const sorted=sortExamCategoryNavigatorItems((all??[]).filter(test=>!isLiveTestTitle(test.title)).map(test=>({...test})),oldest?"ascending":"descending");
  const requested=normalizeExamCategoryPage(filters.page);const count=sorted.length;
  const pageBounds=examCategoryPageBounds(requested,count);const data=sorted.slice(pageBounds.from,pageBounds.from+EXAM_CATEGORY_PAGE_SIZE);
  const total=count??0;const bounds=examCategoryPageBounds(requested,total);
@@ -43,5 +46,5 @@ export async function getAllExamExercises(language:"English"|"Hindi"){
  const supabase=await createClient();
  const{data,error}=await supabase.from("tests").select("id,slug,title,published_at").eq("mode","exam").eq("status","published").eq("visibility","public").eq("is_live",false).eq("language",language).order("published_at",{ascending:true}).order("id",{ascending:true}).limit(1000);
  if(error){console.error("Exam exercise list query failed",{code:error.code,message:error.message});return[];}
- return sortExamCategoryNavigatorItems((data??[]).map(test=>({id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at})),"ascending");
+ return sortExamCategoryNavigatorItems((data??[]).filter(test=>!isLiveTestTitle(test.title)).map(test=>({id:test.id,slug:test.slug,title:test.title,publishedAt:test.published_at})),"ascending");
 }

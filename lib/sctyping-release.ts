@@ -3,6 +3,6 @@
 // bump it in the same commit that replaces the installer -- never before, or apps would be told
 // to update to a version that isn't downloadable yet.
 export const SCTYPING_LATEST = {
-  version: "0.1.22",
-  notes: "Practise your own test: add your own passage (and dictation audio for stenography) and type it on the real exam screen.",
+  version: "0.1.23",
+  notes: "Exam boards now list only the exam exercises (practice tests and old live-test copies removed), in serial order.",
 } as const;
