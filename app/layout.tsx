@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { TypingPlatformProvider } from "./typing/_components/typing-platform-provider";
 import { JsonLd } from "./_components/json-ld";
 import { BASE_OPEN_GRAPH, BUSINESS, SEO_KEYWORDS, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_TITLE_BRAND, SITE_URL, organizationJsonLd } from "@/lib/seo";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// No next/font/google here on purpose: it downloads the fonts from Google while the site is BUILT, and when the
+// server could not reach Google the build failed and took the whole site down (16 Nov 2026). The fonts are now
+// plain CSS font stacks (app/globals.css), so the build needs no internet for fonts.
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -45,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-IN"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         <JsonLd data={organizationJsonLd()} />

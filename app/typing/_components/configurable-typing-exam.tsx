@@ -2,7 +2,6 @@
 
 import { ExamGuard, type ExamQuestion } from "./exam-guard";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Noto_Serif } from "next/font/google";
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { recordPracticeAttempt, type PracticeAttemptPayload } from "@/app/typing/practice-attempt-actions";
 import { calculateConfiguredRssbMarks } from "@/lib/typing-results";
@@ -33,7 +32,8 @@ export type LiveExamTyping = { sectionId: string; endsAt: number; serverOffset: 
 // screen -- an "admit card" look, distinct from the plain sans-serif UI used
 // everywhere else in the app (practice/learn keep the original ExamStart
 // layout entirely, see the mode === "exam" branch below).
-const examSerif = Noto_Serif({ subsets: ["latin"], weight: ["600", "700", "900"], variable: "--font-exam-serif" });
+// A local serif stack, not next/font/google (see app/layout.tsx: a Google Fonts download failing during the build took the site down).
+const EXAM_SERIF_STYLE = { "--font-exam-serif": '"Noto Serif", Georgia, "Times New Roman", serif' } as Record<string, string>;
 
 function InputSystemOptions({ systems, value, onChange }: { systems: InputSystem[]; value: string; onChange: (id: string) => void }) { return <fieldset className="mt-6"><legend className="mb-2 text-sm font-black text-slate-900">Language and input system</legend><div className="grid gap-2 sm:grid-cols-2">{systems.map((system) => <button key={system.id} type="button" aria-pressed={value === system.id} onClick={() => onChange(system.id)} className={`rounded-xl border p-3 text-left text-sm font-bold ${value === system.id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-slate-50 text-slate-800"}`}><span aria-hidden>{value === system.id ? "●" : "○"}</span> {system.label}<small className="mt-1 block font-normal opacity-80">{system.keyboardLayout}</small></button>)}</div></fieldset>; }
 
@@ -394,7 +394,7 @@ function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChan
   // prominent, as its own ribbon) precisely because the visual design now
   // leans authoritative -- looking official must never be mistaken for
   // being official.
-  return <main className={`min-h-screen bg-[#eee9db] ${examSerif.variable}`}>
+  return <main className="min-h-screen bg-[#eee9db]" style={EXAM_SERIF_STYLE}>
     <TypingBrandHeader backHref={backHref} backLabel="Back"/>
     <section className="mx-auto max-w-4xl px-4 py-8 sm:py-12">
       <p className="mb-5 rounded-md border border-amber-400 bg-amber-50 px-4 py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-amber-900 sm:text-xs">
