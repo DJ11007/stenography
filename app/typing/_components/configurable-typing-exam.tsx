@@ -22,7 +22,6 @@ import { useTypingPlatformSettings } from "./typing-platform-provider";
 import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { BackButton } from "../../_components/back-button";
-import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 import { ExamClock } from "@/lib/exam-clock";
 import { liveSecondsLeft } from "@/lib/live-exam";
 
@@ -520,10 +519,8 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const lockedPassageScrollTop = useRef(0); const lastActiveLine = useRef<number | null>(null);
-  // Exam-hall touches (ideas from desktop typing-exam software): the student's own name and photo in the header,
-  // "line by line" auto scroll (the current line moves to the top of the passage box), and "Highlight Errors"
+  // Exam-hall touches (ideas from desktop typing-exam software): "line by line" auto scroll (the current line moves to the top of the passage box), and "Highlight Errors"
   // (wrongly typed letters shown red in the passage) -- the last only for practice, never under an exam's rules.
-  const candidate = useCandidate();
   const [scrollByLine, setScrollByLine] = useState(() => { try { return typeof window !== "undefined" && localStorage.getItem("sct-scroll-by-line") === "1"; } catch { return false; } });
   const [showErrorsChoice, setShowErrorsChoice] = useState(false);
   const showErrors = showErrorsChoice && !rulesLocked;
@@ -647,7 +644,6 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
     <header className="z-40 shrink-0 bg-blue-800 px-3 py-2 text-white shadow"><div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2">
       {!hideBack && <BackButton dark label="Back" href={backHref}/>}
       {!practiceNavigation&&<div className="min-w-0"><strong className="block truncate">SAMRADHI CLASSES</strong><p className="truncate text-xs text-blue-100">{inputSystem.language} · {inputSystem.fontLabel} · {inputSystem.keyboardLayout}</p></div>}
-      {candidate && <div className="flex min-w-0 items-center gap-2 rounded-lg bg-white/10 px-2 py-1" title="Candidate">{candidate.photoUrl ? <img src={candidate.photoUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover ring-2 ring-white/60"/> : <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-sm font-black">{candidate.name.slice(0, 1).toUpperCase()}</span>}<span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-wider text-blue-200">Candidate</span><strong className="block max-w-40 truncate text-sm">{candidate.name}</strong></span></div>}
       {practiceNavigation&&<nav aria-label="Practice test navigation" className="flex items-center gap-1.5"><button type="button" aria-label="Previous test" disabled={!practiceNavigation.previousHref} onClick={()=>practiceNavigation.previousHref&&onNavigateTest(practiceNavigation.previousHref)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">‹</button><select title={practiceNavigation.items[practiceNavigation.currentIndex]?.title} aria-label={`Select practice test. Current: ${practiceNavigation.items[practiceNavigation.currentIndex]?.title}`} value={practiceNavigation.items[practiceNavigation.currentIndex]?.href} onChange={(event)=>onNavigateTest(event.target.value)} className="h-9 w-24 rounded-lg border border-blue-300 bg-white px-1 text-center text-xs font-black text-slate-900 sm:w-40 sm:px-2">{practiceNavigation.items.map(item=><option key={item.href} value={item.href} title={item.title}>{item.label}</option>)}</select><button type="button" aria-label="Next test" disabled={!practiceNavigation.nextHref} onClick={()=>practiceNavigation.nextHref&&onNavigateTest(practiceNavigation.nextHref)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">›</button></nav>}
       <div className="ml-auto flex flex-wrap items-center justify-center gap-1.5 sm:gap-2" aria-label="Typing controls">
         <button type="button" onClick={onSubmit} className="flex h-9 items-center justify-center rounded-lg bg-white px-4 text-xs font-black text-blue-800 hover:bg-blue-50">Submit</button>
@@ -696,29 +692,6 @@ function SaveStatusBanner({state,onRetry}:{state:"saving"|"failed"|"stale"|"lock
    ?<><span>Your result is NOT saved yet: the website was updated while this test was open. Refresh the page and it will be saved automatically.</span><button type="button" onClick={()=>window.location.reload()} className="rounded-lg bg-white px-3 py-1.5 font-black text-red-800">Refresh page</button></>
    :<><span>Your result is NOT saved. Check your internet connection (or sign in again in another tab), then try again.</span><button type="button" onClick={onRetry} className="rounded-lg bg-white px-3 py-1.5 font-black text-red-800">Try again</button></>}
  </div>;
-}
-
-// The student's own name and photo for the exam header (client side: works on every page that shows a typing test).
-function useCandidate() {
-  const [candidate, setCandidate] = useState<{ name: string; photoUrl: string | null } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const supabase = createBrowserSupabase();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user || cancelled) return;
-        const { data } = await supabase.from("profiles").select("full_name, photo_path").eq("id", user.id).maybeSingle();
-        const profile = data as { full_name?: string | null; photo_path?: string | null } | null;
-        const name = profile?.full_name?.trim() || user.email?.split("@")[0] || "Candidate";
-        let photoUrl: string | null = null;
-        if (profile?.photo_path) photoUrl = (await supabase.storage.from("student-photos").createSignedUrl(profile.photo_path, 3600)).data?.signedUrl ?? null;
-        if (!cancelled) setCandidate({ name, photoUrl });
-      } catch { /* no header chip -- the test itself is unaffected */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-  return candidate;
 }
 
 // "Highlight Errors": the already-typed part of the passage, with every letter typed wrongly shown red/underlined.
