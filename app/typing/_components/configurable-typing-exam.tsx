@@ -22,6 +22,7 @@ import { useTypingPlatformSettings } from "./typing-platform-provider";
 import { fontContextFor, managedTestSettingsLocks, resolveAttemptSettings, type AttemptVariant } from "@/lib/typing-platform-settings";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { BackButton } from "../../_components/back-button";
+import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 import { ExamClock } from "@/lib/exam-clock";
 import { liveSecondsLeft } from "@/lib/live-exam";
 
@@ -519,6 +520,14 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
   const lockedPassageScrollTop = useRef(0); const lastActiveLine = useRef<number | null>(null);
+  // Exam-hall touches (ideas from desktop typing-exam software): the student's own name and photo in the header,
+  // "line by line" auto scroll (the current line moves to the top of the passage box), and "Highlight Errors"
+  // (wrongly typed letters shown red in the passage) -- the last only for practice, never under an exam's rules.
+  const candidate = useCandidate();
+  const [scrollByLine, setScrollByLine] = useState(() => { try { return typeof window !== "undefined" && localStorage.getItem("sct-scroll-by-line") === "1"; } catch { return false; } });
+  const [showErrorsChoice, setShowErrorsChoice] = useState(false);
+  const showErrors = showErrorsChoice && !rulesLocked;
+  const changeScrollByLine = (value: boolean) => { setScrollByLine(value); try { localStorage.setItem("sct-scroll-by-line", value ? "1" : "0"); } catch { /* not remembered */ } };
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // Hide Typing: blanks out the text in the Type Here box (the caret stays) so that nobody looking at the screen can see what is being typed. The typed text itself, the timer and the scoring are untouched.
@@ -545,6 +554,7 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
     });
   };
   const passageUnits = useMemo(() => segmentGraphemes(passage), [passage]);
+  const typedUnits = useMemo(() => (showErrors ? segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText) : []), [showErrors, typedText, inputSystem]);
   const typedUnitCount = useMemo(() => segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText).length, [inputSystem, typedText]);
   const highlightStart = settings.highlightMode === "word" ? Math.max(0, passageUnits.lastIndexOf(" ", Math.max(0, typedUnitCount - 1)) + 1) : typedUnitCount;
   const nextWordSpace = passageUnits.indexOf(" ", typedUnitCount);
@@ -572,14 +582,14 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
     const activeLine = marker.getBoundingClientRect().top - original.getBoundingClientRect().top + original.scrollTop;
     if (lastActiveLine.current === activeLine) return;
     lastActiveLine.current = activeLine;
-    const originalTarget = Math.max(0, Math.min(original.scrollHeight - original.clientHeight, activeLine - original.clientHeight / 3));
+    const originalTarget = Math.max(0, Math.min(original.scrollHeight - original.clientHeight, scrollByLine ? activeLine - 4 : activeLine - original.clientHeight / 3));
     lockedPassageScrollTop.current = originalTarget;
     if (Math.abs(original.scrollTop - originalTarget) > 1) original.scrollTop = originalTarget;
     const typingMaximum = Math.max(0, typing.scrollHeight - typing.clientHeight);
     const typingProgress = typing.value.length ? typing.selectionStart / typing.value.length : 0;
     const typingTarget = Math.max(0, Math.min(typingMaximum, typingMaximum * typingProgress));
     if (Math.abs(typing.scrollTop - typingTarget) > typing.clientHeight * .25) typing.scrollTop = typingTarget;
-  }, [autoScroll, fontPreferences.originalSize, fontPreferences.typingSize, paused, typedText]);
+  }, [autoScroll, scrollByLine, fontPreferences.originalSize, fontPreferences.typingSize, paused, typedText]);
   useEffect(() => {
     const original = passageRef.current;
     if (!autoScroll || paused || !original) return;
@@ -635,6 +645,7 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
     <header className="z-40 shrink-0 bg-blue-800 px-3 py-2 text-white shadow"><div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-2">
       {!hideBack && <BackButton dark label="Back" href={backHref}/>}
       {!practiceNavigation&&<div className="min-w-0"><strong className="block truncate">SAMRADHI CLASSES</strong><p className="truncate text-xs text-blue-100">{inputSystem.language} · {inputSystem.fontLabel} · {inputSystem.keyboardLayout}</p></div>}
+      {candidate && <div className="flex min-w-0 items-center gap-2 rounded-lg bg-white/10 px-2 py-1" title="Candidate">{candidate.photoUrl ? <img src={candidate.photoUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover ring-2 ring-white/60"/> : <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-sm font-black">{candidate.name.slice(0, 1).toUpperCase()}</span>}<span className="min-w-0"><span className="block text-[10px] font-bold uppercase tracking-wider text-blue-200">Candidate</span><strong className="block max-w-40 truncate text-sm">{candidate.name}</strong></span></div>}
       {practiceNavigation&&<nav aria-label="Practice test navigation" className="flex items-center gap-1.5"><button type="button" aria-label="Previous test" disabled={!practiceNavigation.previousHref} onClick={()=>practiceNavigation.previousHref&&onNavigateTest(practiceNavigation.previousHref)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">‹</button><select title={practiceNavigation.items[practiceNavigation.currentIndex]?.title} aria-label={`Select practice test. Current: ${practiceNavigation.items[practiceNavigation.currentIndex]?.title}`} value={practiceNavigation.items[practiceNavigation.currentIndex]?.href} onChange={(event)=>onNavigateTest(event.target.value)} className="h-9 w-24 rounded-lg border border-blue-300 bg-white px-1 text-center text-xs font-black text-slate-900 sm:w-40 sm:px-2">{practiceNavigation.items.map(item=><option key={item.href} value={item.href} title={item.title}>{item.label}</option>)}</select><button type="button" aria-label="Next test" disabled={!practiceNavigation.nextHref} onClick={()=>practiceNavigation.nextHref&&onNavigateTest(practiceNavigation.nextHref)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-xl font-black text-blue-800 disabled:opacity-40">›</button></nav>}
       <div className="ml-auto flex flex-wrap items-center justify-center gap-1.5 sm:gap-2" aria-label="Typing controls">
         <button type="button" onClick={onSubmit} className="flex h-9 items-center justify-center rounded-lg bg-white px-4 text-xs font-black text-blue-800 hover:bg-blue-50">Submit</button>
@@ -656,7 +667,7 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
         {!preset.audioUrl && <button type="button" onClick={printPassage} title="Print or save this passage as a PDF" aria-label="Print or save this passage as a PDF" className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-300 text-base hover:bg-blue-600">🖨️</button>}
         {preset.pdfUrl && <a href={preset.pdfUrl} target="_blank" rel="noopener noreferrer" download={preset.pdfFileName ?? undefined} title="Download the question paper PDF the admin attached to this test" className="flex h-9 items-center justify-center rounded-lg border border-blue-300 px-3 text-xs font-black hover:bg-blue-600">📄 Download PDF</a>}
         {!preset.audioUrl && <button type="button" disabled={timerStarted} aria-pressed={printoutMode} onClick={() => (printoutMode ? setPrintoutMode(false) : setShowPrintoutConfirm(true))} title={printoutMode ? "Show the passage on screen again" : "Type from a printed copy instead of the on-screen passage"} aria-label={printoutMode ? "Exit Printout Mode" : "Printout Mode"} className="flex h-9 w-9 items-center justify-center rounded-lg border border-blue-300 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50">{printoutMode ? <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 20h8M12 17v3"/></svg> : <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h6"/></svg>}</button>}
-        {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} wordMethodLocked={wordMethodLocked} manualUnlock={manualUnlock} onManualUnlockChange={onManualUnlockChange} scrollLocked={scrollLocked} durationMinutes={durationMinutes} durationLocked={durationLocked} onDurationChange={onDurationChange} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCount} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={onPassageWordCountChange} keyboardSound={keyboardSound} onKeyboardSoundChange={onKeyboardSoundChange}/></TypingSettingsPopup>}
+        {showSettings && <TypingSettingsPopup triggerRef={settingsTriggerRef} onClose={closeSettings}>{encodingMismatch && <p role="alert" className="mb-3 rounded bg-red-100 px-2 py-1 text-xs font-bold text-red-800">Input encoding mismatch</p>}{preset.inputSystems.length > 1 && onInputSystemChange && <InputSystemOptions systems={preset.inputSystems} value={inputSystem.id} onChange={onInputSystemChange}/>}<UniversalTypingSettings compact settings={settings} autoScroll={autoScroll} showScrollbar={showScrollbar} fonts={fontPreferences} script={inputSystem.script} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} wordMethodLocked={wordMethodLocked} manualUnlock={manualUnlock} onManualUnlockChange={onManualUnlockChange} scrollLocked={scrollLocked} durationMinutes={durationMinutes} durationLocked={durationLocked} onDurationChange={onDurationChange} onSettingsChange={update} onScrollChange={setAutoScroll} onScrollbarChange={setShowScrollbar} onFontsChange={setFontPreferences} onReset={resetSettings} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCount} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={onPassageWordCountChange} keyboardSound={keyboardSound} onKeyboardSoundChange={onKeyboardSoundChange}/><fieldset className="mt-3 space-y-1.5"><legend className="mb-1 text-xs font-bold">Exam-hall extras</legend><label className={`flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs font-bold text-slate-800 ${autoScroll ? "cursor-pointer" : "opacity-50"}`}><input type="checkbox" disabled={!autoScroll} checked={scrollByLine} onChange={(event) => changeScrollByLine(event.target.checked)}/><span>Auto Scroll line by line (current line stays at the top)</span></label><label className={`flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs font-bold text-slate-800 ${rulesLocked ? "opacity-60" : "cursor-pointer"}`}><input type="checkbox" disabled={rulesLocked} checked={showErrors} onChange={(event) => setShowErrorsChoice(event.target.checked)}/><span>Highlight Errors (wrong letters red in the passage){rulesLocked && <span className="ml-1 text-red-600">Only for practice</span>}</span></label></fieldset></TypingSettingsPopup>}
       </div>
     </div></header>
     <section className="mx-auto min-h-0 w-full max-w-[1800px] flex-1 overflow-hidden p-2 sm:p-3" aria-label="Active typing workspace">
@@ -666,7 +677,7 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
             never a passage -- or the audio player -- to show here: the
             typing panel below is the only row, matching "a blank area where
             he can type" from the exam workflow this is modeling. */}
-        {!preset.audioUrl && !printoutMode && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack), fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap text-justify text-slate-900">{passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>}
+        {!preset.audioUrl && !printoutMode && <section className="flex min-h-0 flex-col bg-white" aria-labelledby="original-passage-title"><h2 id="original-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Original Passage</h2><div ref={passageRef} tabIndex={0} className="min-h-0 flex-1 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:p-5" style={{ fontFamily: typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack), fontSize: `${fontPreferences.originalSize}px`, lineHeight: `${Math.round(fontPreferences.originalSize * 1.7)}px`, overflowY: showScrollbar ? "auto" : "hidden" }} lang={inputSystem.language === "Hindi" ? "hi" : "en"}>{fontAvailable === true ? <p className="whitespace-pre-wrap text-justify text-slate-900">{showErrors ? <TypedWithErrors passage={passageUnits.slice(0, highlightStart)} typed={typedUnits}/> : passageUnits.slice(0, highlightStart).join("")}<span data-current-character>{settings.highlightMode !== "none" && activeText ? <mark className="rounded bg-yellow-300 px-0.5">{activeText}</mark> : activeText || "\u200b"}</span>{passageUnits.slice(Math.max(highlightStart + 1, highlightEnd)).join("")}</p> : <p role="alert" className="font-sans font-bold text-red-700">Kruti Dev 010 cannot be displayed until the licensed font asset is installed.</p>}</div></section>}
         <section className="flex min-h-0 flex-col border-t-2 border-blue-300 bg-white" aria-labelledby="typing-passage-title"><h2 id="typing-passage-title" className="shrink-0 border-b border-slate-200 bg-slate-800 px-4 py-2 text-sm font-black text-white">Type Here</h2><textarea disabled={fontAvailable !== true || paused} ref={textareaRef} autoFocus value={typedText} onChange={(event) => handleChange(event.target.value)} onKeyDown={keyDown} onBeforeInput={beforeInput} onClick={snapCursorToEnd} onPaste={(event) => { if (!adminPreview) event.preventDefault(); }} onDrop={(event) => { if (!adminPreview) event.preventDefault(); }} onCut={(event) => { const target = event.currentTarget; if (!allowed(target.selectionStart, target.selectionEnd, typedText.slice(0, target.selectionStart) + typedText.slice(target.selectionEnd))) event.preventDefault(); }} spellCheck={false} aria-label="Type Here" placeholder={printoutMode ? "Type here from the printed passage you downloaded -- it is not shown on screen in Printout Mode." : undefined} lang={inputSystem.language === "Hindi" ? "hi" : "en"} style={{ fontFamily: typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack), fontSize: `${fontPreferences.typingSize}px`, lineHeight: `${Math.round(fontPreferences.typingSize * 1.7)}px`, ...(hideTyping ? { color: "transparent", caretColor: "#0f172a" } : {}) }} className="min-h-0 w-full flex-1 resize-none overflow-y-auto p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:p-5"/></section>
       </div>
     </section>
@@ -683,4 +694,38 @@ function SaveStatusBanner({state,onRetry}:{state:"saving"|"failed"|"stale"|"lock
    ?<><span>Your result is NOT saved yet: the website was updated while this test was open. Refresh the page and it will be saved automatically.</span><button type="button" onClick={()=>window.location.reload()} className="rounded-lg bg-white px-3 py-1.5 font-black text-red-800">Refresh page</button></>
    :<><span>Your result is NOT saved. Check your internet connection (or sign in again in another tab), then try again.</span><button type="button" onClick={onRetry} className="rounded-lg bg-white px-3 py-1.5 font-black text-red-800">Try again</button></>}
  </div>;
+}
+
+// The student's own name and photo for the exam header (client side: works on every page that shows a typing test).
+function useCandidate() {
+  const [candidate, setCandidate] = useState<{ name: string; photoUrl: string | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = createBrowserSupabase();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+        const { data } = await supabase.from("profiles").select("full_name, photo_path").eq("id", user.id).maybeSingle();
+        const profile = data as { full_name?: string | null; photo_path?: string | null } | null;
+        const name = profile?.full_name?.trim() || user.email?.split("@")[0] || "Candidate";
+        let photoUrl: string | null = null;
+        if (profile?.photo_path) photoUrl = (await supabase.storage.from("student-photos").createSignedUrl(profile.photo_path, 3600)).data?.signedUrl ?? null;
+        if (!cancelled) setCandidate({ name, photoUrl });
+      } catch { /* no header chip -- the test itself is unaffected */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return candidate;
+}
+
+// "Highlight Errors": the already-typed part of the passage, with every letter typed wrongly shown red/underlined.
+function TypedWithErrors({ passage, typed }: { passage: string[]; typed: string[] }) {
+  const runs: { text: string; wrong: boolean }[] = [];
+  passage.forEach((unit, index) => {
+    const wrong = typed[index] !== undefined && typed[index] !== unit;
+    const last = runs[runs.length - 1];
+    if (last && last.wrong === wrong) last.text += unit; else runs.push({ text: unit, wrong });
+  });
+  return <>{runs.map((run, index) => run.wrong ? <span key={index} className="rounded-sm bg-red-100 text-red-700 underline decoration-red-400">{run.text}</span> : <span key={index}>{run.text}</span>)}</>;
 }
