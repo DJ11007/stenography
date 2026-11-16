@@ -22,7 +22,7 @@ export type LiveExamState = {
   // Per-student-window exams only (see supabase/migrations/202611141500_live_exam_per_student_window.sql):
   // null/absent for a legacy exam, where resultsAt above still governs everyone's reveal time together.
   availableUntil?: string | null; resultsAvailableAt?: string | null; resultsReady?: boolean;
-  serverNow: string; phase: "waiting" | "section" | "gap" | "finished"; sections: LiveExamSectionState[];
+  serverNow: string; phase: "waiting" | "section" | "gap" | "finished" | "expired"; sections: LiveExamSectionState[]; alreadyCompleted?: boolean;
 };
 type Candidate = { name: string; loginId: string; rollNumber: string; photoUrl?: string | null };
 type Phase = { kind: "waiting"; until: number } | { kind: "section"; section: LiveExamSectionState; until: number } | { kind: "gap"; after: LiveExamSectionState; next: LiveExamSectionState | null; until: number } | { kind: "finished" };
@@ -85,6 +85,8 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   const [fullScreen, setFullScreen] = useState(true);
   useEffect(() => { const onChange = () => setFullScreen(Boolean(document.fullscreenElement)); onChange(); document.addEventListener("fullscreenchange", onChange); return () => document.removeEventListener("fullscreenchange", onChange); }, []);
   const examOver = phase.kind === "finished";
+  // A student who never submitted a single part must not be told "Exam completed" (they did not sit it).
+  const notAppeared = !state.sections.some((section) => section.submitted);
   useEffect(() => {
     if (!loggedIn || examOver) return;
     const onKey = (event: KeyboardEvent) => { if (event.key !== "Escape") enterFullScreen(); };
@@ -164,7 +166,17 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
           {!active && phase.kind === "finished" && !preview && !finalDone && finalOpen && (
             <FinalSubmit examId={state.id} sections={state.sections} refresh={refresh} onDone={() => { try { localStorage.setItem(finalKey, "1"); } catch { /* storage unavailable */ } setFinalDone(true); }} />
           )}
-          {!active && phase.kind === "finished" && (preview || finalDone || !finalOpen) && (
+          {!active && phase.kind === "finished" && !preview && notAppeared && (finalDone || !finalOpen) && (
+            <div className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
+              <p className="text-5xl">⏰</p>
+              <h2 className="mt-3 text-3xl font-black text-slate-900">You did not appear in this exam</h2>
+              <p className="mt-2 text-slate-600">
+                {state.availableUntil ? `This exam was open until ${istDateTime(state.availableUntil)}` : "This exam has finished"}, and no part was submitted from your account, so there is no result to show.
+              </p>
+              <p className="mt-3 text-sm text-slate-500">If you think this is a mistake, please contact Samradhi Classes.</p>
+            </div>
+          )}
+          {!active && phase.kind === "finished" && (preview || finalDone || !finalOpen) && !(!preview && notAppeared && (finalDone || !finalOpen)) && (
             <div className="w-full max-w-xl rounded-3xl bg-white p-8 text-center shadow-lg">
               <p className="text-5xl">✓</p>
               <h2 className="mt-3 text-3xl font-black text-slate-900">Exam completed</h2>
