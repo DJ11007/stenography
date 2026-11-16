@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EXAM_CATEGORIES } from "@/lib/exam-categories";
 import { TypingBrandHeader } from "../_components/typing-brand";
 import { ExamCategoryIcon } from "./_components/exam-category-icon";
+import { OwnTestBox } from "../_components/own-test-box";
 
 export const metadata:Metadata={title:"Typing Exam Simulator",description:"Independent exam-pattern typing simulations with transparent configuration and no examination-authority affiliation claim."};
 
@@ -27,5 +28,6 @@ export default function ExamCataloguePage() {
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">Lessons</span>
       </Link>
     </div>
+    <OwnTestBox mode="exam" />
   </section></main>;
 }

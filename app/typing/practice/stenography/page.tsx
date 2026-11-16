@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { STENOGRAPHY_TASK_CATEGORIES } from "@/lib/stenography-task-library";
+import { OwnTestBox } from "../../_components/own-test-box";
 
 export const metadata: Metadata = {
   title: "Stenography Practice",
@@ -70,6 +71,7 @@ export default function StenographyLanguagePage() {
             </div>
           </article>
         </div>
+        <OwnTestBox mode="stenography" />
       </section>
     </main>
   );
