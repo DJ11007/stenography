@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { absoluteUrl } from "@/lib/seo";
+import { SCTYPING_WIN7 } from "@/lib/sctyping-release";
 
 const INSTALLER_PATH = "/downloads/sctyping-setup.exe";
 
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   }
   // Always the public address: behind nginx, request.url is the app's own internal address
   // (https://localhost:3000/...), which sent students' downloads to localhost (fixed 16 Nov 2026).
-  void request;
-  return NextResponse.redirect(absoluteUrl(INSTALLER_PATH), 302);
+  // ?edition=win7: the Windows 7 / 8 installer (hosted as a GitHub release asset, see lib/sctyping-release.ts).
+  const win7 = new URL(request.url).searchParams.get("edition") === "win7";
+  return NextResponse.redirect(win7 ? SCTYPING_WIN7.url : absoluteUrl(INSTALLER_PATH), 302);
 }
