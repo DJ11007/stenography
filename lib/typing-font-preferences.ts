@@ -20,10 +20,12 @@ export function typingFontFamily(preferences: TypingFontPreferences, script: Typ
   return script === "Latin" && preferences.englishFont === "courier" ? COURIER_FONT_STACK : fontStack;
 }
 
+// Defaults set by Samradhi Classes (16 Nov 2026): both panels 20px with "Link sizes" on, and English in
+// Courier New. A student's own saved choice still wins; these apply to new students and "Reset".
 export function defaultTypingFontPreferences(script: TypingScript = "Latin"): TypingFontPreferences {
   return script === "Devanagari"
-    ? { originalSize: 22, typingSize: 22, linked: false }
-    : { originalSize: 20, typingSize: 18, linked: false };
+    ? { originalSize: 20, typingSize: 20, linked: true }
+    : { originalSize: 20, typingSize: 20, linked: true, englishFont: "courier" };
 }
 
 export function isValidTypingFontSize(value: unknown): value is number {
@@ -38,7 +40,10 @@ export function parseTypingFontPreferences(value: unknown, script: TypingScript 
     originalSize: isValidTypingFontSize(candidate.originalSize) ? candidate.originalSize : defaults.originalSize,
     typingSize: isValidTypingFontSize(candidate.typingSize) ? candidate.typingSize : defaults.typingSize,
     linked: typeof candidate.linked === "boolean" ? candidate.linked : defaults.linked,
-    ...(candidate.englishFont === "courier" ? { englishFont: "courier" as const } : {}),
+    // "default" is stored explicitly when a student picks it, so a missing value means "never chosen" -> the default.
+    ...(candidate.englishFont === "courier" || candidate.englishFont === "default"
+      ? { englishFont: candidate.englishFont }
+      : defaults.englishFont ? { englishFont: defaults.englishFont } : {}),
   };
 }
 
