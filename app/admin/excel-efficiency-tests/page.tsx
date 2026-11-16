@@ -76,7 +76,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
               <Field label="Instructions (numbered lines and **bold** are supported)"><textarea className="input min-h-52" name="instructions" defaultValue={current?.instructions_markdown ?? DEFAULT_EXCEL_INSTRUCTIONS.English} required /></Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Passing marks"><input className="input" name="passingMarks" type="number" min="0" step=".01" defaultValue={current?.passing_marks ?? ""} /></Field>
-                <Field label="Allowed durations in minutes (comma separated)"><input className="input" name="durationOptions" defaultValue={current?.duration_options?.map((value) => value / 60).join(", ") ?? "20"} required /></Field>
+                <Field label="Allowed durations in minutes (comma separated)"><input className="input" name="durationOptions" defaultValue={current?.duration_options?.map((value) => value / 60).join(", ") ?? "10, 15, 20, 25, 30"} required /></Field>
               </div>
               <WorkingMatterXlsxFields initialSnapshot={current?.working_matter_snapshot ?? null} />
               <DeliveryPdfFields subject="excel" defaultOnscreen={(current as { delivery_onscreen?: boolean } | undefined)?.delivery_onscreen !== false} defaultStudentToggle={(current as { student_question_toggle?: boolean } | undefined)?.student_question_toggle !== false} defaultPdf={Boolean(current?.delivery_pdf)} existingPdf={editing && current?.pdf_path ? { testId: editing.id, fileName: current.pdf_file_name ?? "question-paper.pdf", sizeBytes: current.pdf_size_bytes ?? null, pageCount: null, uploadedAt: current.pdf_uploaded_at ?? null } : null} />
