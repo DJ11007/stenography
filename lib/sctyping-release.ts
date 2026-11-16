@@ -3,6 +3,6 @@
 // bump it in the same commit that replaces the installer -- never before, or apps would be told
 // to update to a version that isn't downloadable yet.
 export const SCTYPING_LATEST = {
-  version: "0.1.10",
-  notes: "Efficiency tests now grouped into English and Hindi, in test-number order. Word and Excel tests open in the real Word/Excel 2013-style editors.",
+  version: "0.1.12",
+  notes: "Full typing settings like the website (duration, separate font sizes, Courier font, highlight, backspace, word calculation), a toolbar during the test, and 10-30 minute efficiency tests.",
 } as const;
