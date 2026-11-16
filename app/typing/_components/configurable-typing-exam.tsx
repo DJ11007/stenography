@@ -1,6 +1,7 @@
 "use client";
 
 import { ExamGuard, type ExamQuestion } from "./exam-guard";
+import { printBrandedTestPage } from "@/lib/branded-print";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { recordManagedAttempt } from "@/app/tests/actions";
 import { recordPracticeAttempt, type PracticeAttemptPayload } from "@/app/typing/practice-attempt-actions";
@@ -41,7 +42,6 @@ type ExamMode = "practice" | "exam";
 export type PracticeNavigation={currentIndex:number;total:number;items:{title:string;href:string;label:string}[];previousHref:string|null;nextHref:string|null};
 const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const backspaceLabel = (mode: BackspaceMode) => mode === "full" ? "Full backspace" : mode === "word" ? "One-word backspace" : "Backspace disabled";
-const escapeHtmlForPrint = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 // Devanagari has no case, so capitalization is never a meaningful category
 // for Hindi -- matches managedVersionToPreset()'s existing
 // capitalizationErrors: language === "English" default exactly.
@@ -532,13 +532,17 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
   // passage is still compared against, the student just isn't shown it.
   const [printoutMode, setPrintoutMode] = useState(false);
   const [showPrintoutConfirm, setShowPrintoutConfirm] = useState(false);
+  // Branded test page (logo, name, contact, watermark, promotion footer) -- lib/branded-print.ts, same as the app.
   const printPassage = () => {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) return;
-    const fontFace = inputSystem.requiredFontAsset ? `@font-face{font-family:"${inputSystem.fontLabel.split(" (")[0]}";src:url("${new URL(inputSystem.requiredFontAsset, window.location.origin).href}") format("truetype");}` : "";
-    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtmlForPrint(preset.title)} — Samradhi Classes</title><style>${fontFace}body{font-family:${typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack)};font-size:18px;line-height:1.8;white-space:pre-wrap;max-width:800px;margin:40px auto;padding:0 24px;color:#000}h1{font-family:Arial,sans-serif;font-size:20px;margin-bottom:4px}p.meta{font-family:Arial,sans-serif;font-size:12px;color:#555;margin-top:0}@media print{body{margin:0;padding:20px}}</style></head><body><h1>${escapeHtmlForPrint(preset.title)}</h1><p class="meta">Samradhi Classes &middot; ${inputSystem.language} &middot; ${inputSystem.fontLabel}</p><p lang="${inputSystem.language === "Hindi" ? "hi" : "en"}">${escapeHtmlForPrint(passage)}</p></body></html>`);
-    printWindow.document.close();
-    printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
+    printBrandedTestPage({
+      title: preset.title,
+      details: [inputSystem.language, inputSystem.fontLabel, `${Math.round(preset.durationSeconds / 60)} minutes`, ...(preset.speedRequirement ? [`${preset.speedRequirement} WPM required`] : []), `${passage.trim().split(/\s+/u).length} words`],
+      passage,
+      fontFamily: typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack),
+      fontSize: 18,
+      fontFace: inputSystem.requiredFontAsset ? `@font-face{font-family:"${inputSystem.fontLabel.split(" (")[0]}";src:url("${new URL(inputSystem.requiredFontAsset, window.location.origin).href}") format("truetype");}` : undefined,
+      logoUrl: new URL("/logo-256.png", window.location.origin).href,
+    });
   };
   const passageUnits = useMemo(() => segmentGraphemes(passage), [passage]);
   const typedUnitCount = useMemo(() => segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText).length, [inputSystem, typedText]);
