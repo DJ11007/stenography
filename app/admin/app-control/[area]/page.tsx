@@ -33,11 +33,12 @@ export default async function AppControlAreaPage({ params }: { params: Promise<{
       break;
     }
   }
+  const backHref = area.id === "word" || area.id === "excel" ? "/admin/app-control/efficiency" : area.id === "learn" || area.id === "exam" ? "/admin/app-control/typing" : "/admin/app-control";
   const settings = (control?.settings ?? {}) as Record<string, string>;
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-4xl">
-        <BackButton href="/admin/app-control" label="App control" />
+        <BackButton href={backHref} label="Back" />
         <div className="mt-5 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 p-7 text-white shadow-xl">
           <p className="text-xs font-black uppercase tracking-[.2em] text-blue-300">SCTyping desktop app</p>
           <h1 className="mt-2 text-3xl font-black">{area.title}</h1>
