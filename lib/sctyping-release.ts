@@ -3,6 +3,6 @@
 // bump it in the same commit that replaces the installer -- never before, or apps would be told
 // to update to a version that isn't downloadable yet.
 export const SCTYPING_LATEST = {
-  version: "0.1.25",
-  notes: "The app now shows its version in the window title and header; window title text fixed.",
+  version: "0.1.26",
+  notes: "Cleaner typing test toolbar (candidate name removed).",
 } as const;

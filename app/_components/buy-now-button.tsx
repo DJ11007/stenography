@@ -18,7 +18,7 @@ export function BuyNowButton({ className = "" }: { className?: string }) {
   return (
     <Link
       href="/courses"
-      className={`group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 px-4 py-2 text-sm font-black text-white shadow-md shadow-violet-500/30 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 ${className}`}
+      className={`group relative inline-flex items-center gap-1.5 overflow-hidden rounded-full bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 whitespace-nowrap px-3 py-2 text-xs font-black text-white sm:px-4 sm:text-sm shadow-md shadow-violet-500/30 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-violet-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 ${className}`}
     >
       <span aria-hidden className="absolute inset-0 -translate-x-full bg-white/25 transition-transform duration-700 group-hover:translate-x-full" style={{ clipPath: "polygon(0 0, 30% 0, 10% 100%, -20% 100%)" }} />
       <TicketIcon className="h-4 w-4" />
