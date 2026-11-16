@@ -63,7 +63,7 @@ const groups = [
     description: "Dictation and transcription tests, including the Stenography Exam Simulator categories.",
     items: [
       ["/admin/stenography-tests", "Stenography Tests", "Create stenography-mode tests.", "Manage →"],
-      ["/admin/dictation-audio", "Dictation Audio Maker", "Turn a passage into a natural male or female voice dictation (Hindi or English) at an exact WPM speed, ready to attach to a test.", "Make audio →"],
+      ["/admin/dictation-audio", "Dictation Audio Maker", "Free text to speech for dictation: paste the matter, pick a voice and the total time (e.g. 8 minutes), then record an audio file to attach to a test.", "Make audio →"],
     ],
   },
   {
