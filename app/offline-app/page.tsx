@@ -42,6 +42,7 @@ export default function OfflineAppPage() {
           ⬇ Download for Windows
         </a>
         <p className="mt-3 text-xs text-blue-200">Version {SCTYPING_LATEST.version} &middot; Free trial &middot; ~4&nbsp;MB &middot; Windows 10/11 (64-bit)</p>
+        <p className="mt-2 inline-block rounded-lg bg-amber-300 px-3 py-1 text-xs font-black text-amber-950">Not for Windows 7 or 8: Microsoft no longer supports them, so SCTyping can&apos;t run there.</p>
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-14">
