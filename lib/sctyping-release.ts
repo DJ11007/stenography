@@ -3,6 +3,6 @@
 // bump it in the same commit that replaces the installer -- never before, or apps would be told
 // to update to a version that isn't downloadable yet.
 export const SCTYPING_LATEST = {
-  version: "0.1.23",
-  notes: "Exam boards now list only the exam exercises (practice tests and old live-test copies removed), in serial order.",
+  version: "0.1.24",
+  notes: "Simpler typing screen (one layout). Exam boards list only exam exercises in serial order.",
 } as const;
