@@ -104,6 +104,10 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
   // The part's screen stays open past its end until it has handed the answer in (see use-part-hand-in.ts).
   const openSection = loggedIn && workspaceOpen && phase.kind === "section" ? phase.section : null;
   const { active, handIn } = usePartHandIn(openSection, preview, () => { void refresh(); });
+  // The candidate panel hides by itself while a Word / Excel part is open (more room for the sheet); ◀ / ▶ toggles it.
+  const [paneHidden, setPaneHidden] = useState(false);
+  const activeKind = active?.kind;
+  useEffect(() => { setPaneHidden(activeKind === "word" || activeKind === "excel"); }, [activeKind]);
   // A typing part's passage and font are fetched 12 seconds before it starts (the server allows 20), and shown at the
   // start second, so the part no longer opens 7 to 10 seconds late.
   const [preloaded, setPreloaded] = useState<Record<string, LiveTypingSection>>({});
@@ -139,8 +143,8 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
 
   const running = phase.kind === "section" ? phase.section.label : phase.kind === "gap" ? "Break" : phase.kind === "waiting" ? "Not started" : "Completed";
   return (
-    <main className="flex min-h-screen flex-col bg-[#eef2f7]">
-      <header className="flex flex-wrap items-center gap-3 bg-[#0b2e59] px-4 py-2 text-white">
+    <main className="flex h-dvh flex-col overflow-hidden bg-[#eef2f7]">
+      <header className="flex shrink-0 flex-wrap items-center gap-3 bg-[#0b2e59] px-4 py-2 text-white">
         <span className="rounded bg-white/15 px-2 py-0.5 text-xs font-black tracking-widest">LIVE EXAM</span>
         <h1 className="min-w-0 flex-1 truncate text-base font-black">{state.title}</h1>
         <span className="text-xs text-white/70">Server time</span>
@@ -149,8 +153,10 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
       </header>
       {preview && <p className="bg-amber-300 px-4 py-1 text-center text-xs font-black text-amber-950">Admin preview — nothing you do here is submitted.</p>}
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <CandidatePanel candidate={candidate} running={running} timeLeft={phase.kind === "finished" ? null : clock(timeLeft)} sections={state.sections} now={now} />
-        <section className={`flex min-w-0 flex-1 justify-center ${active ? "items-start p-0" : "items-center p-4 sm:p-8"}`}>
+        {paneHidden
+          ? <button type="button" onClick={() => setPaneHidden(false)} title="Show candidate details" className="hidden shrink-0 items-center justify-center border-r border-slate-300 bg-white px-1 text-xs font-black text-[#0b2e59] hover:bg-blue-50 md:flex">▶</button>
+          : <CandidatePanel candidate={candidate} running={running} timeLeft={phase.kind === "finished" ? null : clock(timeLeft)} sections={state.sections} now={now} onHide={() => setPaneHidden(true)} />}
+        <section className={`flex min-h-0 min-w-0 flex-1 justify-center overflow-auto ${active ? "items-stretch p-0" : "items-center p-4 sm:p-8"}`}>
           {/* One fixed place for the part's screen, so it is the same screen while it hands in after the end. */}
           {active && (active.kind === "typing"
             ? <TypingSection key={active.id} section={active} preloaded={preloaded[active.id]} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={(result) => { if (result) handIn(active.id); }} />
@@ -203,10 +209,11 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
 
 // Left side, all through the exam: photo (initials when there is none), name, login ID, password masked, roll number,
 // the part running now and its time left, and each part's status.
-function CandidatePanel({ candidate, running, timeLeft, sections, now }: { candidate: Candidate; running: string; timeLeft: string | null; sections: LiveExamSectionState[]; now: number }) {
+function CandidatePanel({ candidate, running, timeLeft, sections, now, onHide }: { candidate: Candidate; running: string; timeLeft: string | null; sections: LiveExamSectionState[]; now: number; onHide: () => void }) {
   const initials = candidate.name.split(/\s+/u).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "C";
   return (
-    <aside className="w-full shrink-0 border-b border-slate-300 bg-white p-4 md:w-[8.75rem] md:border-b-0 md:border-r md:p-2">
+    <aside className="relative w-full shrink-0 overflow-y-auto border-b border-slate-300 bg-white p-4 md:w-[8.75rem] md:border-b-0 md:border-r md:p-2">
+      <button type="button" onClick={onHide} title="Hide candidate details (more room for the test)" className="absolute right-1 top-1 hidden rounded px-1 text-xs font-black text-slate-500 hover:bg-slate-100 hover:text-[#0b2e59] md:block">◀</button>
       <div className="flex items-center gap-3 md:flex-col md:text-center">
         {candidate.photoUrl
           ? <img src={candidate.photoUrl} alt="Candidate photo" className="h-20 w-20 shrink-0 rounded-lg border-2 border-[#0b2e59] object-cover md:h-16 md:w-14" />
@@ -336,7 +343,7 @@ function TypingSection({ section, preloaded, serverOffset, candidate, preview, o
   if (problem) return <p role="alert" className="m-8 rounded-2xl bg-red-50 p-6 text-center font-bold text-red-800">{problem}</p>;
   if (!loaded) return <p className="m-8 rounded-2xl bg-white p-6 text-center font-bold text-slate-600 shadow">Opening {section.label}…</p>;
   return (
-    <div className="w-full">
+    <div className="live-part-fill-typing w-full">
       <TypingStudentProvider student={{ name: candidate.name, email: candidate.loginId, phone: null }}>
         <ConfigurableTypingExam preset={loaded.preset} mode="exam" customPreset managedTest={preview ? undefined : loaded.managedTest} adminPreview={preview}
           liveExam={{ sectionId: section.id, endsAt: Date.parse(section.endsAt), serverOffset, onSaved }} />
@@ -366,7 +373,7 @@ function EfficiencySection({ section, onSaved }: { section: LiveExamSectionState
   if (!loaded) return <p className="m-8 rounded-2xl bg-white p-6 text-center font-bold text-slate-600 shadow">Opening {section.label}…</p>;
   const onSubmitted = () => { void recordLiveExamEfficiency(section.id, loaded.attemptId).finally(onSaved); };
   return (
-    <div className="w-full">
+    <div className="live-part-fill w-full">
       {loaded.kind === "word"
         ? <WordWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof WordWorkspace>[0]["snapshot"]} status={loaded.status} durationSeconds={loaded.durationSeconds} remainingSeconds={loaded.remainingSeconds} signedPdfUrl={null} initialDocument={loaded.initialDocument} liveExam={{ onSubmitted }} />
         : <ExcelWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof ExcelWorkspace>[0]["snapshot"]} status={loaded.status} remainingSeconds={loaded.remainingSeconds} original={loaded.original as Parameters<typeof ExcelWorkspace>[0]["original"]} initialDocument={loaded.initialDocument as Parameters<typeof ExcelWorkspace>[0]["initialDocument"]} liveExam={{ onSubmitted }} />}

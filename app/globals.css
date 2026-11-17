@@ -1290,3 +1290,14 @@ table[data-block-type="table"] td[data-fit-text="true"] { white-space: nowrap; f
 .word-full-palette .wr-palette-tints .wr-swatch:nth-last-child(-n+10) { border-bottom-width: 1px; }
 .word-full-palette .wr-swatch:hover, .word-full-palette .wr-swatch:focus-visible { background-clip: padding-box; outline: 2px solid #f29436; outline-offset: -1px; }
 .word-full-palette .wi-item { width: 100%; height: auto; min-height: 0; border: 0; }
+
+/* Live Exam Center: a Word / Excel / typing part sits under the room's own header bar, but those screens size
+   themselves to the whole window (h-dvh, calc(100dvh - 4rem)), so their bottom -- the sheet's horizontal scrollbar --
+   was pushed below the screen. Inside the room they fill only the space left (live-exam-room.tsx). */
+.live-part-fill { height: 100%; min-height: 0; }
+.live-part-fill > main { height: 100% !important; min-height: 0 !important; display: flex !important; flex-direction: column; }
+.live-part-fill > main > header { flex-shrink: 0; }
+.live-part-fill [class*="h-[calc(100dvh-4rem)]"] { height: auto !important; flex: 1 1 0%; min-height: 0; }
+.live-part-fill-typing { height: 100%; min-height: 0; }
+.live-part-fill-typing > main.h-\[100dvh\] { height: 100% !important; }
+
