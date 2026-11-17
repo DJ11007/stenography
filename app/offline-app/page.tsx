@@ -34,21 +34,29 @@ export default function OfflineAppPage() {
           Every exam board&apos;s typing pattern, right on your computer. No internet connection, no account sign-in, no
           interruptions once it&apos;s installed and activated.
         </p>
-        <a
-          href={DOWNLOAD_HREF}
-          download
-          className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 font-black text-indigo-900 shadow-lg transition hover:-translate-y-0.5"
-        >
-          ⬇ Download for Windows
-        </a>
-        <p className="mt-3 text-xs text-blue-200">Version {SCTYPING_LATEST.version} &middot; Free trial &middot; ~4&nbsp;MB &middot; Windows 10 / 11 (64-bit)</p>
-        <div className="mx-auto mt-6 max-w-xl rounded-2xl bg-white/10 p-4 ring-1 ring-white/20">
-          <p className="text-sm font-black">Using Windows 7 or Windows 8?</p>
-          <a href={`${DOWNLOAD_HREF}?edition=win7`} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-amber-300 px-5 py-2.5 font-black text-amber-950 shadow transition hover:-translate-y-0.5">
-            ⬇ Download for Windows 7 / 8
-          </a>
-          <p className="mt-2 text-xs text-blue-200">Version {SCTYPING_WIN7.version} &middot; ~{SCTYPING_WIN7.sizeMb}&nbsp;MB (includes Microsoft WebView2, which these older Windows need) &middot; 64-bit</p>
+        <h2 className="mt-8 text-lg font-black">Choose your Windows version</h2>
+        <div className="mx-auto mt-4 grid max-w-3xl gap-4 text-left sm:grid-cols-2">
+          <div className="flex flex-col rounded-2xl bg-white p-6 text-slate-900 shadow-xl">
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-600">Most computers</p>
+            <h3 className="mt-1 text-2xl font-black">Windows 10 / 11</h3>
+            <p className="mt-2 flex-1 text-sm text-slate-600">For all new and recent computers. Small, quick download.</p>
+            <p className="mt-3 text-xs font-bold text-slate-500">Version {SCTYPING_LATEST.version} &middot; ~4&nbsp;MB &middot; 64-bit &middot; Free trial</p>
+            {/* Plain <a>, not next/link: the route counts a download, and a prefetch would count one nobody asked for. */}
+            <a href={DOWNLOAD_HREF} download className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-700 px-6 py-3 font-black text-white shadow transition hover:-translate-y-0.5 hover:bg-indigo-800">
+              ⬇ Download for Windows 10 / 11
+            </a>
+          </div>
+          <div className="flex flex-col rounded-2xl bg-amber-50 p-6 text-slate-900 shadow-xl ring-2 ring-amber-300">
+            <p className="text-xs font-black uppercase tracking-widest text-amber-700">Older computers</p>
+            <h3 className="mt-1 text-2xl font-black">Windows 7 / 8</h3>
+            <p className="mt-2 flex-1 text-sm text-slate-600">For computers with Windows 7, 8 or 8.1. Bigger, because it includes Microsoft WebView2, which these Windows need. Works fully offline after installing.</p>
+            <p className="mt-3 text-xs font-bold text-slate-500">Version {SCTYPING_WIN7.version} &middot; ~{SCTYPING_WIN7.sizeMb}&nbsp;MB &middot; 64-bit &middot; Free trial</p>
+            <a href={`${DOWNLOAD_HREF}?edition=win7`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-6 py-3 font-black text-amber-950 shadow transition hover:-translate-y-0.5 hover:bg-amber-300">
+              ⬇ Download for Windows 7 / 8
+            </a>
+          </div>
         </div>
+        <p className="mx-auto mt-5 max-w-2xl text-xs text-blue-100">Not sure which Windows you have? Press the <b>Windows key + R</b>, type <b>winver</b> and press Enter: the box that opens shows your Windows version.</p>
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-14">
