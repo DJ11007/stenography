@@ -49,8 +49,8 @@ export default function OfflineAppPage() {
           <div className="flex flex-col rounded-2xl bg-amber-50 p-6 text-slate-900 shadow-xl ring-2 ring-amber-300">
             <p className="text-xs font-black uppercase tracking-widest text-amber-700">Older computers</p>
             <h3 className="mt-1 text-2xl font-black">Windows 7 / 8</h3>
-            <p className="mt-2 flex-1 text-sm text-slate-600">For computers with Windows 7, 8 or 8.1. Bigger, because it includes Microsoft WebView2, which these Windows need. Works fully offline after installing.</p>
-            <p className="mt-3 text-xs font-bold text-slate-500">Version {SCTYPING_WIN7.version} &middot; ~{SCTYPING_WIN7.sizeMb}&nbsp;MB &middot; 64-bit &middot; Free trial</p>
+            <p className="mt-2 flex-1 text-sm text-slate-600">For computers with Windows 7, 8 or 8.1, 32-bit or 64-bit. Bigger, because it includes Microsoft WebView2, which these Windows need. Works fully offline after installing.</p>
+            <p className="mt-3 text-xs font-bold text-slate-500">Version {SCTYPING_WIN7.version} &middot; ~{SCTYPING_WIN7.sizeMb}&nbsp;MB &middot; 32-bit &amp; 64-bit &middot; Free trial</p>
             <a href={`${DOWNLOAD_HREF}?edition=win7`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 px-6 py-3 font-black text-amber-950 shadow transition hover:-translate-y-0.5 hover:bg-amber-300">
               ⬇ Download for Windows 7 / 8
             </a>
