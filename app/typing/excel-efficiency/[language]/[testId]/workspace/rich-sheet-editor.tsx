@@ -1400,7 +1400,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           </Group>
           <Group label="Number" launcher={() => openFormatCells("Number")} launcherLabel="Format Cells: Number">
             <div className="flex flex-col gap-1">
-              <select aria-label="Number Format" value={active.numberFormat ?? "General"} disabled={submitted} onChange={(event) => { if (event.target.value === "more") { openFormatCells("Number"); return; } formatSelection({ numberFormat: event.target.value as SheetCell["numberFormat"] }, "numberFormat"); }} className="h-[22px] w-[128px] border border-[#c6c6c6] bg-white px-1">
+              <select aria-label="Number Format" value={active.numberFormat ?? "General"} disabled={submitted} onChange={(event) => { if (event.target.value === "more") { openFormatCells("Number"); return; } formatSelection({ numberFormat: event.target.value as SheetCell["numberFormat"], ...(["Number", "Currency", "Accounting", "Percentage", "Scientific"].includes(event.target.value) ? { decimals: active.decimals ?? 2 } : {}) }, "numberFormat"); }} className="h-[22px] w-[128px] border border-[#c6c6c6] bg-white px-1">
                 {NUMBER_FORMAT_LABELS.map(([format, label]) => <option key={format} value={format}>{label}</option>)}
                 <option value="more">More Number Formats...</option>
               </select>
