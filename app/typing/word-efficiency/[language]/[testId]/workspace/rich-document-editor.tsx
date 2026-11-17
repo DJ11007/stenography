@@ -1155,6 +1155,11 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
   // Bold, italic and underline too: re-applying the dialog's starting values made a cell
   // bold (the dialog showed another text's "Bold") when only Double strikethrough was ticked.
   const boldChanged=!initial||values.bold!==initial.bold,italicChanged=!initial||values.italic!==initial.italic,underlineChanged=!initial||values.underlineStyle!==initial.underlineStyle||values.underlineColor!==initial.underlineColor;
+  // The dialog has no Outline box: "outline" is just what the text already had. Re-applying it
+  // drew a new BLACK outline over a red one (Text Effects > Outline > Red, then Font > Advanced
+  // spacing on the same text lost the red). An existing outline is kept as it is unless the
+  // font colour was changed here.
+  if(initial&&initial.outline&&values.outline&&values.color===initial.color)values={...values,outline:false,color:""};
   if(initial){if(values.fontFamily===initial.fontFamily)values={...values,fontFamily:""};if(values.fontSize===initial.fontSize)values={...values,fontSize:""};if(values.color===initial.color&&!values.outline&&!values.emboss)values={...values,color:""}}
   // A table selection (Select Row / Column / cells) formats every selected cell, as in Word.
   withCellsRef.current(()=>applyFontValues(values,{boldChanged,italicChanged,underlineChanged}));
