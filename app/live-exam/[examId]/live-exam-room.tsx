@@ -46,8 +46,11 @@ const istTime = (iso: string | number) => new Date(iso).toLocaleTimeString("en-I
 const istDateTime = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
 
 // Which part of the exam the server clock is in now (the sections' times come from the server's timeline).
+// Waits until the FIRST PART starts, not just the exam's published start: a per-student exam's first part starts
+// 1 minute after that student logs in (start_live_exam_attempt), and those 60 seconds show the countdown.
 function phaseAt(now: number, state: LiveExamState): Phase {
-  const start = Date.parse(state.startsAt);
+  const first = state.sections[0];
+  const start = Math.max(Date.parse(state.startsAt), first ? Date.parse(first.startsAt) : 0);
   if (now < start) return { kind: "waiting", until: start };
   for (const [index, section] of state.sections.entries()) {
     if (now < Date.parse(section.endsAt)) return { kind: "section", section, until: Date.parse(section.endsAt) };
