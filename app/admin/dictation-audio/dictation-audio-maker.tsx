@@ -15,9 +15,11 @@ import { krutiDevToUnicode } from "@/lib/hindi-font-converter";
 // dictation ends at the chosen total time. (Earlier it spoke 6 words at normal speed and then waited: fast bursts with
 // long silences.)
 //
-// Recording: the browser can't save its own speech directly, so "Record" captures THIS tab's sound (the admin picks
-// "This tab" and ticks "Share tab audio" when asked) and saves it as a WebM audio file, which the stenography test
-// upload accepts.
+// Recording: the browser can't save its own speech directly, and the voice is played by Windows' speech system, not
+// by the page -- so "This tab" + "Share tab audio" records SILENCE (a 10-minute silent file was the result, 18 Nov
+// 2026). "Record" therefore asks for the system sound: the admin picks "Entire screen" and ticks "Also share system
+// audio". The result is saved as a WebM (and optionally WAV) file, which the stenography test upload accepts. A
+// recording with no sound in it is reported instead of being offered for download.
 
 type Phrase = { text: string; words: number; weight: number; start: number };
 const SENTENCE_END = /[.!?।॥]["')\]]*$/u;
@@ -64,6 +66,21 @@ async function webmToWav(blob: Blob): Promise<Blob> {
   view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, "data"); view.setUint32(40, samples.length * 2, true);
   for (let i = 0; i < samples.length; i++) view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
   return new Blob([view], { type: "audio/wav" });
+}
+
+// True when a recording is (practically) silent. If it can't be decoded, it is not called silent.
+async function isSilent(blob: Blob): Promise<boolean> {
+  try {
+    const decoded = await new AudioContext().decodeAudioData(await blob.arrayBuffer());
+    let peak = 0;
+    for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
+      const data = decoded.getChannelData(channel);
+      for (let i = 0; i < data.length; i += 7) { const level = Math.abs(data[i]); if (level > peak) peak = level; }
+    }
+    return peak < 0.002;
+  } catch {
+    return false;
+  }
 }
 
 const mmss = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, "0")}`;
@@ -207,16 +224,17 @@ export function DictationAudioMaker() {
     setError(""); setFile(null); setWav(null);
     let stream: MediaStream;
     try {
-      // Chrome/Edge: pick "This tab" and tick "Share tab audio". Video is required by the browser but not used.
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: "include", systemAudio: "include" } as DisplayMediaStreamOptions);
+      // Chrome/Edge on Windows: pick "Entire screen" and tick "Also share system audio" -- the voice is Windows' own
+      // sound, so only system audio contains it. Video is required by the browser but not used.
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true, systemAudio: "include", selfBrowserSurface: "include", monitorTypeSurfaces: "include" } as DisplayMediaStreamOptions);
     } catch {
-      setError("Recording needs permission to capture this tab's sound. Press Record again and choose \"This tab\", with \"Share tab audio\" ticked.");
+      setError("Recording needs permission to capture the computer's sound. Press Record again, choose \"Entire screen\" and tick \"Also share system audio\".");
       return;
     }
     const audioTracks = stream.getAudioTracks();
     if (!audioTracks.length) {
       stream.getTracks().forEach((track) => track.stop());
-      setError("No sound was shared. Press Record again, choose \"This tab\" and tick \"Share tab audio\".");
+      setError("No sound was shared. Press Record again, choose \"Entire screen\" and tick \"Also share system audio\" at the bottom of that window.");
       return;
     }
     stream.getVideoTracks().forEach((track) => track.stop());
@@ -237,6 +255,11 @@ export function DictationAudioMaker() {
     setState("idle");
     if (stopRef.current) { setError("Recording stopped before the end, so nothing was saved."); return; }
     const blob = new Blob(chunks, { type: "audio/webm" });
+    // A recording with no sound (the voice wasn't part of what was shared) must not be offered as a dictation.
+    if (await isSilent(blob)) {
+      setError("The recording has no sound in it. The voice is played by Windows, so it is only recorded when you choose \"Entire screen\" and tick \"Also share system audio\" (not \"This tab\"). Please press Record again and choose that.");
+      return;
+    }
     const safe = (title.trim() || "dictation").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
     setFile({ url: URL.createObjectURL(blob), name: `${safe}-${effectiveWpm}wpm.webm`, seconds, blob });
   };
@@ -334,7 +357,7 @@ export function DictationAudioMaker() {
             <button type="button" onClick={stop} disabled={!busy} className="rounded-xl border-2 border-slate-300 px-3 py-2.5 font-black text-slate-700 disabled:opacity-40">■ Stop</button>
           </div>
           <button type="button" onClick={record} disabled={!ready || busy} className="w-full rounded-xl bg-rose-600 px-4 py-3 font-black text-white disabled:opacity-40">● Record &amp; download audio file</button>
-          <p className="text-xs leading-5 text-slate-500"><b>▶ Listen</b> only plays the dictation. To get a file, press <b>● Record</b>: when the browser asks, choose <b>“This tab”</b> and tick <b>“Share tab audio”</b>. Keep this tab open and don&apos;t play other sounds until it finishes; then the download buttons appear below.</p>
+          <p className="text-xs leading-5 text-slate-500"><b>▶ Listen</b> only plays the dictation. To get a file, press <b>● Record</b>: when the browser asks what to share, choose <b>“Entire screen”</b> and tick <b>“Also share system audio”</b> (not “This tab” — the voice is Windows&apos; own sound, so a tab recording comes out silent). Don&apos;t play any other sound on the computer until it finishes; then the download buttons appear below.</p>
           {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs font-bold text-rose-800">{error}</p>}
           {file && (
             <div className="space-y-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
