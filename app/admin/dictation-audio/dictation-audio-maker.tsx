@@ -46,6 +46,23 @@ function splitPhrases(text: string, groupWords: number): Phrase[] {
   return phrases;
 }
 
+// Turns the recorded WebM into a WAV file (16-bit mono, 22.05 kHz), which every phone, PC and media player can play.
+async function webmToWav(blob: Blob): Promise<Blob> {
+  const decoded = await new AudioContext().decodeAudioData(await blob.arrayBuffer());
+  const sampleRate = 22050;
+  const offline = new OfflineAudioContext(1, Math.ceil(decoded.duration * sampleRate), sampleRate);
+  const source = offline.createBufferSource();
+  source.buffer = decoded; source.connect(offline.destination); source.start();
+  const samples = (await offline.startRendering()).getChannelData(0);
+  const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
+  const text = (at: number, value: string) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
+  text(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, "data"); view.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
+  return new Blob([view], { type: "audio/wav" });
+}
+
 const mmss = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, "0")}`;
 const field = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900";
 
@@ -67,7 +84,9 @@ export function DictationAudioMaker() {
   const [volume, setVolume] = useState(1);
   const [state, setState] = useState<"idle" | "playing" | "recording">("idle");
   const [progress, setProgress] = useState({ elapsed: 0, word: 0 });
-  const [file, setFile] = useState<{ url: string; name: string; seconds: number } | null>(null);
+  const [file, setFile] = useState<{ url: string; name: string; seconds: number; blob: Blob } | null>(null);
+  const [wav, setWav] = useState<{ url: string; name: string } | null>(null);
+  const [converting, setConverting] = useState(false);
   const [error, setError] = useState("");
   const stopRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -169,7 +188,7 @@ export function DictationAudioMaker() {
   };
 
   const record = async () => {
-    setError(""); setFile(null);
+    setError(""); setFile(null); setWav(null);
     let stream: MediaStream;
     try {
       // Chrome/Edge: pick "This tab" and tick "Share tab audio". Video is required by the browser but not used.
@@ -203,9 +222,20 @@ export function DictationAudioMaker() {
     if (stopRef.current) { setError("Recording stopped before the end, so nothing was saved."); return; }
     const blob = new Blob(chunks, { type: "audio/webm" });
     const safe = (title.trim() || "dictation").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
-    setFile({ url: URL.createObjectURL(blob), name: `${safe}-${effectiveWpm}wpm.webm`, seconds });
+    setFile({ url: URL.createObjectURL(blob), name: `${safe}-${effectiveWpm}wpm.webm`, seconds, blob });
   };
   useEffect(() => () => { if (file) URL.revokeObjectURL(file.url); }, [file]);
+  useEffect(() => () => { if (wav) URL.revokeObjectURL(wav.url); }, [wav]);
+  const makeWav = async () => {
+    if (!file) return;
+    setConverting(true); setError("");
+    try {
+      const out = await webmToWav(file.blob);
+      setWav({ url: URL.createObjectURL(out), name: file.name.replace(/\.webm$/, ".wav") });
+    } catch {
+      setError("Could not make the WAV file in this browser. The WebM download above still works.");
+    } finally { setConverting(false); }
+  };
 
   const wordsList = useMemo(() => spokenText.replace(/\s+/gu, " ").trim().split(" ").filter(Boolean), [spokenText]);
   const busy = state !== "idle";
@@ -282,15 +312,20 @@ export function DictationAudioMaker() {
             <button type="button" onClick={play} disabled={!ready || busy} className="rounded-xl border-2 border-violet-600 px-3 py-2.5 font-black text-violet-700 disabled:opacity-40">▶ Listen</button>
             <button type="button" onClick={stop} disabled={!busy} className="rounded-xl border-2 border-slate-300 px-3 py-2.5 font-black text-slate-700 disabled:opacity-40">■ Stop</button>
           </div>
-          <button type="button" onClick={record} disabled={!ready || busy} className="w-full rounded-xl bg-rose-600 px-4 py-3 font-black text-white disabled:opacity-40">● Record &amp; save audio file</button>
-          <p className="text-xs leading-5 text-slate-500">When the browser asks, choose <b>“This tab”</b> and tick <b>“Share tab audio”</b>. Keep this tab open and don&apos;t play other sounds until it finishes.</p>
+          <button type="button" onClick={record} disabled={!ready || busy} className="w-full rounded-xl bg-rose-600 px-4 py-3 font-black text-white disabled:opacity-40">● Record &amp; download audio file</button>
+          <p className="text-xs leading-5 text-slate-500"><b>▶ Listen</b> only plays the dictation. To get a file, press <b>● Record</b>: when the browser asks, choose <b>“This tab”</b> and tick <b>“Share tab audio”</b>. Keep this tab open and don&apos;t play other sounds until it finishes; then the download buttons appear below.</p>
           {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs font-bold text-rose-800">{error}</p>}
           {file && (
             <div className="space-y-2 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
               <p className="text-sm font-bold text-emerald-900">Recorded: {mmss(file.seconds)} long</p>
               <audio controls src={file.url} className="w-full" />
-              <a href={file.url} download={file.name} className="block rounded-lg bg-emerald-700 px-4 py-2 text-center font-black text-white">⬇ Download {file.name}</a>
-              <p className="text-xs text-emerald-900">Then upload this file as the test&apos;s audio in Stenography Tests.</p>
+              <a href={file.url} download={file.name} className="block rounded-lg bg-emerald-700 px-4 py-2 text-center font-black text-white">⬇ Download WebM (small, for uploading)</a>
+              {wav ? (
+                <a href={wav.url} download={wav.name} className="block rounded-lg bg-violet-700 px-4 py-2 text-center font-black text-white">⬇ Download WAV (plays on any phone / PC)</a>
+              ) : (
+                <button type="button" onClick={makeWav} disabled={converting} className="block w-full rounded-lg border-2 border-violet-700 px-4 py-2 text-center font-black text-violet-800 disabled:opacity-50">{converting ? "Making WAV…" : "Make WAV file (plays everywhere)"}</button>
+              )}
+              <p className="text-xs text-emerald-900">Upload the WebM (or WAV) file as the test&apos;s audio in Stenography Tests, or keep the WAV for students to play anywhere.</p>
             </div>
           )}
         </section>
