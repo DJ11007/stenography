@@ -9,7 +9,7 @@ import { krutiDevToUnicode } from "@/lib/hindi-font-converter";
 //
 // Timing works like a real dictator (measured from a recorded 5.8-minute legal dictation: speech filled ~62% of the
 // time, pauses were short and even -- mostly 0.2-0.5 s, almost never over 1 s). The passage is split into small word
-// groups (2 words by default, adjustable 1-6, always breaking at commas and full stops). The VOICE ITSELF is slowed or sped up so the
+// groups (4 words by default, adjustable 1-6, always breaking at commas and full stops). The VOICE ITSELF is slowed or sped up so the
 // speech fills ~62% of the time, and the rest becomes short gaps between groups (a bit longer at commas, longest at
 // full stops). Speed and gaps are re-planned after every group from how long the voice actually took, so the
 // dictation ends at the chosen total time. (Earlier it spoke 6 words at normal speed and then waited: fast bursts with
@@ -26,8 +26,11 @@ const CLAUSE_END = /[,;:—-]["')\]]*$/u;
 const SPEECH_SHARE = 0.62;
 // Gap limits in seconds. Longer gaps are only used when the voice is already at its slowest.
 const MIN_GAP = 0.12, MAX_GAP = 1.6;
-// Voice speed limits (SpeechSynthesisUtterance.rate): slower than ~0.5 or faster than ~1.8 sounds unnatural.
-const MIN_RATE = 0.5, MAX_RATE = 1.8;
+// Voice speed limits (SpeechSynthesisUtterance.rate). Above ~1.3 Edge's natural voices clip words (owner's report,
+// 18 Nov 2026: "speaking so fast that words can't be heard, not speaking full words"); below ~0.6 they drag.
+const MIN_RATE = 0.6, MAX_RATE = 1.3;
+// Above this WPM a synthetic voice can't stay clear at a human-like pace (shown as a warning).
+const CLEAR_WPM_LIMIT = 110;
 
 function splitPhrases(text: string, groupWords: number): Phrase[] {
   const words = text.replace(/\s+/gu, " ").trim().split(" ").filter(Boolean);
@@ -78,8 +81,9 @@ export function DictationAudioMaker() {
   const [wpm, setWpm] = useState("80");
   // Fine-tune on top of the automatic speed: above 1 = words a little quicker with longer gaps, below 1 = slower words.
   const [rate, setRate] = useState(1);
-  // 2 words per group comes closest to the recorded human dictation (speech in 1-2 word bursts, ~0.3-0.5 s gaps).
-  const [groupWords, setGroupWords] = useState(2);
+  // 4 words per group: Edge's natural voices pause 0.3-1 s before every group while they are fetched, so very small
+  // groups (the recorded human used 1-2 words) leave too little time for clear speech.
+  const [groupWords, setGroupWords] = useState(4);
   const [pitch, setPitch] = useState(1);
   const [volume, setVolume] = useState(1);
   const [state, setState] = useState<"idle" | "playing" | "recording">("idle");
@@ -117,12 +121,18 @@ export function DictationAudioMaker() {
   const targetSeconds = timing === "minutes" ? (Number(minutes) || 0) * 60 : words && Number(wpm) ? (words / Number(wpm)) * 60 : 0;
   const effectiveWpm = targetSeconds > 0 ? Math.round((words / targetSeconds) * 60) : 0;
 
-  const speakPhrase = (phrase: string, voice: SpeechSynthesisVoice | undefined, speed: number) => new Promise<void>((resolve) => {
+  // Speaks one group and reports, in seconds, the silent start-up delay before the sound began (Edge's natural voices
+  // are fetched online, often 0.3-1 s per group) and how long the voice actually spoke.
+  const speakPhrase = (phrase: string, voice: SpeechSynthesisVoice | undefined, speed: number) => new Promise<{ delay: number; speech: number }>((resolve) => {
     const utterance = new SpeechSynthesisUtterance(phrase);
     if (voice) { utterance.voice = voice; utterance.lang = voice.lang; } else utterance.lang = language === "Hindi" ? "hi-IN" : "en-IN";
     utterance.rate = speed; utterance.pitch = pitch; utterance.volume = volume;
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve();
+    const asked = performance.now();
+    let started = 0;
+    utterance.onstart = () => { started = performance.now(); };
+    const done = () => { const end = performance.now(); const from = started || asked; resolve({ delay: (from - asked) / 1000, speech: (end - from) / 1000 }); };
+    utterance.onend = done;
+    utterance.onerror = done;
     window.speechSynthesis.speak(utterance);
   });
   const wait = (ms: number) => new Promise<void>((resolve) => {
@@ -139,37 +149,43 @@ export function DictationAudioMaker() {
     const begin = performance.now();
     // How long this voice takes per word at speed 1.0 (seconds). Starts from a typical value and is then measured.
     let perWordAtOne = language === "Hindi" ? 0.42 : 0.36;
+    // The voice's own silent start-up delay before each group (counted as part of that group's pause, not as speech).
+    let startDelay = 0;
     let measured = false, spokenWords = 0;
     const clampRate = (value: number) => Math.min(MAX_RATE, Math.max(MIN_RATE, value));
+    // Speed for the rest: speech gets ~62% of the time left, but never so much that the start-up delays plus short
+    // pauses no longer fit -- then the rest of the time is speech, still capped at MAX_RATE so words stay complete.
+    const speedFor = (secondsLeft: number, wordsLeft: number, groupsLeft: number) => {
+      const pausesAtLeast = groupsLeft * Math.max(startDelay, MIN_GAP);
+      const speechBudget = Math.max(wordsLeft * 0.15, Math.min(secondsLeft * SPEECH_SHARE, secondsLeft - pausesAtLeast));
+      return clampRate((perWordAtOne / (speechBudget / wordsLeft)) * rate);
+    };
     for (let index = 0; index < phrases.length; index++) {
       if (stopRef.current) break;
       const phrase = phrases[index];
       const elapsedBefore = (performance.now() - begin) / 1000;
       setProgress({ elapsed: elapsedBefore, word: phrase.start });
-      // Each word gets an equal share of the time left; ~62% of that share is speech. Slow or speed the voice to fit.
-      const wordsLeft = words - spokenWords;
-      const speechPerWord = (Math.max(1, targetSeconds - elapsedBefore) / wordsLeft) * SPEECH_SHARE;
-      const speed = clampRate((perWordAtOne / speechPerWord) * rate);
-      const t0 = performance.now();
-      await speakPhrase(phrase.text, voice, speed);
-      const took = (performance.now() - t0) / 1000;
+      const speed = speedFor(Math.max(1, targetSeconds - elapsedBefore), words - spokenWords, phrases.length - index);
+      const { delay, speech } = await speakPhrase(phrase.text, voice, speed);
       spokenWords += phrase.words;
-      // Learn the voice's real pace (what 1 word takes at speed 1.0), smoothed so one odd group doesn't swing it.
-      const sample = (took / phrase.words) * speed;
+      // Learn the voice's real pace (speaking time only, per word at speed 1.0) and its start-up delay, smoothed so
+      // one odd group doesn't swing them.
+      const sample = (speech / phrase.words) * speed;
       perWordAtOne = measured ? perWordAtOne * 0.75 + sample * 0.25 : sample;
+      startDelay = measured ? startDelay * 0.75 + delay * 0.25 : delay;
       measured = true;
       if (index === phrases.length - 1 || stopRef.current) break;
-      // The gap: time left minus the speech still to come, shared out over the remaining gaps (longer at commas and
-      // full stops). Kept short like a real dictator's, unless the voice is already at its slowest and still early.
+      // The pause: time left minus the speech still to come, shared out over the remaining pauses (longer at commas
+      // and full stops). The next group's start-up delay is already silence, so only the rest is waited out here.
       const elapsed = (performance.now() - begin) / 1000;
       const remainingWords = words - spokenWords;
-      const nextSpeed = clampRate((perWordAtOne / ((Math.max(1, targetSeconds - elapsed) / remainingWords) * SPEECH_SHARE)) * rate);
+      const nextSpeed = speedFor(Math.max(1, targetSeconds - elapsed), remainingWords, phrases.length - index - 1);
       const remainingSpeech = (perWordAtOne / nextSpeed) * remainingWords;
       const remainingWeight = phrases.slice(index, phrases.length - 1).reduce((sum, item) => sum + item.weight, 0) || 1;
       const freeTime = targetSeconds - elapsed - remainingSpeech;
       const voiceAtSlowest = nextSpeed <= MIN_RATE + 0.001;
-      const gap = Math.max(MIN_GAP, Math.min((freeTime * phrase.weight) / remainingWeight, voiceAtSlowest ? 6 : MAX_GAP * (phrase.weight / 2.5 + 0.4)));
-      await wait(gap * 1000);
+      const pause = Math.max(MIN_GAP, Math.min((freeTime * phrase.weight) / remainingWeight, voiceAtSlowest ? 6 : MAX_GAP * (phrase.weight / 2.5 + 0.4)));
+      await wait(Math.max(0, pause - startDelay) * 1000);
     }
     const total = (performance.now() - begin) / 1000;
     setProgress({ elapsed: total, word: words });
@@ -304,6 +320,11 @@ export function DictationAudioMaker() {
             </label>
           )}
           <p className="rounded-lg bg-violet-50 p-3 text-sm font-bold text-violet-900">{words} words · {mmss(targetSeconds)} total{effectiveWpm ? ` · ${effectiveWpm} WPM` : ""}</p>
+          {effectiveWpm > CLEAR_WPM_LIMIT && (
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-900">
+              {words} words in {mmss(targetSeconds)} is {effectiveWpm} WPM — too fast for a clear computer voice; words may sound rushed. For a clear dictation give it at least {Math.ceil(words / CLEAR_WPM_LIMIT)} minutes (or split the matter into two parts).
+            </p>
+          )}
         </section>
 
         <section className="space-y-3 rounded-2xl bg-white p-5 shadow">
