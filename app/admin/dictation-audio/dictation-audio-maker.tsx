@@ -7,10 +7,13 @@ import { krutiDevToUnicode } from "@/lib/hindi-font-converter";
 // account or key. Best in Microsoft Edge, whose "Online (Natural)" voices (e.g. Hindi Madhur / Swara, English India
 // Prabhat / Neerja) sound close to a real person; Chrome offers Google voices.
 //
-// Timing: the passage is split into phrases (at full stops, commas, and every few words). Each phrase is spoken at
-// the chosen voice speed; after each one the remaining time is re-planned from how long speech has actually taken
-// so far, and that time is put into the pauses (longest at sentence ends) -- so the whole dictation ends at the
-// chosen total time, the way a real dictator keeps to a speed.
+// Timing works like a real dictator (measured from a recorded 5.8-minute legal dictation: speech filled ~62% of the
+// time, pauses were short and even -- mostly 0.2-0.5 s, almost never over 1 s). The passage is split into small word
+// groups (2 words by default, adjustable 1-6, always breaking at commas and full stops). The VOICE ITSELF is slowed or sped up so the
+// speech fills ~62% of the time, and the rest becomes short gaps between groups (a bit longer at commas, longest at
+// full stops). Speed and gaps are re-planned after every group from how long the voice actually took, so the
+// dictation ends at the chosen total time. (Earlier it spoke 6 words at normal speed and then waited: fast bursts with
+// long silences.)
 //
 // Recording: the browser can't save its own speech directly, so "Record" captures THIS tab's sound (the admin picks
 // "This tab" and ticks "Share tab audio" when asked) and saves it as a WebM audio file, which the stenography test
@@ -19,9 +22,14 @@ import { krutiDevToUnicode } from "@/lib/hindi-font-converter";
 type Phrase = { text: string; words: number; weight: number; start: number };
 const SENTENCE_END = /[.!?।॥]["')\]]*$/u;
 const CLAUSE_END = /[,;:—-]["')\]]*$/u;
-const PHRASE_WORDS = 6;
+// Share of the dictation time that is speech (the rest is the gaps), from the recorded human dictation.
+const SPEECH_SHARE = 0.62;
+// Gap limits in seconds. Longer gaps are only used when the voice is already at its slowest.
+const MIN_GAP = 0.12, MAX_GAP = 1.6;
+// Voice speed limits (SpeechSynthesisUtterance.rate): slower than ~0.5 or faster than ~1.8 sounds unnatural.
+const MIN_RATE = 0.5, MAX_RATE = 1.8;
 
-function splitPhrases(text: string): Phrase[] {
+function splitPhrases(text: string, groupWords: number): Phrase[] {
   const words = text.replace(/\s+/gu, " ").trim().split(" ").filter(Boolean);
   const phrases: Phrase[] = [];
   let current: string[] = [];
@@ -29,8 +37,8 @@ function splitPhrases(text: string): Phrase[] {
   words.forEach((word, index) => {
     current.push(word);
     const sentence = SENTENCE_END.test(word), clause = CLAUSE_END.test(word);
-    if (sentence || clause || current.length >= PHRASE_WORDS || index === words.length - 1) {
-      phrases.push({ text: current.join(" "), words: current.length, weight: sentence ? 3 : clause ? 2 : 1, start });
+    if (sentence || clause || current.length >= groupWords || index === words.length - 1) {
+      phrases.push({ text: current.join(" "), words: current.length, weight: sentence ? 2.5 : clause ? 1.6 : 1, start });
       start += current.length;
       current = [];
     }
@@ -51,7 +59,10 @@ export function DictationAudioMaker() {
   const [timing, setTiming] = useState<"minutes" | "wpm">("minutes");
   const [minutes, setMinutes] = useState("8");
   const [wpm, setWpm] = useState("80");
+  // Fine-tune on top of the automatic speed: above 1 = words a little quicker with longer gaps, below 1 = slower words.
   const [rate, setRate] = useState(1);
+  // 2 words per group comes closest to the recorded human dictation (speech in 1-2 word bursts, ~0.3-0.5 s gaps).
+  const [groupWords, setGroupWords] = useState(2);
   const [pitch, setPitch] = useState(1);
   const [volume, setVolume] = useState(1);
   const [state, setState] = useState<"idle" | "playing" | "recording">("idle");
@@ -82,7 +93,7 @@ export function DictationAudioMaker() {
   useEffect(() => { if (!languageVoices.some((voice) => voice.name === voiceName)) setVoiceName(languageVoices[0]?.name ?? ""); }, [languageVoices, voiceName]);
 
   const spokenText = language === "Hindi" && encoding === "krutidev" ? krutiDevToUnicode(text) : text;
-  const phrases = useMemo(() => splitPhrases(spokenText), [spokenText]);
+  const phrases = useMemo(() => splitPhrases(spokenText, groupWords), [spokenText, groupWords]);
   const words = phrases.reduce((sum, phrase) => sum + phrase.words, 0);
   const targetSeconds = timing === "minutes" ? (Number(minutes) || 0) * 60 : words && Number(wpm) ? (words / Number(wpm)) * 60 : 0;
   const effectiveWpm = targetSeconds > 0 ? Math.round((words / targetSeconds) * 60) : 0;
@@ -107,31 +118,44 @@ export function DictationAudioMaker() {
     window.speechSynthesis.cancel();
     stopRef.current = false;
     const begin = performance.now();
-    let speechSeconds = 0, spokenWords = 0, speed = rate;
+    // How long this voice takes per word at speed 1.0 (seconds). Starts from a typical value and is then measured.
+    let perWordAtOne = language === "Hindi" ? 0.42 : 0.36;
+    let measured = false, spokenWords = 0;
+    const clampRate = (value: number) => Math.min(MAX_RATE, Math.max(MIN_RATE, value));
     for (let index = 0; index < phrases.length; index++) {
       if (stopRef.current) break;
       const phrase = phrases[index];
-      setProgress({ elapsed: (performance.now() - begin) / 1000, word: phrase.start });
+      const elapsedBefore = (performance.now() - begin) / 1000;
+      setProgress({ elapsed: elapsedBefore, word: phrase.start });
+      // Each word gets an equal share of the time left; ~62% of that share is speech. Slow or speed the voice to fit.
+      const wordsLeft = words - spokenWords;
+      const speechPerWord = (Math.max(1, targetSeconds - elapsedBefore) / wordsLeft) * SPEECH_SHARE;
+      const speed = clampRate((perWordAtOne / speechPerWord) * rate);
       const t0 = performance.now();
       await speakPhrase(phrase.text, voice, speed);
-      speechSeconds += (performance.now() - t0) / 1000;
+      const took = (performance.now() - t0) / 1000;
       spokenWords += phrase.words;
+      // Learn the voice's real pace (what 1 word takes at speed 1.0), smoothed so one odd group doesn't swing it.
+      const sample = (took / phrase.words) * speed;
+      perWordAtOne = measured ? perWordAtOne * 0.75 + sample * 0.25 : sample;
+      measured = true;
       if (index === phrases.length - 1 || stopRef.current) break;
-      // Re-plan: time left, minus the speech still to come (at the pace measured so far), goes into the pauses.
+      // The gap: time left minus the speech still to come, shared out over the remaining gaps (longer at commas and
+      // full stops). Kept short like a real dictator's, unless the voice is already at its slowest and still early.
       const elapsed = (performance.now() - begin) / 1000;
-      const secondsPerWord = speechSeconds / spokenWords;
       const remainingWords = words - spokenWords;
-      const remainingSpeech = secondsPerWord * remainingWords;
+      const nextSpeed = clampRate((perWordAtOne / ((Math.max(1, targetSeconds - elapsed) / remainingWords) * SPEECH_SHARE)) * rate);
+      const remainingSpeech = (perWordAtOne / nextSpeed) * remainingWords;
       const remainingWeight = phrases.slice(index, phrases.length - 1).reduce((sum, item) => sum + item.weight, 0) || 1;
       const freeTime = targetSeconds - elapsed - remainingSpeech;
-      if (freeTime < 0 && speed < 1.6) speed = Math.min(1.6, speed * 1.05); // running late even without pauses: speak a little faster
-      const pause = Math.max(0.08, (freeTime * phrase.weight) / remainingWeight);
-      await wait(Math.min(pause, 8) * 1000);
+      const voiceAtSlowest = nextSpeed <= MIN_RATE + 0.001;
+      const gap = Math.max(MIN_GAP, Math.min((freeTime * phrase.weight) / remainingWeight, voiceAtSlowest ? 6 : MAX_GAP * (phrase.weight / 2.5 + 0.4)));
+      await wait(gap * 1000);
     }
     const total = (performance.now() - begin) / 1000;
     setProgress({ elapsed: total, word: words });
     return total;
-  }, [languageVoices, voiceName, phrases, words, rate, targetSeconds, pitch, volume]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [languageVoices, voiceName, phrases, words, rate, targetSeconds, pitch, volume, language]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = supported && words >= 5 && targetSeconds >= 30;
   const play = async () => {
@@ -226,7 +250,9 @@ export function DictationAudioMaker() {
             </select>
           </label>
           {languageVoices.length === 0 && <p className="text-xs font-bold text-amber-800">Open this page in Microsoft Edge for natural Hindi and English (India) voices.</p>}
-          <Slider label="Voice speed" value={rate} min={0.6} max={1.4} step={0.05} onChange={setRate} display={`${rate.toFixed(2)}×`} disabled={busy} />
+          <p className="rounded-lg bg-violet-50 p-2 text-xs leading-5 text-violet-900">The voice speed is set automatically from the dictation time, so it speaks in an even flow with short gaps, like a real dictator.</p>
+          <Slider label="Words per group" value={groupWords} min={1} max={6} step={1} onChange={setGroupWords} display={`${groupWords} word${groupWords === 1 ? "" : "s"}`} disabled={busy} />
+          <Slider label="Voice speed adjust" value={rate} min={0.8} max={1.2} step={0.05} onChange={setRate} display={rate === 1 ? "auto" : `${rate > 1 ? "+" : ""}${Math.round((rate - 1) * 100)}%`} disabled={busy} />
           <Slider label="Pitch" value={pitch} min={0.6} max={1.4} step={0.05} onChange={setPitch} display={pitch.toFixed(2)} disabled={busy} />
           <Slider label="Volume" value={volume} min={0.2} max={1} step={0.05} onChange={setVolume} display={`${Math.round(volume * 100)}%`} disabled={busy} />
         </section>
