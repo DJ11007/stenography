@@ -320,7 +320,8 @@ test("RRB NTPC is researched with its real 5%-relaxation, flat-10-per-mistake fo
 // skill test runs backspace ENABLED (paper-to-screen), unlike CRPF's
 // confirmed backspace-disabled (screen-to-screen) -- previously all three
 // were set to the same conservative "disabled" baseline.
-test("the CAPF Head Constable (Ministerial) family (CRPF/SSB) get the 5%-relaxation formula; BSF has its own 10% (see its test) and a Backspace-on default unlike CRPF's disabled one", () => {
+// 18 Nov 2026: BSF HCM's exam software has Backspace strictly disabled (owner's instruction), like CRPF/SSB.
+test("the CAPF Head Constable (Ministerial) family (CRPF/SSB) get the 5%-relaxation formula; BSF, CRPF and SSB all run with Backspace disabled", () => {
   for (const slug of ["crpf-hcm", "ssb-hcm"]) {
     const category = getExamCategory(slug);
     assert.ok(category, `expected ${slug} to exist`);
@@ -331,7 +332,7 @@ test("the CAPF Head Constable (Ministerial) family (CRPF/SSB) get the 5%-relaxat
     assert.equal(english.scoringProfile.errorRelaxationPercent, 5, `${slug} preset relaxation`);
   }
   assert.equal(getExamCategory("crpf-hcm").backspaceMode, "disabled");
-  assert.equal(getExamCategory("bsf-hcm").backspaceMode, "full");
+  assert.equal(getExamCategory("bsf-hcm").backspaceMode, "disabled");
   assert.equal(getExamCategory("ssb-hcm").backspaceMode, "disabled");
 });
 
