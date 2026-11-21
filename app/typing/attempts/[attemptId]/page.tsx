@@ -61,7 +61,7 @@ export default async function StudentAttemptReviewPage({ params }: { params: Pro
     if (result.score && typeof result.score === "object" && typeof result.resolvedPassage === "string" && typeof result.comparisonText === "string") {
       reviewData = { passage: result.resolvedPassage, typedText: result.comparisonText, score: result.score as ReturnType<typeof calculateTypingScore>, backspaces: typeof result.backspaces === "number" ? result.backspaces : 0 };
     } else {
-      const wordCountCustomizable = version.mode === "practice" && !attempt.is_live_attempt && preset.category !== "stenography";
+      const wordCountCustomizable = (version.mode === "practice" || version.mode === "exam") && !attempt.is_live_attempt && preset.category !== "stenography";
       const resolvedPassage = getInputSystemPassage(inputSystem, version.passage);
       const requestedWordCount = typeof result.passageWordCount === "number" ? result.passageWordCount : null;
       const effectivePassage = wordCountCustomizable && requestedWordCount && requestedWordCount >= 150 && requestedWordCount <= 700 ? repeatPassageToExactWordCount(resolvedPassage, requestedWordCount) : resolvedPassage;

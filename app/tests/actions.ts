@@ -3,12 +3,12 @@ import { trustedStartedAt } from "@/lib/exam-clock";
 
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
-import { repeatPassageToExactWordCount } from "@/lib/typing-curriculum";
+import { repeatPassageRounds, repeatPassageToExactWordCount } from "@/lib/typing-curriculum";
 import { getInputSystemPassage, getScoringText, normalizeTypingInput } from "@/lib/typing-language";
 import { calculateTypingScore, sanitizeSelectedCategories, scoringProfileWithSelectedCategories, type HalfErrorCategory } from "@/lib/typing-test";
 import { calculateConfiguredRssbMarks, calculateSpeedBandMarks } from "@/lib/typing-results";
 
-type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[]; passageWordCount?: number | null; examCategorySlug?: string | null; liveExamSectionId?: string | null };
+type AttemptPayload = { testId: string; versionId: string; startedAt: string; typedText: string; elapsedSeconds: number; backspaces: number; selectedCategories?: HalfErrorCategory[]; passageWordCount?: number | null; passageRounds?: number | null; examCategorySlug?: string | null; liveExamSectionId?: string | null };
 
 export async function recordManagedAttempt(payload: AttemptPayload) {
   const supabase = await createClient();
@@ -100,12 +100,18 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // unlocked case. This is what stops a tampered payload.passageWordCount
   // from silently shrinking/repeating an Exam/Learn/live/Stenography
   // test's real passage before scoring it.
-  const wordCountCustomizable = version.mode === "practice" && !test.is_live && preset.category !== "stenography";
+  // 21 Nov 2026: Exam tests too (e.g. RRB NTPC's 300-word passage) -- the student sets the passage's word count;
+  // live tests and Learn / Stenography stay fixed.
+  const wordCountCustomizable = (version.mode === "practice" || version.mode === "exam") && !test.is_live && preset.category !== "stenography";
   const resolvedPassage = getInputSystemPassage(inputSystem, version.passage);
   const requestedWordCount = payload.passageWordCount;
-  const effectivePassage = wordCountCustomizable && typeof requestedWordCount === "number" && Number.isInteger(requestedWordCount) && requestedWordCount >= 150 && requestedWordCount <= 700
+  const limitedPassage = wordCountCustomizable && typeof requestedWordCount === "number" && Number.isInteger(requestedWordCount) && requestedWordCount >= 150 && requestedWordCount <= 700
     ? repeatPassageToExactWordCount(resolvedPassage, requestedWordCount)
     : resolvedPassage;
+  // Finished the passage before time: it starts again from the beginning (RRB NTPC's real rule), so the typed text
+  // is checked against the passage repeated that many times. Not for live tests or Stenography.
+  const passageRounds = !test.is_live && preset.category !== "stenography" && typeof payload.passageRounds === "number" && Number.isInteger(payload.passageRounds) ? Math.min(Math.max(payload.passageRounds, 1), 20) : 1;
+  const effectivePassage = repeatPassageRounds(limitedPassage, passageRounds);
   // preset.durationSeconds/preset.wordMethod (not raw version.*) so a
   // shared Rajasthan LDC exercise is capped/word-counted per the viewing
   // category's own rules -- preset already reflects that override (or
@@ -155,7 +161,7 @@ export async function recordManagedAttempt(payload: AttemptPayload) {
   // lets both review pages use this frozen object directly instead of ever
   // recomputing it -- the list tiles and the detailed breakdown can no
   // longer drift apart, for English or Hindi, typing or stenography.
-  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : speedMarksResult ? speedMarksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : speedMarksResult ? speedMarksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
+  const result = { grossWpm: score.grossWpm, netWpm: score.netWpm, accuracy: score.accuracy, elapsedSeconds: score.elapsedSeconds, fullErrors: score.analysis.fullErrors, halfErrors: score.analysis.halfErrors, combinedPenalty: score.analysis.totalPenalty, typedCharacters: score.totalCharacters, backspaces: Math.max(0, Math.floor(payload.backspaces)), typedText: payload.typedText, examCategorySlug: payload.examCategorySlug ?? null, passageWordCount: wordCountCustomizable ? (payload.passageWordCount ?? null) : null, passageRounds, selectedCategories: version.audioPath ? sanitizeSelectedCategories(payload.selectedCategories) : null, marksNetWpm, marksQualified: marksResult ? marksResult.qualified : speedMarksResult ? speedMarksResult.qualified : null, marksObtained: marksResult ? marksResult.marksObtained : speedMarksResult ? speedMarksResult.marksObtained : null, score, resolvedPassage: effectivePassage, comparisonText: normalized.comparisonText };
   // A live exam part keeps the student's own start time when it falls inside the part (a Final Submit resend comes
   // after the part, where "now minus the time taken" would no longer be inside it).
   const startedAtIso = liveSection?.startedInPart ? new Date(payload.startedAt).toISOString() : trustedStartedAt(payload.startedAt, payload.elapsedSeconds);

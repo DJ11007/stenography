@@ -137,6 +137,12 @@ export function repeatPassageToExactWordCount(passage: string, wordCount: number
   return Array.from({ length: wordCount }, (_, index) => sourceWords[index % sourceWords.length]).join(" ");
 }
 
+// The passage written out `rounds` times, one after another (a student who finishes before time starts it again).
+export function repeatPassageRounds(passage: string, rounds: number) {
+  const text = passage.trim();
+  return rounds > 1 ? Array.from({ length: rounds }, () => text).join(" ") : passage;
+}
+
 export const ENGLISH_QWERTY: InputSystem = { id: "english-qwerty", label: "English — QWERTY", language: "English", script: "Latin", inputEncoding: "unicode", fontLabel: "System English", fontStack: "Arial, Helvetica, sans-serif", keyboardLayout: "QWERTY keyboard" };
 export const HINDI_UNICODE_MANGAL: InputSystem = { id: "hindi-unicode-mangal", label: "Mangal Unicode", language: "Hindi", script: "Devanagari", inputEncoding: "unicode", fontLabel: "Mangal / Nirmala UI", fontStack: '"Nirmala UI", Mangal, "Noto Sans Devanagari", sans-serif', keyboardLayout: "Unicode Hindi phonetic/default layout" };
 export const HINDI_UNICODE_REMINGTON: InputSystem = { ...HINDI_UNICODE_MANGAL, id: "hindi-unicode-remington", label: "Hindi Unicode — Remington layout", keyboardLayout: "Remington Unicode layout" };

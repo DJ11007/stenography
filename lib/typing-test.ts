@@ -476,7 +476,7 @@ function punctuationDiffers(original: WordToken, typed: WordToken, profile: Scor
 // error instead of forgiving it.
 function isWithinHalfErrorFamily(original: WordToken, typed: WordToken, maxDistance: number, ssc = false) {
   return original.normalizedCore === typed.normalizedCore
-    || (ssc ? isSscSpellingSlip(original, typed) : editDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance)
+    || (ssc ? isSscSpellingSlip(original, typed) : swapAwareDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance)
     || classifyDevanagariDifference(original, typed) !== null;
 }
 
@@ -587,7 +587,8 @@ function halfErrorCategories(
   if (
     profile.stenoEvaluation === "ssc"
       ? isSscSpellingSlip(original, typed)
-      : editDistance(original.normalizedCore, typed.normalizedCore) <= profile.minorSpellingMaxDistance
+      // Two neighbouring letters swapped ("lsited") is one spelling slip (a half mistake), like one wrong letter.
+      : swapAwareDistance(original.normalizedCore, typed.normalizedCore) <= profile.minorSpellingMaxDistance
   ) {
     if (profile.minorSpellingErrors !== false) categories.push("minorSpelling");
     if (original.core !== typed.core && original.core.toLocaleLowerCase("en") === typed.core.toLocaleLowerCase("en")) {
@@ -675,7 +676,7 @@ export function alignWords(
   const columns = originalWords.length + 1;
   const costs = Array.from({ length: rows }, () => new Array<number>(columns));
   const exactMatches = Array.from({ length: rows }, () => new Array<number>(columns).fill(0));
-  const moves = Array.from({ length: rows }, () => new Array<"pair" | "missing" | "extra" | "start">(columns));
+  const moves = Array.from({ length: rows }, () => new Array<"pair" | "missing" | "extra" | "start" | "join" | "split">(columns));
 
   // canAlignEarlier below used to re-scan originalWords[0..originalIndex-2]
   // with .slice().some() on every DP cell, making this O(rows x columns x
@@ -687,6 +688,17 @@ export function alignWords(
     const raw = originalWords[index].raw;
     if (!firstOccurrenceIndex.has(raw)) firstOccurrenceIndex.set(raw, index);
   }
+
+  // Spacing mistakes INSIDE the text (21 Nov 2026): two passage words typed run together ("theorder" for "the
+  // order") or one word broken by a space ("or der" for "order") are ONE spacing half mistake under every typing-
+  // exam rule (SSC, CPCT, RSMSSB: "no space or extra space"), not a wrong word plus a missing / extra word (2 full
+  // mistakes, as they used to be counted). The alignment gets two extra moves for them: "join" (2 passage words ->
+  // 1 typed word) and "split" (1 passage word -> 2 typed words).
+  const spacingForgiven = profile.spacingErrors === false || profile.stenoEvaluation === "ssc";
+  const joinCost = spacingForgiven ? 0 : 0.45;
+  const lower = (text: string) => text.toLocaleLowerCase("en");
+  const originalPairs = originalWords.map((word, index) => index ? lower(originalWords[index - 1].raw + word.raw) : "");
+  const typedPairs = typedWords.map((word, index) => index ? lower(typedWords[index - 1].raw + word.raw) : "");
 
   costs[0][0] = 0;
   moves[0][0] = "start";
@@ -724,6 +736,22 @@ export function alignWords(
         canAlignEarlier && missingEligible ? "missing" :
         pairEligible ? "pair" : missingEligible ? "missing" : "extra";
       exactMatches[typedIndex][originalIndex] = moves[typedIndex][originalIndex] === "pair" ? pairMatches : moves[typedIndex][originalIndex] === "missing" ? missingMatches : extraMatches;
+      if (originalIndex >= 2 && originalPairs[originalIndex - 1] === lower(typedWords[typedIndex - 1].raw)) {
+        const cost = costs[typedIndex - 1][originalIndex - 2] + joinCost;
+        if (cost < costs[typedIndex][originalIndex]) {
+          costs[typedIndex][originalIndex] = cost;
+          moves[typedIndex][originalIndex] = "join";
+          exactMatches[typedIndex][originalIndex] = exactMatches[typedIndex - 1][originalIndex - 2];
+        }
+      }
+      if (typedIndex >= 2 && typedPairs[typedIndex - 1] === lower(originalWords[originalIndex - 1].raw)) {
+        const cost = costs[typedIndex - 2][originalIndex - 1] + joinCost;
+        if (cost < costs[typedIndex][originalIndex]) {
+          costs[typedIndex][originalIndex] = cost;
+          moves[typedIndex][originalIndex] = "split";
+          exactMatches[typedIndex][originalIndex] = exactMatches[typedIndex - 2][originalIndex - 1];
+        }
+      }
     }
   }
 
@@ -766,6 +794,27 @@ export function alignWords(
       });
       typedIndex -= 1;
       originalIndex -= 1;
+    } else if (move === "join" || move === "split") {
+      // One spacing half mistake for the whole group (indices are the group's LAST passage / typed word, so the
+      // separator check after it and the repeated-word check see the right neighbours).
+      const originals = move === "join" ? originalWords.slice(originalIndex - 2, originalIndex) : [originalWords[originalIndex - 1]];
+      const typeds = move === "split" ? typedWords.slice(typedIndex - 2, typedIndex) : [typedWords[typedIndex - 1]];
+      const last = originals[originals.length - 1], lastTyped = typeds[typeds.length - 1];
+      const originalText = originals.map((word) => word.raw).join(" "), typedText = typeds.map((word) => word.raw).join(" ");
+      const categories: HalfErrorCategory[] = spacingForgiven ? [] : ["spacing"];
+      if (profile.capitalizationErrors !== false && originals.map((word) => word.raw).join("") !== typeds.map((word) => word.raw).join("")) categories.push("capitalization");
+      entries.push({
+        id: `o${last.index}-t${lastTyped.index}-${move}`,
+        status: categories.length ? "half-error" : "correct",
+        original: originalText,
+        typed: typedText,
+        originalIndex: last.index,
+        typedIndex: lastTyped.index,
+        halfErrorCategories: categories,
+        separatorAfter: last.separatorAfter,
+      });
+      typedIndex -= move === "split" ? 2 : 1;
+      originalIndex -= move === "join" ? 2 : 1;
     } else if (move === "missing") {
       const original = originalWords[originalIndex - 1];
       entries.push({ id: `o${original.index}-missing`, status: "missing", original: original.raw, originalIndex: original.index, halfErrorCategories: [], separatorAfter: original.separatorAfter });
@@ -789,7 +838,7 @@ export function alignWords(
       !separatorsEquivalent(originalWords[entry.originalIndex].separatorAfter, typedWords[entry.typedIndex].separatorAfter) &&
       profile.spacingErrors !== false && profile.stenoEvaluation !== "ssc"
     ) {
-      entry.halfErrorCategories = [...entry.halfErrorCategories, "spacing"];
+      if (!entry.halfErrorCategories.includes("spacing")) entry.halfErrorCategories = [...entry.halfErrorCategories, "spacing"];
       entry.typedSeparatorAfter = typedWords[entry.typedIndex].separatorAfter;
       if (entry.status === "correct") entry.status = "half-error";
     }

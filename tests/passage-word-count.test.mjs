@@ -21,9 +21,14 @@ test("repeatPassageToExactWordCount is exported and correctly truncates/cycles a
 test("ConfigurableTypingExam computes an effective, resampled passage that stays stable once typing starts", async () => {
   const workspace = await read("app/typing/_components/configurable-typing-exam.tsx");
   assert.match(workspace, /const showPassageWordCount = preset\.category !== "stenography";/);
-  assert.match(workspace, /const wordCountEditable = showPassageWordCount && !rulesLocked;/);
+  // 21 Nov 2026: Exam tests too (RRB NTPC's 300 words); never live tests or Learn tests.
+  assert.match(workspace, /const wordCountEditable = showPassageWordCount && !isLiveTest && managedTest\?\.mode !== "learn" && \(!rulesLocked \|\| mode === "exam"/);
   assert.match(workspace, /const passageWordCountLocked = !wordCountEditable \|\| timerStarted;/);
-  assert.match(workspace, /const effectivePassage = useMemo\(\(\) => wordCountEditable && preferences\.passageWordCount \? repeatPassageToExactWordCount\(passage, preferences\.passageWordCount\) : passage, \[wordCountEditable, preferences\.passageWordCount, passage\]\);/);
+  assert.match(workspace, /const limitedPassage = useMemo\(\(\) => wordCountEditable && preferences\.passageWordCount \? repeatPassageToExactWordCount\(passage, preferences\.passageWordCount\) : passage, \[wordCountEditable, preferences\.passageWordCount, passage\]\);/);
+  // A finished passage starts again (rounds), sent to the server for the same check.
+  assert.match(workspace, /const effectivePassage = useMemo\(\(\) => repeatPassageRounds\(limitedPassage, passageRounds\)/);
+  assert.match(workspace, /setTypedText=\{setTypedAndRepeat\}/);
+  assert.match(workspace, /passageRounds,examCategorySlug/);
   // effectivePassage must NOT be re-gated on passageWordCountLocked/timerStarted --
   // otherwise the passage a student is mid-way through typing would silently
   // revert to its natural length the instant they type their first keystroke.
@@ -48,7 +53,8 @@ test("resetSettings also resets passage word count back to the test's natural le
 
 test("recordManagedAttempt only honors a student-chosen word count for a genuinely unlocked (non-live Practice, non-Stenography) managed test, re-deriving that server-side rather than trusting the client", async () => {
   const actions = await read("app/tests/actions.ts");
-  assert.match(actions, /const wordCountCustomizable = version\.mode === "practice" && !test\.is_live && preset\.category !== "stenography";/);
+  assert.match(actions, /const wordCountCustomizable = \(version\.mode === "practice" \|\| version\.mode === "exam"\) && !test\.is_live && preset\.category !== "stenography";/);
   assert.match(actions, /repeatPassageToExactWordCount\(resolvedPassage, requestedWordCount\)/);
+  assert.match(actions, /const effectivePassage = repeatPassageRounds\(limitedPassage, passageRounds\);/);
   assert.match(actions, /passage: getScoringText\(effectivePassage, inputSystem\)/);
 });

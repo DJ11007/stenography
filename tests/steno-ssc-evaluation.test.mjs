@@ -11,7 +11,8 @@ const mistakes = (passage, typed, profile = SSC) => { const a = analyzeTyping(pa
 
 test("SSC: swapped letters are ONE half mistake (were a full mistake)", () => {
   assert.deepEqual(mistakes("We receive the letter.", "We recieve the letter."), { full: 0, half: 1 });
-  assert.deepEqual(mistakes("We receive the letter.", "We recieve the letter.", DEFAULT_SCORING_PROFILE).full, 1, "generic rules counted it full");
+  // Since 21 Nov 2026 the general typing rules count it as a half mistake too.
+  assert.deepEqual(mistakes("We receive the letter.", "We recieve the letter.", DEFAULT_SCORING_PROFILE), { full: 0, half: 1 });
 });
 
 test("SSC: one dropped / extra / wrong letter is a half mistake", () => {
