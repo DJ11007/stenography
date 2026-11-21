@@ -1240,6 +1240,50 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   // Freeze Panes: rows above and columns left of sheet.freeze stay put while the rest scrolls.
   const frozenTop = (row: number) => { let top = headerRowPx; for (let r = 1; r < row; r++) top += rowHeight(r); return top; };
   const frozenLeft = (col: number) => { let left = headerColPx; for (let c = 0; c < col; c++) left += colPx(c); return left; };
+
+  // ---------- drawing only the rows on screen (large sheets) ----------
+  // Every cell of the sheet used to be drawn -- and redrawn on every click or arrow key -- which made the bigger
+  // tests (201 rows x 26 columns ~ 5,900 cells, Test 7's 500 rows ~ 13,000) slow to open and to use on school PCs
+  // (21 Nov 2026). Now, as in real Excel, only the rows in view (plus a buffer) are drawn; empty spacer rows keep the
+  // scroll height exact. Frozen rows are always drawn, and a merged range is never cut in half. The data, formulas,
+  // grading and AutoFit (which measures the text itself) are untouched. Small sheets keep drawing every row.
+  const [viewArea, setViewArea] = useState({ top: 0, height: 900 });
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    let frame = 0;
+    const read = () => { frame = 0; setViewArea((current) => (current.top === grid.scrollTop && current.height === grid.clientHeight ? current : { top: grid.scrollTop, height: grid.clientHeight })); };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(read); };
+    read();
+    grid.addEventListener("scroll", schedule, { passive: true });
+    const observer = new ResizeObserver(schedule); observer.observe(grid);
+    return () => { grid.removeEventListener("scroll", schedule); observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
+  }, []);
+  const VIRTUAL_MIN_ROWS = 80, VIRTUAL_BUFFER_ROWS = 20;
+  const rowItems: Array<number | { spacer: string; height: number }> = (() => {
+    const all = () => Array.from({ length: displayRows }, (_, index) => index + 1);
+    if (displayRows <= VIRTUAL_MIN_ROWS) return all();
+    const scale = zoom / 100;
+    const viewTop = viewArea.top / scale - headerRowPx, viewBottom = (viewArea.top + viewArea.height) / scale - headerRowPx;
+    let y = 0, first = 0, last = 1;
+    for (let row = 1; row <= displayRows; row++) { const height = rowHeight(row); if (!first && y + height >= viewTop) first = row; if (y <= viewBottom) last = row; y += height; }
+    first = Math.max(1, (first || 1) - VIRTUAL_BUFFER_ROWS);
+    last = Math.min(displayRows, last + VIRTUAL_BUFFER_ROWS);
+    // A merged range crossing either edge is drawn whole (its top-left cell carries the rowSpan).
+    for (let pass = 0; pass < 3; pass++) for (const range of merges) { const rect = parseRange(range); if (!rect) continue; if (rect.r1 < first && rect.r2 >= first) first = rect.r1; if (rect.r1 <= last && rect.r2 > last) last = Math.min(displayRows, rect.r2); }
+    const frozenEnd = freeze ? Math.min(displayRows, freeze.row - 1) : 0;
+    const items: Array<number | { spacer: string; height: number }> = [];
+    const heightOf = (from: number, to: number) => { let total = 0; for (let row = from; row <= to; row++) total += rowHeight(row); return total; };
+    if (first > frozenEnd + 1) {
+      for (let row = 1; row <= frozenEnd; row++) items.push(row);
+      const above = heightOf(frozenEnd + 1, first - 1);
+      if (above > 0) items.push({ spacer: "above", height: above });
+    } else first = 1;
+    for (let row = first; row <= last; row++) items.push(row);
+    const below = heightOf(last + 1, displayRows);
+    if (below > 0) items.push({ spacer: "below", height: below });
+    return items;
+  })();
   // Keep the active cell in view, as Excel does: after the Name Box (A27:L27 shows A27), Go To, or arrow keys.
   // A new anchor scrolls to the anchor; extending with Shift scrolls to the moving end. Frozen and header areas
   // stay on screen, so they are not counted as visible room.
@@ -1251,7 +1295,12 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     lastScrolled.current = { anchor: anchorKey, focus: focusKey };
     if (!grid || !target) return;
     const cell = grid.querySelector<HTMLElement>(`[data-ref="${columnLetters(target.col)}${target.row}"]`);
-    if (!cell) return;
+    if (!cell) {
+      // The row is not drawn yet (only rows in view are): jump there first; once drawn, this runs again and fine-tunes.
+      const isFrozen = freeze && target.row < freeze.row;
+      if (!isFrozen) { grid.scrollTop = Math.max(0, (frozenTop(target.row) - (freeze && freeze.row > 1 ? frozenTop(freeze.row) - headerRowPx : 0) - 3 * DEFAULT_ROW_PX) * (zoom / 100)); }
+      return;
+    }
     const scale = zoom / 100, view = grid.getBoundingClientRect(), box = cell.getBoundingClientRect();
     const frozenRows = freeze && target.row >= freeze.row, frozenCols = freeze && target.col >= freeze.col;
     const top = view.top + (freeze && freeze.row > 1 && frozenRows ? frozenTop(freeze.row) : headerRowPx) * scale;
@@ -1763,8 +1812,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
               </tr>
             </thead>}
             <tbody>
-              {Array.from({ length: displayRows }, (_, index) => {
-                const row = index + 1;
+              {rowItems.map((item) => {
+                if (typeof item !== "number") return <tr key={`spacer-${item.spacer}`} aria-hidden="true" style={{ height: item.height }}><td colSpan={displayCols + (sheet.headings ? 1 : 0)} style={{ padding: 0, border: 0, height: item.height }} /></tr>;
+                const row = item;
                 const hidden = rowHidden(row);
                 const frozenRow = Boolean(freeze && row < freeze.row);
                 return (
