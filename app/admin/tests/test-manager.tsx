@@ -53,7 +53,7 @@ function defaultInputSystemFor(language:"English"|"Hindi", mode:ManagedTestMode)
   return candidate?.id ?? "english-qwerty";
 }
 
-export default function TestManager({ tests, lockedMode, lockedLive=false, lockedLanguage, lockedInputSystemId, learningOnly:legacyLearningOnly=false, currentAdminId }: { tests:ManagedTestRow[]; lockedMode?:ManagedTestMode; lockedLive?:boolean; lockedLanguage?:"English"|"Hindi"; lockedInputSystemId?:string; learningOnly?:boolean; currentAdminId?:string }) {
+export default function TestManager({ tests, lockedMode, lockedLive=false, lockedLanguage, lockedInputSystemId, learningOnly:legacyLearningOnly=false, currentAdminId, lockedStenoExam }: { tests:ManagedTestRow[]; lockedMode?:ManagedTestMode; lockedLive?:boolean; lockedLanguage?:"English"|"Hindi"; lockedInputSystemId?:string; learningOnly?:boolean; currentAdminId?:string; lockedStenoExam?:string }) {
   const effectiveMode = lockedMode ?? (legacyLearningOnly ? "learn" : undefined);
   const learningOnly = effectiveMode === "learn";
   const saveAction = lockedLive && effectiveMode === "exam" ? saveLiveExamManagedTest : lockedLive && effectiveMode === "stenography" ? saveLiveStenographyManagedTest
@@ -107,7 +107,8 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
   // categories.ts) this stenography-mode test belongs to -- required for a
   // non-live stenography test, unused otherwise. Mirrors examCategorySlug
   // above, but the force is partial: see stenographyCategoryTypingRules.
-  const [stenoCategorySlug,setStenoCategorySlug] = useState("");
+  // Opened from an exam card (admin Stenography Tests by exam): a new test starts with that exam chosen.
+  const [stenoCategorySlug,setStenoCategorySlug] = useState(lockedStenoExam ?? "");
   // The same dictation can also be set for further stenography exams (each with its own speed, time and mistake
   // rules, applied when a student attempts it under that exam) -- 21 Nov 2026.
   const [otherStenoSlugs,setOtherStenoSlugs] = useState<string[]>([]);
@@ -287,7 +288,7 @@ export default function TestManager({ tests, lockedMode, lockedLive=false, locke
       });
     } else setPassageLoading(null); setLanguage(chosenLanguage); setInputSystem(test?.currentVersion?.input_system_id??lockedInputSystemId??defaultInputSystemFor(chosenLanguage,chosenMode)); setFormMode(chosenMode); setIsLive(lockedLive || Boolean(test?.is_live)); setPreview(false); setShowRawPassage(false);
     setExamCategorySlug((test?.currentVersion?.configuration?.exam_category as string|undefined) ?? "");
-    setStenoCategorySlug((test?.currentVersion?.configuration?.steno_category as string|undefined) ?? "");
+    setStenoCategorySlug((test?.currentVersion?.configuration?.steno_category as string|undefined) ?? (test ? "" : lockedStenoExam ?? ""));
     { const main = (test?.currentVersion?.configuration?.steno_category as string|undefined) ?? ""; const list = test?.currentVersion?.configuration?.steno_categories; setOtherStenoSlugs(Array.isArray(list) ? list.filter((slug):slug is string => typeof slug === "string" && slug !== main && STENOGRAPHY_CATEGORIES.some((category) => category.slug === slug)) : []); }
     const stored = test?.currentVersion?.configuration?.dictation_categories as {available?:unknown;defaults?:unknown}|undefined;
     const validated = (value:unknown) => Array.isArray(value) ? value.filter((item):item is HalfErrorCategory => (ALL_HALF_ERROR_CATEGORIES as string[]).includes(item as string)) : null;
@@ -500,6 +501,15 @@ function TestRow({test,onEdit,learningOnly}:{test:ManagedTestRow;onEdit:()=>void
       </div>
     </div>
     <WordLengthTag stats={wordLengthStatsFromCounts(version?.passage_characters, version?.passage_words)} />
+    {test.mode==="stenography" && (() => {
+      // Which exams this dictation is set for (main exam first) -- one test can serve several exams.
+      const configuration = test.currentVersion?.configuration as Record<string, unknown> | undefined;
+      const main = typeof configuration?.steno_category === "string" ? configuration.steno_category : null;
+      const list = Array.isArray(configuration?.steno_categories) ? (configuration.steno_categories as unknown[]).filter((slug): slug is string => typeof slug === "string") : [];
+      const slugs = [...new Set([...(main ? [main] : []), ...list])];
+      const names = slugs.map((slug) => STENOGRAPHY_CATEGORIES.find((category) => category.slug === slug)?.name ?? slug);
+      return names.length ? <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] font-bold text-slate-500">Exams:{names.map((name, index) => <span key={name} className={`rounded-full px-2 py-0.5 ${index === 0 ? "bg-violet-700 text-white" : "bg-violet-100 text-violet-800"}`}>{name}</span>)}</p> : null;
+    })()}
     {test.attempts>0 && <PermanentDeleteDangerZone testId={test.id} title={test.title} attemptCount={test.attempts}/>}
   </article>;
 }

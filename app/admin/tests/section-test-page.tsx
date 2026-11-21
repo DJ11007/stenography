@@ -4,15 +4,20 @@ import type { ManagedTestMode } from "@/lib/admin-tests";
 import { BackButton } from "@/app/_components/back-button";
 import TestManager, { type ManagedTestRow } from "./test-manager";
 import { loadManagedVersionSummaries } from "./managed-versions";
+import { getStenographyCategory } from "@/lib/stenography-categories";
 
 const TITLES: Record<ManagedTestMode, string> = { learn: "Learn Typing tests", practice: "Practice Tests", exam: "Exam Tests", stenography: "Stenography Tests" };
 
-export async function SectionTestPage({ mode, live=false, language, inputSystemId, backHref }: { mode: ManagedTestMode; live?: boolean; language?: "English" | "Hindi"; inputSystemId?: string; backHref?: string }) {
+export async function SectionTestPage({ mode, live=false, language, inputSystemId, backHref, stenoExam }: { mode: ManagedTestMode; live?: boolean; language?: "English" | "Hindi"; inputSystemId?: string; backHref?: string; stenoExam?: string }) {
   const { user } = await requireAdmin();
   const supabase = await createClient();
   let query = supabase.from("tests").select("id,title,slug,description,language,status,mode,input_system_id,visibility,duration_seconds,current_version_id,current_version_number,updated_at,is_live,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes,created_by,created_at").eq("mode", mode).eq("is_live", live).order("updated_at", { ascending: false });
   if (language) query = query.eq("language", language);
   if (inputSystemId) query = query.eq("input_system_id", inputSystemId);
+  // Stenography by exam: only the tests set for this exam (as its main exam, or ticked under "Also use this
+  // dictation for").
+  const exam = stenoExam ? getStenographyCategory(stenoExam) : undefined;
+  if (exam) query = query.or(`settings->>steno_category.eq.${exam.slug},settings->steno_categories.cs.${JSON.stringify(JSON.stringify([exam.slug]))}`);
   const { data: tests, error } = await query;
   const ids = (tests ?? []).map((test) => test.id);
   const versionIds = (tests ?? []).flatMap((test) => test.current_version_id ? [test.current_version_id] : []);
@@ -27,6 +32,6 @@ export async function SectionTestPage({ mode, live=false, language, inputSystemI
   const attemptCounts = new Map<string, number>();
   for (const attempt of attempts ?? []) attemptCounts.set(attempt.test_id, (attemptCounts.get(attempt.test_id) ?? 0) + 1);
   const rows = (tests ?? []).map((test) => ({ ...test, currentVersion: test.current_version_id ? versionMap.get(test.current_version_id) ?? null : null, attempts: attemptCounts.get(test.id) ?? 0, creatorName: test.created_by ? creatorNameMap.get(test.created_by) ?? null : null })) as ManagedTestRow[];
-  const scopeLabel = language ? `${live?"Live ":""}${TITLES[mode]} · ${language}${inputSystemId ? ` · ${inputSystemId}` : ""}` : `${live?"Live ":""}${TITLES[mode]}`;
-  return <main className="section-test-manager min-h-screen bg-slate-100 p-4 sm:p-6"><div className="mx-auto max-w-[1500px]"><header className="mb-6"><BackButton href={backHref ?? "/admin"} label={backHref ? "Choose language" : "Admin dashboard"} /><h1 className="mt-2 text-3xl font-black">{scopeLabel}</h1><p className="mt-1 text-slate-600">Tests created here are permanently assigned to this section{live?" and are always live tests":""}.</p><span className="mt-3 inline-flex rounded-full bg-blue-100 px-3 py-2 text-sm font-black text-blue-800">Locked section: {live?"Live ":""}{TITLES[mode].replace(/s$/, "")}</span></header>{error&&<p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 font-bold text-red-800">This test section could not be loaded ({error.code || "database error"}).</p>}<TestManager tests={rows} lockedMode={mode} lockedLive={live} lockedLanguage={language} lockedInputSystemId={inputSystemId} currentAdminId={user.id}/><style>{live?`.section-test-manager label:has([name="mode"]){display:none}`:`.section-test-manager label:has([name="mode"]),.section-test-manager fieldset:has([name="isLive"]){display:none}`}</style></div></main>;
+  const scopeLabel = exam ? `${exam.name} · ${language ?? ""} Stenography Tests` : language ? `${live?"Live ":""}${TITLES[mode]} · ${language}${inputSystemId ? ` · ${inputSystemId}` : ""}` : `${live?"Live ":""}${TITLES[mode]}`;
+  return <main className="section-test-manager min-h-screen bg-slate-100 p-4 sm:p-6"><div className="mx-auto max-w-[1500px]"><header className="mb-6"><BackButton href={backHref ?? "/admin"} label={exam ? "All exams" : backHref ? "Choose language" : "Admin dashboard"} /><h1 className="mt-2 text-3xl font-black">{scopeLabel}</h1><p className="mt-1 text-slate-600">{exam ? <>{exam.fullName}: {language === "Hindi" ? exam.dictationSpeedHindi : exam.dictationSpeedEnglish} WPM dictation{(language === "Hindi" ? exam.writingMinutesHindi : exam.writingMinutesEnglish) ? ` · ${language === "Hindi" ? exam.writingMinutesHindi : exam.writingMinutesEnglish} min transcription` : ""} · {exam.accuracy}% accuracy. A new test here starts with this exam chosen.</> : <>Tests created here are permanently assigned to this section{live?" and are always live tests":""}.</>}</p><span className="mt-3 inline-flex rounded-full bg-blue-100 px-3 py-2 text-sm font-black text-blue-800">Locked section: {live?"Live ":""}{TITLES[mode].replace(/s$/, "")}</span></header>{error&&<p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 font-bold text-red-800">This test section could not be loaded ({error.code || "database error"}).</p>}<TestManager tests={rows} lockedStenoExam={exam?.slug} lockedMode={mode} lockedLive={live} lockedLanguage={language} lockedInputSystemId={inputSystemId} currentAdminId={user.id}/><style>{live?`.section-test-manager label:has([name="mode"]){display:none}`:`.section-test-manager label:has([name="mode"]),.section-test-manager fieldset:has([name="isLive"]){display:none}`}</style></div></main>;
 }
