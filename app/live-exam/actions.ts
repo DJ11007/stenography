@@ -38,8 +38,8 @@ export async function loadLiveExamTypingSection(sectionId: string): Promise<{ ok
 
 type EfficiencyKind = "word" | "excel";
 export type LiveEfficiencySection =
-  | { kind: "word"; attemptId: string; snapshot: unknown; status: string; durationSeconds: number; remainingSeconds: number; initialDocument: unknown }
-  | { kind: "excel"; attemptId: string; snapshot: unknown; status: string; remainingSeconds: number; original: unknown; initialDocument: unknown };
+  | { kind: "word"; attemptId: string; snapshot: unknown; status: string; durationSeconds: number; remainingSeconds: number; deadlineAt: string; initialDocument: unknown }
+  | { kind: "excel"; attemptId: string; snapshot: unknown; status: string; remainingSeconds: number; deadlineAt: string; original: unknown; initialDocument: unknown };
 
 // When a part is open: the section's timeline slot, or a reason it cannot be used now.
 async function openSection(supabase: Awaited<ReturnType<typeof createClient>>, sectionId: string, kinds: string[]) {
@@ -50,7 +50,7 @@ async function openSection(supabase: Awaited<ReturnType<typeof createClient>>, s
   const now = Date.now();
   if (!slot || now < Date.parse(slot.starts_at)) return { error: "This part has not started yet." } as const;
   if (now >= Date.parse(slot.ends_at)) return { error: "This part is over." } as const;
-  return { section, startsAt: slot.starts_at, secondsLeft: Math.max(1, Math.floor((Date.parse(slot.ends_at) - now) / 1000)) } as const;
+  return { section, startsAt: slot.starts_at, endsAt: slot.ends_at, secondsLeft: Math.max(1, Math.floor((Date.parse(slot.ends_at) - now) / 1000)) } as const;
 }
 
 // The test's duration option to start with: the shortest that covers the time left in the part (the screen's own
@@ -104,8 +104,11 @@ export async function startLiveExamEfficiencySection(sectionId: string): Promise
   const durationSeconds = Number(attempt.selected_duration_seconds) || Number(snapshot?.duration_seconds) || open.secondsLeft;
   const ownLeft = attempt.started_at ? Math.max(0, durationSeconds - Math.floor((Date.now() - Date.parse(String(attempt.started_at))) / 1000)) : durationSeconds;
   const remainingSeconds = Math.min(ownLeft, open.secondsLeft);
-  if (kind === "word") return { ok: true, section: { kind, attemptId: String(attempt.id), snapshot, status: String(attempt.status), durationSeconds, remainingSeconds, initialDocument: attempt.document_autosave ?? null } };
-  return { ok: true, section: { kind, attemptId: String(attempt.id), snapshot, status: String(attempt.status), remainingSeconds, original: attempt.original_document_snapshot, initialDocument: attempt.document_autosave ?? null } };
+  // The fixed server end time (the attempt's own end, never past the part's): the screen counts down to it (see useExamCountdown).
+  const ownEnd = attempt.started_at ? Date.parse(String(attempt.started_at)) + durationSeconds * 1000 : Date.parse(open.endsAt);
+  const deadlineAt = new Date(Math.min(ownEnd, Date.parse(open.endsAt))).toISOString();
+  if (kind === "word") return { ok: true, section: { kind, attemptId: String(attempt.id), snapshot, status: String(attempt.status), durationSeconds, remainingSeconds, deadlineAt, initialDocument: attempt.document_autosave ?? null } };
+  return { ok: true, section: { kind, attemptId: String(attempt.id), snapshot, status: String(attempt.status), remainingSeconds, deadlineAt, original: attempt.original_document_snapshot, initialDocument: attempt.document_autosave ?? null } };
 }
 
 // After a Word / Excel part is submitted: link the attempt to the part (its marks are read from the attempt).

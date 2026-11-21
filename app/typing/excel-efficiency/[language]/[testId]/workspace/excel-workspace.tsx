@@ -10,7 +10,7 @@ type Question = { id: string; number: number; display_order: number; instruction
 type Snapshot = { title: string; language: string; instructions_markdown: string; duration_seconds: number; question_count: number; maximum_marks: number; questions: Question[]; show_questions?: boolean; delivery_onscreen?: boolean; question_toggle?: boolean };
 
 // liveExam: inside a Live Exam Center part — no Exit, and after submitting the exam page carries on (no result page).
-export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, original, initialDocument, liveExam }: { liveExam?: { onSubmitted: () => void }; attemptId: string; snapshot: Snapshot; status: string; remainingSeconds: number; original: ExcelDocument; initialDocument?: ExcelDocument | null }) {
+export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, original, initialDocument, liveExam }: { liveExam?: { onSubmitted: () => void; deadlineAt?: number; serverOffset?: number }; attemptId: string; snapshot: Snapshot; status: string; remainingSeconds: number; original: ExcelDocument; initialDocument?: ExcelDocument | null }) {
   // The admin decides (migration 202610252100): no on-screen questions (PDF only), or questions the student
   // may not hide. Attempts started before these settings keep the old behaviour (toggle allowed).
   const onscreen = snapshot.delivery_onscreen !== false;
@@ -27,6 +27,10 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
   // Stable props, so the sheet (a memo component) does not redraw when only this page does — e.g. on every tick of
   // the Live Exam page's clock around it.
   const onExpire = useCallback(() => setExpired(true), []);
+  // Live exam: the clock follows the part's fixed server end time, and at time-up the sheet locks (it is then handed
+  // in) -- students kept working 1-15 minutes past the end in Live Exam 9(1), and that work was never counted.
+  const deadlineAt = liveExam?.deadlineAt, serverOffset = liveExam?.serverOffset ?? 0;
+  const deadline = useMemo(() => (deadlineAt ? { at: deadlineAt, serverOffset } : undefined), [deadlineAt, serverOffset]);
   const submittedRef = useRef(liveExam?.onSubmitted);
   useEffect(() => { submittedRef.current = liveExam?.onSubmitted; });
   const afterSubmit = useCallback(() => submittedRef.current?.(), []);
@@ -44,7 +48,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
         <div className="flex items-center gap-3">
           <FullscreenButton />
           <span className="rounded-xl bg-white/10 px-3 py-2 text-sm font-black">{snapshot.maximum_marks} total marks</span>
-          <ExamClock remainingSeconds={remainingSeconds} onExpire={onExpire} className="rounded-xl bg-white/10 px-4 py-2 font-mono text-xl font-black" />
+          <ExamClock remainingSeconds={remainingSeconds} deadline={deadline} onExpire={onExpire} className="rounded-xl bg-white/10 px-4 py-2 font-mono text-xl font-black" />
           <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-black">{submitted ? "Submitted" : "Active"}</span>
         </div>
       </header>

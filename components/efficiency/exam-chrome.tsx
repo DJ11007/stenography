@@ -9,24 +9,33 @@ import { createPortal } from "react-dom";
 // from there with a monotonic timer, so a PC whose date/time is wrong (minutes or hours off,
 // which showed up as a stuck 10:00 or a wildly wrong time) cannot change the exam time.
 // `expired` flips `lead` seconds BEFORE zero so an automatic submit lands inside the deadline.
-export function useExamCountdown(remainingAtLoadSeconds: number, lead = 2) {
+// deadline (optional, 21 Nov 2026): the server's end time (epoch ms) and the server-minus-PC clock offset. With it,
+// the countdown is read from that fixed end time on every tick -- a slow page load, a re-render or a busy PC can no
+// longer leave the screen showing time the server no longer gives (Live Exam 9(1): Excel parts ran 1-15 minutes past
+// their end on screen, and the work done then was never counted).
+export function useExamCountdown(remainingAtLoadSeconds: number, lead = 2, deadline?: { at: number; serverOffset: number }) {
+  const deadlineAt = deadline?.at, offset = deadline?.serverOffset ?? 0;
   const [remaining, setRemaining] = useState(() => Math.max(0, Math.ceil(remainingAtLoadSeconds)));
   useEffect(() => {
     const started = performance.now();
-    const tick = () => setRemaining(Math.max(0, Math.ceil(remainingAtLoadSeconds - (performance.now() - started) / 1000)));
+    const left = () => {
+      const byLoad = remainingAtLoadSeconds - (performance.now() - started) / 1000;
+      return deadlineAt ? Math.min(byLoad, (deadlineAt - (Date.now() + offset)) / 1000) : byLoad;
+    };
+    const tick = () => setRemaining(Math.max(0, Math.ceil(left())));
     tick();
     const timer = setInterval(tick, 500);
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
-  }, [remainingAtLoadSeconds]);
+  }, [remainingAtLoadSeconds, deadlineAt, offset]);
   return { remaining, expired: remaining <= lead };
 }
 
 // The countdown as its own small component: its ticks (twice a second) redraw only the clock, not the whole
 // workspace around it. A spreadsheet or document redrawn on every tick made typing and clicking lag on slower PCs.
 // onExpire runs once, when `expired` (above) turns true.
-export function ExamClock({ remainingSeconds, lead = 2, onExpire, className }: { remainingSeconds: number; lead?: number; onExpire?: () => void; className?: string }) {
-  const { remaining, expired } = useExamCountdown(remainingSeconds, lead);
+export function ExamClock({ remainingSeconds, lead = 2, onExpire, className, deadline }: { remainingSeconds: number; lead?: number; onExpire?: () => void; className?: string; deadline?: { at: number; serverOffset: number } }) {
+  const { remaining, expired } = useExamCountdown(remainingSeconds, lead, deadline);
   const expireRef = useRef(onExpire);
   useEffect(() => { expireRef.current = onExpire; });
   useEffect(() => { if (expired) expireRef.current?.(); }, [expired]);

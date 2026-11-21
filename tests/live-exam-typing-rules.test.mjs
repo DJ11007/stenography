@@ -47,7 +47,7 @@ test("a part's screen stays open past its end until its answer reaches the serve
   // The hold itself is rendered and checked in tests/live-exam-part-hand-in.test.mjs.
   assert.match(room, /const \{ active, handIn \} = usePartHandIn\(openSection, preview, \(\) => \{ void refresh\(\); \}\);/);
   // One fixed place and key for the screen, so React keeps the very same screen (and its typed text) while it hands in.
-  assert.match(room, /\{active && \(active\.kind === "typing"\n\s+\? <TypingSection key=\{active\.id\} section=\{active\} preloaded=\{preloaded\[active\.id\]\}[^\n]*onSaved=\{\(result\) => \{ if \(result\) handIn\(active\.id\); \}\} \/>\n\s+: <EfficiencySection key=\{active\.id\} section=\{active\} onSaved=\{\(\) => handIn\(active\.id\)\} \/>\)\}/);
+  assert.match(room, /\{active && \(active\.kind === "typing"\n\s+\? <TypingSection key=\{active\.id\} section=\{active\} preloaded=\{preloaded\[active\.id\]\}[^\n]*onSaved=\{\(result\) => \{ if \(result\) handIn\(active\.id\); \}\} \/>\n\s+: <EfficiencySection key=\{active\.id\} section=\{active\} serverOffset=\{serverOffset\} onSaved=\{\(\) => handIn\(active\.id\)\} \/>\)\}/);
   for (const screen of ["waiting", "gap", "finished"]) assert.match(room, new RegExp(`\{!active && phase\.kind === "${screen}"`));
   // The hooks run before the login screen's early return.
   assert.ok(room.indexOf("const { active, handIn } = usePartHandIn(") < room.indexOf("if (!loggedIn) return <ExamLogin"));

@@ -14,7 +14,7 @@ test("the exam clock is anchored to the server: time left is worked out on the s
  for(const[dir,file]of[[WORD,"word-workspace.tsx"],[EXCEL,"excel-workspace.tsx"]]){
   const workspace=await read(dir+file);
   // The countdown ticks inside ExamClock, so its ticks redraw only the clock, not the whole workspace.
-  assert.match(workspace,/<ExamClock remainingSeconds=\{remainingSeconds\} onExpire=\{onExpire\}/);
+  assert.match(workspace,/<ExamClock remainingSeconds=\{remainingSeconds\} (deadline=\{\w+\} )?onExpire=\{onExpire\}/);
   assert.doesNotMatch(workspace,/useExamCountdown/);
   assert.doesNotMatch(workspace,/Date\.now\(\)/,"the workspace must not read the PC clock");
   assert.doesNotMatch(workspace,/startedAt/);
@@ -24,8 +24,8 @@ test("the exam clock is anchored to the server: time left is worked out on the s
 test("the countdown hook counts down with a monotonic timer and flags expiry slightly before zero so the automatic submit lands inside the deadline",async()=>{
  const chrome=await read("components/efficiency/exam-chrome.tsx");
  assert.match(chrome,/performance\.now\(\)/);
- assert.doesNotMatch(chrome.slice(chrome.indexOf("export function useExamCountdown"),chrome.indexOf("export function formatClock")),/Date\.now\(\)/);
- assert.match(chrome,/useExamCountdown\(remainingAtLoadSeconds: number, lead = 2\)/);
+ assert.doesNotMatch(chrome.slice(chrome.indexOf("export function useExamCountdown"),chrome.indexOf("export function formatClock")),/Date\.now\(\)(?!\s*\+\s*offset)/);
+ assert.match(chrome,/useExamCountdown\(remainingAtLoadSeconds: number, lead = 2(, deadline\?: \{ at: number; serverOffset: number \})?\)/);
  assert.match(chrome,/expired: remaining <= lead/);
 });
 

@@ -316,6 +316,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   // structural changes): those still get a full, always-correct recompute.
   const change = (op: string, next: Partial<Snapshot>, unlockedEdit = false, touchedRefs?: Iterable<string>) => {
     if (submitted) return;
+    // Time is up (autoSubmit): nothing more can be changed -- what the server counts is the sheet at its deadline.
+    if (autoSubmit && mode === "attempt") { setNotice("Time is up. Your sheet is being submitted; no more changes can be made."); return; }
     // A protected sheet refuses every change but unprotecting it and typing into unlocked cells, as Excel does.
     if (sheet.protected && op !== "unprotectSheet" && !unlockedEdit) { setNotice(PROTECTED_MESSAGE); return; }
     undoStack.current.push({ cells, merges, sheet }); if (undoStack.current.length > 100) undoStack.current.shift();
@@ -362,7 +364,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
 
   // ---------- typing into cells ----------
-  const beginEdit = (initial?: string, fromBar = false) => { if (submitted) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } editText.set(initial ?? (active.formula ?? (active.value == null ? "" : String(active.value)))); setEditing({ ref: activeCellRef, fromBar }); };
+  const beginEdit = (initial?: string, fromBar = false) => { if (submitted || (autoSubmit && mode === "attempt")) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } editText.set(initial ?? (active.formula ?? (active.value == null ? "" : String(active.value)))); setEditing({ ref: activeCellRef, fromBar }); };
   // Where the caret goes when an edit starts: the end of the text, or a part of it (AutoSum selects its range,
   // =SUM(B4:F4), so the student can drag over other cells to change it before pressing Enter, as in Excel).
   const pendingEditSelection = useRef<[number, number] | null>(null);

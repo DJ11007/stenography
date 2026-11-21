@@ -20,7 +20,7 @@ test("Format Cells applies only the properties changed in the dialog", () => {
 // each autosave redrew it twice more for "Saving…" / "Saved". Typing and clicking lagged behind those redraws.
 test("the clock, the Live Exam page and the autosave line do not redraw the sheet", () => {
   const workspace = read(`${dir}/excel-workspace.tsx`);
-  assert.match(workspace, /<ExamClock remainingSeconds=\{remainingSeconds\} onExpire=\{onExpire\}/);
+  assert.match(workspace, /<ExamClock remainingSeconds=\{remainingSeconds\} (deadline=\{\w+\} )?onExpire=\{onExpire\}/);
   assert.doesNotMatch(workspace, /useExamCountdown/);
   assert.match(workspace, /const questionBar = useMemo\(/);
   assert.match(workspace, /const afterSubmit = useCallback\(/);
@@ -34,7 +34,7 @@ test("the clock, the Live Exam page and the autosave line do not redraw the shee
 // The Word page had the same clock: every tick redrew the whole document editor and its ribbon.
 test("the Word clock does not redraw the document editor", () => {
   const word = read("app/typing/word-efficiency/[language]/[testId]/workspace/word-workspace.tsx");
-  assert.match(word, /<ExamClock remainingSeconds=\{remainingSeconds\} onExpire=\{onExpire\}/);
+  assert.match(word, /<ExamClock remainingSeconds=\{remainingSeconds\} (deadline=\{\w+\} )?onExpire=\{onExpire\}/);
   assert.doesNotMatch(word, /useExamCountdown/);
   assert.match(word, /const questionBar=useMemo\(/);
   assert.match(word, /const afterSubmit=useCallback\(/);

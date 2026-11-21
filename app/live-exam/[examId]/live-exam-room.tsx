@@ -160,7 +160,7 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
           {/* One fixed place for the part's screen, so it is the same screen while it hands in after the end. */}
           {active && (active.kind === "typing"
             ? <TypingSection key={active.id} section={active} preloaded={preloaded[active.id]} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={(result) => { if (result) handIn(active.id); }} />
-            : <EfficiencySection key={active.id} section={active} onSaved={() => handIn(active.id)} />)}
+            : <EfficiencySection key={active.id} section={active} serverOffset={serverOffset} onSaved={() => handIn(active.id)} />)}
           {!active && phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
           {!active && phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
           {!active && phase.kind === "section" && !workspaceOpen && (
@@ -355,7 +355,7 @@ function TypingSection({ section, preloaded, serverOffset, candidate, preview, o
 // A Word or Excel part: the student's attempt of the part's test is started (or carried on after a refresh) when the
 // part opens, shown with its own screen in live-exam mode (no Exit; its timer never runs past the part's end), and
 // linked to the part when submitted.
-function EfficiencySection({ section, onSaved }: { section: LiveExamSectionState; onSaved: () => void }) {
+function EfficiencySection({ section, serverOffset, onSaved }: { section: LiveExamSectionState; serverOffset: number; onSaved: () => void }) {
   const [loaded, setLoaded] = useState<LiveEfficiencySection | null>(null), [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false, tries = 0, retry: number | undefined;
@@ -375,8 +375,8 @@ function EfficiencySection({ section, onSaved }: { section: LiveExamSectionState
   return (
     <div className="live-part-fill w-full">
       {loaded.kind === "word"
-        ? <WordWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof WordWorkspace>[0]["snapshot"]} status={loaded.status} durationSeconds={loaded.durationSeconds} remainingSeconds={loaded.remainingSeconds} signedPdfUrl={null} initialDocument={loaded.initialDocument} liveExam={{ onSubmitted }} />
-        : <ExcelWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof ExcelWorkspace>[0]["snapshot"]} status={loaded.status} remainingSeconds={loaded.remainingSeconds} original={loaded.original as Parameters<typeof ExcelWorkspace>[0]["original"]} initialDocument={loaded.initialDocument as Parameters<typeof ExcelWorkspace>[0]["initialDocument"]} liveExam={{ onSubmitted }} />}
+        ? <WordWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof WordWorkspace>[0]["snapshot"]} status={loaded.status} durationSeconds={loaded.durationSeconds} remainingSeconds={loaded.remainingSeconds} signedPdfUrl={null} initialDocument={loaded.initialDocument} liveExam={{ onSubmitted, deadlineAt: Date.parse(loaded.deadlineAt), serverOffset }} />
+        : <ExcelWorkspace attemptId={loaded.attemptId} snapshot={loaded.snapshot as Parameters<typeof ExcelWorkspace>[0]["snapshot"]} status={loaded.status} remainingSeconds={loaded.remainingSeconds} original={loaded.original as Parameters<typeof ExcelWorkspace>[0]["original"]} initialDocument={loaded.initialDocument as Parameters<typeof ExcelWorkspace>[0]["initialDocument"]} liveExam={{ onSubmitted, deadlineAt: Date.parse(loaded.deadlineAt), serverOffset }} />}
     </div>
   );
 }
