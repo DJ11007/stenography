@@ -78,8 +78,8 @@ test("Rajasthan HC Steno's researched 5%-mistakes-free rule is wired into actual
   assert.match(curriculum, /scoringProfile: profile\(category\.dictationSpeedEnglish, penaltyOverride\)/);
   assert.match(curriculum, /scoringProfile: profile\(category\.dictationSpeedHindi, penaltyOverride\)/);
   const adminTests = await read("lib/admin-tests.ts");
-  assert.match(adminTests, /const stenoCategoryDefinition = version\.mode === "stenography" && version\.stenoCategory \? STENOGRAPHY_CATEGORIES\.find/);
-  assert.match(adminTests, /: stenoCategoryDefinition\s*\? \{ fullErrorPenalty: stenoCategoryDefinition\.fullErrorPenalty, halfErrorPenalty: stenoCategoryDefinition\.halfErrorPenalty, errorRelaxationPercent: stenoCategoryDefinition\.errorRelaxationPercent, errorGraceCount: undefined \}/);
+  assert.match(adminTests, /const stenoCategoryDefinition = stenoSlug \? STENOGRAPHY_CATEGORIES\.find/); // the chosen (or main) exam of a test set for several exams
+  assert.match(adminTests, /: stenoCategoryDefinition\s*\? \{ fullErrorPenalty: stenoCategoryDefinition\.fullErrorPenalty, halfErrorPenalty: stenoCategoryDefinition\.halfErrorPenalty, errorRelaxationPercent: stenoCategoryDefinition\.errorRelaxationPercent, errorGraceCount: undefined, minorSpellingIsFullMistake: stenoCategoryDefinition\.evaluation === \"rajasthan-court\" \? true : undefined, stenoEvaluation: stenoCategoryDefinition\.evaluation === \"ssc\" \? \"ssc\" as const : undefined \}/);
 });
 
 test("stenography-only grammar categories are excluded from CategoryStrip for non-stenography results, and shown in the headline breakdown only for stenography", async () => {

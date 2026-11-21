@@ -226,7 +226,7 @@ test("the category rules page's Start links lead to the new per-language exercis
 test("the category exercise page reads a ?viewAs= query param and passes it into managedVersionToPreset, so a shared Rajasthan LDC exercise renders with the viewing category's own rules", async () => {
   const page = await read("app/tests/[slug]/page.tsx");
   assert.match(page, /const viewAsRaw=\(await searchParams\)\?\.viewAs; const viewAs=typeof viewAsRaw==="string"\?viewAsRaw:undefined;/);
-  assert.match(page, /const preset=managedVersionToPreset\(version,viewAs\);/);
+  assert.match(page, /const preset=managedVersionToPreset\(version,viewAs,stenoExam\);/); // + the stenography exam it was opened under
 });
 
 // The read/display path alone isn't enough -- recordManagedAttempt is what

@@ -9,12 +9,23 @@ export const MAX_MATTER_CHARACTERS = 100_000;
 // 202608270034) -- a real dictation practice clip is a few minutes long,
 // and keeping this smaller keeps a student's upload quick on a weak connection.
 export const MAX_DICTATION_AUDIO_BYTES = 20_000_000;
-const DICTATION_AUDIO_MIME_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/webm"];
+// "video/mp4" too: Windows reports an .mp4 dictation recording as video/mp4 even when it is only audio, and such
+// uploads were refused (owner's report, 21 Nov 2026). They are relabelled audio/mp4 before upload -- see
+// asDictationAudioUpload -- since the stenography-audio bucket only takes audio types; an MP4's AAC sound plays in
+// every browser's <audio>.
+const DICTATION_AUDIO_MIME_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/webm", "video/mp4"];
+/** File-picker filter for dictation audio: every audio type plus .mp4 / .m4a files (which Windows labels as video). */
+export const DICTATION_AUDIO_ACCEPT = "audio/*,.mp3,.wav,.ogg,.m4a,.mp4,.webm,video/mp4";
 export function validateDurationMinutes(value: unknown) { return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 60 ? value : 10; }
 export function validateDictationAudioFile(file: Pick<File, "name" | "size" | "type">): string | null {
   if (file.size > MAX_DICTATION_AUDIO_BYTES) return `Audio must be ${Math.round(MAX_DICTATION_AUDIO_BYTES / 1_000_000)} MB or smaller.`;
-  if (file.type && !DICTATION_AUDIO_MIME_TYPES.includes(file.type)) return "Please upload an MP3, WAV, OGG, M4A or WebM audio file.";
+  if (file.type && !DICTATION_AUDIO_MIME_TYPES.includes(file.type)) return "Please upload an MP3, MP4, M4A, WAV, OGG or WebM audio file.";
   return null;
+}
+/** The file to upload: an .mp4 / .m4a recording (often typed video/mp4, or untyped) is sent as audio/mp4. */
+export function asDictationAudioUpload(file: File): File {
+  const isMp4 = file.type === "video/mp4" || (!file.type && /\.(mp4|m4a)$/i.test(file.name)) || file.type === "audio/x-m4a";
+  return isMp4 ? new File([file], file.name, { type: "audio/mp4", lastModified: file.lastModified }) : file;
 }
 export type MatterMode = "learn" | "practice" | "exam" | "stenography";
 export type MatterVisibility = "private" | "public";

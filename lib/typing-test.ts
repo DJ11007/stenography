@@ -127,6 +127,19 @@ export type ScoringProfile = {
   fullErrorPenalty: number;
   halfErrorPenalty: number;
   minorSpellingMaxDistance: number;
+  /** Stenography transcription judged by SSC's official evaluation guidelines (only set for stenography tests whose
+   * exam uses them -- see lib/stenography-categories.ts `evaluation`). Fixes the generic rules' mix-ups against SSC
+   * (owner's report, 21 Nov 2026: "full words are counting in half, half mistakes in full"):
+   *  - a spelling slip -- one letter wrong, dropped, added, or two letters SWAPPED (counted as 1, not 2), or up to 2
+   *    in words of 8+ letters -- is a HALF mistake (was full when letters were swapped);
+   *  - a short word (3 letters or fewer) typed as a different word ("in" for "is", "of"/"on") is a FULL mistake,
+   *    a wrong word, not a spelling slip (was half);
+   *  - an incomplete word (the start of the word only, 2+ letters missing) is FULL;
+   *  - a word typed in ALL CAPITALS (when the passage doesn't have it so) is FULL;
+   *  - only a missing / misplaced FULL STOP counts among punctuation (half); commas, quotes, hyphens and spacing are
+   *    not counted;
+   *  - one word earns at most one half mistake for its spelling/capitalisation, plus one for its full stop. */
+  stenoEvaluation?: "ssc";
   passNetWpm: number;
   passAccuracy: number;
   capitalizationErrors?: boolean;
@@ -405,6 +418,43 @@ function editDistance(left: string, right: string) {
   return previous[rightUnits.length];
 }
 
+// ---------- SSC stenography evaluation (ScoringProfile.stenoEvaluation === "ssc") ----------
+// Edit distance where swapping two neighbouring letters counts as ONE change ("recieve"/"receive" = 1), as SSC's
+// "transposition of letters in a word" is a single spelling mistake.
+function swapAwareDistance(left: string, right: string) {
+  const a = segmentGraphemes(left), b = segmentGraphemes(right);
+  const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+// Only the start of the word was typed, with 2 or more letters left off: an incomplete word (a full mistake).
+function isIncompleteWord(original: WordToken, typed: WordToken) {
+  const o = segmentGraphemes(original.normalizedCore), t = segmentGraphemes(typed.normalizedCore);
+  return t.length >= 1 && o.length - t.length >= 2 && o.slice(0, t.length).join("") === t.join("");
+}
+// The word was typed in ALL CAPITALS though the passage doesn't have it so (a full mistake under SSC's rules).
+function isAllCapsMisuse(original: WordToken, typed: WordToken) {
+  const letters = typed.core.replace(/[^\p{L}]/gu, "");
+  return letters.length >= 2 && /\p{Lu}/u.test(letters) && letters === letters.toLocaleUpperCase("en") && original.core !== original.core.toLocaleUpperCase("en");
+}
+// A small spelling slip (a HALF mistake) rather than a different or incomplete word (a FULL mistake).
+function isSscSpellingSlip(original: WordToken, typed: WordToken) {
+  if (original.normalizedCore === typed.normalizedCore) return true;
+  const length = segmentGraphemes(original.normalizedCore).length;
+  if (length <= 3) return false; // "in" for "is", "of"/"on", "the"/"they": a different word
+  if (isIncompleteWord(original, typed)) return false;
+  return swapAwareDistance(original.normalizedCore, typed.normalizedCore) <= (length >= 8 ? 2 : 1);
+}
+const FULL_STOP_PATTERN = /[.।॥]/gu;
+// Under SSC's rules only a missing or misplaced full stop counts among punctuation; commas, quotes, hyphens don't.
+function punctuationDiffers(original: WordToken, typed: WordToken, profile: ScoringProfile) {
+  if (profile.stenoEvaluation === "ssc") return (original.punctuation.match(FULL_STOP_PATTERN)?.length ?? 0) !== (typed.punctuation.match(FULL_STOP_PATTERN)?.length ?? 0);
+  return original.punctuation !== typed.punctuation;
+}
+
 // Whether a word-pair belongs to the "half-error" family at all -- same
 // normalized core, within the minor-spelling edit-distance threshold, or
 // recognized by the Devanagari-specific matra/halant/gender/vachan
@@ -424,9 +474,9 @@ function editDistance(left: string, right: string) {
 // forgivable halant difference -- without this, toggling halant grading
 // off would wrongly escalate a halant mistake to a full "substituted"
 // error instead of forgiving it.
-function isWithinHalfErrorFamily(original: WordToken, typed: WordToken, maxDistance: number) {
+function isWithinHalfErrorFamily(original: WordToken, typed: WordToken, maxDistance: number, ssc = false) {
   return original.normalizedCore === typed.normalizedCore
-    || editDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance
+    || (ssc ? isSscSpellingSlip(original, typed) : editDistance(original.normalizedCore, typed.normalizedCore) <= maxDistance)
     || classifyDevanagariDifference(original, typed) !== null;
 }
 
@@ -519,7 +569,7 @@ function halfErrorCategories(
   const categories: HalfErrorCategory[] = [];
   if (original.normalizedCore === typed.normalizedCore) {
     if (profile.capitalizationErrors !== false && original.core !== typed.core) categories.push("capitalization");
-    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
+    if (profile.punctuationErrors !== false && punctuationDiffers(original, typed, profile)) categories.push("punctuation");
     return categories;
   }
   const devanagariCategory = classifyDevanagariDifference(original, typed);
@@ -530,19 +580,20 @@ function halfErrorCategories(
       : profile.vachanErrors;
     if (graded !== undefined) {
       if (graded) categories.push(devanagariCategory);
-      if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
+      if (profile.punctuationErrors !== false && punctuationDiffers(original, typed, profile)) categories.push("punctuation");
       return categories;
     }
   }
   if (
-    editDistance(original.normalizedCore, typed.normalizedCore) <=
-    profile.minorSpellingMaxDistance
+    profile.stenoEvaluation === "ssc"
+      ? isSscSpellingSlip(original, typed)
+      : editDistance(original.normalizedCore, typed.normalizedCore) <= profile.minorSpellingMaxDistance
   ) {
     if (profile.minorSpellingErrors !== false) categories.push("minorSpelling");
     if (original.core !== typed.core && original.core.toLocaleLowerCase("en") === typed.core.toLocaleLowerCase("en")) {
       if (profile.capitalizationErrors !== false) categories.push("capitalization");
     }
-    if (profile.punctuationErrors !== false && original.punctuation !== typed.punctuation) categories.push("punctuation");
+    if (profile.punctuationErrors !== false && punctuationDiffers(original, typed, profile)) categories.push("punctuation");
   }
   return categories;
 }
@@ -559,7 +610,7 @@ function substitutionCost(
   // it must align as a cheap "pair" match (cost 0), not fall through to
   // the full substitution cost, or a toggled-off category would silently
   // make that word MORE wrong instead of not counting at all.
-  return isWithinHalfErrorFamily(original, typed, profile.minorSpellingMaxDistance) ? 0 : 1;
+  return isWithinHalfErrorFamily(original, typed, profile.minorSpellingMaxDistance, profile.stenoEvaluation === "ssc") ? 0 : 1;
 }
 
 function classifyRepeatedEntries(entries: WordAnalysisEntry[], originalWords: WordToken[]) {
@@ -699,10 +750,13 @@ export function alignWords(
       // A toggled-off category difference (categories.length === 0, but
       // still within the half-error family) is forgiven as "correct", not
       // escalated to "substituted" -- see halfErrorCategories()'s comment.
-      const withinFamily = isWithinHalfErrorFamily(original, typed, profile.minorSpellingMaxDistance);
+      const ssc = profile.stenoEvaluation === "ssc";
+      const withinFamily = isWithinHalfErrorFamily(original, typed, profile.minorSpellingMaxDistance, ssc);
+      // SSC: a word typed in ALL CAPITALS, or left incomplete, is a full mistake, not a half one.
+      const sscFull = ssc && original.raw !== typed.raw && (isAllCapsMisuse(original, typed) || isIncompleteWord(original, typed));
       entries.push({
         id: `o${original.index}-t${typed.index}`,
-        status: original.raw === typed.raw ? "correct" : categories.length ? "half-error" : withinFamily ? "correct" : "substituted",
+        status: original.raw === typed.raw ? "correct" : sscFull ? "substituted" : categories.length ? "half-error" : withinFamily ? "correct" : "substituted",
         original: original.raw,
         typed: typed.raw,
         originalIndex: original.index,
@@ -733,7 +787,7 @@ export function alignWords(
       next.originalIndex === entry.originalIndex + 1 &&
       next.typedIndex === entry.typedIndex + 1 &&
       !separatorsEquivalent(originalWords[entry.originalIndex].separatorAfter, typedWords[entry.typedIndex].separatorAfter) &&
-      profile.spacingErrors !== false
+      profile.spacingErrors !== false && profile.stenoEvaluation !== "ssc"
     ) {
       entry.halfErrorCategories = [...entry.halfErrorCategories, "spacing"];
       entry.typedSeparatorAfter = typedWords[entry.typedIndex].separatorAfter;
@@ -770,6 +824,10 @@ const FULL_MISTAKE_STATUSES = new Set<WordEntryStatus>(["missing", "extra", "rep
 export function entryMistakeUnits(entry: WordAnalysisEntry, profile: ScoringProfile): { full: number; half: number } {
   if (FULL_MISTAKE_STATUSES.has(entry.status)) return { full: 1, half: 0 };
   if (entry.status !== "half-error") return { full: 0, half: 0 };
+  if (profile.stenoEvaluation === "ssc") {
+    const punctuation = entry.halfErrorCategories.includes("punctuation") ? 1 : 0;
+    return { full: 0, half: Math.min(1, entry.halfErrorCategories.length - punctuation) + punctuation };
+  }
   const promotedSpelling = profile.minorSpellingIsFullMistake === true && entry.halfErrorCategories.includes("minorSpelling");
   const remainingHalfCategories = promotedSpelling ? entry.halfErrorCategories.length - 1 : entry.halfErrorCategories.length;
   if (profile.capMistakeUnitsPerWord) {
@@ -815,7 +873,7 @@ export function analyzeTyping(
   // reduce, which is the only way to express AIIMS's per-word cap at all.
   let fullErrors: number;
   let halfErrors: number;
-  if (profile.minorSpellingIsFullMistake || profile.capMistakeUnitsPerWord) {
+  if (profile.minorSpellingIsFullMistake || profile.capMistakeUnitsPerWord || profile.stenoEvaluation === "ssc") {
     let fullUnits = 0;
     let halfUnits = 0;
     for (const entry of entries) {

@@ -101,6 +101,10 @@ export type ExamPreset = {
    * page instead of the generic Exam Simulators catalogue. Undefined for every
    * hardcoded preset and for any admin-managed test not tied to a category. */
   examCategorySlug?: string;
+  /** For an admin stenography test: the exam it is being attempted under (one dictation can be set for several --
+   * see ManagedTestDraft.stenoCategories), with that exam's dictation speed, transcription time and accuracy.
+   * `choices` (set by the page) lets the student switch exam before starting. */
+  stenoExam?: { slug: string; name: string; dictationWpm: number; writingMinutes: number | null; accuracy: number; allSlugs: string[]; choices?: { slug: string; name: string; href: string; active: boolean }[] };
   scoringProfile: ScoringProfile;
   marksMethod?: {
     id: "configured-rssb-ldc";

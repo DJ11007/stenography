@@ -6,7 +6,7 @@ import type { StenographyCategoryNavigatorItem } from "@/lib/stenography-categor
 // catalogue uses (app/typing/exams/category/[slug]/[language]/page.tsx) --
 // scanning a grid of numbered tests is faster for a student to pick from
 // than stepping a <select> one option at a time.
-export function RealTestGrid({ tests, language, total = tests.length, startNumber = 1 }: { tests: StenographyCategoryNavigatorItem[]; language: "English" | "Hindi"; total?: number; startNumber?: number }) {
+export function RealTestGrid({ tests, language, total = tests.length, startNumber = 1, examSlug }: { tests: StenographyCategoryNavigatorItem[]; language: "English" | "Hindi"; total?: number; startNumber?: number; examSlug?: string }) {
   const heading = language === "English" ? "Real tests (with dictation audio, where attached)" : "वास्तविक टेस्ट (जहाँ उपलब्ध हो, श्रुतलेख ऑडियो सहित)";
 
   if (!tests.length) {
@@ -25,7 +25,9 @@ export function RealTestGrid({ tests, language, total = tests.length, startNumbe
         {tests.map((test, index) => (
           <Link
             key={test.slug}
-            href={`/tests/${test.slug}`}
+            // The exam this list belongs to goes along, so the test runs under THIS exam's rules (one dictation can
+            // be set for several exams, each with its own speed, time and mistake rules).
+            href={`/tests/${test.slug}${examSlug ? `?exam=${encodeURIComponent(examSlug)}` : ""}`}
             title={test.title}
             className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md"
           >

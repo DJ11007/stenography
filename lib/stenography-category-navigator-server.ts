@@ -25,9 +25,12 @@ const COURT_CATEGORY_SET = new Set(COURT_CATEGORY_SLUGS);
 export async function getStenographyCategoryNavigator(categorySlug: string, language: "English" | "Hindi"): Promise<StenographyCategoryNavigatorItem[]> {
   const supabase = await createClient();
   let query = supabase.from("tests").select("id,slug,title,published_at").eq("mode", "stenography").eq("status", "published").eq("visibility", "public").eq("is_live", false).eq("language", language);
+  // A test also appears on every OTHER exam it is set for (settings.steno_categories -- one dictation used for
+  // several exams, 21 Nov 2026), not only on its main exam's page.
+  const alsoFor = (slug: string) => `settings->steno_categories.cs.${JSON.stringify(JSON.stringify([slug]))}`;
   query = COURT_CATEGORY_SET.has(categorySlug)
-    ? query.or(COURT_CATEGORY_SLUGS.map((slug) => `settings->>steno_category.eq.${slug}`).join(","))
-    : query.eq("settings->>steno_category", categorySlug);
+    ? query.or(COURT_CATEGORY_SLUGS.flatMap((slug) => [`settings->>steno_category.eq.${slug}`, alsoFor(slug)]).join(","))
+    : query.or(`settings->>steno_category.eq.${categorySlug},${alsoFor(categorySlug)}`);
   // Oldest-first, matching the "Take Tests" practice navigator's own
   // convention -- students expect a numbered set of real tests (Legal-1,
   // Legal-2, ...) to run in the order they were actually published, not

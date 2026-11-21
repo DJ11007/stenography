@@ -9,7 +9,7 @@ test("the stenography admin form exposes a dictation-audio upload only for steno
   assert.match(manager, /\{formMode==="stenography" && <Field label="Dictation audio \(optional\)">/);
   assert.match(manager, /name="existingAudioPath"/);
   assert.match(manager, /name="removeAudio"/);
-  assert.match(manager, /name="audioFile" type="file" accept="audio\/\*"/);
+  assert.match(manager, /name="audioFile" type="file" accept=\{DICTATION_AUDIO_ACCEPT\}/); // MP4 / M4A dictations too (21 Nov 2026)
   assert.match(manager, /configuration\?\.audio_path/);
 });
 
@@ -35,7 +35,7 @@ test("saving a managed test resolves dictation audio from an already-uploaded pa
 test("the admin form uploads dictation audio directly to Supabase Storage on submit, never through the Server Action body", async () => {
   const manager = await read("app/admin/tests/test-manager.tsx");
   assert.match(manager, /createTestAssetUploadUrl\("audio", editing\?\.id \?\? null, audioFile\.name\)/);
-  assert.match(manager, /storage\.from\(result\.bucket\)\.uploadToSignedUrl\(result\.path, result\.token, audioFile\)/);
+  assert.match(manager, /storage\.from\(result\.bucket\)\.uploadToSignedUrl\(result\.path, result\.token, asDictationAudioUpload\(audioFile\)/); // an .mp4 is sent as audio/mp4
   assert.match(manager, /formData\.set\("uploadedAudioPath", result\.path\)/);
   assert.match(manager, /formData\.delete\("audioFile"\)/);
   assert.match(manager, /<form onSubmit=\{handleSubmit\}/);

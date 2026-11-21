@@ -93,6 +93,11 @@ function parseDraft(formData: FormData): ManagedTestDraft {
   // claim an exact number here. It never overrides backspace/wordMethod/
   // highlightMode, live or not.
   const stenoCategory = mode === "stenography" ? (text(formData, "stenoCategory") || null) : null;
+  // Every exam this one dictation is set for: the main exam first, then any ticked under "Also use this dictation
+  // for" -- only real stenography categories, no repeats (21 Nov 2026).
+  const stenoCategories = mode === "stenography" && stenoCategory
+    ? [...new Set([stenoCategory, ...formData.getAll("stenoCategories").map(String)])].filter((slug) => STENOGRAPHY_CATEGORIES.some((category) => category.slug === slug))
+    : null;
   const stenoCategoryDefinition = stenoCategory ? STENOGRAPHY_CATEGORIES.find((category) => category.slug === stenoCategory) : undefined;
   const stenoCategoryRules = stenoCategoryDefinition ? stenographyCategoryTypingRules(stenoCategoryDefinition, language) : null;
   return normalizeManagedTestRules({
@@ -111,7 +116,7 @@ function parseDraft(formData: FormData): ManagedTestDraft {
     endsAt: isLive && liveMode !== "anytime" ? iso("endsAt") : null,
     resultsPublishAt: isLive && liveMode === "scheduled" ? iso("resultsPublishAt") : null,
     resultsDelayMinutes: isLive && liveMode !== "scheduled" ? (Number.isInteger(Number(resultsDelayMinutesRaw)) ? Number(resultsDelayMinutesRaw) : null) : null,
-    examCategory, stenoCategory,
+    examCategory, stenoCategory, stenoCategories,
   });
 }
 
@@ -192,7 +197,7 @@ async function persistManagedTest(formData: FormData, lockedMode?: ManagedTestMo
     const defaults = parse("dictationDefaults").filter((item) => available.includes(item));
     return { available, defaults };
   })() : null;
-  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, results_delay_minutes: draft.resultsDelayMinutes ?? null, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null, steno_category: draft.stenoCategory ?? null };
+  const payload = { title: draft.title, description: draft.description, slug: draft.slug, language: draft.language, input_system_id: draft.inputSystemId, mode: draft.mode, duration_seconds: draft.durationSeconds, passage: validation.passage, required_wpm: draft.requiredWpm, required_accuracy: draft.requiredAccuracy, backspace_mode: draft.backspaceMode, word_method: draft.wordMethod, highlight_mode: draft.highlightMode, visibility: draft.visibility, passage_characters: validation.characterCount, passage_words: validation.wordCount, is_live: draft.isLive, live_starts_at: draft.startsAt, live_ends_at: draft.endsAt, results_publish_at: draft.resultsPublishAt, results_delay_minutes: draft.resultsDelayMinutes ?? null, audio_path: audioPath, task_category: taskCategory, dictation_categories: dictationCategories, pdf_path: resolvedPdf.pdfPath, pdf_file_name: resolvedPdf.pdfFileName, exam_category: draft.examCategory ?? null, steno_category: draft.stenoCategory ?? null, steno_categories: draft.stenoCategories ?? null };
   // A live-locked section (Live Typing Test / Live Stenography Test) still
   // has a fixed mode, but save_section_managed_test hard-rejects is_live --
   // it routes through save_scheduled_managed_test instead (the same RPC the

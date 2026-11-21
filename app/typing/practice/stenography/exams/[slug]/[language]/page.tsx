@@ -72,7 +72,7 @@ export default async function StenographyCategoryTestsPage({ params, searchParam
               </div>
             </div>
           )}
-          <RealTestGrid tests={tests} language={language} total={total} startNumber={from + 1} />
+          <RealTestGrid tests={tests} language={language} total={total} startNumber={from + 1} examSlug={category.slug} />
 
           {pages > 1 && <nav aria-label="Test pages" className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page === 1} className={`rounded-lg border px-3 py-1.5 text-sm font-bold ${page === 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-300 text-slate-700"}`}>‹ Prev</Link>

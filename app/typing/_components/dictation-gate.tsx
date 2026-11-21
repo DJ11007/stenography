@@ -56,7 +56,16 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [speed, setSpeed] = useState(1);
+  // One recording, several exams: play it at the speed that makes the dictation run at THIS exam's WPM (e.g. a
+  // dictation recorded at 80 WPM plays at 1.25x for SSC Grade C's 100 WPM). Worked out from the passage's word count
+  // and the audio's length once it is known; the student can still change it. Not for live tests (normal speed).
+  const [chosenSpeed, setChosenSpeed] = useState<number | null>(null);
+  const passageWords = preset.passage.trim() ? preset.passage.trim().split(/\s+/).length : 0;
+  const recordedWpm = duration > 0 && passageWords > 0 ? Math.round(passageWords / (duration / 60)) : 0;
+  const examWpm = preset.stenoExam?.dictationWpm ?? 0;
+  const examSpeed = !live && examWpm && recordedWpm ? Math.min(2, Math.max(0.5, Math.round((examWpm / recordedWpm) * 20) / 20)) : 1;
+  const speed = live ? 1 : chosenSpeed ?? examSpeed;
+  const speedOptions = DICTATION_SPEEDS.some((option) => option.value === speed) ? DICTATION_SPEEDS : [...DICTATION_SPEEDS, { value: speed, label: `${speed}×` }].sort((a, b) => a.value - b.value);
   const [playedThrough, setPlayedThrough] = useState(false);
   const [audioError, setAudioError] = useState(false);
   // Real reported bug: a student saw the player frozen at 00:00/00:00
@@ -154,6 +163,11 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
         <h1 className="mt-5 text-3xl font-black text-slate-900">Listen to the dictation</h1>
         <p className="mt-2 text-slate-600">{live ? null : "Play the audio at whichever speed suits you. "}The passage will not be shown on screen — this is a real dictation, not copy-typing. {live ? "This is a live test: the dictation plays once at normal speed, and it cannot be paused, replayed or skipped. " : null}Listen all the way to the end before typing can begin.</p>
 
+        {preset.stenoExam && <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
+          <p className="text-sm font-bold text-violet-900">Attempting as <b>{preset.stenoExam.name}</b>: {preset.stenoExam.dictationWpm} WPM dictation{preset.stenoExam.writingMinutes ? ` · ${preset.stenoExam.writingMinutes} min to transcribe` : ""} · pass with {preset.stenoExam.accuracy}% accuracy ({100 - preset.stenoExam.accuracy}% mistakes allowed). Full and half mistakes are counted by this exam&apos;s own rules.</p>
+          {preset.stenoExam.choices && preset.stenoExam.choices.length > 1 && <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-xs font-black uppercase tracking-wide text-violet-700">This dictation is set for:</span>{preset.stenoExam.choices.map((choice) => <a key={choice.slug} href={choice.href} aria-current={choice.active ? "true" : undefined} className={`rounded-full px-3 py-1 text-xs font-black ${choice.active ? "bg-violet-700 text-white" : "border border-violet-300 bg-white text-violet-800 hover:bg-violet-100"}`}>{choice.name}</a>)}</div>}
+        </div>}
+
         {!durationLocked && <label className="mt-4 block max-w-xs text-sm font-bold text-slate-800">Timer
           <select value={durationSeconds / 60} onChange={(event) => onDurationChange(Number(event.target.value))} className="input mt-2">
             {(PRACTICE_DURATION_MINUTES.includes(durationSeconds / 60) ? PRACTICE_DURATION_MINUTES : [...PRACTICE_DURATION_MINUTES, durationSeconds / 60].sort((a, b) => a - b)).map((minutes) => <option key={minutes} value={minutes}>{minutes} min</option>)}
@@ -184,10 +198,11 @@ export function DictationGate({ preset, url, selectedCategories, onCategoriesCha
           </div>
           <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
             Speed
-            <select value={live ? 1 : speed} disabled={live} onChange={(event) => setSpeed(Number(event.target.value))} className="input py-1.5">
-              {DICTATION_SPEEDS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            <select value={live ? 1 : speed} disabled={live} onChange={(event) => setChosenSpeed(Number(event.target.value))} className="input py-1.5">
+              {speedOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
+          {!live && preset.stenoExam && recordedWpm > 0 && <p className="text-center text-xs font-bold text-slate-600">Recording ≈ {recordedWpm} WPM. {speed === examSpeed ? `Playing at ${speed}× so the dictation runs at ${examWpm} WPM, the ${preset.stenoExam.name} speed.` : `${preset.stenoExam.name} dictates at ${examWpm} WPM -- ${examSpeed}× gives that speed.`}</p>}
           {readyToType && <p role="status" className="text-xs font-bold text-green-700">{adminPreview && !playedThrough ? "✓ Admin preview: typing is unlocked after a moment of playback -- you can start now, or keep listening." : "✓ Dictation complete — you can listen again, or start typing when ready."}</p>}
         </div>
         {audioError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 font-bold text-red-800">The dictation audio could not be loaded. Please refresh the page; if this keeps happening, contact your administrator.</p>}

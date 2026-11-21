@@ -1,7 +1,7 @@
 import { DEFAULT_SCORING_PROFILE, type BackspaceMode, type HalfErrorCategory, type HighlightMode, type WordMethod } from "./typing-test.ts";
 import { ENGLISH_QWERTY, HINDI_INPUT_SYSTEMS, RSSB_ENGLISH_MARKS_METHOD, RSSB_HINDI_MARKS_METHOD, RSSB_DEO_MARKS_METHOD, DELHI_POLICE_HCM_ENGLISH_MARKS_METHOD, DELHI_POLICE_HCM_HINDI_MARKS_METHOD, type ExamPreset } from "./typing-curriculum.ts";
 import { EXAM_CATEGORIES, type ExamCategoryDefinition } from "./exam-categories.ts";
-import { STENOGRAPHY_CATEGORIES } from "./stenography-categories.ts";
+import { STENOGRAPHY_CATEGORIES, stenographyCategoryTypingRules } from "./stenography-categories.ts";
 import { validateMatterText } from "./typing-matters.ts";
 import { validateLiveSchedule, type LiveTestSchedule } from "./live-tests.ts";
 import { LEGACY_SIGNAL } from "./hindi-font-converter.ts";
@@ -56,6 +56,11 @@ export type ManagedTestDraft = Partial<LiveTestSchedule> & {
    * yet feed a student-facing category discovery page or a marks-based
    * grading scheme -- it only forces these typing-behaviour fields. */
   stenoCategory?: string | null;
+  /** Every stenography exam this ONE dictation is set for (21 Nov 2026: e.g. SSC Grade C, SSC Grade D and RSMSSB
+   * from a single upload). stenoCategory stays the first of them, for everything that reads only one. Each exam
+   * keeps its own dictation speed, transcription time, accuracy and mistake rules -- applied when the test is
+   * opened under that exam (managedVersionToPreset's stenoExamSlug). Absent on tests saved before this. */
+  stenoCategories?: string[] | null;
 };
 
 export type ManagedTestVersion = ManagedTestDraft & { id: string; testId: string; versionNumber: number };
@@ -111,7 +116,13 @@ export function validateManagedTest(input: ManagedTestDraft) {
   return { errors, fieldErrors, passage: matter.text, characterCount: matter.characterCount, wordCount: matter.wordCount };
 }
 
-export function managedVersionToPreset(version: ManagedTestVersion, viewAsCategorySlug?: string): ExamPreset {
+/** The stenography exams a test is set for: its list, or (older tests) its single exam. */
+export function stenoCategoriesOf(version: Pick<ManagedTestDraft, "stenoCategory" | "stenoCategories">): string[] {
+  const list = (version.stenoCategories ?? []).filter((slug) => STENOGRAPHY_CATEGORIES.some((category) => category.slug === slug));
+  return list.length ? list : version.stenoCategory && STENOGRAPHY_CATEGORIES.some((category) => category.slug === version.stenoCategory) ? [version.stenoCategory] : [];
+}
+
+export function managedVersionToPreset(version: ManagedTestVersion, viewAsCategorySlug?: string, stenoExamSlug?: string): ExamPreset {
   const system = INPUT_SYSTEMS.find((candidate) => candidate.id === version.inputSystemId) ?? ENGLISH_QWERTY;
   const inputSystem = system.inputEncoding === "krutidev-legacy" ? { ...system, passageOverride: version.passage } : system;
   // When this exercise is tied to one of the 25 hardcoded exam categories,
@@ -145,7 +156,12 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
   // free" was in patternNotes but effectiveCategory below never looked at
   // STENOGRAPHY_CATEGORIES at all). There's no cross-category viewAs
   // sharing for stenography, so this only ever reads the native column.
-  const stenoCategoryDefinition = version.mode === "stenography" && version.stenoCategory ? STENOGRAPHY_CATEGORIES.find((category) => category.slug === version.stenoCategory) : undefined;
+  // One dictation can be set for several exams (stenoCategories); it is attempted under the exam the student chose
+  // (stenoExamSlug, only honoured when it is one of this test's own exams), else under its first exam.
+  const stenoExams = version.mode === "stenography" ? stenoCategoriesOf(version) : [];
+  const stenoSlug = stenoExamSlug && stenoExams.includes(stenoExamSlug) ? stenoExamSlug : stenoExams[0];
+  const stenoCategoryDefinition = stenoSlug ? STENOGRAPHY_CATEGORIES.find((category) => category.slug === stenoSlug) : undefined;
+  const stenoRules = stenoCategoryDefinition ? stenographyCategoryTypingRules(stenoCategoryDefinition, version.language) : null;
   // Unlike duration/speed/backspace/wordMethod/highlightMode above (which
   // the native, non-viewAs case can safely read off the stored version.*
   // columns, since parseDraft() already forced them from this exact
@@ -156,17 +172,17 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
   const scoringOverride = effectiveCategory
     ? { fullErrorPenalty: effectiveCategory.fullErrorPenalty, halfErrorPenalty: effectiveCategory.halfErrorPenalty, errorRelaxationPercent: effectiveCategory.errorRelaxationPercent, errorGraceCount: effectiveCategory.errorGraceCount, minorSpellingIsFullMistake: effectiveCategory.minorSpellingIsFullMistake, capMistakeUnitsPerWord: effectiveCategory.capMistakeUnitsPerWord, accuracyFromSpeedRatio: effectiveCategory.accuracyFromSpeedRatio, accuracyMethod: effectiveCategory.accuracyMethod, accuracyNote: effectiveCategory.accuracyNote, minimumStrokesFromPassSpeed: effectiveCategory.minimumStrokesFromPassSpeed }
     : stenoCategoryDefinition
-    ? { fullErrorPenalty: stenoCategoryDefinition.fullErrorPenalty, halfErrorPenalty: stenoCategoryDefinition.halfErrorPenalty, errorRelaxationPercent: stenoCategoryDefinition.errorRelaxationPercent, errorGraceCount: undefined }
+    ? { fullErrorPenalty: stenoCategoryDefinition.fullErrorPenalty, halfErrorPenalty: stenoCategoryDefinition.halfErrorPenalty, errorRelaxationPercent: stenoCategoryDefinition.errorRelaxationPercent, errorGraceCount: undefined, minorSpellingIsFullMistake: stenoCategoryDefinition.evaluation === "rajasthan-court" ? true : undefined, stenoEvaluation: stenoCategoryDefinition.evaluation === "ssc" ? "ssc" as const : undefined }
     : null;
   return {
     id: version.testId, slug: version.slug, title: version.title,
     subtitle: version.description || "Samradhi Classes managed test",
     category: version.mode === "stenography" ? "stenography" : "typing",
     language: version.language, script: system.script, inputEncoding: system.inputEncoding,
-    durationSeconds: rules?.durationSeconds ?? version.durationSeconds, passage: version.passage, fontLabel: system.fontLabel,
+    durationSeconds: rules?.durationSeconds ?? stenoRules?.durationSeconds ?? version.durationSeconds, passage: version.passage, fontLabel: system.fontLabel,
     fontStack: system.fontStack, fontClassName: "font-sans", layoutLabel: system.keyboardLayout,
-    keyboardLayout: system.keyboardLayout, inputSystems: [inputSystem], speedRequirement: rules?.requiredWpm ?? version.requiredWpm,
-    accuracyRequirement: rules?.requiredAccuracy ?? version.requiredAccuracy, backspaceMode: rules?.backspaceMode ?? version.backspaceMode,
+    keyboardLayout: system.keyboardLayout, inputSystems: [inputSystem], speedRequirement: rules?.requiredWpm ?? stenoRules?.requiredWpm ?? version.requiredWpm,
+    accuracyRequirement: rules?.requiredAccuracy ?? stenoRules?.requiredAccuracy ?? version.requiredAccuracy, backspaceMode: rules?.backspaceMode ?? version.backspaceMode,
     wordMethod: rules?.wordMethod ?? version.wordMethod, highlightMode: rules?.highlightMode ?? version.highlightMode, autoScroll: effectiveCategory?.autoScroll,
     // passNetWpm/passAccuracy (not just the display-only speedRequirement/
     // accuracyRequirement above) must also reflect the effective category --
@@ -188,7 +204,7 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     // KDPH, the flat-10-per-mistake formula, etc.) but was still SCORED
     // with the generic 1/0.5 penalty and zero error relaxation underneath,
     // silently understating how harsh those boards' real formulas are.
-    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? version.requiredAccuracy, fullErrorPenalty: scoringOverride?.fullErrorPenalty ?? DEFAULT_SCORING_PROFILE.fullErrorPenalty, halfErrorPenalty: scoringOverride?.halfErrorPenalty ?? DEFAULT_SCORING_PROFILE.halfErrorPenalty, errorRelaxationPercent: scoringOverride?.errorRelaxationPercent, errorGraceCount: scoringOverride?.errorGraceCount, minorSpellingIsFullMistake: scoringOverride?.minorSpellingIsFullMistake, capMistakeUnitsPerWord: scoringOverride?.capMistakeUnitsPerWord, accuracyFromSpeedRatio: scoringOverride?.accuracyFromSpeedRatio, accuracyMethod: scoringOverride && "accuracyMethod" in scoringOverride ? scoringOverride.accuracyMethod : undefined, accuracyNote: scoringOverride && "accuracyNote" in scoringOverride ? scoringOverride.accuracyNote : undefined, minimumStrokesFromPassSpeed: scoringOverride?.minimumStrokesFromPassSpeed, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
+    scoringProfile: { ...DEFAULT_SCORING_PROFILE, passNetWpm: rules?.requiredWpm ?? stenoRules?.requiredWpm ?? version.requiredWpm, passAccuracy: rules?.requiredAccuracy ?? stenoRules?.requiredAccuracy ?? version.requiredAccuracy, stenoEvaluation: scoringOverride && "stenoEvaluation" in scoringOverride ? scoringOverride.stenoEvaluation : undefined, fullErrorPenalty: scoringOverride?.fullErrorPenalty ?? DEFAULT_SCORING_PROFILE.fullErrorPenalty, halfErrorPenalty: scoringOverride?.halfErrorPenalty ?? DEFAULT_SCORING_PROFILE.halfErrorPenalty, errorRelaxationPercent: scoringOverride?.errorRelaxationPercent, errorGraceCount: scoringOverride?.errorGraceCount, minorSpellingIsFullMistake: scoringOverride?.minorSpellingIsFullMistake, capMistakeUnitsPerWord: scoringOverride?.capMistakeUnitsPerWord, accuracyFromSpeedRatio: scoringOverride?.accuracyFromSpeedRatio, accuracyMethod: scoringOverride && "accuracyMethod" in scoringOverride ? scoringOverride.accuracyMethod : undefined, accuracyNote: scoringOverride && "accuracyNote" in scoringOverride ? scoringOverride.accuracyNote : undefined, minimumStrokesFromPassSpeed: scoringOverride?.minimumStrokesFromPassSpeed, capitalizationErrors: version.language === "English", ...(version.mode === "stenography" ? { matraErrors: true, halantErrors: true, genderErrors: true, vachanErrors: true } : {}) },
     audioUrl: null,
     pdfUrl: null,
     pdfFileName: version.pdfFileName ?? null,
@@ -200,8 +216,9 @@ export function managedVersionToPreset(version: ManagedTestVersion, viewAsCatego
     // under a Hindi-facing screen" bug already fixed for the category rules
     // page and the category's own hardcoded Hindi preset (categoryPreset()
     // in typing-curriculum.ts), just missed here for shared/managed exercises.
-    instructionNotes: version.language === "Hindi" ? (effectiveCategory?.patternNotesHindi ?? effectiveCategory?.patternNotes) : effectiveCategory?.patternNotes,
-    patternSourced: effectiveCategory?.patternSourced,
+    instructionNotes: stenoCategoryDefinition ? stenoCategoryDefinition.patternNotes : version.language === "Hindi" ? (effectiveCategory?.patternNotesHindi ?? effectiveCategory?.patternNotes) : effectiveCategory?.patternNotes,
+    stenoExam: stenoCategoryDefinition ? { slug: stenoCategoryDefinition.slug, name: stenoCategoryDefinition.name, dictationWpm: version.language === "Hindi" ? stenoCategoryDefinition.dictationSpeedHindi : stenoCategoryDefinition.dictationSpeedEnglish, writingMinutes: stenoRules?.durationSeconds != null ? stenoRules.durationSeconds / 60 : null, accuracy: stenoCategoryDefinition.accuracy, allSlugs: stenoExams } : undefined,
+    patternSourced: stenoCategoryDefinition ? stenoCategoryDefinition.patternSourced : effectiveCategory?.patternSourced,
     // Real bug: an admin exercise linked to Rajasthan LDC showed the RSSB
     // marks-based instructions (25 max, 9 to qualify, 0.05/0.0625 marks per
     // correct word -- see instructionNotes above) but was still scored by

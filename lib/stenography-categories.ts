@@ -36,6 +36,13 @@ export type StenographyCategoryDefinition = {
   fullErrorPenalty?: number;
   halfErrorPenalty?: number;
   errorRelaxationPercent?: number;
+  /** How words are judged full vs half mistakes (see lib/typing-test.ts ScoringProfile.stenoEvaluation):
+   * "ssc" = SSC's official evaluation guidelines (omitted/extra/wrong/repeated/incomplete words, swapped
+   * abbreviations and ALL-CAPS words are full mistakes; spelling slips incl. transposed or dropped letters,
+   * singular/plural, capitalisation and a missing or misplaced full stop are half; other punctuation and spacing
+   * are not counted). "rajasthan-court" = Rajasthan HC / District Courts: omissions, substitutions AND
+   * misspellings are full mistakes, punctuation/capitalisation half. Undefined = the platform's generic rules. */
+  evaluation?: "ssc" | "rajasthan-court";
 };
 
 const TONE_PALETTE: Array<[string, string]> = [
@@ -45,9 +52,18 @@ const TONE_PALETTE: Array<[string, string]> = [
 ];
 
 const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDark">> = [
-  { slug: "ssc-steno-cd", name: "SSC Steno C&D", badge: "SSC", fullName: "Staff Selection Commission — Stenographer Grade 'C' & 'D'", iconKind: "commission",
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 80, durationMinutes: 10, writingMinutesEnglish: 50, writingMinutesHindi: 65, accuracy: 90, patternSourced: true,
-    patternNotes: ["Grade 'D' dictates at 80 WPM with 50 minutes (English) or 65 minutes (Hindi) to transcribe on computer, up to 10% errors allowed.", "Grade 'C' dictates at 100 WPM with 40 minutes (English) or 55 minutes (Hindi) to transcribe, up to 7% errors allowed.", "This simulation uses the Grade 'D' baseline (80 WPM)."] },
+  // SSC Stenographer Grade 'C' and 'D' are separate posts with separate skill tests, so they are two categories.
+  // Figures: SSC Stenographer Grade 'C' & 'D' Examination 2025 (ssc.gov.in result write-up, para 4: "Grade 'C': upto
+  // 5% mistakes for UR and upto 7% mistakes for all reserved category candidates; Grade 'D': up to 7% for UR and up
+  // to 10% for all reserved category candidates"); 10-minute dictation at 100 / 80 WPM; transcription on computer
+  // 40 / 55 min (Grade C, English / Hindi) and 50 / 65 min (Grade D). accuracy = the UR limit. The slug
+  // "ssc-steno-cd" is kept for Grade D so existing links and any tests tagged with it keep working.
+  { slug: "ssc-steno-c", name: "SSC Steno Grade C", badge: "SSC C", fullName: "Staff Selection Commission — Stenographer Grade 'C'", iconKind: "commission",
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 40, writingMinutesHindi: 55, accuracy: 95, patternSourced: true, evaluation: "ssc",
+    patternNotes: ["Grade 'C': 10-minute dictation at 100 WPM (about 1,000 words), then 40 minutes (English) or 55 minutes (Hindi) to transcribe on computer. Candidates allowed a scribe get 55 / 75 minutes.", "Qualifying limit (SSC Stenographer 2025): up to 5% mistakes for UR candidates and up to 7% for all reserved categories. Error % = (full mistakes + half mistakes ÷ 2) × 100 ÷ words in the dictated passage.", "Full mistakes: every omitted word or figure, wrong (substituted) word, added word, repeated or incomplete word, abbreviation used for a full word (or the reverse), and words typed in ALL CAPITALS. Half mistakes: wrong spelling (including swapped or dropped letters), singular for plural (or the reverse), a small letter starting a sentence or a proper noun, and a missing or misplaced full stop. Figures are accepted in numerals or words.", "This simulation scores against the UR limit (5%)."] },
+  { slug: "ssc-steno-cd", name: "SSC Steno Grade D", badge: "SSC D", fullName: "Staff Selection Commission — Stenographer Grade 'D'", iconKind: "commission",
+    dictationSpeedEnglish: 80, dictationSpeedHindi: 80, durationMinutes: 10, writingMinutesEnglish: 50, writingMinutesHindi: 65, accuracy: 93, patternSourced: true, evaluation: "ssc",
+    patternNotes: ["Grade 'D': 10-minute dictation at 80 WPM (about 800 words), then 50 minutes (English) or 65 minutes (Hindi) to transcribe on computer. Candidates allowed a scribe get 70 / 90 minutes.", "Qualifying limit (SSC Stenographer 2025): up to 7% mistakes for UR candidates and up to 10% for all reserved categories. Error % = (full mistakes + half mistakes ÷ 2) × 100 ÷ words in the dictated passage.", "Full mistakes: every omitted word or figure, wrong (substituted) word, added word, repeated or incomplete word, abbreviation used for a full word (or the reverse), and words typed in ALL CAPITALS. Half mistakes: wrong spelling (including swapped or dropped letters), singular for plural (or the reverse), a small letter starting a sentence or a proper noun, and a missing or misplaced full stop. Figures are accepted in numerals or words.", "This simulation scores against the UR limit (7%)."] },
   { slug: "supreme-court-pa", name: "Supreme Court PA", badge: "SC", fullName: "Supreme Court of India — Personal Assistant", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 45, writingMinutesHindi: 45, accuracy: 95, patternSourced: true,
     patternNotes: ["Transcription time is 45 minutes with up to 5% errors permitted.", "A separate Typing Speed Test requires 40 WPM at 97%+ accuracy in 10 minutes.", "Senior PA posts require a higher 110 WPM dictation."] },
@@ -83,7 +99,7 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     // in exam-categories.ts (fullErrorPenalty/halfErrorPenalty stay at the
     // default 1/0.5, since "deducted from the correct-word count" is
     // already a 1-word-per-mistake penalty, not a multiplier).
-    errorRelaxationPercent: 5,
+    errorRelaxationPercent: 5, evaluation: "rajasthan-court",
     patternNotes: ["After an unscored 200-250 word trial passage, the real dictation runs 6 minutes for both languages, followed by 5 minutes reading time and 50 minutes computer transcription -- 100 marks per language (Group A English / Group B Hindi).", "Marks = (correct words x 100) / total dictated words. Up to 5% mistakes are free; excess beyond that is deducted from the correct-word count. Omissions, substitutions, and misspellings count as full mistakes; punctuation/capitalization count as half. This 5% relaxation is now implemented exactly (errorRelaxationPercent 5), not just narrated.", "Group C: a separate two-part Computer Test follows -- a 10-minute, 50-mark Speed Test requiring 8000 key depressions per hour (roughly 25-27 WPM), and a 10-minute, 50-mark word-processing Efficiency Test -- both scored, minimum qualifying 22.5/50 (20/50 for SC/ST/PwBD).", "Hindi transcription font is Kruti Dev 010; English uses Calibri.", "An Interview follows (unscored -- solely to confirm the candidate isn't so severely affected by stammering that they cannot read back their own shorthand notes)."] },
   { slug: "patna-hc-steno", name: "Patna High Court Steno", badge: "PHC", fullName: "Patna High Court — Stenographer", iconKind: "scales",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
@@ -95,8 +111,8 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common High Court stenographer pattern.", "Verify against the latest Calcutta High Court notification."] },
   { slug: "central-secretariat-steno", name: "Central Secretariat Steno", badge: "CSSS", fullName: "Central Secretariat Stenographer Service", iconKind: "commission",
-    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 40, writingMinutesHindi: 55, accuracy: 93, patternSourced: true,
-    patternNotes: ["Recruited via the SSC Stenographer Grade 'C' exam: 40 minutes (English) or 55 minutes (Hindi) to transcribe, up to 7% errors allowed."] },
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 40, writingMinutesHindi: 55, accuracy: 95, patternSourced: true, evaluation: "ssc",
+    patternNotes: ["Recruited via the SSC Stenographer Grade 'C' exam: 100 WPM dictation, 40 minutes (English) or 55 minutes (Hindi) to transcribe, up to 5% mistakes (UR) or 7% (reserved categories), marked by SSC's full / half mistake guidelines."] },
   { slug: "income-tax-steno", name: "Income Tax Dept. Steno", badge: "IT", fullName: "Income Tax Department — Stenographer", iconKind: "commission",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,
     patternNotes: ["No separately confirmed pattern found; modelled on the common SSC/departmental stenographer pattern."] },
@@ -117,8 +133,8 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     // 100 marks each) -- the previous 80/60 WPM figures and "separate 40/35
     // WPM typing test at 95%" note here did not match any source and looked
     // conflated with a different exam.
-    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 60, writingMinutesHindi: 70, accuracy: 80, patternSourced: true,
-    patternNotes: ["Audio is played once with no replay. Transcription is then typed on computer: 60 minutes for the English paper, 70 minutes for the Hindi paper -- 100 marks each, 0.1 marks per correctly transcribed word.", "Candidates are disqualified if errors exceed 20% (the 80% minimum accuracy above); SC/ST candidates get a 5% relaxation.", "The transcription screen uses the Calibri font for English and DevLys 010 for Hindi.", "There is no separate lower-speed typing-test stage -- dictation and transcription are one combined paper per language."] },
+    dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, writingMinutesEnglish: 60, writingMinutesHindi: 70, accuracy: 80, patternSourced: true, evaluation: "ssc",
+    patternNotes: ["Audio is played once with no replay. Transcription is then typed on computer: 60 minutes for the English paper, 70 minutes for the Hindi paper -- 100 marks each, 0.1 marks per correctly transcribed word.", "Candidates are disqualified if errors exceed 20% (the 80% minimum accuracy above); SC/ST candidates get a 5% relaxation.", "The transcription screen uses the Calibri font for English and DevLys 010 for Hindi.", "There is no separate lower-speed typing-test stage -- dictation and transcription are one combined paper per language.", "RSMSSB does not publish its own full / half mistake list, so this simulation marks words by the common government (SSC) method: omitted, wrong, extra or repeated words are full mistakes; spelling slips, capitalisation and a missing full stop are half mistakes. Verify against your notification."] },
   { slug: "rajasthan-district-court-steno", name: "Rajasthan District Court Steno", badge: "DIST", fullName: "Rajasthan Subordinate Courts — Stenographer", iconKind: "scales",
     // Sourced directly from hcraj.nic.in's actual "Joint Recruitment to the
     // post of Stenographer for District Courts and DLSAs" advertisement
@@ -126,7 +142,7 @@ const RAW_CATEGORIES: Array<Omit<StenographyCategoryDefinition, "tone" | "toneDa
     // pattern that was previously (mis)coded under rajasthan-hc-steno; that
     // category now correctly reflects the High Court's OWN "Junior Personal
     // Assistant" post instead, which has a different scheme entirely.
-    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 95, patternSourced: true,
+    dictationSpeedEnglish: 80, dictationSpeedHindi: 70, durationMinutes: 6, writingMinutesEnglish: 50, writingMinutesHindi: 50, accuracy: 95, patternSourced: true, errorRelaxationPercent: 5, evaluation: "rajasthan-court",
     patternNotes: ["After an unscored 200-250 word trial passage, the real dictation runs 6 minutes for both languages, followed by 5 minutes reading time and 50 minutes computer transcription -- 100 marks per language (Group A English / Group B Hindi).", "Marks = (correct words x 100) / total dictated words. Up to 5% mistakes are free; excess beyond that is deducted from the correct-word count. Omissions, substitutions, and misspellings count as full mistakes; punctuation/capitalization count as half.", "Group C: a separate two-part Computer Test follows -- a 10-minute, 50-mark Speed Test requiring 8000 key depressions per hour (roughly 25-27 WPM), and a 10-minute, 50-mark word-processing Efficiency Test -- both scored, minimum qualifying 22.5/50 (20/50 for SC/ST/PwBD).", "Hindi transcription font is Kruti Dev 010; English uses Calibri.", "An Interview follows (unscored -- solely to confirm the candidate isn't so severely affected by stammering that they cannot read back their own shorthand notes)."] },
   { slug: "dsssb-steno", name: "DSSSB Stenographer", badge: "DSSSB", fullName: "Delhi Subordinate Services Selection Board — Stenographer", iconKind: "commission",
     dictationSpeedEnglish: 100, dictationSpeedHindi: 100, durationMinutes: 10, accuracy: 90, patternSourced: false,

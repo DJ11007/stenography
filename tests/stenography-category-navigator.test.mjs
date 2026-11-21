@@ -24,8 +24,8 @@ test("court/legal categories are exactly the ones with the scales icon, and ther
 test("getStenographyCategoryNavigator scopes a court category's query to every court/legal slug via .or(), and a non-court category to only its own exact tag", async () => {
   const source = await read("lib/stenography-category-navigator-server.ts");
   assert.match(source, /const COURT_CATEGORY_SLUGS = STENOGRAPHY_CATEGORIES\.filter\(\(category\) => category\.iconKind === "scales"\)\.map\(\(category\) => category\.slug\);/);
-  assert.match(source, /query\.or\(COURT_CATEGORY_SLUGS\.map\(\(slug\) => `settings->>steno_category\.eq\.\$\{slug\}`\)\.join\(","\)\)/);
-  assert.match(source, /: query\.eq\("settings->>steno_category", categorySlug\);/);
+  assert.match(source, /query\.or\(COURT_CATEGORY_SLUGS\.flatMap\(\(slug\) => \[`settings->>steno_category\.eq\.\$\{slug\}`, alsoFor\(slug\)\]\)\.join\(","\)\)/); // plus tests also set for that exam
+  assert.match(source, /: query\.or\(`settings->>steno_category\.eq\.\$\{categorySlug\},\$\{alsoFor\(categorySlug\)\}`\);/);
   assert.match(source, /\.eq\("mode", "stenography"\)\.eq\("status", "published"\)\.eq\("visibility", "public"\)\.eq\("is_live", false\)\.eq\("language", language\)/);
 });
 
@@ -59,7 +59,7 @@ test("RealTestGrid renders a numbered grid of test links, not a dropdown or a pr
   assert.doesNotMatch(grid, /router\.push/);
   assert.match(grid, /<div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">/);
   assert.match(grid, /\{tests\.map\(\(test, index\) => \(/);
-  assert.match(grid, /href=\{`\/tests\/\$\{test\.slug\}`\}/);
+  assert.match(grid, /href=\{`\/tests\/\$\{test\.slug\}\$\{examSlug \? `\?exam=\$\{encodeURIComponent\(examSlug\)\}` : ""\}`\}/); // carries the exam the list belongs to
   assert.match(grid, /\{startNumber \+ index\}<\/span>/); // the numbered badge (continues across pages), matching the exam category catalogue's own card style
 });
 

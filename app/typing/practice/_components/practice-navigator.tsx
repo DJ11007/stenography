@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { managedVersionToPreset, type ManagedTestVersion } from "@/lib/admin-tests";
+import { STENOGRAPHY_CATEGORIES } from "@/lib/stenography-categories";
 import { getPracticeSelector } from "@/lib/practice-navigator-server";
 import { resolvePracticeSelection } from "@/lib/practice-navigator";
 import { sortExamCategoryNavigatorItems } from "@/lib/exam-category-navigator";
@@ -9,7 +10,7 @@ import { ConfigurableTypingExam, type PracticeNavigation } from "../../_componen
 import { TypingBrandHeader } from "../../_components/typing-brand";
 import { FreePracticeLimitPaywall } from "./free-limit-paywall";
 
-type Params = { input?: string; test?: string; sort?: string };
+type Params = { input?: string; test?: string; sort?: string; exam?: string };
 
 // The picker's badge should identify the test itself (e.g. "TEST - 4" -> 4),
 // not just its position in the current sort order -- otherwise switching
@@ -51,11 +52,14 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
 
   if (!items.length) return <main className="min-h-screen bg-slate-100"><TypingBrandHeader/><section className="mx-auto flex max-w-4xl flex-col items-center px-4 py-16 text-center"><div className="w-full rounded-3xl border border-slate-200 bg-white p-8 shadow-xl sm:p-12"><span className="text-5xl" aria-hidden>⌨</span><h1 className="mt-5 text-3xl font-black text-slate-900">No compatible tests yet</h1><p className="mx-auto mt-3 max-w-xl text-slate-600">No compatible published {language.toLowerCase()} {mode} tests are currently available.</p><Link href="/typing/practice" className="mt-7 inline-flex rounded-xl bg-blue-700 px-5 py-3 font-black text-white">Back to Practice Categories</Link></div></section></main>;
 
-  const queryFor = (slug: string, forSort: "newest" | "oldest" = sort) => {
+  // Stenography: the exam the student is practising for stays with them from test to test (Previous / Next).
+  const stenoExam = mode === "stenography" && params.exam && STENOGRAPHY_CATEGORIES.some((category) => category.slug === params.exam) ? params.exam : undefined;
+  const queryFor = (slug: string, forSort: "newest" | "oldest" = sort, exam: string | undefined = stenoExam) => {
     const query = new URLSearchParams();
     if (inputSystemId) query.set("input", inputSystemId);
     query.set("test", slug);
     if (forSort === "newest") query.set("sort", "newest");
+    if (exam) query.set("exam", exam);
     return `?${query}`;
   };
 
@@ -127,8 +131,13 @@ export async function PracticeNavigator({ mode = "practice", language, params, r
   if (!test || !versionRow) return null;
 
   const configuration = versionRow.configuration as Record<string,unknown>|null;
-  const version: ManagedTestVersion = { id:versionRow.id, testId:versionRow.test_id, versionNumber:versionRow.version_number, title:versionRow.title, description:versionRow.description ?? "", slug:test.slug, language:versionRow.language, inputSystemId:versionRow.input_system_id, mode:versionRow.mode, durationSeconds:versionRow.duration_seconds, passage:versionRow.passage, requiredWpm:Number(versionRow.required_wpm), requiredAccuracy:Number(versionRow.required_accuracy), backspaceMode:versionRow.backspace_mode, wordMethod:versionRow.word_method, highlightMode:versionRow.highlight_mode, visibility:versionRow.visibility, audioPath:configuration?.audio_path as string|null ?? null, pdfPath:configuration?.pdf_path as string|null ?? null, pdfFileName:configuration?.pdf_file_name as string|null ?? null, dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"] ?? null };
-  const preset = managedVersionToPreset(version);
+  const version: ManagedTestVersion = { id:versionRow.id, testId:versionRow.test_id, versionNumber:versionRow.version_number, title:versionRow.title, description:versionRow.description ?? "", slug:test.slug, language:versionRow.language, inputSystemId:versionRow.input_system_id, mode:versionRow.mode, durationSeconds:versionRow.duration_seconds, passage:versionRow.passage, requiredWpm:Number(versionRow.required_wpm), requiredAccuracy:Number(versionRow.required_accuracy), backspaceMode:versionRow.backspace_mode, wordMethod:versionRow.word_method, highlightMode:versionRow.highlight_mode, visibility:versionRow.visibility, audioPath:configuration?.audio_path as string|null ?? null, pdfPath:configuration?.pdf_path as string|null ?? null, pdfFileName:configuration?.pdf_file_name as string|null ?? null, dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"] ?? null, stenoCategory:configuration?.steno_category as string|null ?? null, stenoCategories:Array.isArray(configuration?.steno_categories) ? configuration.steno_categories as string[] : null };
+  // Scored by the chosen exam's rules (its own transcription time, accuracy and full / half mistake rules); a test
+  // set for several exams lets the student switch exam here before starting.
+  const preset = managedVersionToPreset(version, undefined, stenoExam);
+  if (preset.stenoExam && preset.stenoExam.allSlugs.length > 1) {
+    preset.stenoExam.choices = preset.stenoExam.allSlugs.map((slug) => ({ slug, name: STENOGRAPHY_CATEGORIES.find((category) => category.slug === slug)?.name ?? slug, href: queryFor(selected.slug, sort, slug), active: slug === preset.stenoExam!.slug }));
+  }
   // Proxied through our own server -- see app/typing/stenography-audio/[...path]/route.ts.
   if (version.audioPath) preset.audioUrl = `/typing/stenography-audio/${version.audioPath.split("/").map(encodeURIComponent).join("/")}`;
   if (version.pdfPath) { const { data: signed } = await supabase.storage.from("managed-test-pdfs").createSignedUrl(version.pdfPath, 3600); preset.pdfUrl = signed?.signedUrl ?? null; }

@@ -19,6 +19,8 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   // so an invalid/absent/tampered value just falls back to today's exact
   // native behaviour.
   const viewAsRaw=(await searchParams)?.viewAs; const viewAs=typeof viewAsRaw==="string"?viewAsRaw:undefined;
+  // Stenography: the exam the student opened this test from (one dictation can be set for several exams).
+  const examRaw=(await searchParams)?.exam; const stenoExam=typeof examRaw==="string"&&/^[a-z0-9-]{2,60}$/.test(examRaw)?examRaw:undefined;
   const[{data:test},{data:{user}}]=await Promise.all([
     supabase.from("tests").select("id,slug,current_version_id,status,visibility,mode,language,input_system_id,is_live,live_starts_at,live_ends_at,results_publish_at,results_delay_minutes").eq("slug",slug).maybeSingle(),
     supabase.auth.getUser(),
@@ -52,7 +54,7 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   if(!isAdmin&&!test.is_live&&test.status==="published"&&test.visibility==="public"&&(test.mode==="practice"||test.mode==="stenography")){
     const category=test.mode==="stenography"?(test.language==="Hindi"?"hindi-stenography":"english-stenography"):(test.language==="Hindi"?"hindi":"english");
     const input=test.language==="Hindi"?`input=${encodeURIComponent(test.input_system_id)}&`:"";
-    redirect(`/typing/practice/${category}?${input}test=${encodeURIComponent(test.slug)}`);
+    redirect(`/typing/practice/${category}?${input}test=${encodeURIComponent(test.slug)}${test.mode==="stenography"&&stenoExam?`&exam=${encodeURIComponent(stenoExam)}`:""}`);
   }
   // The Typing Exam Simulator's free-attempt cap (mode="exam" only, a free
   // scheduled live test is unaffected) -- checked here, before the exam
@@ -78,8 +80,8 @@ export default async function PublishedTestPage({params,searchParams}:PageProps<
   if(test.is_live&&state!=="open"&&state!=="anytime")return <LiveTestGate title={state==="upcoming"?"This free live test has not started yet.":state==="results-published"?"Results are now available.":"This free live test has closed."} detail={state==="upcoming"?`Starts ${formatIST(test.live_starts_at)}`:state==="results-published"?"Open the live-test centre to view the published leaderboard.":test.results_delay_minutes!=null?`It was open until ${formatIST(test.live_ends_at)}. Each result shows ${test.results_delay_minutes} minutes after that student submits.`:`Results publish ${formatIST(test.results_publish_at)}`}/>;
   const{data:v}=await supabase.from("test_versions").select("*").eq("id",test.current_version_id).maybeSingle();if(!v)notFound();
   const configuration=v.configuration as Record<string,unknown>|null;
-  const version:ManagedTestVersion={id:v.id,testId:v.test_id,versionNumber:v.version_number,title:v.title,description:v.description??"",slug:test.slug,language:v.language,inputSystemId:v.input_system_id,mode:v.mode,durationSeconds:v.duration_seconds,passage:v.passage,requiredWpm:Number(v.required_wpm),requiredAccuracy:Number(v.required_accuracy),backspaceMode:v.backspace_mode,wordMethod:v.word_method,highlightMode:v.highlight_mode,visibility:v.visibility,audioPath:configuration?.audio_path as string|null??null,pdfPath:configuration?.pdf_path as string|null??null,pdfFileName:configuration?.pdf_file_name as string|null??null,dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"]??null,examCategory:configuration?.exam_category as string|null??null};
-  const preset=managedVersionToPreset(version,viewAs);
+  const version:ManagedTestVersion={id:v.id,testId:v.test_id,versionNumber:v.version_number,title:v.title,description:v.description??"",slug:test.slug,language:v.language,inputSystemId:v.input_system_id,mode:v.mode,durationSeconds:v.duration_seconds,passage:v.passage,requiredWpm:Number(v.required_wpm),requiredAccuracy:Number(v.required_accuracy),backspaceMode:v.backspace_mode,wordMethod:v.word_method,highlightMode:v.highlight_mode,visibility:v.visibility,audioPath:configuration?.audio_path as string|null??null,pdfPath:configuration?.pdf_path as string|null??null,pdfFileName:configuration?.pdf_file_name as string|null??null,dictationCategories:configuration?.dictation_categories as ManagedTestVersion["dictationCategories"]??null,examCategory:configuration?.exam_category as string|null??null,stenoCategory:configuration?.steno_category as string|null??null,stenoCategories:Array.isArray(configuration?.steno_categories)?configuration.steno_categories as string[]:null};
+  const preset=managedVersionToPreset(version,viewAs,stenoExam);
   // Proxied through our own server (app/typing/stenography-audio/[...path])
   // instead of a raw Supabase signed URL -- see that route's own comment:
   // Supabase Storage's delivery for these larger audio files is
