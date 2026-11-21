@@ -85,8 +85,8 @@ export function InsertFunctionDialog({ initialCategory = "Most Recently Used", o
       <label className="block">Search for a function:
         <span className="mt-1 flex gap-2"><input autoFocus value={search} placeholder="Type a brief description of what you want to do and then click Go" onChange={(event) => setSearch(event.target.value)} className={`${field} flex-1`} /><DialogButton onClick={() => setSearch((value) => value.trim())}>Go</DialogButton></span>
       </label>
-      <label className="mt-3 flex items-center gap-2">Or select a <u>c</u>ategory:
-        <select value={category} onChange={(event) => { setSearch(""); setCategory(event.target.value as typeof category); }} className={field}>{CATEGORIES.map((name) => <option key={name}>{name}</option>)}</select>
+      <label className="mt-3 flex items-center gap-2"><span>Or select a <u>c</u>ategory:
+        </span><select value={category} onChange={(event) => { setSearch(""); setCategory(event.target.value as typeof category); }} className={field}>{CATEGORIES.map((name) => <option key={name}>{name}</option>)}</select>
       </label>
       <p className="mt-3">Select a functio<u>n</u>:</p>
       <ul role="listbox" aria-label="Functions" className="mt-1 h-40 overflow-y-auto border border-[#adadad] bg-white">
@@ -107,7 +107,7 @@ export function SortDialog({ columns, defaultHeaders, onOk, onCancel }: { column
   return (
     <DialogShell title="Sort" onCancel={onCancel} width={520} footer={<><DialogButton primary onClick={() => onOk({ column, descending, headers })}>OK</DialogButton><DialogButton onClick={onCancel}>Cancel</DialogButton></>}>
       <div className="flex items-center justify-between"><span className="flex gap-1"><span className="border border-[#adadad] bg-[#e1e1e1] px-2 py-0.5">+ Add Level</span><span className="border border-[#adadad] bg-[#e1e1e1] px-2 py-0.5 text-[#999]">✕ Delete Level</span></span>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={headers} onChange={(event) => setHeaders(event.target.checked)} /> My data has <u>h</u>eaders</label></div>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={headers} onChange={(event) => setHeaders(event.target.checked)} /> <span>My data has <u>h</u>eaders</span></label></div>
       <div className="mt-3 grid grid-cols-[70px_1fr_1fr_1fr] items-center gap-2 border border-[#adadad] bg-white p-2">
         <span className="font-semibold">Column</span><span className="font-semibold" /><span className="font-semibold">Sort On</span><span className="font-semibold">Order</span>
         <span>Sort by</span>
@@ -175,10 +175,10 @@ export function FindReplaceDialog({ initialTab, onFindNext, onReplace, onReplace
       <DialogButton primary onClick={() => setMessage(onFindNext(find, options))} disabled={!find}>Find Next</DialogButton><DialogButton onClick={onCancel}>Close</DialogButton></>}>
       <div role="tablist" className="flex gap-0.5 border-b border-[#adadad]">{tabs}</div>
       <div className="border border-t-0 border-[#adadad] bg-white p-3">
-        <label className="grid grid-cols-[90px_1fr] items-center gap-2">Fi<u>n</u>d what:<input autoFocus value={find} onChange={(event) => setFind(event.target.value)} className={field} /></label>
-        {tab === "Replace" && <label className="mt-2 grid grid-cols-[90px_1fr] items-center gap-2">R<u>e</u>place with:<input value={replace} onChange={(event) => setReplace(event.target.value)} className={field} /></label>}
-        <div className="mt-3 flex gap-4"><label className="flex items-center gap-1.5"><input type="checkbox" checked={options.matchCase} onChange={(event) => setOptions({ ...options, matchCase: event.target.checked })} /> Match <u>c</u>ase</label>
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={options.entireCell} onChange={(event) => setOptions({ ...options, entireCell: event.target.checked })} /> Match entire cell c<u>o</u>ntents</label></div>
+        <label className="grid grid-cols-[90px_1fr] items-center gap-2"><span>Fi<u>n</u>d what:</span><input autoFocus value={find} onChange={(event) => setFind(event.target.value)} className={field} /></label>
+        {tab === "Replace" && <label className="mt-2 grid grid-cols-[90px_1fr] items-center gap-2"><span>R<u>e</u>place with:</span><input value={replace} onChange={(event) => setReplace(event.target.value)} className={field} /></label>}
+        <div className="mt-3 flex gap-4"><label className="flex items-center gap-1.5"><input type="checkbox" checked={options.matchCase} onChange={(event) => setOptions({ ...options, matchCase: event.target.checked })} /> <span>Match <u>c</u>ase</span></label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={options.entireCell} onChange={(event) => setOptions({ ...options, entireCell: event.target.checked })} /> <span>Match entire cell c<u>o</u>ntents</span></label></div>
       </div>
       {message && <p role="status" className="mt-2 text-[#1e1e1e]">{message}</p>}
     </DialogShell>
@@ -193,10 +193,13 @@ export function PageSetupDialog({ sheet, initialTab = "Page", onOk, onCancel, on
   const [error, setError] = useState("");
   const set = <K extends keyof PageSetupResult>(key: K, v: PageSetupResult[K]) => setValue((current) => ({ ...current, [key]: v }));
   const submit = () => {
-    const area = value.printArea?.trim().toUpperCase().replace(/\$/g, "") || null, rows = value.printTitleRows?.trim() || null, cols = value.printTitleCols?.trim().toUpperCase() || null;
+    // Students typed "&1:&1" ("&" is Shift+7, "$" is Shift+4) and were refused: "&" is read as "$". Small letters and
+    // spaces are fine, and a single row / column ("1", "$A") repeats just that one, as in Excel.
+    const titles = (text: string | null | undefined) => { const t = (text ?? "").trim().toUpperCase().replace(/&/g, "$").replace(/\s+/g, ""); return !t ? null : t.includes(":") ? t : `${t}:${t}`; };
+    const area = value.printArea?.trim().toUpperCase().replace(/[$&\s]/g, "") || null, rows = titles(value.printTitleRows), cols = titles(value.printTitleCols);
     if (area && !/^[A-Z]{1,2}[0-9]{1,3}(:[A-Z]{1,2}[0-9]{1,3})?$/.test(area)) return setError("Print area must be a range such as A1:L31.");
-    if (rows && !/^\$?[0-9]{1,3}:\$?[0-9]{1,3}$/.test(rows)) return setError("Rows to repeat at top must look like $1:$1.");
-    if (cols && !/^\$?[A-Z]{1,2}:\$?[A-Z]{1,2}$/.test(cols)) return setError("Columns to repeat at left must look like $A:$A.");
+    if (rows && !/^\$?[0-9]{1,3}:\$?[0-9]{1,3}$/.test(rows)) return setError("Rows to repeat at top must look like $1:$1 (the $ sign is Shift+4).");
+    if (cols && !/^\$?[A-Z]{1,2}:\$?[A-Z]{1,2}$/.test(cols)) return setError("Columns to repeat at left must look like $A:$A (the $ sign is Shift+4).");
     onOk({ ...value, printArea: area, printTitleRows: rows, printTitleCols: cols });
   };
   const preview = (part: HeaderFooter) => [part.left, part.center, part.right].filter(Boolean).join("   ") || "(none)";
@@ -208,18 +211,18 @@ export function PageSetupDialog({ sheet, initialTab = "Page", onOk, onCancel, on
       <div className="min-h-[220px] border border-t-0 border-[#adadad] bg-white p-3">
         {tab === "Page" && <>
           <fieldset><legend className="text-[#1e5aa8]">Orientation</legend>
-            <label className="mr-6 inline-flex items-center gap-1.5"><input type="radio" checked={value.orientation === "portrait"} onChange={() => set("orientation", "portrait")} /> Portrai<u>t</u></label>
-            <label className="inline-flex items-center gap-1.5"><input type="radio" checked={value.orientation === "landscape"} onChange={() => set("orientation", "landscape")} /> <u>L</u>andscape</label></fieldset>
+            <label className="mr-6 inline-flex items-center gap-1.5"><input type="radio" checked={value.orientation === "portrait"} onChange={() => set("orientation", "portrait")} /> <span>Portrai<u>t</u></span></label>
+            <label className="inline-flex items-center gap-1.5"><input type="radio" checked={value.orientation === "landscape"} onChange={() => set("orientation", "landscape")} /> <span><u>L</u>andscape</span></label></fieldset>
           <fieldset className="mt-4"><legend className="text-[#1e5aa8]">Scaling</legend>
             <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={value.fitWidth == null && value.fitHeight == null} onChange={() => setValue((v) => ({ ...v, fitWidth: null, fitHeight: null }))} /> <u>A</u>djust to: <input aria-label="Adjust to percent" type="number" min={10} max={400} value={value.scale ?? 100} onChange={(event) => setValue((v) => ({ ...v, scale: Math.min(400, Math.max(10, Number(event.target.value) || 100)), fitWidth: null, fitHeight: null }))} className={`${field} w-16`} /> % normal size</label>
             <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={value.fitWidth != null || value.fitHeight != null} onChange={() => setValue((v) => ({ ...v, fitWidth: 1, fitHeight: 1, scale: null }))} /> <u>F</u>it to: <input aria-label="Pages wide" type="number" min={1} value={value.fitWidth ?? 1} onChange={(event) => setValue((v) => ({ ...v, fitWidth: Math.max(1, Number(event.target.value) || 1), scale: null }))} className={`${field} w-12`} /> page(s) wide by <input aria-label="Pages tall" type="number" min={1} value={value.fitHeight ?? 1} onChange={(event) => setValue((v) => ({ ...v, fitHeight: Math.max(1, Number(event.target.value) || 1), scale: null }))} className={`${field} w-12`} /> tall</label>
           </fieldset>
-          <label className="mt-4 flex items-center gap-2">Paper si<u>z</u>e:<select value={value.paperSize} onChange={(event) => set("paperSize", event.target.value as PaperSize)} className={`${field} flex-1`}>{PAPER_SIZES.map((size) => <option key={size}>{size}</option>)}</select></label>
+          <label className="mt-4 flex items-center gap-2"><span>Paper si<u>z</u>e:</span><select value={value.paperSize} onChange={(event) => set("paperSize", event.target.value as PaperSize)} className={`${field} flex-1`}>{PAPER_SIZES.map((size) => <option key={size}>{size}</option>)}</select></label>
         </>}
         {tab === "Margins" && <label className="flex items-center gap-2">Margins:<select value={value.margins} onChange={(event) => set("margins", event.target.value as PageSetupResult["margins"])} className={field}><option value="Normal">Normal (Top 0.75&quot;, Left 0.7&quot;)</option><option value="Wide">Wide (Top 1&quot;, Left 1&quot;)</option><option value="Narrow">Narrow (Top 0.75&quot;, Left 0.25&quot;)</option></select></label>}
         {tab === "Margins" && <fieldset className="mt-4"><legend className="text-[#1e5aa8]">Center on page</legend>
-          <label className="flex items-center gap-1.5 py-0.5"><input type="checkbox" checked={Boolean(value.centerHorizontally)} onChange={(event) => set("centerHorizontally", event.target.checked)} /> Hori<u>z</u>ontally</label>
-          <label className="flex items-center gap-1.5 py-0.5"><input type="checkbox" checked={Boolean(value.centerVertically)} onChange={(event) => set("centerVertically", event.target.checked)} /> <u>V</u>ertically</label>
+          <label className="flex items-center gap-1.5 py-0.5"><input type="checkbox" checked={Boolean(value.centerHorizontally)} onChange={(event) => set("centerHorizontally", event.target.checked)} /> <span>Hori<u>z</u>ontally</span></label>
+          <label className="flex items-center gap-1.5 py-0.5"><input type="checkbox" checked={Boolean(value.centerVertically)} onChange={(event) => set("centerVertically", event.target.checked)} /> <span><u>V</u>ertically</span></label>
         </fieldset>}
         {tab === "Header/Footer" && <>
           <p className="text-[#555]">Header:</p><p className="mt-1 border border-[#adadad] px-2 py-3 text-center">{preview(value.header)}</p>
@@ -227,13 +230,13 @@ export function PageSetupDialog({ sheet, initialTab = "Page", onOk, onCancel, on
           <div className="mt-3 flex gap-2"><DialogButton onClick={onCustomHeader}><u>C</u>ustom Header...</DialogButton><DialogButton onClick={onCustomHeader}>C<u>u</u>stom Footer...</DialogButton></div>
         </>}
         {tab === "Sheet" && <>
-          <label className="grid grid-cols-[150px_1fr] items-center gap-2">Print <u>a</u>rea:<input value={value.printArea ?? ""} onChange={(event) => set("printArea", event.target.value)} className={field} /></label>
+          <label className="grid grid-cols-[150px_1fr] items-center gap-2"><span>Print <u>a</u>rea:</span><input value={value.printArea ?? ""} onChange={(event) => set("printArea", event.target.value)} className={field} /></label>
           <p className="mt-3 text-[#1e5aa8]">Print titles</p>
           <label className="mt-1 grid grid-cols-[150px_1fr] items-center gap-2"><span><u>R</u>ows to repeat at top:</span><input value={value.printTitleRows ?? ""} placeholder="$1:$1" onChange={(event) => set("printTitleRows", event.target.value)} className={field} /></label>
           <label className="mt-1 grid grid-cols-[150px_1fr] items-center gap-2"><span><u>C</u>olumns to repeat at left:</span><input value={value.printTitleCols ?? ""} placeholder="$A:$A" onChange={(event) => set("printTitleCols", event.target.value)} className={field} /></label>
           <p className="mt-3 text-[#1e5aa8]">Print</p>
-          <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={value.printGridlines} onChange={(event) => set("printGridlines", event.target.checked)} /> <u>G</u>ridlines</label>
-          <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={value.printHeadings} onChange={(event) => set("printHeadings", event.target.checked)} /> Row and colu<u>m</u>n headings</label>
+          <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={value.printGridlines} onChange={(event) => set("printGridlines", event.target.checked)} /> <span><u>G</u>ridlines</span></label>
+          <label className="mt-1 flex items-center gap-1.5"><input type="checkbox" checked={value.printHeadings} onChange={(event) => set("printHeadings", event.target.checked)} /> <span>Row and colu<u>m</u>n headings</span></label>
         </>}
         {error && <p role="alert" className="mt-3 text-[#c00000]">{error}</p>}
       </div>
@@ -265,7 +268,7 @@ export function ZoomDialog({ value, onOk, onCancel, onFitSelection }: { value: n
     <DialogShell title="Zoom" onCancel={onCancel} width={240} footer={<><DialogButton primary onClick={submit}>OK</DialogButton><DialogButton onClick={onCancel}>Cancel</DialogButton></>}>
       <fieldset><legend className="text-[#1e5aa8]">Magnification</legend>
         {presets.map((preset) => <label key={preset} className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={choice === String(preset)} onChange={() => setChoice(String(preset))} /> {preset}%</label>)}
-        <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={choice === "fit"} onChange={() => setChoice("fit")} /> <u>F</u>it selection</label>
+        <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={choice === "fit"} onChange={() => setChoice("fit")} /> <span><u>F</u>it selection</span></label>
         <label className="flex items-center gap-1.5 py-0.5"><input type="radio" checked={choice === "custom"} onChange={() => setChoice("custom")} /> <u>C</u>ustom: <input aria-label="Custom zoom" value={custom} onFocus={() => setChoice("custom")} onChange={(event) => setCustom(event.target.value)} className={`${field} w-14`} />%</label>
       </fieldset>
     </DialogShell>

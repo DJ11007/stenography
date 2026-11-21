@@ -22,7 +22,7 @@ export function PasteSpecialDialog({ onOk, onCancel }: { onOk: (choice: PasteSpe
     <DialogShell title="Paste Special" onCancel={onCancel} width={400} footer={<Footer onOk={() => onOk(choice)} onCancel={onCancel} />}>
       <fieldset><legend className="text-[#1e5aa8]">Paste</legend><div className="grid grid-cols-2">{whats.map(([value, label]) => <Radio key={value} label={label} checked={choice.what === value} onChange={() => set("what", value)} />)}</div></fieldset>
       <fieldset className="mt-3"><legend className="text-[#1e5aa8]">Operation</legend><div className="grid grid-cols-2">{operations.map(([value, label]) => <Radio key={value} label={label} checked={choice.operation === value} onChange={() => set("operation", value)} />)}</div></fieldset>
-      <div className="mt-3 flex gap-6"><label className="flex items-center gap-1.5"><input type="checkbox" checked={choice.skipBlanks} onChange={(event) => set("skipBlanks", event.target.checked)} /> Skip <u>b</u>lanks</label><label className="flex items-center gap-1.5"><input type="checkbox" checked={choice.transpose} onChange={(event) => set("transpose", event.target.checked)} /> Transpos<u>e</u></label></div>
+      <div className="mt-3 flex gap-6"><label className="flex items-center gap-1.5"><input type="checkbox" checked={choice.skipBlanks} onChange={(event) => set("skipBlanks", event.target.checked)} /> <span>Skip <u>b</u>lanks</span></label><label className="flex items-center gap-1.5"><input type="checkbox" checked={choice.transpose} onChange={(event) => set("transpose", event.target.checked)} /> <span>Transpos<u>e</u></span></label></div>
     </DialogShell>
   );
 }
@@ -85,8 +85,8 @@ export function HyperlinkDialog({ initialText, initialAddress, onOk, onRemove, o
   const [text, setText] = useState(initialText), [address, setAddress] = useState(initialAddress);
   return (
     <DialogShell title="Insert Hyperlink" onCancel={onCancel} width={460} footer={<>{onRemove && <DialogButton onClick={onRemove}><u>R</u>emove Link</DialogButton>}<Footer okDisabled={!address.trim()} onOk={() => onOk(text, address.trim())} onCancel={onCancel} /></>}>
-      <label className="grid grid-cols-[110px_1fr] items-center gap-2"><u>T</u>ext to display:<input value={text} onChange={(event) => setText(event.target.value)} className={field} /></label>
-      <label className="mt-3 grid grid-cols-[110px_1fr] items-center gap-2">Addr<u>e</u>ss:<input autoFocus value={address} placeholder="https://www.example.com or a cell such as A1" onChange={(event) => setAddress(event.target.value)} className={field} /></label>
+      <label className="grid grid-cols-[110px_1fr] items-center gap-2"><span><u>T</u>ext to display:</span><input value={text} onChange={(event) => setText(event.target.value)} className={field} /></label>
+      <label className="mt-3 grid grid-cols-[110px_1fr] items-center gap-2"><span>Addr<u>e</u>ss:</span><input autoFocus value={address} placeholder="https://www.example.com or a cell such as A1" onChange={(event) => setAddress(event.target.value)} className={field} /></label>
     </DialogShell>
   );
 }
@@ -97,9 +97,9 @@ export function DefineNameDialog({ refersTo, onOk, onCancel }: { refersTo: strin
   const valid = /^[A-Za-z_][A-Za-z0-9_.]{0,39}$/.test(name) && !/^[A-Z]{1,2}[0-9]{1,3}$/i.test(name) && /^=?\$?[A-Z]{1,2}\$?[0-9]{1,3}(:\$?[A-Z]{1,2}\$?[0-9]{1,3})?$/i.test(range.trim());
   return (
     <DialogShell title="New Name" onCancel={onCancel} width={400} footer={<Footer okDisabled={!valid} onOk={() => onOk(name, range.trim().replace(/^=/, "").toUpperCase())} onCancel={onCancel} />}>
-      <label className="grid grid-cols-[80px_1fr] items-center gap-2"><u>N</u>ame:<input autoFocus value={name} onChange={(event) => setName(event.target.value)} className={field} /></label>
+      <label className="grid grid-cols-[80px_1fr] items-center gap-2"><span><u>N</u>ame:</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} className={field} /></label>
       <label className="mt-2 grid grid-cols-[80px_1fr] items-center gap-2">Scope:<select className={field} defaultValue="Workbook"><option>Workbook</option></select></label>
-      <label className="mt-2 grid grid-cols-[80px_1fr] items-center gap-2"><u>R</u>efers to:<input value={range} onChange={(event) => setRange(event.target.value)} className={field} /></label>
+      <label className="mt-2 grid grid-cols-[80px_1fr] items-center gap-2"><span><u>R</u>efers to:</span><input value={range} onChange={(event) => setRange(event.target.value)} className={field} /></label>
       {name && !valid && <p className="mt-2 text-[#c00000]">The name must start with a letter or _, have no spaces, and must not look like a cell reference.</p>}
     </DialogShell>
   );
@@ -134,17 +134,17 @@ export function DataValidationDialog({ current, onOk, onClear, onCancel }: { cur
       <div className="min-h-[180px] border border-t-0 border-[#adadad] bg-white p-3">
         {tab === "Settings" ? <>
           <p className="text-[#1e5aa8]">Validation criteria</p>
-          <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><u>A</u>llow:<select aria-label="Allow" value={type} onChange={(event) => setType(event.target.value as typeof type)} className={field}><option value="any">Any value</option><option value="whole">Whole number</option><option value="decimal">Decimal</option><option value="list">List</option><option value="date">Date</option><option value="textLength">Text length</option></select></label>
+          <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><span><u>A</u>llow:</span><select aria-label="Allow" value={type} onChange={(event) => setType(event.target.value as typeof type)} className={field}><option value="any">Any value</option><option value="whole">Whole number</option><option value="decimal">Decimal</option><option value="list">List</option><option value="date">Date</option><option value="textLength">Text length</option></select></label>
           {type !== "any" && type !== "list" && <>
-            <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><u>D</u>ata:<select aria-label="Data" value={operator} onChange={(event) => setOperator(event.target.value as ValidationOperator)} className={field}>{OPERATORS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
+            <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><span><u>D</u>ata:</span><select aria-label="Data" value={operator} onChange={(event) => setOperator(event.target.value as ValidationOperator)} className={field}>{OPERATORS.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
             <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2">{label1}<input aria-label={label1} value={value1} placeholder={type === "date" ? "25-10-2026" : ""} onChange={(event) => setValue1(event.target.value)} className={field} /></label>
-            {two && <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2">Ma<u>x</u>imum:<input aria-label="Maximum:" value={value2} onChange={(event) => setValue2(event.target.value)} className={field} /></label>}
+            {two && <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><span>Ma<u>x</u>imum:</span><input aria-label="Maximum:" value={value2} onChange={(event) => setValue2(event.target.value)} className={field} /></label>}
           </>}
-          {type === "list" && <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><u>S</u>ource:<input aria-label="Source" value={list} placeholder="Yes,No,Maybe" onChange={(event) => setList(event.target.value)} className={field} /></label>}
+          {type === "list" && <label className="mt-2 grid grid-cols-[70px_1fr] items-center gap-2"><span><u>S</u>ource:</span><input aria-label="Source" value={list} placeholder="Yes,No,Maybe" onChange={(event) => setList(event.target.value)} className={field} /></label>}
         </> : <>
           <p>When user enters invalid data, show this error alert:</p>
-          <label className="mt-2 grid gap-1"><u>T</u>itle:<input value={title} onChange={(event) => setTitle(event.target.value)} className={field} /></label>
-          <label className="mt-2 grid gap-1"><u>E</u>rror message:<textarea rows={3} value={message} onChange={(event) => setMessage(event.target.value)} className={`${field} resize-none`} /></label>
+          <label className="mt-2 grid gap-1"><span><u>T</u>itle:</span><input value={title} onChange={(event) => setTitle(event.target.value)} className={field} /></label>
+          <label className="mt-2 grid gap-1"><span><u>E</u>rror message:</span><textarea rows={3} value={message} onChange={(event) => setMessage(event.target.value)} className={`${field} resize-none`} /></label>
         </>}
       </div>
     </DialogShell>
