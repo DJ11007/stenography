@@ -9,7 +9,7 @@ const near = (actual, expected, message) => assert.ok(Math.abs(actual - expected
 
 test("a border saved before these options existed means Word's default: Edge of page, 24 pt on every side", () => {
   const parsed = parsePageBorder("3px solid #00B050");
-  assert.deepEqual(parsed, { css: "3px solid #00B050", sides: null, options: defaultBorderOptions("page") });
+  assert.deepEqual(parsed, { css: "3px solid #00B050", sides: null, options: defaultBorderOptions("page"), apply: { section: null, part: "all" } }); // and Apply to: Whole document
   assert.equal(parsed.options.measure, "page");
   assert.deepEqual([parsed.options.top, parsed.options.right, parsed.options.bottom, parsed.options.left], [24, 24, 24, 24]);
   assert.equal(parsePageBorder("2px wave #00B050 sides:top,bottom").css, "2px wave #00B050");

@@ -27,12 +27,13 @@ test("inside a header or footer the ruler shows the centre and right tab stops",
 test("a page border is placed by Word's Page Border > Options: Measure from, per-side distances, and it follows the margins when measured from the text", async () => {
   const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   const draw = editor.slice(editor.indexOf("function drawSheetBorders"), editor.indexOf("// Words only underline, as in Word"));
-  assert.match(draw, /parsePageBorder\(pageBorderText\(page\)\)\?\.options \?\? defaultBorderOptions\("page"\)/);
+  assert.match(draw, /const parsedBorder = parsePageBorder\(pageBorderText\(page\)\);/);
+  assert.match(draw, /const options = parsedBorder\?\.options \?\? defaultBorderOptions\("page"\)/);
   assert.match(draw, /pageBorderRect\(options, \{ pageWidth, sheetHeight, marginTop, marginRight, marginBottom, marginLeft,/);
   for (const side of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]) assert.match(draw, new RegExp(`px\\(computed\\.${side}\\)`));
   assert.doesNotMatch(draw, /inset = 32|const gap = 4/);
   // what the dialog saves and what a loaded border is read from
-  assert.match(editor, /formatPageBorder\(css,sides,values\.pageOptions\)/);
+  assert.match(editor, /formatPageBorder\(css,sides,values\.pageOptions,apply\)/);
   assert.match(editor, /pageOptions:parsedBorder\?\.options\?\?defaultBorderOptions\("page"\)/);
   const dialogs = await read("components/word-efficiency/word-2013-dialogs.tsx");
   assert.match(dialogs, /function PageBorderOptionsDialog2013/);

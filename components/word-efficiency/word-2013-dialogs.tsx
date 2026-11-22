@@ -1213,6 +1213,8 @@ export type BordersShadingValues = {
   pageEdges?: { top: boolean; bottom: boolean; left: boolean; right: boolean };
   /** Page Border > Options: Measure from, the four distances, Surround header / footer (lib/word-page-border.ts). */
   pageOptions?: PageBorderOptions;
+  /** Page Border > Apply to: Whole document, This section, This section - First page only, This section - All except first page. */
+  pageApplyTo?: "document" | "section" | "sectionFirst" | "sectionRest";
 };
 const EDGE_PRESETS: Record<"none" | "box" | "all" | "grid", BorderEdges> = {
   none: { top: false, bottom: false, left: false, right: false, insideH: false, insideV: false, diagonalDown: false, diagonalUp: false },
@@ -1388,7 +1390,7 @@ export function BordersShadingDialog2013({ initial, widths, initialTab = "border
               </div>
             </div>
             <div style={{ marginTop: 8 }}>Apply t<u>o</u>:</div>
-            <select className="w13-select" style={{ width: "100%" }} aria-label="Page border apply to" value="document" onChange={() => undefined}><option value="document">Whole document</option></select>
+            <select className="w13-select" style={{ width: "100%" }} aria-label="Page border apply to" value={values.pageApplyTo ?? "document"} onChange={event => set({ pageApplyTo: event.target.value as NonNullable<BordersShadingValues["pageApplyTo"]> })}><option value="document">Whole document</option><option value="section">This section</option><option value="sectionFirst">This section - First page only</option><option value="sectionRest">This section - All except first page</option></select>
             <div className="w13-row" style={{ justifyContent: "flex-end", marginTop: 6 }}><Button13 disabled={values.pageSetting === "none"} onClick={() => setPageOptionsOpen(true)} title={values.pageSetting === "none" ? "Choose a border Setting first." : "Where the border sits: measured from the edge of the page or from the text, and how far."}><u>O</u>ptions…</Button13></div>
           </div>
         </div>}

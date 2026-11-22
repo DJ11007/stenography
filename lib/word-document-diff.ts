@@ -19,7 +19,7 @@
 // cell edits, list item text, margins) without needing a full tree-edit
 // distance algorithm.
 
-import { defaultBorderDistance, pageBorderDistance, pageBorderMeasure, parsePageBorder } from "./word-page-border.ts";
+import { defaultBorderDistance, pageBorderApply, pageBorderDistance, pageBorderMeasure, parsePageBorder } from "./word-page-border.ts";
 
 export type WordDetectedChange = {
   /** The same target-path syntax word_efficiency_grading_target_value already resolves. */
@@ -97,10 +97,11 @@ export function stripBlankParagraphs<T>(document: T): T {
 export function wordTargetValue(document: unknown, target: string): unknown {
   const parts = target.split(".");
   if (parts[0] === "pageLayout") {
-    // Derived values the server also computes from pageLayout.border (borderSides: 202610191300; the rest: 202610291200).
-    if (parts.length === 2 && ["borderSides", "borderMeasure", "borderDistance"].includes(parts[1])) {
+    // Derived values the server also computes from pageLayout.border (borderSides: 202610191300; measure and distance:
+    // 202610291200; borderApply, Page Border > Apply to: 202611222200).
+    if (parts.length === 2 && ["borderSides", "borderMeasure", "borderDistance", "borderApply"].includes(parts[1])) {
       const border = isObject(document) && isObject(document.pageLayout) ? (document.pageLayout.border as string | null | undefined) : null;
-      return parts[1] === "borderSides" ? pageBorderSides(border) : parts[1] === "borderMeasure" ? pageBorderMeasure(border) : pageBorderDistance(border);
+      return parts[1] === "borderSides" ? pageBorderSides(border) : parts[1] === "borderMeasure" ? pageBorderMeasure(border) : parts[1] === "borderApply" ? pageBorderApply(border) : pageBorderDistance(border);
     }
     let value: unknown = isObject(document) ? document.pageLayout : undefined;
     for (const part of parts.slice(1)) value = isObject(value) ? value[part] : undefined;
@@ -331,6 +332,9 @@ export function diffWordDocuments(before: unknown, after: unknown): WordDetected
       if (options && [options.top, options.right, options.bottom, options.left].some((distance) => distance !== defaultBorderDistance(options.measure))) {
         changes.push({ target: "pageLayout.borderDistance", expectedValue: pageBorderDistance(afterLayout.border as string), label: `Page border distance from ${options.measure === "text" ? "the text" : "the edge of the page"}: ${pageBorderDistance(afterLayout.border as string)} pt (top, right, bottom, left)`, blockPosition: 0 });
       }
+      // Apply to: asked only when it is not the whole document (This section, first page only, all except first).
+      const apply = sides ? pageBorderApply(afterLayout.border as string) : null;
+      if (apply && apply !== "whole") changes.push({ target: "pageLayout.borderApply", expectedValue: apply, label: `Page border applied to ${apply.replace(/^s(\d+)/, "section $1").replace("-first", ", first page only").replace("-rest", ", all except first page")}`, blockPosition: 0 });
       continue; }
     changes.push({ target: `pageLayout.${field}`, expectedValue: afterLayout[field] ?? null, label: `Page ${fieldLabel(field)} changed to ${String(afterLayout[field])}`, blockPosition: 0 });
   }
