@@ -1045,7 +1045,9 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
   cap.dataset.dropCap="true";
   if(fontFamily&&(APPROVED_WORD_FONTS as readonly string[]).includes(fontFamily))cap.style.fontFamily=cssFontFamily(fontFamily);
   cap.style.float="left";cap.style.lineHeight=".8";cap.style.fontSize=`${linesValue}em`;cap.style.marginRight=`${distanceValue}in`;
-  if(mode==="margin"){cap.dataset.dropCapMargin="true";cap.style.marginLeft=`-${linesValue*0.5+distanceValue}in`}
+  // In margin (as in Word): the capital starts at the page's left edge -- a fixed 0.5 in per line shift pushed a
+  // whole first word ("Video", 4 lines = 2 in) off the page.
+  if(mode==="margin"){cap.dataset.dropCapMargin="true";placeCapInMargin(block,cap,distanceValue)}
   cap.textContent=character;
   if(rest)first.textContent=rest;else(first as ChildNode).remove();
   block.insertBefore(cap,block.firstChild);
@@ -1271,7 +1273,7 @@ savedRange.current=wrapped.range;changed();
   const otherLists=inList?[]:[...new Set(blocks.map(block=>(block.matches(otherKind)?block:block.closest(otherKind))as HTMLElement|null).filter((list):list is HTMLElement=>Boolean(list)))];
   for(const list of otherLists){const next=document.createElement(kind);for(const attr of [...list.attributes])next.setAttribute(attr.name,attr.value);while(list.firstChild)next.appendChild(list.firstChild);list.replaceWith(next)}
   if(!inList&&!otherLists.length)exec(kind==="ul"?"insertUnorderedList":"insertOrderedList");
-  for(const cap of droppedCaps){const item=[...(editor.current?.querySelectorAll<HTMLElement>("li,:scope > p")??[])].find(element=>(element.textContent??"").trim()===cap.text);if(!item||item.querySelector("[data-drop-cap]"))continue;item.dataset.dropCapLines=String(cap.lines);item.dataset.dropCapDistance=String(cap.distance);if(cap.margin)item.dataset.dropCapMargin="true";/* only the first character moves into the capital: rewriting a whole span would flatten the formatting inside it */const first=textNodes(item).find(node=>(node.textContent??"").trim());if(!first)continue;const characters=[...(first.textContent as string)];const big=document.createElement("span");big.dataset.dropCap="true";big.style.float="left";big.style.lineHeight=".8";big.style.fontSize=`${cap.lines}em`;big.style.marginRight=`${cap.distance}in`;if(cap.margin){big.dataset.dropCapMargin="true";big.style.marginLeft=`-${cap.lines*0.5+cap.distance}in`}big.textContent=characters.slice(0,cap.length).join("");if(characters.length>cap.length)first.textContent=characters.slice(cap.length).join("");else(first as ChildNode).remove();item.insertBefore(big,item.firstChild)}
+  for(const cap of droppedCaps){const item=[...(editor.current?.querySelectorAll<HTMLElement>("li,:scope > p")??[])].find(element=>(element.textContent??"").trim()===cap.text);if(!item||item.querySelector("[data-drop-cap]"))continue;item.dataset.dropCapLines=String(cap.lines);item.dataset.dropCapDistance=String(cap.distance);if(cap.margin)item.dataset.dropCapMargin="true";/* only the first character moves into the capital: rewriting a whole span would flatten the formatting inside it */const first=textNodes(item).find(node=>(node.textContent??"").trim());if(!first)continue;const characters=[...(first.textContent as string)];const big=document.createElement("span");big.dataset.dropCap="true";big.style.float="left";big.style.lineHeight=".8";big.style.fontSize=`${cap.lines}em`;big.style.marginRight=`${cap.distance}in`;if(cap.margin){big.dataset.dropCapMargin="true";placeCapInMargin(item,big,cap.distance)}big.textContent=characters.slice(0,cap.length).join("");if(characters.length>cap.length)first.textContent=characters.slice(cap.length).join("");else(first as ChildNode).remove();item.insertBefore(big,item.firstChild)}
   const lists=new Set<HTMLElement>();
   for(const id of ids){const block=editor.current?.querySelector<HTMLElement>(`#${CSS.escape(id)}`);const list=block&&findList(block);if(list)lists.add(list)}
   const selectionList=getSelection()?.anchorNode?.parentElement?.closest(kind)as HTMLElement|null;
@@ -2117,6 +2119,10 @@ function underlineCssStyle(style:string):"solid"|"double"|"dotted"|"dashed"|"wav
 // date, symbol) IS content even though it is not editable -- page numbers used to be dropped on save,
 // and enrichBlock read a different node list than makeBlock, which could shift run properties.
 function runTextNodes(element:Node){return textNodes(element).filter(node=>{const parent=node.parentElement;return Boolean(parent)&&(!parent!.closest('[contenteditable="false"]')||Boolean(parent!.closest("[data-field]")))})}
+// A drop cap "In margin", as in Word: the capital starts at the page's left edge (back by the page's left margin,
+// --word-margin-left, so it follows Margins changes); a capital wider than the margin (a whole first word such as
+// "Video") reaches into the text, and the paragraph's first lines wrap around it.
+function placeCapInMargin(_block:HTMLElement,cap:HTMLElement,distanceInches:number){cap.style.float="left";cap.style.marginLeft="calc(-1 * var(--word-margin-left, 1in))";cap.style.marginRight=`${distanceInches}in`}
 function textNodes(element:Node){const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);const nodes:Text[]=[];let node=walker.nextNode();while(node&&nodes.length<20000){nodes.push(node as Text);node=walker.nextNode()}return nodes}
 function emptyBlock(){return{id:"block-empty",type:"paragraph",alignment:"left",runs:[emptyRun()],attrs:{} as Record<string,unknown>}}function emptyRun(){return{text:"",bold:false,italic:false,underline:false,underlineStyle:null,underlineColor:null,underlineThickness:null,underlineWordsOnly:false,strike:false,superscript:false,subscript:false,smallCaps:false,allCaps:false,hidden:false,outline:false,emboss:false,fontFamily:null,fontSize:null,color:null,highlight:null,charScale:null,charSpacing:null,charPosition:null,kerningEnabled:false,kerningMin:null}}
 function approvedFont(value:string){const font=value.replace(/["']/g,"").split(",")[0].trim();return(APPROVED_WORD_FONTS as readonly string[]).includes(font)?font:null}
