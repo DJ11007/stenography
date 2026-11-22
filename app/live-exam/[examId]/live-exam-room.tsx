@@ -26,6 +26,9 @@ export type LiveExamState = {
 };
 type Candidate = { name: string; loginId: string; rollNumber: string; photoUrl?: string | null };
 type Phase = { kind: "waiting"; until: number } | { kind: "section"; section: LiveExamSectionState; until: number } | { kind: "gap"; after: LiveExamSectionState; next: LiveExamSectionState | null; until: number } | { kind: "finished" };
+// Opening a part over weak internet: a failed request is tried again this many times, this far apart (~16 s in all),
+// before the student sees "Could not open this part". Exam 10 (22 Nov 2026): one dropped request stopped a part.
+const NETWORK_RETRIES = 8, NETWORK_RETRY_MS = 2000;
 
 const TIPS = [
   "Relax and take a deep breath — the next part starts by itself.",
@@ -159,7 +162,7 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
         <section className={`flex min-h-0 min-w-0 flex-1 justify-center overflow-auto ${active ? "items-stretch p-0" : "items-center p-4 sm:p-8"}`}>
           {/* One fixed place for the part's screen, so it is the same screen while it hands in after the end. */}
           {active && (active.kind === "typing"
-            ? <TypingSection key={active.id} section={active} preloaded={preloaded[active.id]} serverOffset={serverOffset} candidate={candidate} preview={preview} onSaved={(result) => { if (result) handIn(active.id); }} />
+            ? <TypingSection key={active.id} section={active} preloaded={preloaded[active.id]} serverOffset={serverOffset} candidate={candidate} preview={preview} lastPart={active.position === state.sections.length} onSaved={(result) => { if (result) handIn(active.id); }} />
             : <EfficiencySection key={active.id} section={active} serverOffset={serverOffset} onSaved={() => handIn(active.id)} />)}
           {!active && phase.kind === "waiting" && <WaitScreen title="The exam starts in" until={phase.until} now={now} next={state.sections[0] ?? null} />}
           {!active && phase.kind === "gap" && <WaitScreen title={`${phase.after.label} is over. Break`} until={phase.until} now={now} next={phase.next} />}
@@ -169,7 +172,11 @@ export function LiveExamRoom({ initial, instructions, candidate, preview }: { in
               <h2 className="mt-2 text-3xl font-black text-slate-900">{phase.section.label}</h2>
               <p className="mt-1 text-slate-600">{formatDuration(phase.section.durationSeconds)} · {phase.section.maxMarks} marks</p>
               <p className="mt-6 font-mono text-6xl font-black text-[#0b2e59]">{clock(timeLeft)}</p>
-              <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted ? "✓ This part is submitted. Wait for the next part; it starts by itself." : `Admin preview: students get the ${phase.section.label} test here. (A preview cannot start a real attempt.)`}</p>
+              <p className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{phase.section.submitted
+                ? phase.section.position === state.sections.length
+                  ? "✓ This part is submitted. This was the last part: your result appears on this page after the exam ends."
+                  : "✓ This part is submitted. Wait for the next part; it starts by itself."
+                : `Admin preview: students get the ${phase.section.label} test here. (A preview cannot start a real attempt.)`}</p>
             </div>
           )}
           {!active && phase.kind === "finished" && !preview && !finalDone && finalOpen && (
@@ -324,19 +331,24 @@ function PeripheralCheck({ onClose }: { onClose: () => void }) {
 // A typing part: its test is fetched when the part starts (the server refuses earlier), then the normal typing screen
 // runs in live-exam mode — its clock ends with the part, the RSMSSB rules are fixed, and the attempt is saved with the
 // part. An admin preview shows the same screen but saves nothing.
-function TypingSection({ section, preloaded, serverOffset, candidate, preview, onSaved }: { section: LiveExamSectionState; preloaded?: LiveTypingSection; serverOffset: number; candidate: Candidate; preview: boolean; onSaved: (result: unknown) => void }) {
+function TypingSection({ section, preloaded, serverOffset, candidate, preview, lastPart, onSaved }: { section: LiveExamSectionState; preloaded?: LiveTypingSection; serverOffset: number; candidate: Candidate; preview: boolean; lastPart: boolean; onSaved: (result: unknown) => void }) {
   const [loaded, setLoaded] = useState<LiveTypingSection | null>(preloaded ?? null), [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     if (preloaded) return;
     let cancelled = false;
-    let tries = 0, retry: number | undefined;
+    let tries = 0, netTries = 0, retry: number | undefined;
     // This PC may reach the start a moment before the server does: "not started yet" is asked again shortly.
     const load = () => void loadLiveExamTypingSection(section.id).then((result) => {
       if (cancelled) return;
       if (result.ok) { setLoaded(result.section); return; }
       if (/not started yet/i.test(result.error) && tries++ < 12) { retry = window.setTimeout(load, 1500); return; }
       setProblem(result.error);
-    }).catch(() => { if (!cancelled) setProblem("Could not open this part. Check your internet and refresh the page."); });
+    }).catch(() => {
+      // A dropped or slow request (weak internet) is asked again a few times before the student is told to refresh.
+      if (cancelled) return;
+      if (netTries++ < NETWORK_RETRIES) { retry = window.setTimeout(load, NETWORK_RETRY_MS); return; }
+      setProblem("Could not open this part. Check your internet and refresh the page.");
+    });
     load();
     return () => { cancelled = true; window.clearTimeout(retry); };
   }, [section.id]); // eslint-disable-line react-hooks/exhaustive-deps -- a preloaded part needs no load
@@ -346,7 +358,7 @@ function TypingSection({ section, preloaded, serverOffset, candidate, preview, o
     <div className="live-part-fill-typing w-full">
       <TypingStudentProvider student={{ name: candidate.name, email: candidate.loginId, phone: null }}>
         <ConfigurableTypingExam preset={loaded.preset} mode="exam" customPreset managedTest={preview ? undefined : loaded.managedTest} adminPreview={preview}
-          liveExam={{ sectionId: section.id, endsAt: Date.parse(section.endsAt), serverOffset, onSaved }} />
+          liveExam={{ sectionId: section.id, endsAt: Date.parse(section.endsAt), serverOffset, onSaved, lastPart }} />
       </TypingStudentProvider>
     </div>
   );
@@ -358,14 +370,19 @@ function TypingSection({ section, preloaded, serverOffset, candidate, preview, o
 function EfficiencySection({ section, serverOffset, onSaved }: { section: LiveExamSectionState; serverOffset: number; onSaved: () => void }) {
   const [loaded, setLoaded] = useState<LiveEfficiencySection | null>(null), [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
-    let cancelled = false, tries = 0, retry: number | undefined;
+    let cancelled = false, tries = 0, netTries = 0, retry: number | undefined;
+    // Safe to ask again: the server carries on with the attempt this student already started in this part.
     const load = () => void startLiveExamEfficiencySection(section.id).then((result) => {
       if (cancelled) return;
       if (result.ok && "submitted" in result) { onSaved(); return; }
       if (result.ok) { setLoaded(result.section); return; }
       if (/not started yet/i.test(result.error) && tries++ < 12) { retry = window.setTimeout(load, 1500); return; }
       setProblem(result.error);
-    }).catch(() => { if (!cancelled) setProblem("Could not open this part. Check your internet and refresh the page."); });
+    }).catch(() => {
+      if (cancelled) return;
+      if (netTries++ < NETWORK_RETRIES) { retry = window.setTimeout(load, NETWORK_RETRY_MS); return; }
+      setProblem("Could not open this part. Check your internet and refresh the page.");
+    });
     load();
     return () => { cancelled = true; window.clearTimeout(retry); };
   }, [section.id]); // eslint-disable-line react-hooks/exhaustive-deps -- once per part
