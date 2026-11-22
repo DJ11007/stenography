@@ -1031,7 +1031,9 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
   const existing=block.querySelector('[data-drop-cap="true"]')as HTMLElement|null;
   if(existing){const text=document.createTextNode(existing.textContent??"");existing.replaceWith(text);block.normalize()}
   if(mode==="none"){delete block.dataset.dropCapLines;delete block.dataset.dropCapDistance;delete block.dataset.dropCapMargin;changed();return}
-  const first=textNodes(block)[0];
+  // The first text that has letters: formatting a paragraph (e.g. Character Spacing) can leave an empty text
+  // piece at its start, and taking that one made Drop Cap do nothing (Hindi Word Test 5, 22 Nov 2026).
+  const first=textNodes(block).find(node=>(node.textContent??"").trim());
   if(!first||!(first.textContent??"").trim()){setMessage("Place the cursor in a paragraph with text to apply Drop Cap.");return}
   // As in Word: a cursor drops the first letter; a selection that starts the paragraph (its first letter,
   // or its whole first word) drops what is selected, up to the end of the first word.
