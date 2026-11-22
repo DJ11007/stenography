@@ -123,7 +123,8 @@ function wordFindSpans(block: Block, find: string, caseSensitive: boolean): [num
 /** Undoes one criterion (auto-built { target } or hand-written { rule, kind, place, ... }). Returns false when it names nothing that can be undone. */
 function undoWordCriterion(doc: WordDoc, pristine: WordDoc, criterion: unknown): boolean {
   if (!isObject(criterion)) return false;
-  if (criterion.rule === "anyOf") return (Array.isArray(criterion.criteria) ? criterion.criteria : []).map((item) => undoWordCriterion(doc, pristine, item)).some(Boolean);
+  // anyOf (one alternative must pass) and allOf (every check must pass): undo each listed check.
+  if (criterion.rule === "anyOf" || criterion.rule === "allOf") return (Array.isArray(criterion.criteria) ? criterion.criteria : []).map((item) => undoWordCriterion(doc, pristine, item)).some(Boolean);
   const kind = typeof criterion.kind === "string" ? criterion.kind : "body";
   if (kind === "header" || kind === "footer") { revertHeaderFooter(doc, pristine, kind); return true; }
   const place = typeof criterion.place === "number" ? criterion.place : null;
