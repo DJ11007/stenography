@@ -79,7 +79,7 @@ test("the workspace has Excel 2013's commands the papers ask about, and saves th
   assert.match(editor, /return \{ schemaVersion: "3", rows: extent\.rows, cols: extent\.cols, cells: kept, merges: m, sheet: s,/);
   assert.match(editor, /onChange=\{\(event\) => \{ const text = event\.target\.value; event\.target\.value = ""; if \(text && !submitted && !editing\) beginEdit\(text\); \}\}/, "typed text from an input method or phone starts editing too");
   assert.match(editor, /onPaste=\{\(event\) => \{ event\.preventDefault\(\); if \(!submitted\) pasteText\(event\.clipboardData\.getData\("text\/plain"\)\); \}\}/);
-  assert.match(editor, /Math\.min\(MAX_ROWS, Math\.max\(50, extent\.rows \+ 25, focus\.row \+ 10\)\)/, "rows beyond the starting sheet (Q1, Q2 use rows 27-31) can be reached");
+  assert.match(editor, /Math\.min\(MAX_ROWS, Math\.max\(base, cursor\.row \+ 10, wholeColumn \? 0 : focus\.row \+ 10\)\)/, "rows beyond the starting sheet (Q1, Q2 use rows 27-31) can be reached");
 });
 
 test("the .xlsx reader brings in merged cells, font size, colour, underline and alignment", async () => {

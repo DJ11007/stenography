@@ -12,7 +12,7 @@ import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { FormatCellsDialog, type FormatCellsResult, type FormatCellsTab } from "./format-cells-dialog";
 import { NUMBER_FORMAT_LABELS, PAPER_SIZES, toExcelDocumentV3, type ChartType, type ConditionalType, type ExcelDocument, type ExcelDocumentV2, type HeaderFooter, type SheetCell, type SheetSettings } from "@/lib/excel-document";
 import {
-  CONDITIONAL_STYLES, EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, applyBorderLines, autoSumRange, borderCss, borderDiagonals, conditionalStyleAt, currentRegion, expandForMerges, formatCellValue, isBlankCell,
+  CONDITIONAL_STYLES, EMPTY_CELL, DEFAULT_FONT, DEFAULT_FONT_SIZE, MAX_COLS, MAX_ROWS, STYLE_KEYS, applyBorder, applyBorderLines, autoSumRange, borderCss, borderDiagonals, conditionalStyleAt, currentRegion, dataEdge, expandForMerges, lastUsedCell, nextInRange, formatCellValue, isBlankCell,
   mergeAt, mergeRanges, normalizeRect, parseEntry, parseRange, parseRef, previewHeaderText, rangeString, readBorderLines, recomputeFormulas, rectContains, rectRefs, refAt,
   shiftColumns, shiftFormula, shiftRows, unmergeRanges, usedExtent, type BorderStyle, type Rect,
 } from "@/lib/excel-sheet-model";
@@ -142,8 +142,16 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const [merges, setMerges] = useState<string[]>(start.merges);
   const [sheet, setSheet] = useState<SheetSettings>(start.sheet);
   const [operations, setOperations] = useState<string[]>(start.operations ?? []);
-  const [anchor, setAnchor] = useState({ row: 1, col: 0 });
+  // The selection runs from anchor (where it started) to focus (the end that Shift moves). cursor is the active cell,
+  // as in Excel: where typing goes. It is the anchor unless Enter / Tab move it around inside the selection.
+  const [anchor, setAnchorState] = useState({ row: 1, col: 0 });
   const [focus, setFocus] = useState({ row: 1, col: 0 });
+  const [cursor, setCursor] = useState({ row: 1, col: 0 });
+  const setAnchor = (at: { row: number; col: number }) => { setAnchorState(at); setCursor(at); };
+  // Extend mode (F8: arrows extend the selection) and End mode (End, then an arrow: jump to the edge of the data).
+  const [extendMode, setExtendMode] = useState(false);
+  const [endMode, setEndMode] = useState(false);
+  const headerDrag = useRef<"row" | "col" | null>(null);
   // Which cell is being edited, and whether from the formula bar. The typed text itself lives in editText (below),
   // not in this state: a keystroke then redraws only the cell editor and the formula bar, not the whole grid.
   const [editing, setEditing] = useState<{ ref: string; fromBar: boolean } | null>(null);
@@ -192,11 +200,18 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const [revision, setRevision] = useState(0);
 
   const selection = useMemo(() => expandForMerges(normalizeRect(anchor, focus), merges), [anchor, focus, merges]);
-  const activeRef = refAt(focus.row, focus.col);
-  const activeMerge = mergeAt(merges, focus.row, focus.col);
+  const activeRef = refAt(cursor.row, cursor.col);
+  const activeMerge = mergeAt(merges, cursor.row, cursor.col);
   const activeCellRef = activeMerge ? refAt(activeMerge.r1, activeMerge.c1) : activeRef;
   const active = cellOf(cells, activeCellRef);
-  const displayRows = useMemo(() => { const extent = usedExtent(cells, merges, sheet, baseRows, baseCols); return Math.min(MAX_ROWS, Math.max(50, extent.rows + 25, focus.row + 10)); }, [cells, merges, sheet, focus.row, baseRows, baseCols]);
+  // Rows drawn: the used rows and some room below, and the active cell / selection end with a few rows below it.
+  // A whole-column selection (row 1 to the last drawn row) does not count its end, or every click on a column
+  // letter would draw more rows and the selection would no longer reach the bottom.
+  const displayRows = useMemo(() => {
+    const extent = usedExtent(cells, merges, sheet, baseRows, baseCols), base = Math.max(50, extent.rows + 25);
+    const wholeColumn = anchor.row === 1 && focus.row >= base;
+    return Math.min(MAX_ROWS, Math.max(base, cursor.row + 10, wholeColumn ? 0 : focus.row + 10));
+  }, [cells, merges, sheet, anchor.row, focus.row, cursor.row, baseRows, baseCols]);
   const displayCols = MAX_COLS;
 
   // ---------- the fill handle (AutoFill) ----------
@@ -399,7 +414,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const selectRect = (rect: Rect) => { setAnchor({ row: rect.r1, col: rect.c1 }); setFocus({ row: rect.r2, col: rect.c2 }); };
   const moveBy = (dRow: number, dCol: number, extend = false) => {
     // A plain arrow moves from the active cell (Excel: after A27:L27, Down goes to A28); Shift+arrow moves the far end.
-    const from = extend ? focus : anchor;
+    const from = extend ? focus : cursor;
     let row = from.row + dRow, col = from.col + dCol;
     const merged = mergeAt(merges, from.row, from.col);
     if (merged && !extend) { if (dRow > 0) row = merged.r2 + 1; if (dCol > 0) col = merged.c2 + 1; if (dRow < 0) row = merged.r1 - 1; if (dCol < 0) col = merged.c1 - 1; }
@@ -407,6 +422,24 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     if (target && !extend) { row = target.r1; col = target.c1; }
     select(row, col, extend);
   };
+  /** Select a range but keep the active cell where it is (Shift+Space, Ctrl+Space, Ctrl+A ... as in Excel). */
+  const selectKeepingCursor = (rect: Rect) => { setAnchorState({ row: rect.r1, col: rect.c1 }); setFocus({ row: rect.r2, col: rect.c2 }); };
+  /** Enter / Tab with a range selected: the active cell moves inside it and the range stays. False for one cell. */
+  const moveInSelection = (byRow: boolean, back: boolean) => {
+    if (selection.r1 === selection.r2 && selection.c1 === selection.c2) return false;
+    if (mergeAt(merges, selection.r1, selection.c1) && rangeString(mergeAt(merges, selection.r1, selection.c1)!) === rangeString(selection)) return false;
+    let at = cursor;
+    for (let guard = 0; guard < 2000; guard++) {
+      at = nextInRange(selection, at, byRow, back);
+      const merged = mergeAt(merges, at.row, at.col);
+      if (!merged || (merged.r1 === at.row && merged.c1 === at.col)) break;
+    }
+    setCursor(at);
+    return true;
+  };
+  /** How many rows / columns one screen of the grid shows (Page Down, Alt+Page Down). */
+  const screenRows = () => Math.max(1, Math.floor((gridRef.current?.clientHeight ?? 400) / (DEFAULT_ROW_PX * zoom / 100)) - 2);
+  const screenCols = () => Math.max(1, Math.floor((gridRef.current?.clientWidth ?? 800) / (COL_WIDTH * zoom / 100)) - 1);
 
   // ---------- typing into cells ----------
   const beginEdit = (initial?: string, fromBar = false) => { if (submitted || (autoSubmit && mode === "attempt")) return; if (sheet.protected && active.locked !== false) { setNotice(PROTECTED_MESSAGE); return; } editText.set(initial ?? (active.formula ?? (active.value == null ? "" : String(active.value)))); setEditing({ ref: activeCellRef, fromBar }); };
@@ -456,11 +489,28 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   // otherwise save it; the flag stops that one commit.
   const cancelled = useRef(false);
   const cancelEdit = () => { cancelled.current = true; setEditing(null); focusGrid(); cancelled.current = false; };
-  const commitEdit = (move: "down" | "right" | "none" = "none") => {
+  const commitEdit = (move: "down" | "right" | "up" | "left" | "fill" | "none" = "none") => {
     if (!editing || cancelled.current) return;
     const text = closeBrackets(editText.get());
     lastPointed.current = null;
     const current = cellOf(cells, editing.ref);
+    // Ctrl+Enter: the entry goes into every cell of the selection (a formula's relative references move), as in Excel.
+    const origin = parseRef(editing.ref);
+    if (move === "fill" && origin && !(selection.r1 === selection.r2 && selection.c1 === selection.c2)) {
+      const entry = parseEntry(text), next = { ...cells }, touched: string[] = [];
+      for (const ref of rectRefs(selection)) {
+        const at = parseRef(ref); if (!at) continue;
+        const cell = cellOf(next, ref);
+        if (sheet.protected && cell.locked !== false) continue;
+        next[ref] = { ...cell, value: entry.value, formula: entry.formula ? shiftFormula(entry.formula, at.row - origin.row, at.col - origin.col) : null };
+        touched.push(ref);
+      }
+      const fn = entry.formula?.match(/^=\s*([A-Z]+)\s*\(/i)?.[1]?.toUpperCase();
+      change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: next }, Boolean(sheet.protected), touched);
+      // Leaving the editor blurs it, and its blur would commit the one cell again over the filled ones: skip that.
+      cancelled.current = true; setEditing(null); focusGrid(); cancelled.current = false;
+      return;
+    }
     // A typed date (25-10-2026, 25/10/2026, 2026-10-25) is stored as Excel's date number with a date format.
     const typedDate = current.numberFormat === "Text" ? null : parseDate(text);
     const entry = typedDate !== null ? { value: typedDate, formula: null } : current.numberFormat === "Text" && !text.startsWith("=") ? { value: text === "" ? null : text, formula: null } : parseEntry(text);
@@ -474,7 +524,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       change(fn ? `formula:${fn}` : entry.formula ? "formula" : "edit", { cells: { ...cells, [editing.ref]: { ...current, ...entry, ...dated } } }, Boolean(sheet.protected && current.locked === false), [editing.ref]);
     }
     setEditing(null);
-    if (move === "down") moveBy(1, 0); else if (move === "right") moveBy(0, 1);
+    // With a range selected, Enter / Tab move the active cell inside it (Shift: backwards), as in Excel.
+    if (move === "down" || move === "up") { if (!moveInSelection(false, move === "up")) moveBy(move === "up" ? -1 : 1, 0); }
+    else if (move === "right" || move === "left") { if (!moveInSelection(true, move === "left")) moveBy(0, move === "left" ? -1 : 1); }
     focusGrid();
   };
   const clearContents = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...next[ref], value: null, formula: null }; change("clearContents", { cells: next }, false, rectRefs(selection)); };
@@ -496,15 +548,15 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     if (clip.cut) for (const ref of rectRefs(clip.rect)) delete next[ref];
     const height = clip.rect.r2 - clip.rect.r1, width = clip.rect.c2 - clip.rect.c1;
     for (let i = 0; i <= height; i++) for (let j = 0; j <= width; j++) {
-      const row = focus.row + i, col = focus.col + j;
+      const row = cursor.row + i, col = cursor.col + j;
       if (row > MAX_ROWS || col >= MAX_COLS) continue;
       const source = clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] ?? EMPTY_CELL;
       // Relative references move with the paste, as in Excel (a cut keeps them).
-      next[refAt(row, col)] = { ...source, formula: clip.cut ? source.formula : shiftFormula(source.formula, focus.row - clip.rect.r1, focus.col - clip.rect.c1) };
+      next[refAt(row, col)] = { ...source, formula: clip.cut ? source.formula : shiftFormula(source.formula, cursor.row - clip.rect.r1, cursor.col - clip.rect.c1) };
     }
-    const destination = rectRefs({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) });
+    const destination = rectRefs({ r1: cursor.row, c1: cursor.col, r2: Math.min(MAX_ROWS, cursor.row + height), c2: Math.min(MAX_COLS - 1, cursor.col + width) });
     change("paste", { cells: next }, false, clip.cut ? [...destination, ...rectRefs(clip.rect)] : destination);
-    selectRect({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) });
+    selectRect({ r1: cursor.row, c1: cursor.col, r2: Math.min(MAX_ROWS, cursor.row + height), c2: Math.min(MAX_COLS - 1, cursor.col + width) });
     if (clip.cut) setClip(null);
     setNotice(null);
   };
@@ -516,7 +568,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const next = { ...cells };
     const touched: string[] = [];
     lines.forEach((line, i) => line.split("\t").slice(0, MAX_COLS).forEach((part, j) => {
-      const row = focus.row + i, col = focus.col + j;
+      const row = cursor.row + i, col = cursor.col + j;
       if (row > MAX_ROWS || col >= MAX_COLS) return;
       const ref = refAt(row, col);
       next[ref] = { ...cellOf(next, ref), ...parseEntry(part) };
@@ -567,7 +619,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     change(op, { cells: next });
   };
   /** The range a Sort or Filter works on: the selection, or the data around the active cell. */
-  const dataRange = () => (selection.r1 === selection.r2 && selection.c1 === selection.c2 ? currentRegion(cells, focus.row, focus.col) : selection);
+  const dataRange = () => (selection.r1 === selection.r2 && selection.c1 === selection.c2 ? currentRegion(cells, cursor.row, cursor.col) : selection);
   // Excel guesses a header row when the first row is text and the next row holds numbers or the filter is on.
   const looksLikeHeaders = (rect: Rect) => {
     if (sheet.filter) { const filter = parseRange(sheet.filter); if (filter && filter.r1 === rect.r1) return true; }
@@ -577,13 +629,13 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
   const sortSelection = (direction: "asc" | "desc") => {
     const rect = dataRange();
-    const column = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? focus.col : rect.c1;
+    const column = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? cursor.col : rect.c1;
     sortRows(rect, column, direction === "desc", looksLikeHeaders(rect), direction === "asc" ? "sortAscending" : "sortDescending");
   };
   const autoSum = (fn = "SUM") => {
     // As in Excel: the formula is shown in the cell with the range it guessed selected (=SUM(B4:F4)); drag over
     // other cells to change the range, then press Enter to apply it.
-    const range = autoSumRange(cells, focus.row, focus.col);
+    const range = autoSumRange(cells, cursor.row, cursor.col);
     const inside = fn.length + 2;
     pendingEditSelection.current = range ? [inside, inside + range.length] : [inside, inside];
     record("autoSum");
@@ -591,6 +643,14 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
 
   // ---------- keyboard ----------
+  // Ctrl+A (and Ctrl+Shift+Space): the block of data around the active cell first; pressed again (or in an empty
+  // spot), the whole sheet -- as in Excel. The active cell stays where it is.
+  const selectAllStep = () => {
+    const region = currentRegion(cells, cursor.row, cursor.col);
+    const single = region.r1 === region.r2 && region.c1 === region.c2;
+    if (single || rangeString(region) === rangeString(selection)) selectKeepingCursor({ r1: 1, c1: 0, r2: displayRows, c2: displayCols - 1 });
+    else selectKeepingCursor(region);
+  };
   const onGridKey = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (editing) return;
     const ctrl = event.ctrlKey || event.metaKey, key = event.key;
@@ -613,13 +673,56 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       if (submitted && !["c", "a"].includes(k)) return;
       if (k === "b") toggle("bold"); else if (k === "i") toggle("italic"); else if (k === "u") toggle("underline");
       else if (k === "c") copy(); else if (k === "x") copy(true);
-      else if (k === "z") undo(); else if (k === "y") redo(); else if (k === "a") selectRect({ r1: 1, c1: 0, r2: displayRows, c2: displayCols - 1 });
+      else if (k === "z") undo(); else if (k === "y") redo(); else if (k === "a") selectAllStep();
       return;
     }
-    if (key.startsWith("Arrow")) { event.preventDefault(); const [dr, dc] = key === "ArrowUp" ? [-1, 0] : key === "ArrowDown" ? [1, 0] : key === "ArrowLeft" ? [0, -1] : [0, 1]; moveBy(dr, dc, event.shiftKey); return; }
-    if (key === "Enter") { event.preventDefault(); moveBy(event.shiftKey ? -1 : 1, 0); return; }
-    if (key === "Tab") { event.preventDefault(); moveBy(0, event.shiftKey ? -1 : 1); return; }
-    if (key === "Escape") { setPainter(null); setClip(null); setNotice(null); setMenu(null); return; }
+    // ----- selecting with the keyboard, as in Excel 2013 -----
+    const extend = event.shiftKey || extendMode;
+    if (key === "F8" && !event.shiftKey && !ctrl) { event.preventDefault(); setExtendMode((value) => !value); setEndMode(false); return; }
+    if (key === "End" && !ctrl) { event.preventDefault(); setEndMode((value) => !value); return; }
+    // Shift+Space: the whole rows of the selection; Ctrl+Space: the whole columns; Ctrl+Shift+Space: as Ctrl+A.
+    if (key === " " && (event.shiftKey || ctrl)) {
+      event.preventDefault();
+      if (ctrl && event.shiftKey) selectAllStep();
+      else if (ctrl) selectKeepingCursor({ r1: 1, c1: selection.c1, r2: displayRows, c2: selection.c2 });
+      else selectKeepingCursor({ r1: selection.r1, c1: 0, r2: selection.r2, c2: displayCols - 1 });
+      return;
+    }
+    // Ctrl+Shift+* (Ctrl+Shift+8): the current region, the block of data around the active cell.
+    if (ctrl && (key === "*" || (event.shiftKey && key === "8"))) { event.preventDefault(); selectKeepingCursor(currentRegion(cells, cursor.row, cursor.col)); return; }
+    // Shift+Backspace: only the active cell stays selected. Ctrl+Backspace: scroll the active cell into view.
+    if (key === "Backspace" && event.shiftKey && !ctrl) { event.preventDefault(); select(cursor.row, cursor.col); return; }
+    if (key === "Backspace" && ctrl) { event.preventDefault(); gridRef.current?.querySelector<HTMLElement>(`[data-ref="${activeCellRef}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }); return; }
+    // Ctrl+. : the active cell goes to the next corner of the selection, clockwise.
+    if (ctrl && key === ".") {
+      event.preventDefault();
+      const corners = [{ row: selection.r1, col: selection.c1 }, { row: selection.r1, col: selection.c2 }, { row: selection.r2, col: selection.c2 }, { row: selection.r2, col: selection.c1 }];
+      const index = corners.findIndex((at) => at.row === cursor.row && at.col === cursor.col);
+      setCursor(corners[(index + 1) % 4]);
+      return;
+    }
+    // Home: column A of this row; Ctrl+Home: A1; Ctrl+End: the last used cell. With Shift (or F8), the selection grows.
+    if (key === "Home") { event.preventDefault(); const from = extend ? focus : cursor; select(ctrl ? 1 : from.row, 0, extend); return; }
+    if (key === "End" && ctrl) { event.preventDefault(); const last = lastUsedCell(cells); setEndMode(false); select(last.row, last.col, extend); return; }
+    // Page Down / Page Up: one screen down / up; Alt+Page Down / Alt+Page Up: one screen right / left.
+    if (key === "PageDown" || key === "PageUp") {
+      event.preventDefault();
+      const from = extend ? focus : cursor, sign = key === "PageDown" ? 1 : -1;
+      if (event.altKey) select(from.row, from.col + sign * screenCols(), extend); else select(from.row + sign * screenRows(), from.col, extend);
+      return;
+    }
+    if (key.startsWith("Arrow")) {
+      event.preventDefault();
+      const [dr, dc] = key === "ArrowUp" ? [-1, 0] : key === "ArrowDown" ? [1, 0] : key === "ArrowLeft" ? [0, -1] : [0, 1];
+      // Ctrl+Arrow (or End, then Arrow): to the edge of the data; with Shift, the selection grows to it.
+      if (ctrl || endMode) { setEndMode(false); const from = extend ? focus : cursor; const at = dataEdge(cells, from.row, from.col, dr, dc, MAX_ROWS, displayCols - 1); select(at.row, at.col, extend); }
+      else moveBy(dr, dc, extend);
+      return;
+    }
+    // Enter / Tab with a range selected move the active cell inside it; otherwise down / right (Shift: up / left).
+    if (key === "Enter") { event.preventDefault(); if (!moveInSelection(false, event.shiftKey)) moveBy(event.shiftKey ? -1 : 1, 0); return; }
+    if (key === "Tab") { event.preventDefault(); if (!moveInSelection(true, event.shiftKey)) moveBy(0, event.shiftKey ? -1 : 1); return; }
+    if (key === "Escape") { setPainter(null); setClip(null); setNotice(null); setMenu(null); setExtendMode(false); setEndMode(false); return; }
     if (submitted) return;
     if (key === "Delete" || key === "Backspace") { event.preventDefault(); clearContents(); return; }
     if (key === "F2") { event.preventDefault(); beginEdit(); return; }
@@ -667,7 +770,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     return () => { cancelled = true; };
   }, [autoSubmit]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once when the clock expires
 
-  useEffect(() => { const stop = () => { dragging.current = false; pointing.current = null; }; window.addEventListener("mouseup", stop); return () => window.removeEventListener("mouseup", stop); }, []);
+  useEffect(() => { const stop = () => { dragging.current = false; pointing.current = null; headerDrag.current = null; }; window.addEventListener("mouseup", stop); return () => window.removeEventListener("mouseup", stop); }, []);
 
   // The mouse, with the button held, moving over a cell: grows the selection, the fill handle's target, or the
   // reference being pointed at in a formula.
@@ -762,12 +865,12 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const next = { ...cells };
     const height = clip.rect.r2 - clip.rect.r1, width = clip.rect.c2 - clip.rect.c1;
     for (let i = 0; i <= height; i++) for (let j = 0; j <= width; j++) {
-      const row = focus.row + i, col = focus.col + j;
+      const row = cursor.row + i, col = cursor.col + j;
       if (row > MAX_ROWS || col >= MAX_COLS) continue;
       const source = clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] ?? EMPTY_CELL, target = cellOf(next, refAt(row, col));
       next[refAt(row, col)] = mode === "values" ? { ...target, value: source.value, formula: null } : { ...target, ...styleOf(source) };
     }
-    change(mode === "values" ? "pasteValues" : "pasteFormatting", { cells: next }, false, rectRefs({ r1: focus.row, c1: focus.col, r2: Math.min(MAX_ROWS, focus.row + height), c2: Math.min(MAX_COLS - 1, focus.col + width) }));
+    change(mode === "values" ? "pasteValues" : "pasteFormatting", { cells: next }, false, rectRefs({ r1: cursor.row, c1: cursor.col, r2: Math.min(MAX_ROWS, cursor.row + height), c2: Math.min(MAX_COLS - 1, cursor.col + width) }));
   };
   const saveNow = async () => { if (submitted) return; if (autosaveTimer.current) clearTimeout(autosaveTimer.current); void saveDocument(); };
   const openContextMenu = (event: React.MouseEvent, row: number, col: number) => {
@@ -871,13 +974,13 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const updateChart = (id: string, patch: Partial<NonNullable<SheetSettings["charts"]>[number]>, op: string) => change(op, { sheet: { ...sheet, charts: (sheet.charts ?? []).map((chart) => (chart.id === id ? { ...chart, ...patch } : chart)) } });
   const deleteChart = (id: string) => { change("deleteChart", { sheet: { ...sheet, charts: (sheet.charts ?? []).filter((chart) => chart.id !== id) } }); setSelectedChart(null); };
 
-  const setComment = (text: string) => { const trimmed = text.trim(); formatSelection({ comment: trimmed ? trimmed.slice(0, 500) : null }, trimmed ? "comment" : "deleteComment", { r1: focus.row, c1: focus.col, r2: focus.row, c2: focus.col }); closeDialog(); };
+  const setComment = (text: string) => { const trimmed = text.trim(); formatSelection({ comment: trimmed ? trimmed.slice(0, 500) : null }, trimmed ? "comment" : "deleteComment", { r1: cursor.row, c1: cursor.col, r2: cursor.row, c2: cursor.col }); closeDialog(); };
   const deleteComment = () => formatSelection({ comment: null }, "deleteComment");
   const gotoComment = (step: 1 | -1) => {
     const list = Object.entries(cells).filter(([, cell]) => cell.comment).map(([ref]) => parseRef(ref)!).sort((a, b) => a.row - b.row || a.col - b.col);
     if (!list.length) { setNotice("There are no comments on this sheet."); return; }
-    const index = list.findIndex((at) => at.row > focus.row || (at.row === focus.row && at.col > focus.col));
-    const after = step === 1 ? (index < 0 ? list[0] : list[index]) : [...list].reverse().find((at) => at.row < focus.row || (at.row === focus.row && at.col < focus.col)) ?? list[list.length - 1];
+    const index = list.findIndex((at) => at.row > cursor.row || (at.row === cursor.row && at.col > cursor.col));
+    const after = step === 1 ? (index < 0 ? list[0] : list[index]) : [...list].reverse().find((at) => at.row < cursor.row || (at.row === cursor.row && at.col < cursor.col)) ?? list[list.length - 1];
     select(after.row, after.col); setShowCommentAt(refAt(after.row, after.col));
   };
   const [showCommentAt, setShowCommentAt] = useState<string | null>(null);
@@ -1000,7 +1103,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const cellText = (cell: SheetCell) => cell.formula ?? (cell.value == null ? "" : String(cell.value));
   const findNext = (find: string, options: FindOptions) => {
     const refs = Object.keys(cells).map((ref) => ({ ref, at: parseRef(ref)! })).filter(({ at }) => at).sort((x, y) => x.at.row - y.at.row || x.at.col - y.at.col);
-    const after = refs.filter(({ at }) => at.row > focus.row || (at.row === focus.row && at.col > focus.col));
+    const after = refs.filter(({ at }) => at.row > cursor.row || (at.row === cursor.row && at.col > cursor.col));
     const hit = [...after, ...refs].find(({ ref }) => findMatch(cellText(cells[ref]), find, options));
     if (!hit) return `We couldn't find what you were looking for.`;
     select(hit.at.row, hit.at.col);
@@ -1092,7 +1195,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const height = clip.rect.r2 - clip.rect.r1, width = clip.rect.c2 - clip.rect.c1;
     for (let i = 0; i <= height; i++) for (let j = 0; j <= width; j++) {
       const [di, dj] = choice.transpose ? [j, i] : [i, j];
-      const row = focus.row + di, col = focus.col + dj;
+      const row = cursor.row + di, col = cursor.col + dj;
       if (row > MAX_ROWS || col >= MAX_COLS) continue;
       const source = clip.cells[refAt(clip.rect.r1 + i, clip.rect.c1 + j)] ?? EMPTY_CELL;
       if (choice.skipBlanks && source.value == null && !source.formula) continue;
@@ -1115,7 +1218,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
       }
       next[refAt(row, col)] = made;
     }
-    if (choice.what === "columnWidths") { widths = { ...(sheet.colWidths ?? {}) }; for (let j = 0; j <= width; j++) { const from = sheet.colWidths?.[columnLetters(clip.rect.c1 + j)]; const to = columnLetters(Math.min(MAX_COLS - 1, focus.col + j)); if (from === undefined) delete widths[to]; else widths[to] = from; } }
+    if (choice.what === "columnWidths") { widths = { ...(sheet.colWidths ?? {}) }; for (let j = 0; j <= width; j++) { const from = sheet.colWidths?.[columnLetters(clip.rect.c1 + j)]; const to = columnLetters(Math.min(MAX_COLS - 1, cursor.col + j)); if (from === undefined) delete widths[to]; else widths[to] = from; } }
     const op = choice.transpose ? "pasteTranspose" : choice.what === "formulas" ? "pasteFormulas" : choice.what === "values" ? "pasteValues" : choice.what === "formats" ? "pasteFormatting" : choice.what === "allExceptBorders" ? "pasteNoBorders" : "pasteSpecial";
     change(op, { cells: next, ...(widths !== sheet.colWidths ? { sheet: { ...sheet, colWidths: widths } } : {}) });
     closeDialog();
@@ -1190,14 +1293,14 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   // Fill > Flash Fill (Ctrl+E): the examples typed in the active cell's column (the filled cells above it), and the
   // rows below them that have data, filled in the same pattern.
   const runFlashFill = () => {
-    const col = focus.col, extent = usedExtent(cells, merges, sheet, baseRows, baseCols);
+    const col = cursor.col, extent = usedExtent(cells, merges, sheet, baseRows, baseCols);
     const text = (row: number) => { const cell = cells[refAt(row, col)]; return cell && cell.value !== null && cell.value !== "" ? String(cell.value) : null; };
     const sourcesOf = (row: number) => Array.from({ length: extent.cols }, (_, c) => { if (c === col) return null; const value = cells[refAt(row, c)]?.value; return value === undefined || value === "" ? null : value; });
     const hasData = (row: number) => sourcesOf(row).some((value) => value !== null);
-    let bottom = text(focus.row) !== null ? focus.row : focus.row - 1;
+    let bottom = text(cursor.row) !== null ? cursor.row : cursor.row - 1;
     let top = bottom;
     while (top > 1 && text(top - 1) !== null) top--;
-    if (bottom < 1 || text(bottom) === null) { top = focus.row; bottom = focus.row - 1; while (top > 1 && text(top - 1) !== null) top--; }
+    if (bottom < 1 || text(bottom) === null) { top = cursor.row; bottom = cursor.row - 1; while (top > 1 && text(top - 1) !== null) top--; }
     const rows: number[] = [];
     for (let row = top; row <= extent.rows && (row <= bottom || hasData(row)); row++) rows.push(row);
     const attempt = (from: number) => flashFill(rows.filter((row) => row >= from).map((row) => ({ sources: sourcesOf(row), output: row <= bottom ? text(row) : null })));
@@ -1256,8 +1359,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
 
   const setTabColor = (hex: string | null) => { change("tabColor", { sheet: { ...sheet, tabColor: hex } }); setMenu(null); };
   const toggleLockCell = () => { formatSelection({ locked: active.locked === false ? null : false }, "lockCell"); setMenu(null); };
-  const insertPageBreak = () => { if (focus.row < 2) { setNotice("Select a cell below row 1: the page break goes above it."); return; } change("pageBreak", { sheet: { ...sheet, rowBreaks: [...new Set([...(sheet.rowBreaks ?? []), focus.row])].sort((a, b) => a - b) } }); setMenu(null); };
-  const removePageBreak = () => { change("pageBreak", { sheet: { ...sheet, rowBreaks: (sheet.rowBreaks ?? []).filter((row) => row !== focus.row) } }); setMenu(null); };
+  const insertPageBreak = () => { if (cursor.row < 2) { setNotice("Select a cell below row 1: the page break goes above it."); return; } change("pageBreak", { sheet: { ...sheet, rowBreaks: [...new Set([...(sheet.rowBreaks ?? []), cursor.row])].sort((a, b) => a - b) } }); setMenu(null); };
+  const removePageBreak = () => { change("pageBreak", { sheet: { ...sheet, rowBreaks: (sheet.rowBreaks ?? []).filter((row) => row !== cursor.row) } }); setMenu(null); };
   const resetPageBreaks = () => { change("pageBreak", { sheet: { ...sheet, rowBreaks: [] } }); setMenu(null); };
   const setScaleToFit = (patch: Partial<Pick<SheetSettings, "fitWidth" | "fitHeight" | "scale">>) => change("scaleToFit", { sheet: { ...sheet, ...patch } });
   const setDefaultWidth = (width: number) => { const widths = { ...(sheet.colWidths ?? {}) }; for (let col = 0; col < MAX_COLS; col++) { const letter = columnLetters(col); if (widths[letter] === undefined || widths[letter] === sheet.colWidths?.[letter]) widths[letter] = widths[letter] ?? width; } change("columnWidth", { sheet: { ...sheet, colWidths: widths } }); };
@@ -1334,18 +1437,20 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   // Keep the active cell in view, as Excel does: after the Name Box (A27:L27 shows A27), Go To, or arrow keys.
   // A new anchor scrolls to the anchor; extending with Shift scrolls to the moving end. Frozen and header areas
   // stay on screen, so they are not counted as visible room.
-  const lastScrolled = useRef({ anchor: "", focus: "" });
+  const lastScrolled = useRef({ anchor: "", focus: "", cursor: "" });
   useEffect(() => {
     const grid = gridRef.current;
     const anchorKey = `${anchor.row}:${anchor.col}`, focusKey = `${focus.row}:${focus.col}`;
-    const target = anchorKey !== lastScrolled.current.anchor ? anchor : focusKey !== lastScrolled.current.focus ? focus : null;
-    lastScrolled.current = { anchor: anchorKey, focus: focusKey };
+    const cursorKey = `${cursor.row}:${cursor.col}`;
+    // Enter / Tab inside a selection move only the active cell: then that is what comes into view.
+    const target = anchorKey !== lastScrolled.current.anchor ? anchor : focusKey !== lastScrolled.current.focus ? focus : cursorKey !== lastScrolled.current.cursor ? cursor : null;
+    lastScrolled.current = { anchor: anchorKey, focus: focusKey, cursor: cursorKey };
     if (!grid || !target) return;
     const cell = grid.querySelector<HTMLElement>(`[data-ref="${columnLetters(target.col)}${target.row}"]`);
     if (!cell) {
       // The row is not drawn yet (only rows in view are): jump there first; once drawn, this runs again and fine-tunes.
       const isFrozen = freeze && target.row < freeze.row;
-      if (!isFrozen) { grid.scrollTop = Math.max(0, (frozenTop(target.row) - (freeze && freeze.row > 1 ? frozenTop(freeze.row) - headerRowPx : 0) - 3 * DEFAULT_ROW_PX) * (zoom / 100)); }
+      if (!isFrozen && !wholeCols) { grid.scrollTop = Math.max(0, (frozenTop(target.row) - (freeze && freeze.row > 1 ? frozenTop(freeze.row) - headerRowPx : 0) - 3 * DEFAULT_ROW_PX) * (zoom / 100)); }
       return;
     }
     const scale = zoom / 100, view = grid.getBoundingClientRect(), box = cell.getBoundingClientRect();
@@ -1353,10 +1458,11 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const top = view.top + (freeze && freeze.row > 1 && frozenRows ? frozenTop(freeze.row) : headerRowPx) * scale;
     const left = view.left + (freeze && freeze.col > 0 && frozenCols ? frozenLeft(freeze.col) : headerColPx) * scale;
     const inFrozenRows = freeze && target.row < freeze.row, inFrozenCols = freeze && target.col < freeze.col;
-    if (!inFrozenRows) { if (box.top < top) grid.scrollTop -= top - box.top; else if (box.bottom > view.top + grid.clientHeight) grid.scrollTop += Math.min(box.bottom - (view.top + grid.clientHeight), box.top - top); }
-    if (!inFrozenCols) { if (box.left < left) grid.scrollLeft -= left - box.left; else if (box.right > view.left + grid.clientWidth) grid.scrollLeft += Math.min(box.right - (view.left + grid.clientWidth), box.left - left); }
+    // Whole columns selected (column letters, Ctrl+Space): no scrolling up or down; whole rows: none sideways.
+    if (!inFrozenRows && !wholeCols) { if (box.top < top) grid.scrollTop -= top - box.top; else if (box.bottom > view.top + grid.clientHeight) grid.scrollTop += Math.min(box.bottom - (view.top + grid.clientHeight), box.top - top); }
+    if (!inFrozenCols && !wholeRows) { if (box.left < left) grid.scrollLeft -= left - box.left; else if (box.right > view.left + grid.clientWidth) grid.scrollLeft += Math.min(box.right - (view.left + grid.clientWidth), box.left - left); }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new selection scrolls, not every re-render
-  }, [anchor, focus]);
+  }, [anchor, focus, cursor]);
   const cellOrigin = (ref: string) => { const at = parseRef(ref); return at ? { left: frozenLeft(at.col), top: frozenTop(at.row) } : { left: 0, top: 0 }; };
 
   const off = "Not needed for this test";
@@ -1832,7 +1938,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           <Group label="Window">
             <Big label="New Window" icon="🗗" disabled title={off} /><Big label="Arrange All" icon="⊞" disabled title={off} />
             <MenuButton id="freeze" menu={menu} setMenu={setMenu} label="Freeze Panes" icon={<Icon name="freeze" big />} big disabled={submitted}>
-              {freeze ? <MenuItem onClick={() => freezeAt(null, "unfreezePanes")}>Unfreeze Panes</MenuItem> : <MenuItem onClick={() => freezeAt(refAt(Math.max(1, focus.row), focus.col) === "A1" ? "A2" : refAt(focus.row, focus.col), "freezePanes")}>Freeze Panes</MenuItem>}
+              {freeze ? <MenuItem onClick={() => freezeAt(null, "unfreezePanes")}>Unfreeze Panes</MenuItem> : <MenuItem onClick={() => freezeAt(refAt(Math.max(1, cursor.row), cursor.col) === "A1" ? "A2" : refAt(cursor.row, cursor.col), "freezePanes")}>Freeze Panes</MenuItem>}
               <MenuItem checked={sheet.freeze === "A2"} onClick={() => freezeAt("A2", "freezePanes")}>Freeze Top Row</MenuItem>
               <MenuItem checked={sheet.freeze === "B1"} onClick={() => freezeAt("B1", "freezePanes")}>Freeze First Column</MenuItem>
             </MenuButton>
@@ -1864,7 +1970,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
         <StoreInput inputRef={formulaBarRef} store={editText} live={Boolean(editing)} fallback={formulaBarValue} aria-label="Formula bar" disabled={submitted}
           onFocus={() => { if (!editing) beginEdit(undefined, true); }}
           onText={(value) => { editText.set(value); if (!editing?.fromBar) setEditing((current) => ({ ref: current?.ref ?? activeCellRef, fromBar: true })); }}
-          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Escape") cancelEdit(); }}
+          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitEdit(event.ctrlKey || event.metaKey ? "fill" : event.shiftKey ? "up" : "down"); } else if (event.key === "Escape") cancelEdit(); }}
           onBlur={() => { if (editing?.fromBar) commitEdit(); }}
           className="h-6 flex-1 rounded-sm border border-slate-300 px-2 font-mono text-[12px]" />
       </div>}
@@ -1888,7 +1994,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
               <tr>
                 <th onMouseDown={(event) => { event.preventDefault(); selectRect({ r1: 1, c1: 0, r2: displayRows, c2: displayCols - 1 }); focusGrid(); }} className="sticky left-0 top-0 z-30 h-5 border-b border-r border-slate-300 bg-[#e6e6e6]" aria-label="Select all" />
                 {Array.from({ length: displayCols }, (_, col) => (
-                  <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.shiftKey) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
+                  <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.button === 0) headerDrag.current = "col"; if (event.shiftKey || extendMode) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
+                    onMouseEnter={() => { if (headerDrag.current === "col") setFocus({ row: displayRows, col }); }}
                     onContextMenu={(event) => { event.preventDefault(); if (!(col >= selection.c1 && col <= selection.c2 && wholeCols)) { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                     style={{ left: freeze && col < freeze.col ? frozenLeft(col) : undefined, padding: hiddenColSet.has(col) ? 0 : undefined }}
                     className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_0_-2px_0_#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}
@@ -1904,7 +2011,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                 const frozenRow = Boolean(freeze && row < freeze.row);
                 return (
                   <tr key={row} style={hidden ? { display: "none" } : undefined}>
-                    {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.shiftKey) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
+                    {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.button === 0) headerDrag.current = "row"; if (event.shiftKey || extendMode) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
+                      onMouseEnter={() => { if (headerDrag.current === "row") setFocus({ row, col: displayCols - 1 }); }}
                       onContextMenu={(event) => { event.preventDefault(); if (!(row >= selection.r1 && row <= selection.r2 && wholeRows)) { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                       style={{ top: frozenRow ? frozenTop(row) : undefined, height: rowHeight(row) }}
                       className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_-2px_0_0_#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}
@@ -1915,7 +2023,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                       const ref = refAt(row, col), cell = cellOf(cells, ref);
                       const span = merged ? { rowSpan: merged.r2 - merged.r1 + 1, colSpan: merged.c2 - merged.c1 + 1 } : {};
                       const inSelection = rectContains(selection, row, col);
-                      const isActive = merged ? rectContains(merged, focus.row, focus.col) : ref === activeRef;
+                      const isActive = merged ? rectContains(merged, cursor.row, cursor.col) : ref === activeRef;
                       const isEditing = editing?.ref === ref && !editing.fromBar;
                       const numeric = typeof cell.value === "number" && cell.numberFormat !== "Text";
                       const align = cell.align ?? (numeric ? "right" : "left");
@@ -1974,14 +2082,14 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                             focusGrid();
                             if (painter) { dragging.current = true; paintStart.current = { row, col }; select(row, col); return; }
                             dragging.current = true;
-                            select(row, col, event.shiftKey);
+                            select(row, col, event.shiftKey || extendMode);
                           }}
                           onMouseEnter={() => pointerOver(row, col)}
                           onMouseUp={() => { if (painter && dragging.current) { dragging.current = false; applyPainter(expandForMerges(normalizeRect(paintStart.current ?? anchor, { row, col }), merges)); paintStart.current = null; } }}
                           onDoubleClick={() => beginEdit()} onContextMenu={(event) => openContextMenu(event, row, col)}>
                           {isEditing ? (
                             <CellEditInput inputRef={editInputRef} store={editText} label={`Edit ${ref}`} cellWidth={cellWidth} fontSize={style.fontSize} fontFamily={style.fontFamily as string | undefined}
-                              onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit("down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit("right"); } else if (event.key === "Escape") cancelEdit(); }}
+                              onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") { event.preventDefault(); commitEdit(event.ctrlKey || event.metaKey ? "fill" : event.shiftKey ? "up" : "down"); } else if (event.key === "Tab") { event.preventDefault(); commitEdit(event.shiftKey ? "left" : "right"); } else if (event.key === "Escape") cancelEdit(); }}
                               onBlur={() => commitEdit()} />
                           ) : (
                             <span className={cell.rotate ? "inline-block" : "block"} title={cell.link ? `${cell.link} - Click once to follow.` : undefined} style={{ overflow: spill ? "visible" : "hidden", textOverflow: "clip", position: spill ? "relative" : undefined, ...(cell.vertAlign ? { position: "relative", top: cell.vertAlign === "superscript" ? "-0.4em" : "0.3em" } : {}), ...(cell.rotate === 255 ? { writingMode: "vertical-rl", textOrientation: "upright" } : cell.rotate ? { transform: `rotate(${-cell.rotate}deg)`, transformOrigin: "center" } : {}) }}>{conditional?.icon && <ConditionalIcon icon={conditional.icon} />}{shown}</span>
@@ -2046,6 +2154,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
         )}
         <span aria-hidden title="New sheet" className="grid w-6 place-items-center text-[14px] text-[#999]">⊕</span>
         <span className="flex items-center gap-3 px-3">
+          {extendMode && !editing && <span>Extend Selection</span>}{endMode && !editing && <span>End Mode</span>}
           <span>{editing ? "Edit" : painter ? "Format Painter" : clip ? "Select destination and press ENTER or choose Paste" : filteredOut.size && filterRect ? `${filterRect.r2 - filterRect.r1 - filteredOut.size} of ${filterRect.r2 - filterRect.r1} records found` : "Ready"}</span>
           {sheet.protected && <span title="Protected sheet">🔒 Protected</span>}
           {sheet.printArea && <span>Print area: {sheet.printArea}</span>}

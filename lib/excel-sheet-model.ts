@@ -386,6 +386,38 @@ export function previewHeaderText(text: string | undefined, page = 1, pages = 1)
 }
 
 /** Excel's current region: the block of filled cells around a cell, bounded by empty rows and columns. */
+/** Ctrl+Arrow (End, Arrow): where Excel's cursor jumps. From a filled cell with a filled neighbour: the last filled
+ *  cell of that block. Otherwise: the next filled cell that way, or the sheet's edge when there is none. */
+export function dataEdge(cells: Record<string, SheetCell>, row: number, col: number, dRow: number, dCol: number, maxRow = MAX_ROWS, maxCol = MAX_COLS - 1) {
+  const filled = (r: number, c: number) => { const cell = cells[refAt(r, c)]; return Boolean(cell && ((cell.value !== null && cell.value !== "") || cell.formula)); };
+  const inside = (r: number, c: number) => r >= 1 && r <= maxRow && c >= 0 && c <= maxCol;
+  let r = row, c = col;
+  if (!inside(r + dRow, c + dCol)) return { row: r, col: c };
+  if (filled(r, c) && filled(r + dRow, c + dCol)) {
+    while (inside(r + dRow, c + dCol) && filled(r + dRow, c + dCol)) { r += dRow; c += dCol; }
+    return { row: r, col: c };
+  }
+  r += dRow; c += dCol;
+  while (!filled(r, c) && inside(r + dRow, c + dCol)) { r += dRow; c += dCol; }
+  return { row: r, col: c };
+}
+
+/** Ctrl+End: the last row and the last column that hold anything (a value, a formula or formatting), as Excel. */
+export function lastUsedCell(cells: Record<string, SheetCell>) {
+  let row = 1, col = 0;
+  for (const [ref, cell] of Object.entries(cells)) { if (isBlankCell(cell)) continue; const at = parseRef(ref); if (at) { row = Math.max(row, at.row); col = Math.max(col, at.col); } }
+  return { row, col };
+}
+
+/** Enter / Tab inside a selected range: the next cell of the range, wrapping to the next column (Enter) or row (Tab),
+ *  and back to the first cell after the last; Shift goes the other way. */
+export function nextInRange(rect: Rect, at: { row: number; col: number }, byRow: boolean, back: boolean) {
+  const width = rect.c2 - rect.c1 + 1, height = rect.r2 - rect.r1 + 1, total = width * height;
+  const index = byRow ? (at.row - rect.r1) * width + (at.col - rect.c1) : (at.col - rect.c1) * height + (at.row - rect.r1);
+  const next = (index + (back ? -1 : 1) + total) % total;
+  return byRow ? { row: rect.r1 + Math.floor(next / width), col: rect.c1 + (next % width) } : { row: rect.r1 + (next % height), col: rect.c1 + Math.floor(next / height) };
+}
+
 export function currentRegion(cells: Record<string, SheetCell>, row: number, col: number): Rect {
   const filled = (r: number, c: number) => { const cell = cells[refAt(r, c)]; return Boolean(cell && (cell.value !== null || cell.formula)); };
   let rect: Rect = { r1: row, c1: col, r2: row, c2: col }, grew = true;
