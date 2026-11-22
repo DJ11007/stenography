@@ -1838,7 +1838,20 @@ function paginatePages(page: HTMLElement, sheetHeight: number, zoom: number) {
       margin += target - now;
     }
   };
+  // A Page Break (or a Next Page section break) ends its sheet, as in Word: what follows starts at the top of the
+  // next sheet, even when it would fit (Hindi Word Test 5 Q13: the table stayed under the break line, 22 Nov 2026).
+  let breakSheet: number | null = null;
   for (const block of blocks) {
+    const breakKind = block.dataset.blockType;
+    if (block.tagName === "HR" && (breakKind === "page-break" || breakKind === "section-break")) {
+      breakSheet = sheetOf((block.getBoundingClientRect().top - top()) / zoom);
+      continue;
+    }
+    if (breakSheet !== null) {
+      const startTop = (block.getBoundingClientRect().top - top()) / zoom, nextSheetTop = (breakSheet + 1) * step + bodyTop;
+      if (startTop < nextSheetTop - 0.5) moveTo(block, startTop, nextSheetTop);
+      breakSheet = null;
+    }
     if (block.tagName === "TABLE" && paginateTableRows(block as HTMLTableElement, { top, zoom, step, sheetHeight, padTop: bodyTop, padBottom: sheetHeight - bodyBottom, usable })) continue;
     const rect = block.getBoundingClientRect(), blockTop = (rect.top - top()) / zoom, blockBottom = (rect.bottom - top()) / zoom;
     const sheet = sheetOf(blockTop), sheetTextTop = sheet * step + bodyTop, sheetTextBottom = sheet * step + bodyBottom;
