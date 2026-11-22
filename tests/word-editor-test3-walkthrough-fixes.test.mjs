@@ -34,9 +34,13 @@ test("a page number is saved: field text inside the non-editable chip counts as 
   assert.match(editor, /function runTextNodes\(element:Node\)\{return textNodes\(element\)\.filter\(node=>\{const parent=node\.parentElement;return Boolean\(parent\)&&\(!parent!\.closest\('\[contenteditable="false"\]'\)\|\|Boolean\(parent!\.closest\("\[data-field\]"\)\)\)\}\)\}/);
 });
 
-test("a page number is saved with the formatting around it, not the on-screen chip's cyan/bold/small look", async () => {
+// Updated 22 Nov 2026: the page number no longer has an on-screen chip look (.word-field inherits font and colour),
+// so it is saved with its own shown format -- a page number made Bold (Hindi Word Test 5 Q7) is saved bold.
+test("a page number is saved with its own shown format (the field inherits the text's look; Bold on it counts)", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /const chip=own\.closest\('\[data-field\^="page-number"\]'\);const parent=\(chip\?\.parentElement\?\?own\) as HTMLElement;const style=getComputedStyle\(parent\)/);
+  assert.match(editor, /const chip=own\.closest\('\[data-field\^="page-number"\]'\);const parent=\(chip\?\?own\) as HTMLElement;const style=getComputedStyle\(parent\)/);
+  const css = await read("app/globals.css");
+  assert.match(css, /\.word-document-page \.word-field \{ font: inherit; color: inherit; \}/);
 });
 
 test("links, bookmarks and fields are read per text piece BEFORE same-format pieces merge (the date and page number became one run)", async () => {
