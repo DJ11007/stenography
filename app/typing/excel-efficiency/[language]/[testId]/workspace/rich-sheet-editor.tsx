@@ -147,7 +147,10 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const [anchor, setAnchorState] = useState({ row: 1, col: 0 });
   const [focus, setFocus] = useState({ row: 1, col: 0 });
   const [cursor, setCursor] = useState({ row: 1, col: 0 });
-  const setAnchor = (at: { row: number; col: number }) => { setAnchorState(at); setCursor(at); };
+  // A new selection (a plain click, arrow, Name Box ...) drops the ranges Ctrl+click added. addingArea: the next
+  // new anchor belongs to a Ctrl+click, which keeps them.
+  const addingArea = useRef(false);
+  const setAnchor = (at: { row: number; col: number }) => { setAnchorState(at); setCursor(at); if (!addingArea.current) setExtraAreas((list) => (list.length ? [] : list)); };
   // Extend mode (F8: arrows extend the selection) and End mode (End, then an arrow: jump to the edge of the data).
   const [extendMode, setExtendMode] = useState(false);
   const [endMode, setEndMode] = useState(false);
@@ -200,6 +203,18 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const [revision, setRevision] = useState(0);
 
   const selection = useMemo(() => expandForMerges(normalizeRect(anchor, focus), merges), [anchor, focus, merges]);
+  // Ctrl+click / Ctrl+drag (or Shift+F8, then click) add another range to the selection, as in Excel: the earlier
+  // ranges stay in extraAreas and `selection` is the one being made. Formatting, borders, Clear, Merge, Ctrl+Enter,
+  // row heights, column widths and Hide work on all of them; Copy, Sort, Filter, Fill... refuse, as Excel does.
+  const [extraAreas, setExtraAreas] = useState<Rect[]>([]);
+  const [addMode, setAddMode] = useState(false);
+  const areas = useMemo(() => [...extraAreas, selection], [extraAreas, selection]);
+  const multiArea = extraAreas.length > 0;
+  const areaRefs = () => [...new Set(areas.flatMap((rect) => rectRefs(rect)))];
+  const selectedRows = () => [...new Set(areas.flatMap((rect) => Array.from({ length: Math.min(rect.r2, MAX_ROWS) - rect.r1 + 1 }, (_, i) => rect.r1 + i)))].sort((a, b) => a - b);
+  const selectedCols = () => [...new Set(areas.flatMap((rect) => Array.from({ length: rect.c2 - rect.c1 + 1 }, (_, i) => rect.c1 + i)))].sort((a, b) => a - b);
+  /** Excel's answer to a command that needs one range: false (and the message) while several are selected. */
+  const singleArea = () => { if (!multiArea) return true; setNotice("This command cannot be used on multiple selections."); setMenu(null); return false; };
   const activeRef = refAt(cursor.row, cursor.col);
   const activeMerge = mergeAt(merges, cursor.row, cursor.col);
   const activeCellRef = activeMerge ? refAt(activeMerge.r1, activeMerge.c1) : activeRef;
@@ -396,9 +411,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
 
   /** Apply a formatting change to every cell of the selection (merged areas included). */
-  const formatSelection = (patch: Partial<SheetCell>, op: string, rect = selection) => {
+  const formatSelection = (patch: Partial<SheetCell>, op: string, rect?: Rect) => {
     const next = { ...cells };
-    for (const ref of rectRefs(rect)) next[ref] = { ...cellOf(next, ref), ...patch };
+    for (const ref of rect ? rectRefs(rect) : areaRefs()) next[ref] = { ...cellOf(next, ref), ...patch };
     // A style-only patch (bold, fill colour, number format...) never changes a cell's value or formula, so no
     // formula anywhere can read a different result from it -- skip recomputing, instead of just confirming
     // (the expensive way) that nothing changed. formatSelection is never called with a value/formula in patch.
@@ -423,7 +438,13 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     select(row, col, extend);
   };
   /** Select a range but keep the active cell where it is (Shift+Space, Ctrl+Space, Ctrl+A ... as in Excel). */
-  const selectKeepingCursor = (rect: Rect) => { setAnchorState({ row: rect.r1, col: rect.c1 }); setFocus({ row: rect.r2, col: rect.c2 }); };
+  const selectKeepingCursor = (rect: Rect) => { setAnchorState({ row: rect.r1, col: rect.c1 }); setFocus({ row: rect.r2, col: rect.c2 }); setExtraAreas((list) => (list.length ? [] : list)); };
+  /** Ctrl+click (or a click in Add to Selection mode): what is selected stays, and a new range starts at `from`. */
+  const addArea = (from: { row: number; col: number }, to = from) => {
+    setExtraAreas((list) => [...list, selection].slice(-30));
+    addingArea.current = true; setAnchor(from); addingArea.current = false;
+    setFocus(to);
+  };
   /** Enter / Tab with a range selected: the active cell moves inside it and the range stays. False for one cell. */
   const moveInSelection = (byRow: boolean, back: boolean) => {
     if (selection.r1 === selection.r2 && selection.c1 === selection.c2) return false;
@@ -496,9 +517,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const current = cellOf(cells, editing.ref);
     // Ctrl+Enter: the entry goes into every cell of the selection (a formula's relative references move), as in Excel.
     const origin = parseRef(editing.ref);
-    if (move === "fill" && origin && !(selection.r1 === selection.r2 && selection.c1 === selection.c2)) {
+    if (move === "fill" && origin && (multiArea || !(selection.r1 === selection.r2 && selection.c1 === selection.c2))) {
       const entry = parseEntry(text), next = { ...cells }, touched: string[] = [];
-      for (const ref of rectRefs(selection)) {
+      for (const ref of areaRefs()) {
         const at = parseRef(ref); if (!at) continue;
         const cell = cellOf(next, ref);
         if (sheet.protected && cell.locked !== false) continue;
@@ -529,12 +550,14 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     else if (move === "right" || move === "left") { if (!moveInSelection(true, move === "left")) moveBy(0, move === "left" ? -1 : 1); }
     focusGrid();
   };
-  const clearContents = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...next[ref], value: null, formula: null }; change("clearContents", { cells: next }, false, rectRefs(selection)); };
-  const clearFormats = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) if (next[ref]) next[ref] = { ...EMPTY_CELL, value: next[ref].value, formula: next[ref].formula }; change("clearFormats", { cells: next }, false, rectRefs(selection)); };
-  const clearAll = () => { const next = { ...cells }; for (const ref of rectRefs(selection)) delete next[ref]; change("clearContents", { cells: next, merges: unmergeRanges(merges, selection) }, false, rectRefs(selection)); };
+  const clearContents = () => { const refs = areaRefs(), next = { ...cells }; for (const ref of refs) if (next[ref]) next[ref] = { ...next[ref], value: null, formula: null }; change("clearContents", { cells: next }, false, refs); };
+  const clearFormats = () => { const next = { ...cells }; for (const ref of areaRefs()) if (next[ref]) next[ref] = { ...EMPTY_CELL, value: next[ref].value, formula: next[ref].formula }; change("clearFormats", { cells: next }, false, rectRefs(selection)); };
+  const clearAll = () => { const refs = areaRefs(), next = { ...cells }; for (const ref of refs) delete next[ref]; change("clearContents", { cells: next, merges: areas.reduce((list, rect) => unmergeRanges(list, rect), merges) }, false, refs); };
 
   // ---------- clipboard and Format Painter ----------
   const copy = (cut = false) => {
+    // Excel copies one range only (several ranges in the same rows or columns are not supported here either).
+    if (multiArea) { setNotice("This action won't work on multiple selections."); return; }
     const copied: Record<string, SheetCell> = {};
     for (const ref of rectRefs(selection)) copied[ref] = cellOf(cells, ref);
     setClip({ rect: selection, cells: copied, cut }); record(cut ? "cut" : "copy");
@@ -542,7 +565,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     void navigator.clipboard?.writeText(text).catch(() => undefined);
     setNotice(cut ? "Select where to paste, then press Paste (Ctrl+V)." : null);
   };
-  const paste = () => {
+  const paste = () => { if (!singleArea()) return;
     if (!clip) { setNotice("Copy or cut cells first (Ctrl+C / Ctrl+X), then select where to paste."); return; }
     const next = { ...cells };
     if (clip.cut) for (const ref of rectRefs(clip.rect)) delete next[ref];
@@ -561,7 +584,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     setNotice(null);
   };
   /** Ctrl+V: cells copied here, or else text copied from elsewhere (tabs and lines become cells). */
-  const pasteText = (text: string) => {
+  const pasteText = (text: string) => { if (!singleArea()) return;
     if (clip) { paste(); return; }
     const lines = text.replace(/\r/g, "").replace(/\n$/, "").split("\n").slice(0, MAX_ROWS);
     if (!lines.length || (lines.length === 1 && lines[0] === "")) return;
@@ -585,24 +608,29 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
 
   // ---------- merging ----------
   const merge = (kind: "center" | "across" | "cells") => {
-    if (selection.r1 === selection.r2 && selection.c1 === selection.c2) { setNotice("Select two or more cells to merge."); return; }
-    const result = mergeRanges(cells, merges, selection, kind === "across");
-    let nextCells = result.cells;
-    if (kind === "center") for (const ref of rectRefs(selection)) nextCells = { ...nextCells, [ref]: { ...cellOf(nextCells, ref), align: "center" } };
-    change(kind === "center" ? "mergeCenter" : kind === "across" ? "mergeAcross" : "mergeCells", { cells: nextCells, merges: result.merges });
-    if (result.discarded) setNotice("Merging cells only keeps the upper-left value and discards other values.");
+    // Each selected range is merged on its own, as in Excel (Ctrl+click ranges included).
+    const ranges = areas.filter((rect) => rect.r1 !== rect.r2 || rect.c1 !== rect.c2);
+    if (!ranges.length) { setNotice("Select two or more cells to merge."); return; }
+    let nextCells = cells, nextMerges = merges, discarded = false;
+    for (const rect of ranges) {
+      const result = mergeRanges(nextCells, nextMerges, rect, kind === "across");
+      nextCells = result.cells; nextMerges = result.merges; discarded ||= Boolean(result.discarded);
+      if (kind === "center") for (const ref of rectRefs(rect)) nextCells = { ...nextCells, [ref]: { ...cellOf(nextCells, ref), align: "center" } };
+    }
+    change(kind === "center" ? "mergeCenter" : kind === "across" ? "mergeAcross" : "mergeCells", { cells: nextCells, merges: nextMerges });
+    if (discarded) setNotice("Merging cells only keeps the upper-left value and discards other values.");
   };
-  const unmerge = () => change("unmerge", { merges: unmergeRanges(merges, selection) });
+  const unmerge = () => change("unmerge", { merges: areas.reduce((list, rect) => unmergeRanges(list, rect), merges) });
   // Merge & Center on a merged cell unmerges it, as in Excel.
   const mergeCenterToggle = () => { if (activeMerge) unmerge(); else merge("center"); };
 
   // ---------- rows, columns, sorting, AutoSum ----------
-  const insertRow = () => { const shifted = shiftRows(cells, merges, selection.r1, 1); change("insertRow", shifted); };
-  const deleteRow = () => { const shifted = shiftRows(cells, merges, selection.r1, -1); change("deleteRow", shifted); };
-  const insertColumn = () => { const shifted = shiftColumns(cells, merges, selection.c1, 1); change("insertColumn", shifted); };
-  const deleteColumn = () => { const shifted = shiftColumns(cells, merges, selection.c1, -1); change("deleteColumn", shifted); };
+  const insertRow = () => { if (!singleArea()) return; const shifted = shiftRows(cells, merges, selection.r1, 1); change("insertRow", shifted); };
+  const deleteRow = () => { if (!singleArea()) return; const shifted = shiftRows(cells, merges, selection.r1, -1); change("deleteRow", shifted); };
+  const insertColumn = () => { if (!singleArea()) return; const shifted = shiftColumns(cells, merges, selection.c1, 1); change("insertColumn", shifted); };
+  const deleteColumn = () => { if (!singleArea()) return; const shifted = shiftColumns(cells, merges, selection.c1, -1); change("deleteColumn", shifted); };
   /** Sort the rows of a range by one column; a header row stays where it is. Blanks go last, as in Excel. */
-  const sortRows = (rect: Rect, column: number, descending: boolean, headers: boolean, op: string) => {
+  const sortRows = (rect: Rect, column: number, descending: boolean, headers: boolean, op: string) => { if (!singleArea()) return;
     const first = headers ? rect.r1 + 1 : rect.r1;
     if (first >= rect.r2) { setNotice("There is nothing to sort: select two or more rows of data."); return; }
     const rows = Array.from({ length: rect.r2 - first + 1 }, (_, i) => first + i);
@@ -678,7 +706,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     }
     // ----- selecting with the keyboard, as in Excel 2013 -----
     const extend = event.shiftKey || extendMode;
-    if (key === "F8" && !event.shiftKey && !ctrl) { event.preventDefault(); setExtendMode((value) => !value); setEndMode(false); return; }
+    if (key === "F8" && !event.shiftKey && !ctrl) { event.preventDefault(); setExtendMode((value) => !value); setAddMode(false); setEndMode(false); return; }
+    // Shift+F8: Add to Selection -- clicks then add ranges, as Ctrl+click does.
+    if (key === "F8" && event.shiftKey && !ctrl) { event.preventDefault(); setAddMode((value) => !value); setExtendMode(false); return; }
     if (key === "End" && !ctrl) { event.preventDefault(); setEndMode((value) => !value); return; }
     // Shift+Space: the whole rows of the selection; Ctrl+Space: the whole columns; Ctrl+Shift+Space: as Ctrl+A.
     if (key === " " && (event.shiftKey || ctrl)) {
@@ -722,7 +752,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     // Enter / Tab with a range selected move the active cell inside it; otherwise down / right (Shift: up / left).
     if (key === "Enter") { event.preventDefault(); if (!moveInSelection(false, event.shiftKey)) moveBy(event.shiftKey ? -1 : 1, 0); return; }
     if (key === "Tab") { event.preventDefault(); if (!moveInSelection(true, event.shiftKey)) moveBy(0, event.shiftKey ? -1 : 1); return; }
-    if (key === "Escape") { setPainter(null); setClip(null); setNotice(null); setMenu(null); setExtendMode(false); setEndMode(false); return; }
+    if (key === "Escape") { setPainter(null); setClip(null); setNotice(null); setMenu(null); setExtendMode(false); setAddMode(false); setEndMode(false); return; }
     if (submitted) return;
     if (key === "Delete" || key === "Backspace") { event.preventDefault(); clearContents(); return; }
     if (key === "F2") { event.preventDefault(); beginEdit(); return; }
@@ -814,22 +844,24 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
 
   // ---------- status bar figures ----------
   const stats = useMemo(() => {
-    const numbers = rectRefs(selection).map((ref) => cellOf(cells, ref).value).filter((value): value is number => typeof value === "number");
-    const filled = rectRefs(selection).filter((ref) => cellOf(cells, ref).value != null).length;
+    const refs = [...new Set(areas.flatMap((rect) => rectRefs(rect)))];
+    const numbers = refs.map((ref) => cellOf(cells, ref).value).filter((value): value is number => typeof value === "number");
+    const filled = refs.filter((ref) => cellOf(cells, ref).value != null).length;
     return numbers.length > 1 || filled > 1 ? { sum: numbers.reduce((a, b) => a + b, 0), count: filled, average: numbers.length ? numbers.reduce((a, b) => a + b, 0) / numbers.length : null } : null;
-  }, [cells, selection]);
+  }, [cells, areas]);
 
   // ---------- Format Cells, orientation, indent, decimals, Fill, Paste Special, Cell Styles, right-click ----------
   const [formatDialog, setFormatDialog] = useState<FormatCellsTab | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const openFormatCells = (tabName: FormatCellsTab) => { if (!submitted) { setMenu(null); setContextMenu(null); setFormatDialog(tabName); } };
   const applyFormatCells = (result: FormatCellsResult) => {
-    let next = { ...cells };
-    for (const ref of rectRefs(selection)) next[ref] = { ...cellOf(next, ref), ...result.patch };
-    next = applyBorderLines(next, selection, result.borderLines);
-    let nextMerges = merges;
-    if (result.merge === true && (selection.r1 !== selection.r2 || selection.c1 !== selection.c2)) { const merged = mergeRanges(next, merges, selection, false); next = merged.cells; nextMerges = merged.merges; }
-    if (result.merge === false) nextMerges = unmergeRanges(merges, selection);
+    let next = { ...cells }, nextMerges = merges;
+    for (const rect of areas) {
+      for (const ref of rectRefs(rect)) next[ref] = { ...cellOf(next, ref), ...result.patch };
+      next = applyBorderLines(next, rect, result.borderLines);
+      if (result.merge === true && (rect.r1 !== rect.r2 || rect.c1 !== rect.c2)) { const merged = mergeRanges(next, nextMerges, rect, false); next = merged.cells; nextMerges = merged.merges; }
+      if (result.merge === false) nextMerges = unmergeRanges(nextMerges, rect);
+    }
     change("formatCells", { cells: next, merges: nextMerges });
     setFormatDialog(null);
     focusGrid();
@@ -847,7 +879,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     if (direction === "right") return selection.c1 === selection.c2 ? (selection.c1 > 0 ? selection.c1 - 1 : null) : selection.c1;
     return selection.c1 === selection.c2 ? (selection.c2 < MAX_COLS - 1 ? selection.c2 + 1 : null) : selection.c2;
   };
-  const fillRange = (direction: "down" | "right" | "up" | "left") => {
+  const fillRange = (direction: "down" | "right" | "up" | "left") => { if (!singleArea()) return;
     const line = fillSourceLine(direction);
     if (line === null) return;
     const next = { ...cells };
@@ -860,7 +892,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     }
     change(direction === "down" ? "fillDown" : direction === "right" ? "fillRight" : direction === "up" ? "fillUp" : "fillLeft", { cells: next });
   };
-  const pasteSpecial = (mode: "values" | "formatting") => {
+  const pasteSpecial = (mode: "values" | "formatting") => { if (!singleArea()) return;
     if (!clip) { setNotice("Copy cells first (Ctrl+C), then select where to paste."); return; }
     const next = { ...cells };
     const height = clip.rect.r2 - clip.rect.r1, width = clip.rect.c2 - clip.rect.c1;
@@ -894,7 +926,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const sheetName = sheet.name || "Sheet1";
   const wholeRows = selection.c1 === 0 && selection.c2 === displayCols - 1, wholeCols = selection.r1 === 1 && selection.r2 >= displayRows;
 
-  const toggleFilter = () => {
+  const toggleFilter = () => { if (!singleArea()) return;
     if (sheet.filter) { change("filter", { sheet: { ...sheet, filter: null, filterHidden: {} } }); setNotice(null); return; }
     const rect = dataRange();
     if (rect.r1 === rect.r2) { setNotice("Select a cell in your data (a header row with data below it), then press Filter."); return; }
@@ -992,38 +1024,38 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
 
   const hideRows = (hide: boolean) => {
     const rows = new Set(sheet.hiddenRows ?? []);
-    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { if (hide) rows.add(row); else rows.delete(row); }
+    for (const row of selectedRows()) { if (hide) rows.add(row); else rows.delete(row); }
     if (!hide && selection.r1 === selection.r2) { rows.delete(selection.r1 - 1); rows.delete(selection.r1 + 1); }
     change(hide ? "hideRows" : "unhideRows", { sheet: { ...sheet, hiddenRows: [...rows].sort((a, b) => a - b) } });
   };
   const hideColumns = (hide: boolean) => {
     const cols = new Set(sheet.hiddenCols ?? []);
-    for (let col = selection.c1; col <= selection.c2; col++) { if (hide) cols.add(col); else cols.delete(col); }
+    for (const col of selectedCols()) { if (hide) cols.add(col); else cols.delete(col); }
     if (!hide && selection.c1 === selection.c2) { cols.delete(selection.c1 - 1); cols.delete(selection.c1 + 1); }
     change(hide ? "hideColumns" : "unhideColumns", { sheet: { ...sheet, hiddenCols: [...cols].sort((a, b) => a - b) } });
   };
   // A row height or column width set by hand ends AutoFit for those rows / columns, as in Excel.
   const setRowHeight = (points: number | null) => {
     const heights = { ...(sheet.rowHeights ?? {}) }, fitted = new Set(sheet.autoFitRows ?? []);
-    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { fitted.delete(row); if (points === null) delete heights[String(row)]; else heights[String(row)] = Math.round(points * 100) / 100; }
+    for (const row of selectedRows()) { fitted.delete(row); if (points === null) delete heights[String(row)]; else heights[String(row)] = Math.round(points * 100) / 100; }
     change("rowHeight", { sheet: withAutoFit({ ...sheet, rowHeights: heights }, "autoFitRows", [...fitted]) });
   };
   const setColumnWidth = (width: number | null) => {
     const widths = { ...(sheet.colWidths ?? {}) }, fitted = new Set(sheet.autoFitCols ?? []);
-    for (let col = selection.c1; col <= selection.c2; col++) { fitted.delete(columnLetters(col)); if (width === null) delete widths[columnLetters(col)]; else widths[columnLetters(col)] = Math.round(width * 100) / 100; }
+    for (const col of selectedCols()) { fitted.delete(columnLetters(col)); if (width === null) delete widths[columnLetters(col)]; else widths[columnLetters(col)] = Math.round(width * 100) / 100; }
     change("columnWidth", { sheet: withAutoFit({ ...sheet, colWidths: widths }, "autoFitCols", [...fitted]) });
   };
   // AutoFit Row Height: the rows go back to the height their text needs (the default height here), and are
   // remembered as AutoFit so the question can be marked.
   const autoFitRows = () => {
     const heights = { ...(sheet.rowHeights ?? {}) }, fitted = new Set(sheet.autoFitRows ?? []);
-    for (let row = selection.r1; row <= Math.min(selection.r2, MAX_ROWS); row++) { delete heights[String(row)]; fitted.add(row); }
+    for (const row of selectedRows()) { delete heights[String(row)]; fitted.add(row); }
     change("autoFitRowHeight", { sheet: withAutoFit({ ...sheet, rowHeights: heights }, "autoFitRows", [...fitted]) });
   };
   // AutoFit: the widest entry in each selected column, in characters of the default font.
   const autoFitColumns = () => {
     const widths = { ...(sheet.colWidths ?? {}) }, fitted = new Set(sheet.autoFitCols ?? []);
-    for (let col = selection.c1; col <= selection.c2; col++) {
+    for (const col of selectedCols()) {
       let longest = 0;
       for (const [ref, cell] of Object.entries(cells)) { const at = parseRef(ref); if (at?.col === col && cell.value != null && !mergeAt(merges, at.row, col)) longest = Math.max(longest, formatCellValue(cell.value, cell.numberFormat, cell.decimals).length * ((cell.fontSize ?? DEFAULT_FONT_SIZE) / DEFAULT_FONT_SIZE) * (cell.bold ? 1.1 : 1)); }
       widths[columnLetters(col)] = Math.min(255, Math.max(2, Math.ceil(longest + 1)));
@@ -1188,7 +1220,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
   const applyCurrency = (symbol: CurrencySymbol) => formatSelection({ numberFormat: "Accounting", currency: symbol === "₹" ? null : symbol, decimals: active.decimals ?? 2 }, "currency");
 
-  const pasteSpecialApply = (choice: PasteSpecialChoice, keepNumberFormat = false) => {
+  const pasteSpecialApply = (choice: PasteSpecialChoice, keepNumberFormat = false) => { if (!singleArea()) return;
     if (!clip) { setNotice("Copy cells first (Ctrl+C), then select where to paste."); return; }
     const next = { ...cells };
     let widths = sheet.colWidths;
@@ -1225,7 +1257,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
   const pasteAs = (what: PasteSpecialChoice["what"], options: { transpose?: boolean; keepNumberFormat?: boolean } = {}) => { setMenu(null); pasteSpecialApply({ what, operation: "none", skipBlanks: false, transpose: Boolean(options.transpose) }, Boolean(options.keepNumberFormat)); };
 
-  const shiftCells = (choice: ShiftChoice, insert: boolean) => {
+  const shiftCells = (choice: ShiftChoice, insert: boolean) => { if (!singleArea()) return;
     closeDialog();
     if (choice === "entireRow" || choice === "entireColumn") {
       let state = { cells, merges };
@@ -1243,7 +1275,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     change(insert ? "insertCells" : "deleteCells", { cells: next, merges: unmergeRanges(merges, selection) });
   };
 
-  const fillSeries = (choice: SeriesChoice) => {
+  const fillSeries = (choice: SeriesChoice) => { if (!singleArea()) return;
     closeDialog();
     const columns = choice.direction === "columns";
     const length = columns ? selection.r2 - selection.r1 + 1 : selection.c2 - selection.c1 + 1;
@@ -1292,7 +1324,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   };
   // Fill > Flash Fill (Ctrl+E): the examples typed in the active cell's column (the filled cells above it), and the
   // rows below them that have data, filled in the same pattern.
-  const runFlashFill = () => {
+  const runFlashFill = () => { if (!singleArea()) return;
     const col = cursor.col, extent = usedExtent(cells, merges, sheet, baseRows, baseCols);
     const text = (row: number) => { const cell = cells[refAt(row, col)]; return cell && cell.value !== null && cell.value !== "" ? String(cell.value) : null; };
     const sourcesOf = (row: number) => Array.from({ length: extent.cols }, (_, c) => { if (c === col) return null; const value = cells[refAt(row, c)]?.value; return value === undefined || value === "" ? null : value; });
@@ -1344,7 +1376,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const defineName = (name: string, range: string) => { change("defineName", { sheet: { ...sheet, definedNames: { ...(sheet.definedNames ?? {}), [name]: range } } }); closeDialog(); setNotice(`The name ${name} now refers to ${range}. Use it in formulas, e.g. =SUM(${name}).`); };
   const deleteName = (name: string) => { const names = { ...(sheet.definedNames ?? {}) }; delete names[name]; change("defineName", { sheet: { ...sheet, definedNames: names } }); };
 
-  const textToColumns = (delimiters: string[]) => {
+  const textToColumns = (delimiters: string[]) => { if (!singleArea()) return;
     closeDialog();
     if (selection.c1 !== selection.c2) { setNotice("Text to Columns works on one column at a time: select the cells of one column."); return; }
     const pattern = new RegExp(`[${delimiters.map((d) => d.replace(/[\]\\^-]/g, (char) => `\\${char}`)).join("")}]+`);
@@ -1365,7 +1397,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const setScaleToFit = (patch: Partial<Pick<SheetSettings, "fitWidth" | "fitHeight" | "scale">>) => change("scaleToFit", { sheet: { ...sheet, ...patch } });
   const setDefaultWidth = (width: number) => { const widths = { ...(sheet.colWidths ?? {}) }; for (let col = 0; col < MAX_COLS; col++) { const letter = columnLetters(col); if (widths[letter] === undefined || widths[letter] === sheet.colWidths?.[letter]) widths[letter] = widths[letter] ?? width; } change("columnWidth", { sheet: { ...sheet, colWidths: widths } }); };
 
-  const nameBoxValue = selection.r1 === selection.r2 && selection.c1 === selection.c2 ? activeRef : (activeMerge && activeMerge.r1 === selection.r1 && activeMerge.c1 === selection.c1 && activeMerge.r2 === selection.r2 && activeMerge.c2 === selection.c2) ? refAt(activeMerge.r1, activeMerge.c1) : rangeString(selection);
+  const nameBoxValue = multiArea || (selection.r1 === selection.r2 && selection.c1 === selection.c2) ? activeRef : (activeMerge && activeMerge.r1 === selection.r1 && activeMerge.c1 === selection.c1 && activeMerge.r2 === selection.r2 && activeMerge.c2 === selection.c2) ? refAt(activeMerge.r1, activeMerge.c1) : rangeString(selection);
   // Its own store (like the Formula Bar's editText and the status line's statusStore above): typing in the Name
   // Box only redraws the Name Box, not the whole sheet -- on a big sheet a plain useState here made every
   // keystroke in it (even just clicking in, which focuses and preselects the text) repaint the entire grid.
@@ -1564,7 +1596,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                 <MenuButton id="borders" menu={menu} setMenu={setMenu} label="Borders" icon={<Icon name="border" />} disabled={submitted}>
                   <MenuHeading>Borders</MenuHeading>
                   {([["bottom", "Bottom Border"], ["top", "Top Border"], ["left", "Left Border"], ["right", "Right Border"], ["none", "No Border"], ["all", "All Borders"], ["outside", "Outside Borders"], ["thickBox", "Thick Box Border"], ["bottomDouble", "Bottom Double Border"], ["thickBottom", "Thick Bottom Border"], ["topBottom", "Top and Bottom Border"], ["topThickBottom", "Top and Thick Bottom Border"], ["topDoubleBottom", "Top and Double Bottom Border"]] as [BorderStyle, string][]).map(([style, label]) => (
-                    <MenuItem key={style} icon={<BorderMenuIcon style={style} />} onClick={() => { change("border", { cells: applyBorder(cells, selection, style) }); setMenu(null); }}>{label}</MenuItem>
+                    <MenuItem key={style} icon={<BorderMenuIcon style={style} />} onClick={() => { change("border", { cells: areas.reduce((next, rect) => applyBorder(next, rect, style), cells) }); setMenu(null); }}>{label}</MenuItem>
                   ))}
                   <MenuItem icon={<BorderMenuIcon style="all" />} onClick={() => openFormatCells("Border")}>More Borders...</MenuItem>
                 </MenuButton>
@@ -1994,11 +2026,11 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
               <tr>
                 <th onMouseDown={(event) => { event.preventDefault(); selectRect({ r1: 1, c1: 0, r2: displayRows, c2: displayCols - 1 }); focusGrid(); }} className="sticky left-0 top-0 z-30 h-5 border-b border-r border-slate-300 bg-[#e6e6e6]" aria-label="Select all" />
                 {Array.from({ length: displayCols }, (_, col) => (
-                  <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.button === 0) headerDrag.current = "col"; if (event.shiftKey || extendMode) setFocus({ row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
+                  <th key={col} scope="col" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && col >= selection.c1 && col <= selection.c2 && wholeCols) return; if (event.button === 0) headerDrag.current = "col"; if (event.shiftKey || extendMode) setFocus({ row: displayRows, col }); else if ((event.ctrlKey || event.metaKey || addMode) && event.button === 0) addArea({ row: 1, col }, { row: displayRows, col }); else { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } focusGrid(); }}
                     onMouseEnter={() => { if (headerDrag.current === "col") setFocus({ row: displayRows, col }); }}
                     onContextMenu={(event) => { event.preventDefault(); if (!(col >= selection.c1 && col <= selection.c2 && wholeCols)) { setAnchor({ row: 1, col }); setFocus({ row: displayRows, col }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                     style={{ left: freeze && col < freeze.col ? frozenLeft(col) : undefined, padding: hiddenColSet.has(col) ? 0 : undefined }}
-                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${col >= selection.c1 && col <= selection.c2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_0_-2px_0_#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}
+                    className={`sticky top-0 h-5 overflow-hidden border-b border-r border-slate-300 text-[11px] font-normal ${freeze && col < freeze.col ? "z-[25]" : "z-20"} ${areas.some((rect) => col >= rect.c1 && col <= rect.c2) ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_0_-2px_0_#217346]" : "bg-[#f3f3f3] text-slate-600"}`}>{hiddenColSet.has(col) ? "" : columnLetters(col)}
                     {!submitted && <span role="separator" aria-label={`Resize column ${columnLetters(col)}`} onMouseDown={(event) => beginColResize(event, col)} onDoubleClick={(event) => { event.stopPropagation(); autoFitColumnAt(col); }} className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize" />}</th>
                 ))}
               </tr>
@@ -2011,18 +2043,18 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                 const frozenRow = Boolean(freeze && row < freeze.row);
                 return (
                   <tr key={row} style={hidden ? { display: "none" } : undefined}>
-                    {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.button === 0) headerDrag.current = "row"; if (event.shiftKey || extendMode) setFocus({ row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
+                    {sheet.headings && <th scope="row" onMouseDown={(event) => { event.preventDefault(); if (event.button === 2 && row >= selection.r1 && row <= selection.r2 && wholeRows) return; if (event.button === 0) headerDrag.current = "row"; if (event.shiftKey || extendMode) setFocus({ row, col: displayCols - 1 }); else if ((event.ctrlKey || event.metaKey || addMode) && event.button === 0) addArea({ row, col: 0 }, { row, col: displayCols - 1 }); else { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } focusGrid(); }}
                       onMouseEnter={() => { if (headerDrag.current === "row") setFocus({ row, col: displayCols - 1 }); }}
                       onContextMenu={(event) => { event.preventDefault(); if (!(row >= selection.r1 && row <= selection.r2 && wholeRows)) { setAnchor({ row, col: 0 }); setFocus({ row, col: displayCols - 1 }); } setMenu(null); setContextMenu({ x: event.clientX, y: event.clientY }); }}
                       style={{ top: frozenRow ? frozenTop(row) : undefined, height: rowHeight(row) }}
-                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${row >= selection.r1 && row <= selection.r2 ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_-2px_0_0_#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}
+                      className={`sticky left-0 border-b border-r border-slate-300 px-1 text-right text-[11px] font-normal ${frozenRow ? "z-[25]" : "z-10"} ${areas.some((rect) => row >= rect.r1 && row <= rect.r2) ? "bg-[#d2d2d2] font-semibold text-[#217346] shadow-[inset_-2px_0_0_#217346]" : "bg-[#f3f3f3] text-slate-600"} ${filteredOut.size && filterRect && row > filterRect.r1 && row <= filterRect.r2 ? "!text-[#0070c0]" : ""}`}>{row}
                       {!submitted && <span role="separator" aria-label={`Resize row ${row}`} onMouseDown={(event) => beginRowResize(event, row)} onDoubleClick={(event) => { event.stopPropagation(); autoFitRowAt(row); }} className="absolute bottom-0 left-0 z-10 h-1.5 w-full cursor-row-resize" />}</th>}
                     {Array.from({ length: displayCols }, (_, col) => {
                       const merged = mergeAt(merges, row, col);
                       if (merged && (merged.r1 !== row || merged.c1 !== col)) return null;
                       const ref = refAt(row, col), cell = cellOf(cells, ref);
                       const span = merged ? { rowSpan: merged.r2 - merged.r1 + 1, colSpan: merged.c2 - merged.c1 + 1 } : {};
-                      const inSelection = rectContains(selection, row, col);
+                      const inSelection = rectContains(selection, row, col) || (multiArea && extraAreas.some((rect) => rectContains(rect, row, col)));
                       const isActive = merged ? rectContains(merged, cursor.row, cursor.col) : ref === activeRef;
                       const isEditing = editing?.ref === ref && !editing.fromBar;
                       const numeric = typeof cell.value === "number" && cell.numberFormat !== "Text";
@@ -2045,7 +2077,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                       // As in Excel 2013: a selected range is shaded grey (over any fill colour too; the active cell stays clear)
                       // and edged with a thick green line round the whole range.
                       const multiSelect = selection.r1 !== selection.r2 || selection.c1 !== selection.c2;
-                      const edges = multiSelect && inSelection ? [
+                      const edges = multiSelect && rectContains(selection, row, col) ? [
                         (merged?.r1 ?? row) === selection.r1 && "inset 0 2px 0 #217346", (merged?.r2 ?? row) === selection.r2 && "inset 0 -2px 0 #217346",
                         (merged?.c1 ?? col) === selection.c1 && "inset 2px 0 0 #217346", (merged?.c2 ?? col) === selection.c2 && "inset -2px 0 0 #217346",
                       ].filter(Boolean) : [];
@@ -2082,6 +2114,8 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                             focusGrid();
                             if (painter) { dragging.current = true; paintStart.current = { row, col }; select(row, col); return; }
                             dragging.current = true;
+                            // Ctrl+click / Ctrl+drag (or Add to Selection mode): another range, the others stay selected.
+                            if ((event.ctrlKey || event.metaKey || addMode) && !event.shiftKey && event.button === 0) { addArea({ row, col }); return; }
                             select(row, col, event.shiftKey || extendMode);
                           }}
                           onMouseEnter={() => pointerOver(row, col)}
@@ -2154,7 +2188,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
         )}
         <span aria-hidden title="New sheet" className="grid w-6 place-items-center text-[14px] text-[#999]">⊕</span>
         <span className="flex items-center gap-3 px-3">
-          {extendMode && !editing && <span>Extend Selection</span>}{endMode && !editing && <span>End Mode</span>}
+          {extendMode && !editing && <span>Extend Selection</span>}{addMode && !editing && <span>Add to Selection</span>}{endMode && !editing && <span>End Mode</span>}
           <span>{editing ? "Edit" : painter ? "Format Painter" : clip ? "Select destination and press ENTER or choose Paste" : filteredOut.size && filterRect ? `${filterRect.r2 - filterRect.r1 - filteredOut.size} of ${filterRect.r2 - filterRect.r1} records found` : "Ready"}</span>
           {sheet.protected && <span title="Protected sheet">🔒 Protected</span>}
           {sheet.printArea && <span>Print area: {sheet.printArea}</span>}
