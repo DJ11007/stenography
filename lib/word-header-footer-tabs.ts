@@ -62,6 +62,54 @@ export function restoreHeaderFooterTabs(editor: HTMLElement) {
   }
 }
 
+const zoneAlign = (zone: HTMLElement) => (zone.style.textAlign === "center" || zone.style.textAlign === "right" ? zone.style.textAlign : "left");
+
+/**
+ * Puts a header/footer line back into its three positions after a formatting command. The browser's font command
+ * (e.g. choosing Kruti Dev 010 for centre text) wraps the whole position in a new span and leaves the old one
+ * behind, empty: four 33% positions no longer fit on one line, so the text showed in the right third and the right
+ * position dropped to a new line (Hindi Word Test 5 Q8, 22 Nov 2026). A wrapped position is unwrapped (its format
+ * goes onto the text inside it) and positions of the same alignment are merged. Returns true when it changed anything.
+ */
+export function repairHeaderFooterZones(area: HTMLElement): boolean {
+  let changed = false;
+  for (const child of [...area.childNodes]) {
+    const wrapper = asElement(child);
+    if (!wrapper || Boolean(isHeaderFooterZone(child))) continue;
+    const inner = [...wrapper.childNodes].filter((node): node is HTMLElement => isHeaderFooterZone(node));
+    if (!inner.length) continue;
+    for (const zone of inner) {
+      const content = [...zone.childNodes].filter((node) => !isScaffold(node));
+      if (content.length && wrapper.getAttribute("style")) {
+        const format = wrapper.cloneNode(false) as HTMLElement;
+        format.append(...content);
+        zone.insertBefore(format, [...zone.childNodes].find((node) => node.nodeName === "BR") ?? null);
+      }
+    }
+    for (const node of [...wrapper.childNodes]) area.insertBefore(node, wrapper);
+    wrapper.remove();
+    changed = true;
+  }
+  const zones = [...area.childNodes].filter(isHeaderFooterZone);
+  if (zones.length <= 3 && new Set(zones.map(zoneAlign)).size === zones.length) {
+    if (changed) { ensureHeaderFooterMarkers(area); for (const zone of zones) keepPositionTypeable(zone); }
+    return changed;
+  }
+  const keep = new Map<string, HTMLElement>();
+  for (const zone of zones) {
+    const align = zoneAlign(zone), first = keep.get(align);
+    if (!first) { keep.set(align, zone); continue; }
+    const content = [...zone.childNodes].filter((node) => !isScaffold(node));
+    if (content.length) { for (const lineBreak of [...first.querySelectorAll(":scope > br")]) lineBreak.remove(); first.append(...content); }
+    zone.remove();
+  }
+  const ordered = (["left", "center", "right"] as const).map((align) => keep.get(align)).filter((zone): zone is HTMLElement => Boolean(zone));
+  for (const zone of ordered) area.append(zone);
+  ensureHeaderFooterMarkers(area);
+  for (const zone of ordered) keepPositionTypeable(zone);
+  return true;
+}
+
 // ---------- tab stops: the cursor at the start of a position, typing in an empty one, Backspace / Delete ----------
 
 /** The three positions of a header/footer line, or null when it is not laid out in positions. */

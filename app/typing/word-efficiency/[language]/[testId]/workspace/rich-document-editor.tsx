@@ -25,7 +25,7 @@ import { createEditorBlock, editorBlockAttrs, editorBlockType, expandListElement
 import { buildDocumentText, expandReplacement, findMatches, formatOnlyMatches, matchSatisfiesFormat, rangeForMatch, type FindEngineOptions, type Segment, type TextMatch } from "@/lib/word-find-engine";
 import { PageSetupDialog2013, BLANK_FONT_VALUES, type ReplaceFormat, BordersShadingDialog2013, CellOptionsDialog2013, InsertCellsDialog2013, bordersPreset, shadingResultColor, type BorderEdgeKey, type CellOptionsValues, type TableOptionsValues, ConvertTextToTableDialog2013, ConvertToTextDialog2013, DateTimeDialog2013, DeleteCellsDialog2013, DropCapDialog2013, WatermarkDialog2013, DEFAULT_WATERMARK, type WatermarkValues, FindReplaceDialog2013, FontDialog2013, FormulaDialog2013, InsertTableDialog2013, PageNumberFormatDialog2013, ParagraphDialog2013, SortDialog2013, SplitCellsDialog2013, SymbolDialog2013, TableOptionsDialog2013, TablePropertiesDialog2013, Word13Chrome, formatFormulaResult, type BordersShadingValues, type PageNumberFormatValues, type SortValues, type TablePropertiesValues } from "@/components/word-efficiency/word-2013-dialogs";
 import { defaultBorderOptions, formatPageBorder, pageBorderRect, parsePageBorder, PT_PX } from "@/lib/word-page-border";
-import { caretInPosition, emptyPositionAt, ensureHeaderFooterMarkers, headerFooterZone, keepPositionTypeable, mergeHeaderFooterPositions, restoreHeaderFooterTabs, typeInPosition } from "@/lib/word-header-footer-tabs";
+import { caretInPosition, emptyPositionAt, ensureHeaderFooterMarkers, headerFooterZone, keepPositionTypeable, mergeHeaderFooterPositions, repairHeaderFooterZones, restoreHeaderFooterTabs, typeInPosition } from "@/lib/word-header-footer-tabs";
 import { nextWordFontSize } from "@/lib/word-font-sizes";
 import { DATE_LANGUAGES, FOOTER_STYLES, HEADER_STYLES, PAGE_NUMBER_FORMATS as WORD_PAGE_NUMBER_FORMATS, PAGE_NUMBER_GALLERIES, QUICK_TABLES, SPECIAL_CHARACTERS, SYMBOL_SUBSETS, CUSTOM_HEADER_FOOTER_KEY, dateTimeFormats, formatPageNumber, loadCustomHeaderFooterStyles, pageNumberLabel, recentSymbols, rememberSymbol, symbolsInSubset } from "@/lib/word-insert-gallery";
 
@@ -318,6 +318,9 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
  // A field (page number, date, symbol...) is a locked piece (contenteditable=false) that the browser's formatting
  // commands skip, so "select the page number, Bold" did nothing (Hindi Word Test 5 Q7, 22 Nov 2026). As in Word,
  // the selected fields take the format too: it is set on the field itself (the saved run reads its shown style).
+ // A formatting command can wrap a whole header/footer position or leave an empty copy of it behind; the line is put
+ // back into its three positions (see repairHeaderFooterZones).
+ const repairHeaderFooterLines=()=>{if(!editor.current)return;let fixed=false;for(const area of editor.current.querySelectorAll<HTMLElement>(":scope > header, :scope > footer"))if(repairHeaderFooterZones(area))fixed=true;if(fixed)changed()};
  const formatSelectedFields=(name:string,value?:string)=>{
   const selection=getSelection();if(!selection?.rangeCount||!editor.current)return;
   const range=selection.getRangeAt(0);
@@ -343,7 +346,7 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
   const listCommand=name==="insertUnorderedList"||name==="insertOrderedList";
   const carried=listCommand?selectedBlocks().filter(block=>block.tagName==="P"||block.tagName==="LI").map(block=>({text:blockKey(block),toList:block.tagName==="P",style:{marginTop:block.style.marginTop,marginBottom:block.style.marginBottom,marginRight:block.style.marginRight,textAlign:block.style.textAlign,backgroundColor:block.style.backgroundColor,border:block.style.border,lineHeight:block.style.lineHeight},borderKind:block.dataset.borderKind})):[];
   const cellListsBefore=listCommand&&editor.current?new Set(editor.current.querySelectorAll<HTMLElement>("td ul,td ol,th ul,th ol")):null;
-  document.execCommand(name,false,safeValue);formatSelectedFields(name,safeValue);if(beforeCount!==null){pruneStrayEmptyBlocks(beforeCount);if(editor.current)reattachOrphanedListItems(editor.current)}
+  document.execCommand(name,false,safeValue);formatSelectedFields(name,safeValue);repairHeaderFooterLines();if(beforeCount!==null){pruneStrayEmptyBlocks(beforeCount);if(editor.current)reattachOrphanedListItems(editor.current)}
   if(cellListsBefore&&editor.current)keepTablesOutOfLists(editor.current,cellListsBefore);
   if(listCommand&&editor.current)wrapLooseText(editor.current);
   if(cellListsBefore&&editor.current)keepTablesOutOfLists(editor.current,cellListsBefore);
@@ -1210,7 +1213,7 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
    // colour per element). Word draws strikethrough in the font colour.
    if(values.strike||values.doubleStrike){const strike=document.createElement("span");strike.style.textDecorationLine="line-through";strike.style.textDecorationStyle=values.doubleStrike?"double":"solid";strike.style.textDecorationColor="currentColor";strike.append(...target.childNodes);target.append(strike)}
       }
-savedRange.current=wrapped.range;changed();
+savedRange.current=wrapped.range;repairHeaderFooterLines();changed();
   }
  };
  const applyParagraphDialog=(values:{alignment:string;marginLeft:string;marginRight:string;specialIndentMode:string;specialIndentAmount:string;spaceBefore:string;spaceAfter:string;lineSpacing:string;hyphens:boolean;lineNumbers:boolean})=>{
