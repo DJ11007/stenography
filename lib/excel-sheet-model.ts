@@ -382,7 +382,7 @@ export function autoSumRange(cells: Record<string, SheetCell>, row: number, col:
 
 /** Header/footer codes shown as Excel shows them on a printed page. */
 export function previewHeaderText(text: string | undefined, page = 1, pages = 1) {
-  return (text ?? "").replace(/&\[Page\]/gi, String(page)).replace(/&\[Pages\]/gi, String(pages)).replace(/&\[Date\]/gi, new Date().toLocaleDateString("en-IN")).replace(/&\[Time\]/gi, new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })).replace(/&\[File\]/gi, "Book1").replace(/&\[Tab\]/gi, "Sheet1");
+  return (text ?? "").replace(/&\[Page\]/gi, String(page)).replace(/&\[Pages\]/gi, String(pages)).replace(/&\[Date\]/gi, new Date().toLocaleDateString("en-IN")).replace(/&\[Time\]/gi, new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })).replace(/&\[Path\]/gi, "C:\\Users\\Student\\Documents\\").replace(/&\[File\]/gi, "Book1").replace(/&\[Tab\]/gi, "Sheet1");
 }
 
 /** Excel's current region: the block of filled cells around a cell, bounded by empty rows and columns. */

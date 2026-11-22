@@ -18,6 +18,7 @@ import {
 } from "@/lib/excel-sheet-model";
 import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, useDialogDrag, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
 import { ChartView } from "./excel-chart";
+import { HF_ELEMENTS, HF_ICON, HF_PRESETS, HeaderFooterBand, type HfPart, type HfTarget } from "./excel-header-footer-view";
 import { STANDARD_COLORS, THEME_COLORS } from "./excel-colors";
 import { THEME_GRID } from "@/lib/word-colors";
 import { DataValidationDialog, DefineNameDialog, GoToSpecialDialog, HyperlinkDialog, InsertDeleteCellsDialog, ManageRulesDialog, MoreColorsDialog, NameManagerDialog, PasteSpecialDialog, SeriesDialog, TextToColumnsDialog, type GoToSpecialChoice, type PasteSpecialChoice, type SeriesChoice, type ShiftChoice } from "./excel-dialogs-more";
@@ -38,7 +39,7 @@ const HEADER_CODES: [string, string][] = [["&[Page]", "Page Number"], ["&[Pages]
 const COL_WIDTH = 72, ROW_HEADER_WIDTH = 40;
 
 type Snapshot = { cells: Record<string, SheetCell>; merges: string[]; sheet: SheetSettings };
-type Tab = "HOME" | "INSERT" | "PAGE LAYOUT" | "FORMULAS" | "DATA" | "REVIEW" | "VIEW";
+type Tab = "HOME" | "INSERT" | "PAGE LAYOUT" | "FORMULAS" | "DATA" | "REVIEW" | "VIEW" | "DESIGN";
 type Clip = { rect: Rect; cells: Record<string, SheetCell>; cut: boolean };
 type InputPurpose = "rowHeight" | "columnWidth" | "comment" | "protect" | "unprotect" | "chartTitle" | "defaultWidth";
 type DialogState =
@@ -152,6 +153,14 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const [painter, setPainter] = useState<{ style: Partial<SheetCell>; sticky: boolean } | null>(null);
   const [clip, setClip] = useState<Clip | null>(null);
   const [headerDialog, setHeaderDialog] = useState(false);
+  // Page Layout view (Insert > Header & Footer, View > Page Layout): the page's header and footer boxes shown on
+  // the sheet. hfTarget is the box being typed in -- while set, the HEADER & FOOTER TOOLS > DESIGN tab shows.
+  // hfDraft holds the boxes' text while typing; it is saved to the sheet when a box loses focus.
+  const [pageLayout, setPageLayout] = useState(false);
+  const [hfTarget, setHfTarget] = useState<HfTarget | null>(null);
+  const [hfDraft, setHfDraft] = useState<{ header: HeaderFooter; footer: HeaderFooter } | null>(null);
+  const [hfOptions, setHfOptions] = useState({ differentFirst: false, oddEven: false, scaleWithDocument: true, alignMargins: true });
+  const hfInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const [notice, setNotice] = useState<string | null>(null);
   // The autosave line ("Saving…", "Saved") lives in its own little store: changing it redraws that text only, not the
   // whole sheet (two full redraws on every autosave made the sheet lag).
@@ -334,6 +343,42 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
   const undo = () => { const last = undoStack.current.pop(); if (!last) return; redoStack.current.push({ cells, merges, sheet }); setCells(last.cells); setMerges(last.merges); setSheet(last.sheet); setRevision((value) => value + 1); };
   const redo = () => { const next = redoStack.current.pop(); if (!next) return; undoStack.current.push({ cells, merges, sheet }); setCells(next.cells); setMerges(next.merges); setSheet(next.sheet); setRevision((value) => value + 1); };
   const setSheetOption = <K extends keyof SheetSettings>(key: K, value: SheetSettings[K], op: string) => change(op, { sheet: { ...sheet, [key]: value } });
+
+  // Header & Footer typed on the page (Page Layout view), saved exactly as the Header & Footer dialog saves it.
+  const hfValues = hfDraft ?? { header: sheet.header, footer: sheet.footer };
+  const saveHeaderFooter = (header: HeaderFooter, footer: HeaderFooter) => {
+    const same = (a: HeaderFooter, b: HeaderFooter) => (["left", "center", "right"] as const).every((side) => (a[side] ?? "") === (b[side] ?? ""));
+    if (same(header, sheet.header) && same(footer, sheet.footer)) return;
+    const usedPage = [header, footer].some((part) => Object.values(part).some((text) => /&\[Page\]/i.test(text ?? "")));
+    change(usedPage ? "pageNumber" : "header", { sheet: { ...sheet, header, footer } }); record("header");
+  };
+  const focusHeaderFooter = (target: HfTarget) => {
+    setPageLayout(true); setHfTarget(target); setTab("DESIGN"); setMenu(null);
+    setHfDraft((draft) => draft ?? { header: { ...sheet.header }, footer: { ...sheet.footer } });
+  };
+  const openHeaderFooter = (part: HfPart) => {
+    if (submitted) return;
+    focusHeaderFooter({ part, side: "center" });
+    requestAnimationFrame(() => { const input = hfInputs.current[`${part}-center`]; input?.focus(); input?.scrollIntoView({ block: "nearest", inline: "nearest" }); });
+  };
+  // Clicking a cell leaves the header: the box's blur saves it, then the DESIGN tab goes, as in Excel.
+  const leaveHeaderFooter = () => { setHfTarget(null); setHfDraft(null); setTab((current) => (current === "DESIGN" ? "HOME" : current)); };
+  const insertHeaderCode = (code: string) => {
+    if (submitted) return;
+    const target = hfTarget ?? { part: "header" as const, side: "center" as const };
+    const key = `${target.part}-${target.side}`, input = hfInputs.current[key];
+    const current = hfValues[target.part][target.side] ?? "";
+    const at = input && document.activeElement === input ? input.selectionStart ?? current.length : current.length;
+    const end = input && document.activeElement === input ? input.selectionEnd ?? at : at;
+    const text = `${current.slice(0, at)}${code}${current.slice(end)}`.slice(0, 255);
+    setHfDraft({ ...hfValues, [target.part]: { ...hfValues[target.part], [target.side]: text } });
+    requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(at + code.length, at + code.length); });
+  };
+  const applyHeaderPreset = (part: HfPart, value: HeaderFooter) => {
+    const next = { ...hfValues, [part]: { ...value } };
+    setHfDraft(next); setMenu(null); saveHeaderFooter(next.header, next.footer);
+    openHeaderFooter(part);
+  };
 
   /** Apply a formatting change to every cell of the selection (merged areas included). */
   const formatSelection = (patch: Partial<SheetCell>, op: string, rect = selection) => {
@@ -1333,6 +1378,9 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
     const observer = new ResizeObserver(fit); observer.observe(outer);
     return () => observer.disconnect();
   }, [tab]);
+  // The header / footer bands span one printed page's width (8.5" portrait, 11" landscape, at 96 px an inch and the
+  // sheet's zoom), as the page does in Excel's Page Layout view -- never wider than the sheet itself.
+  const pageWidthPx = pageLayout ? Math.min((sheet.orientation === "landscape" ? 1056 : 816), headerColPx + Array.from({ length: displayCols }, (_, col) => colPx(col)).reduce((a, b) => a + b, 0)) * zoom / 100 : 0;
   const ribbon = (
     <div className="select-none border-b border-[#d4d4d4] bg-[#f3f3f3] text-[12px] text-[#262626]">
       <div className="flex h-7 items-center gap-1 border-b border-[#e1e1e1] bg-white px-2">
@@ -1351,6 +1399,11 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           <button key={name} role="tab" type="button" aria-selected={tab === name} onMouseDown={(event) => event.preventDefault()} onClick={() => { setTab(name); setMenu(null); }}
             className={`px-3 py-1 text-[12px] ${tab === name ? "border border-b-0 border-[#d4d4d4] bg-[#f3f3f3] text-[#217346]" : "border border-transparent text-[#444] hover:text-[#217346]"}`}>{name}</button>
         ))}
+        {hfTarget && <span className="relative ml-1 flex flex-col items-stretch">
+          <span aria-hidden className="absolute -top-[22px] left-0 right-0 whitespace-nowrap bg-[#d5ead9] px-2 py-[3px] text-center text-[11px] font-semibold text-[#217346]">HEADER &amp; FOOTER TOOLS</span>
+          <button role="tab" type="button" aria-selected={tab === "DESIGN"} aria-label="Header & Footer Tools Design" onMouseDown={(event) => event.preventDefault()} onClick={() => { setTab("DESIGN"); setMenu(null); }}
+            className={`border-t-2 border-t-[#217346] px-4 py-1 text-[12px] text-[#217346] ${tab === "DESIGN" ? "border-x border-[#d4d4d4] bg-[#f3f3f3] font-semibold" : "bg-[#eef6f0] hover:bg-[#f3f3f3]"}`}>DESIGN</button>
+        </span>}
       </div>
       <div ref={ribbonOuter} role="toolbar" aria-label="Spreadsheet controls" className="min-h-[98px] overflow-x-auto overflow-y-hidden px-1 pb-0.5 pt-1 [scrollbar-width:thin]">
       <div ref={ribbonInner} className="flex w-max items-stretch" style={{ zoom: ribbonZoom }}>
@@ -1623,7 +1676,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           <Group label="Links"><Big label="Hyperlink" icon="🔗" onClick={() => openDialog({ kind: "hyperlink" })} disabled={submitted} /></Group>
           <Group label="Text">
             <Big label="Text Box" icon={<Icon name="textBox" big />} disabled title={off} />
-            <Big label="Header & Footer" icon={<Icon name="headerFooter" big />} onClick={() => setHeaderDialog(true)} disabled={submitted} />
+            <Big label="Header & Footer" icon={<Icon name="headerFooter" big />} onClick={() => openHeaderFooter("header")} disabled={submitted} />
             <div className="flex flex-col gap-0.5"><Small label="WordArt" icon="A" showLabel onClick={() => undefined} disabled /><Small label="Signature Line" icon="✎" showLabel onClick={() => undefined} disabled /><Small label="Object" icon="▢" showLabel onClick={() => undefined} disabled /></div>
           </Group>
           <Group label="Symbols"><div className="flex flex-col gap-0.5"><Small label="Equation" icon="π" showLabel onClick={() => undefined} disabled /><Small label="Symbol" icon="Ω" showLabel onClick={() => openDialog({ kind: "symbol" })} disabled={submitted} /></div></Group>
@@ -1735,8 +1788,34 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
             <Big label="Protect Workbook" icon={<Icon name="lock" big />} disabled title={off} />
           </Group>
         </>}
+        {tab === "DESIGN" && hfTarget && <>
+          <Group label="Header & Footer">
+            {(["header", "footer"] as const).map((part) => (
+              <MenuButton key={part} id={`hf-${part}`} menu={menu} setMenu={setMenu} label={part === "header" ? "Header" : "Footer"} icon={HF_ICON[part]} big disabled={submitted}>
+                {HF_PRESETS.map((preset) => <MenuItem key={preset.label} onClick={() => applyHeaderPreset(part, preset.value)}>{preset.label}</MenuItem>)}
+              </MenuButton>
+            ))}
+          </Group>
+          <Group label="Header & Footer Elements">
+            {HF_ELEMENTS.map((element) => <Big key={element.code} label={element.label} icon={HF_ICON[element.icon]} onClick={() => insertHeaderCode(element.code)} disabled={submitted} />)}
+            <Big label="Picture" icon={HF_ICON.picture} disabled title={off} />
+            <Big label="Format Picture" icon={HF_ICON.formatPicture} disabled title={off} />
+          </Group>
+          <Group label="Navigation">
+            <Big label="Go to Header" icon={HF_ICON.goToHeader} onClick={() => openHeaderFooter("header")} disabled={submitted} />
+            <Big label="Go to Footer" icon={HF_ICON.goToFooter} onClick={() => openHeaderFooter("footer")} disabled={submitted} />
+          </Group>
+          <Group label="Options">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 px-1 pt-1">
+              <Check label="Different First Page" checked={hfOptions.differentFirst} disabled={submitted} onChange={(value) => setHfOptions((o) => ({ ...o, differentFirst: value }))} />
+              <Check label="Scale with Document" checked={hfOptions.scaleWithDocument} disabled={submitted} onChange={(value) => setHfOptions((o) => ({ ...o, scaleWithDocument: value }))} />
+              <Check label="Different Odd & Even Pages" checked={hfOptions.oddEven} disabled={submitted} onChange={(value) => setHfOptions((o) => ({ ...o, oddEven: value }))} />
+              <Check label="Align with Page Margins" checked={hfOptions.alignMargins} disabled={submitted} onChange={(value) => setHfOptions((o) => ({ ...o, alignMargins: value }))} />
+            </div>
+          </Group>
+        </>}
         {tab === "VIEW" && <>
-          <Group label="Workbook Views"><Big label="Normal" icon={<Icon name="table" big />} active onClick={() => undefined} /><Big label="Page Break Preview" icon="▤" disabled title={off} /><Big label="Page Layout" icon="🗏" disabled title={off} /><Big label="Custom Views" icon="▭" disabled title={off} /></Group>
+          <Group label="Workbook Views"><Big label="Normal" icon={<Icon name="table" big />} active={!pageLayout} onClick={() => { leaveHeaderFooter(); setPageLayout(false); }} /><Big label="Page Break Preview" icon="▤" disabled title={off} /><Big label="Page Layout" icon="🗏" active={pageLayout} onClick={() => setPageLayout(true)} /><Big label="Custom Views" icon="▭" disabled title={off} /></Group>
           <Group label="Show">
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 px-1">
               <Check label="Ruler" checked disabled onChange={() => undefined} />
@@ -1790,13 +1869,17 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           className="h-6 flex-1 rounded-sm border border-slate-300 px-2 font-mono text-[12px]" />
       </div>}
       {notice && <p role="status" className="flex items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900">{notice}<button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" className="px-1">✕</button></p>}
-      <div ref={gridRef} role="grid" aria-label="Worksheet" aria-readonly={submitted} onMouseDown={() => { if (!editing) requestAnimationFrame(focusGrid); }}
+      <div ref={gridRef} role="grid" aria-label="Worksheet" aria-readonly={submitted} onMouseDown={() => { if (hfTarget) leaveHeaderFooter(); if (!editing) requestAnimationFrame(focusGrid); }}
         onKeyDown={(event) => { if ((event.target as HTMLElement).tagName !== "INPUT") onGridKey(event); }}
         className={`relative min-h-0 flex-1 overflow-auto outline-none ${painter ? "cursor-cell" : ""}`}>
         <input ref={typingRef} aria-label={`Cell ${activeRef}`} autoComplete="off" spellCheck={false} onKeyDown={onGridKey}
           onChange={(event) => { const text = event.target.value; event.target.value = ""; if (text && !submitted && !editing) beginEdit(text); }}
           onPaste={(event) => { event.preventDefault(); if (!submitted) pasteText(event.clipboardData.getData("text/plain")); }}
           className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0" />
+        {pageLayout && <div style={{ width: pageWidthPx }} className="border-b border-dashed border-[#c6c6c6]">
+          <HeaderFooterBand part="header" values={hfValues.header} target={hfTarget} disabled={submitted} pages={1} sheetName={sheetName} inputs={hfInputs}
+            onFocus={focusHeaderFooter} onChange={(side, text) => setHfDraft({ ...hfValues, header: { ...hfValues.header, [side]: text } })} onCommit={() => saveHeaderFooter(hfValues.header, hfValues.footer)} />
+        </div>}
         <div className="relative" style={{ zoom: zoom / 100 } as CSSProperties}>
           <FormulaReferences store={editText} live={Boolean(editing)} tableRef={tableRef} />
           <table ref={tableRef} className="border-separate border-spacing-0 text-[13px]" style={{ tableLayout: "fixed", fontFamily: DEFAULT_FONT, width: headerColPx + Array.from({ length: displayCols }, (_, col) => colPx(col)).reduce((a, b) => a + b, 0) }}>
@@ -1949,6 +2032,10 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
             );
           })}
         </div>
+        {pageLayout && <div style={{ width: pageWidthPx }} className="border-t border-dashed border-[#c6c6c6]">
+          <HeaderFooterBand part="footer" values={hfValues.footer} target={hfTarget} disabled={submitted} pages={1} sheetName={sheetName} inputs={hfInputs}
+            onFocus={focusHeaderFooter} onChange={(side, text) => setHfDraft({ ...hfValues, footer: { ...hfValues.footer, [side]: text } })} onCommit={() => saveHeaderFooter(hfValues.header, hfValues.footer)} />
+        </div>}
       </div>
       <div className="flex items-stretch border-t border-slate-300 bg-[#f3f3f3] text-[11px] text-slate-600">
         <div className="flex items-center gap-0.5 px-1 text-[#999]" aria-hidden><span className="px-1">◀</span><span className="px-1">▶</span></div>
@@ -1966,7 +2053,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
           {(sheet.header.left || sheet.header.center || sheet.header.right) && <span>Header: {[sheet.header.left, sheet.header.center, sheet.header.right].map((part) => previewHeaderText(part, 1, 1).replace(/Sheet1/g, sheetName)).filter(Boolean).join(" | ")}</span>}
         </span>
         <span className="ml-auto flex items-center px-3">{stats && <>{stats.average !== null && <>Average: {formatCellValue(stats.average, "General")}&nbsp;&nbsp;&nbsp;</>}Count: {stats.count}{stats.average !== null && <>&nbsp;&nbsp;&nbsp;Sum: {formatCellValue(stats.sum, "General")}</>}</>}</span>
-        <span className="flex items-center gap-1 px-2" aria-label="Views"><span title="Normal" className="border border-[#9fb9a7] bg-[#cfe2d4] px-1">▦</span><span title="Page Layout" className="px-1 text-[#999]">▤</span><span title="Page Break Preview" className="px-1 text-[#999]">▥</span></span>
+        <span className="flex items-center gap-1 px-2" aria-label="Views"><button type="button" title="Normal" aria-pressed={!pageLayout} onMouseDown={(event) => event.preventDefault()} onClick={() => { leaveHeaderFooter(); setPageLayout(false); }} className={`border px-1 ${pageLayout ? "border-transparent" : "border-[#9fb9a7] bg-[#cfe2d4]"}`}>▦</button><button type="button" title="Page Layout" aria-pressed={pageLayout} onMouseDown={(event) => event.preventDefault()} onClick={() => setPageLayout(true)} className={`border px-1 ${pageLayout ? "border-[#9fb9a7] bg-[#cfe2d4]" : "border-transparent"}`}>▤</button><span title="Page Break Preview" className="px-1 text-[#999]">▥</span></span>
         <span className="flex items-center gap-1 px-2">
           <button type="button" aria-label="Zoom Out" onClick={() => setSheet((s) => ({ ...s, zoom: Math.max(10, (s.zoom || 100) - 10) }))} className="px-1 hover:text-black">−</button>
           <input type="range" aria-label="Zoom" min={10} max={400} step={10} value={zoom} onChange={(event) => setSheet((s) => ({ ...s, zoom: Number(event.target.value) }))} className="h-1 w-24 accent-[#217346]" />
