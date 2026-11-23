@@ -5,7 +5,8 @@ import { resetExcelQuestion } from "@/lib/model-answer-reset";
 import { isStaleServerActionError } from "@/lib/pending-attempts";
 import { RichSheetEditor, type ExcelDocument } from "@/app/typing/excel-efficiency/[language]/[testId]/workspace/rich-sheet-editor";
 import { diffExcelDocuments, excelQuestionRules, excelRuleGroups } from "@/lib/excel-document-diff";
-import { resetExcelEfficiencyModelAnswer, saveExcelEfficiencyModelAnswer, saveExcelEfficiencyQuestionRules } from "../../actions";
+import { checkExcelEfficiencySheet, resetExcelEfficiencyModelAnswer, saveExcelEfficiencyModelAnswer, saveExcelEfficiencyQuestionRules } from "../../actions";
+import { CheckMarks } from "@/components/efficiency/check-marks";
 
 type Question = { id: string; number: number; instruction: string; marks: number; graded: boolean; handWritten?: boolean; criteria?: unknown[] };
 
@@ -134,6 +135,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
             <svg viewBox="0 0 24 24" aria-hidden className={`h-4 w-4 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </button>
           <Link href={autoGradingHref} className="h-7 flex-none rounded-md border border-emerald-300 px-2 py-1 text-xs font-black text-emerald-800 hover:bg-emerald-50">Auto-grading</Link>
+          <CheckMarks disabled={!ready} run={() => checkExcelEfficiencySheet(versionId, latest)} />
           {active && <button type="button" disabled={resettingQuestion || !ready} onClick={handleResetQuestion} title={`Undo only Q${active.number}'s answer and solve it again; the other questions keep theirs`}
             className="h-7 flex-none rounded-md border border-amber-300 px-2 text-xs font-black text-amber-800 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-40">{resettingQuestion ? "Resetting…" : `Reset Q${active.number}`}</button>}
           <button type="button" disabled={resetting || !hasProgress} onClick={handleReset} title={hasProgress ? "Clear every saved answer and start this paper over" : "Nothing to reset yet"}

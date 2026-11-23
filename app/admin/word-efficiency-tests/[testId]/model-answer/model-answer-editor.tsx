@@ -2,7 +2,8 @@
 import { useRef, useState } from "react";
 import { RichDocumentEditor } from "@/app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor";
 import { compressRunCriteria, diffWordDocuments, modelAnswerRuleCriteria, stripBlankParagraphs, type ModelAnswerCriterion } from "@/lib/word-document-diff";
-import { generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
+import { checkWordEfficiencyDocument, generateWordEfficiencyGradingRulesFromModelAnswer, resetWordEfficiencyModelAnswer, saveWordEfficiencyModelAnswer } from "../../actions";
+import { CheckMarks } from "@/components/efficiency/check-marks";
 import type { WorkingMatterSnapshot } from "@/lib/word-docx";
 import { resetWordQuestion } from "@/lib/model-answer-reset";
 
@@ -243,6 +244,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
           >
             <svg viewBox="0 0 24 24" aria-hidden className={`h-4 w-4 transition-transform ${showQuestion ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
           </button>
+          <CheckMarks disabled={!ready} run={() => checkWordEfficiencyDocument(versionId, stripBlankParagraphs(latestDocument))} />
           {active && (
             <button
               type="button"

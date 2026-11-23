@@ -209,3 +209,12 @@ export async function resetExcelEfficiencyModelAnswer(versionId: string): Promis
   revalidatePath("/admin/excel-efficiency-tests");
   return { ok: true, error: "" };
 }
+
+// "Check marks" on the Model Answer page: the sheet being edited, scored with the paper's saved rules, question by
+// question (migration 202611230930). Nothing is saved; the database function checks the admin itself.
+export async function checkExcelEfficiencySheet(versionId: string, document: unknown): Promise<{ ok: boolean; error: string; rows: { number: number; maximum: number; awarded: number; hint?: string | null }[] }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("check_excel_efficiency_sheet", { p_version_id: versionId, p_document: document });
+  if (error) return { ok: false, error: process.env.NODE_ENV === "development" ? `Check failed: ${error.message}` : "Check failed.", rows: [] };
+  return { ok: true, error: "", rows: Array.isArray(data) ? data : [] };
+}

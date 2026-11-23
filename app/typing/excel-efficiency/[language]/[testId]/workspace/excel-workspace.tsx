@@ -5,6 +5,7 @@ import { RichSheetEditor, type ExcelDocument } from "./rich-sheet-editor";
 import { BackButton } from "@/app/_components/back-button";
 import { QuestionBar } from "@/components/efficiency/question-bar";
 import { ConfirmDialog, ExamClock, FullscreenButton } from "@/components/efficiency/exam-chrome";
+import { OtherAttemptWarning } from "@/components/efficiency/other-attempt-warning";
 
 type Question = { id: string; number: number; display_order: number; instruction: string | null; marks: number; section: string | null; is_visible: boolean };
 type Snapshot = { title: string; language: string; instructions_markdown: string; duration_seconds: number; question_count: number; maximum_marks: number; questions: Question[]; show_questions?: boolean; delivery_onscreen?: boolean; question_toggle?: boolean };
@@ -40,6 +41,7 @@ export function ExcelWorkspace({ attemptId, snapshot, status, remainingSeconds, 
     : null), [onscreen, questions, current, snapshot.language, showQuestions, canToggle, toggleQuestions]);
   return (
     <main className="h-dvh overflow-hidden bg-slate-100">
+      <OtherAttemptWarning attemptId={attemptId} active={!submitted} />
       <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 bg-slate-950 px-4 py-3 text-white">
         <div className="flex items-center gap-3">
           {!liveExam && <BackButton href={catalogueHref} label="Exit" dark onNavigate={(event) => { if (!submitted) { event.preventDefault(); setLeaveOpen(true); } }} />}
