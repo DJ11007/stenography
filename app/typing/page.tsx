@@ -12,6 +12,14 @@ const sections = [
     tone: "bg-blue-600",
   },
   {
+    title: "Speed Booster",
+    description: "Stuck at 35-40 WPM? A daily plan, technique check, burst training, common words, weak-key and rhythm drills to reach 50+.",
+    href: "/typing/speed-booster",
+    action: "Boost my speed",
+    icon: "⚡",
+    tone: "bg-amber-500",
+  },
+  {
     title: "Stenography",
     description: "Shorthand dictation and transcription practice in English and Hindi.",
     href: "/typing/practice/stenography",
