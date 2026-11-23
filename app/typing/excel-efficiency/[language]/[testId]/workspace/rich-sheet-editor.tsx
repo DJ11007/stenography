@@ -18,6 +18,7 @@ import {
 } from "@/lib/excel-sheet-model";
 import { ConditionalDialog, FilterMenu, FindReplaceDialog, HIGHLIGHT_RULES, InputDialog, useDialogDrag, InsertFunctionDialog, PageSetupDialog, SortDialog, SymbolDialog, ZoomDialog, type FindOptions } from "./excel-dialogs";
 import { ChartView } from "./excel-chart";
+import { PercentSpinBox } from "./excel-percent-box";
 import { HF_ELEMENTS, HF_ICON, HF_PRESETS, HeaderFooterBand, type HfPart, type HfTarget } from "./excel-header-footer-view";
 import { STANDARD_COLORS, THEME_COLORS } from "./excel-colors";
 import { THEME_GRID } from "@/lib/word-colors";
@@ -1850,7 +1851,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
               <label htmlFor="xl-fit-height">Height:</label>
               <select id="xl-fit-height" aria-label="Scale to Fit Height" disabled={submitted} value={sheet.fitHeight ?? 0} onChange={(event) => { const pages = Number(event.target.value) || null; setScaleToFit({ fitHeight: pages, scale: pages || sheet.fitWidth ? null : sheet.scale ?? null }); }} className="h-[20px] border border-[#c6c6c6] bg-white">{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((pages) => <option key={pages} value={pages}>{pages ? `${pages} page${pages > 1 ? "s" : ""}` : "Automatic"}</option>)}</select>
               <label htmlFor="xl-scale">Scale:</label>
-              <input id="xl-scale" aria-label="Scale" type="number" min={10} max={400} step={5} disabled={submitted || Boolean(sheet.fitWidth || sheet.fitHeight)} value={sheet.scale ?? 100} onChange={(event) => { const value = Number(event.target.value); if (value >= 10 && value <= 400) setScaleToFit({ scale: value === 100 ? null : value }); }} className="h-[20px] w-16 border border-[#c6c6c6] bg-white px-1 disabled:text-slate-400" />
+              <PercentSpinBox id="xl-scale" label="Scale" className="w-[72px]" disabled={submitted || Boolean(sheet.fitWidth || sheet.fitHeight)} value={sheet.scale ?? 100} onCommit={(value) => setScaleToFit({ scale: value === 100 ? null : value })} />
             </div>
           </Group>
           <Group label="Sheet Options" launcher={() => openDialog({ kind: "pageSetup", tab: "Sheet" })} launcherLabel="Page Setup: Sheet">
