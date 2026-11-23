@@ -451,7 +451,7 @@ test("active typing workspaces defer full scoring until completion", () => {
   const lesson = readFileSync(new URL("../app/typing/_components/lesson-workspace.tsx", import.meta.url), "utf8");
   assert.match(exam, /finished \? calculateTypingScore/);
   assert.match(lesson, /completed \? calculateTypingScore/);
-  assert.match(exam, /useMemo\(\(\) => segmentGraphemes\(passage\), \[passage\]\)/);
+  assert.match(exam, /useMemo\(\(\) => \(repeating \? roundUnits : segmentGraphemes\(passage\)\), \[repeating, roundUnits, passage\]\)/);
   assert.doesNotMatch(exam, /const passageUnits = segmentGraphemes\(passage\)/);
 });
 

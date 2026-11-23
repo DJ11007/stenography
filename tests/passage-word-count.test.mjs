@@ -24,7 +24,7 @@ test("ConfigurableTypingExam computes an effective, resampled passage that stays
   // 21 Nov 2026: Exam tests too (RRB NTPC's 300 words); never live tests or Learn tests.
   assert.match(workspace, /const wordCountEditable = showPassageWordCount && !isLiveTest && managedTest\?\.mode !== "learn" && \(!rulesLocked \|\| mode === "exam"/);
   assert.match(workspace, /const passageWordCountLocked = !wordCountEditable \|\| timerStarted;/);
-  assert.match(workspace, /const limitedPassage = useMemo\(\(\) => wordCountEditable && preferences\.passageWordCount \? repeatPassageToExactWordCount\(passage, preferences\.passageWordCount\) : passage, \[wordCountEditable, preferences\.passageWordCount, passage\]\);/);
+  assert.match(workspace, /const limitedPassage = useMemo\(\(\) => wordCountEditable && chosenWordCount \? repeatPassageToExactWordCount\(passage, chosenWordCount\) : passage, \[wordCountEditable, chosenWordCount, passage\]\);/);
   // A finished passage starts again (rounds), sent to the server for the same check.
   assert.match(workspace, /const effectivePassage = useMemo\(\(\) => repeatPassageRounds\(limitedPassage, passageRounds\)/);
   assert.match(workspace, /setTypedText=\{setTypedAndRepeat\}/);
@@ -33,16 +33,17 @@ test("ConfigurableTypingExam computes an effective, resampled passage that stays
   // otherwise the passage a student is mid-way through typing would silently
   // revert to its natural length the instant they type their first keystroke.
   assert.doesNotMatch(workspace, /effectivePassage = useMemo\(\(\) => showPassageWordCount && !passageWordCountLocked/);
-  assert.match(workspace, /passage=\{effectivePassage\}/);
+  assert.match(workspace, /passage=\{effectivePassage\} roundPassage=\{limitedPassage\}/);
   assert.match(workspace, /passage: getScoringText\(effectivePassage, inputSystem\)/);
-  assert.match(workspace, /passageWordCount:wordCountEditable\?preferences\.passageWordCount:null/);
+  assert.match(workspace, /passageWordCount:wordCountEditable\?chosenWordCount:null/);
 });
 
 test("the Settings popup renders a locked/hidden-appropriately gated Passage length control", async () => {
   const settings = await read("app/typing/_components/universal-typing-settings.tsx");
   assert.match(settings, /showPassageWordCount && onPassageWordCountChange/);
   assert.match(settings, /Passage length \(words\)/);
-  assert.match(settings, /type="number" min=\{150\} max=\{700\} disabled=\{passageWordCountLocked\}/);
+  assert.match(settings, /<PassageWordCountInput value=\{passageWordCount \?\? null\} disabled=\{passageWordCountLocked\}/);
+  assert.match(settings, /type="number" inputMode="numeric" min=\{150\} max=\{700\} disabled=\{disabled\}/);
   assert.match(settings, /Math\.min\(700, Math\.max\(150, Math\.round\(raw\)\)\)/);
 });
 

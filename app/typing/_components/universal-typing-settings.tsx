@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { TypingScript } from "@/lib/typing-language";
 import { PRACTICE_DURATION_MINUTES, type TypingSettings } from "@/lib/typing-test";
 import type { TypingFontPreferences } from "@/lib/typing-font-preferences";
@@ -49,7 +52,7 @@ export function UniversalTypingSettings({ settings, autoScroll, showScrollbar, f
     <SettingOptions compact={compact} label="Highlight" value={settings.highlightMode} disabled={highlightIsLocked} values={[["character","Character"],["word","Current Word"],["none","None"]]} onChange={(highlightMode) => onSettingsChange({ highlightMode: highlightMode as TypingSettings["highlightMode"] })}/>
     <SettingOptions compact={compact} label="Backspace" value={settings.backspaceMode} disabled={backspaceIsLocked} values={[["full","Full"],["twoWord","Two Words"],["word","Current Word"],["disabled","Disabled"]]} onChange={(backspaceMode) => onSettingsChange({ backspaceMode: backspaceMode as TypingSettings["backspaceMode"] })}/>
     <SettingOptions compact={compact} label="Word calculation" value={settings.wordMethod} disabled={wordMethodIsLocked} values={[["characters","5 Characters"],["spaces","Space-separated Words"]]} onChange={(wordMethod) => onSettingsChange({ wordMethod: wordMethod as TypingSettings["wordMethod"] })}/>
-    {showPassageWordCount && onPassageWordCountChange && <label className={compact ? "block text-xs font-bold" : "block text-sm font-bold"}>Passage length (words){passageWordCountLocked && <span className="ml-1 font-normal text-slate-500">— locked to this test&apos;s own length</span>}<input type="number" min={150} max={700} disabled={passageWordCountLocked} value={passageWordCount ?? ""} onChange={(event) => { const raw = Number(event.target.value); if (!Number.isFinite(raw)) return; onPassageWordCountChange(Math.min(700, Math.max(150, Math.round(raw)))); }} className="input mt-1"/></label>}
+    {showPassageWordCount && onPassageWordCountChange && <label className={compact ? "block text-xs font-bold" : "block text-sm font-bold"}>Passage length (words){passageWordCountLocked && <span className="ml-1 font-normal text-slate-500">— locked to this test&apos;s own length</span>}<PassageWordCountInput value={passageWordCount ?? null} disabled={passageWordCountLocked} onCommit={onPassageWordCountChange}/></label>}
     <SettingOptions compact={compact} label="Auto Scroll" value={autoScroll ? "auto" : "manual"} disabled={scrollLocked} values={[["auto","On"],["manual","Off"]]} onChange={(value) => onScrollChange(value === "auto")}/>
     {showScrollbar !== undefined && onScrollbarChange && <label className={`flex cursor-pointer items-center gap-2 rounded-lg bg-slate-50 font-bold text-slate-800 ${compact ? "p-2 text-xs" : "p-3 text-sm"}`}><input type="checkbox" checked={showScrollbar} onChange={(event) => onScrollbarChange(event.target.checked)}/><span>Show Scrollbar</span></label>}
     {keyboardSound !== undefined && onKeyboardSoundChange && <label className={`flex cursor-pointer items-center gap-2 rounded-lg bg-slate-50 font-bold text-slate-800 ${compact ? "p-2 text-xs" : "p-3 text-sm"}`}><input type="checkbox" checked={keyboardSound} onChange={(event) => onKeyboardSoundChange(event.target.checked)}/><span>Exam Hall Sound (keyboard clicks)</span></label>}
@@ -63,4 +66,27 @@ export function UniversalTypingSettings({ settings, autoScroll, showScrollbar, f
 
 function SettingOptions({ label, value, values, disabled = false, compact = false, onChange }: { label: string; value: string; values: [string,string][]; disabled?: boolean; compact?: boolean; onChange: (value: string) => void }) {
   return <fieldset disabled={disabled}><legend className={compact ? "mb-1 text-xs font-bold" : "mb-2 text-sm font-bold"}>{label}{disabled && <span className="ml-1.5 font-bold text-red-600">· Only for practice</span>}</legend><div className={compact ? `grid gap-1.5 ${values.length === 3 ? "grid-cols-3" : "grid-cols-2"}` : "grid gap-2 sm:grid-cols-3 xl:grid-cols-1"}>{values.map(([id,text]) => <button key={id} type="button" disabled={disabled} aria-pressed={value === id} onClick={() => onChange(id)} className={`rounded-lg border text-left font-bold disabled:cursor-not-allowed disabled:opacity-60 ${compact ? "min-h-8 px-2 py-1 text-xs" : "px-3 py-2 text-sm"} ${value === id ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-slate-50"}`}>{value === id ? "●" : "○"} {text}</button>)}</div></fieldset>;
+}
+
+// Passage length box: the student types the whole number (e.g. 300) and it is applied on Enter or when leaving the
+// box, kept within 150-700. It used to apply every keystroke and lift anything below 150 to 150, so typing "300"
+// never got past the first "3" (it became 150).
+function PassageWordCountInput({ value, disabled, onCommit }: { value: number | null; disabled?: boolean; onCommit: (value: number | null) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (text: string) => {
+    setDraft(null);
+    const raw = Number(text.trim());
+    if (!text.trim() || !Number.isFinite(raw)) return;
+    const next = Math.min(700, Math.max(150, Math.round(raw)));
+    if (next !== value) onCommit(next);
+  };
+  return <input type="number" inputMode="numeric" min={150} max={700} disabled={disabled} value={draft ?? (value ?? "")}
+    onFocus={(event) => { setDraft(String(value ?? "")); const input = event.target; requestAnimationFrame(() => input.select()); }}
+    onChange={(event) => setDraft(event.target.value)}
+    onBlur={(event) => commit(event.target.value)}
+    onKeyDown={(event) => {
+      if (event.key === "Enter") { event.preventDefault(); commit(event.currentTarget.value); event.currentTarget.blur(); }
+      else if (event.key === "Escape") { event.preventDefault(); setDraft(null); event.currentTarget.blur(); }
+    }}
+    className="input mt-1"/>;
 }

@@ -207,7 +207,12 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
   const wordCountEditable = showPassageWordCount && !isLiveTest && managedTest?.mode !== "learn" && (!rulesLocked || mode === "exam" || managedTest?.mode === "exam" || managedTest?.mode === "practice");
   const passageWordCountLocked = !wordCountEditable || timerStarted;
   const naturalWordCount = useMemo(() => passage.trim().split(/\s+/u).length, [passage]);
-  const limitedPassage = useMemo(() => wordCountEditable && preferences.passageWordCount ? repeatPassageToExactWordCount(passage, preferences.passageWordCount) : passage, [wordCountEditable, preferences.passageWordCount, passage]);
+  // 23 Nov 2026 (owner's request): a board with its own passage length (RRB NTPC: 300 words) opens every test at that
+  // length, whatever was saved for other tests; the student can still change it for this test. Reset goes back to it.
+  const categoryDefaultWords = preset.examCategorySlug ? EXAM_CATEGORIES.find((category) => category.slug === preset.examCategorySlug)?.defaultPassageWords : undefined;
+  const [sessionWordCount, setSessionWordCount] = useState<number | null | undefined>(undefined);
+  const chosenWordCount = categoryDefaultWords ? (sessionWordCount === undefined ? categoryDefaultWords : sessionWordCount) : preferences.passageWordCount;
+  const limitedPassage = useMemo(() => wordCountEditable && chosenWordCount ? repeatPassageToExactWordCount(passage, chosenWordCount) : passage, [wordCountEditable, chosenWordCount, passage]);
   // Finished the whole passage before time: it starts again from the beginning and the student keeps typing (RRB
   // NTPC's real rule) -- the passage is shown and checked repeated that many times. Not for live tests or Stenography.
   const [passageRounds, setPassageRounds] = useState(1);
@@ -220,7 +225,10 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
       setExamNotice("Passage finished before time. It starts again from the beginning: press Space and keep typing until the time ends.");
     }
   };
-  const changePassageWordCount = (value: number | null) => updatePreferences({ passageWordCount: value });
+  const changePassageWordCount = (value: number | null) => {
+    if (categoryDefaultWords) setSessionWordCount(value === null ? undefined : value);
+    else updatePreferences({ passageWordCount: value });
+  };
 
   useEffect(() => {
     if (!inputSystem.requiredFontAsset) return;
@@ -330,7 +338,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
    setSaveState("failed");return null
   };
   const applySaveResult=(result:Awaited<ReturnType<typeof sendJob>>)=>{if(result?.status==="scored"&&"score" in result&&result.score)setVerifiedScore(result.score);if(managedTest?.isLive){setLiveSubmission(result?.status==="submitted"||result?.status==="already-submitted"||result?.status==="closed"?result.status:"failed");if(result&&result.status==="submitted"&&"submittedAt" in result)setLiveSubmittedAt(result.submittedAt??null);}};
-  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void saveAttempt({kind:"managed",payload:{testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable?preferences.passageWordCount:null,passageRounds,examCategorySlug:preset.examCategorySlug,liveExamSectionId:liveExam?.sectionId}}).then(result=>{applySaveResult(result);if(result&&liveExam)clearLiveExamDraft(liveExam.sectionId);liveExam?.onSaved(result);});},[backspaces,finalScore,finished,managedTest,preset.examCategorySlug,selectedCategories,typedText,wordCountEditable,preferences.passageWordCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(()=>{if(!finished||!finalScore||!managedTest||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;void saveAttempt({kind:"managed",payload:{testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:finalScore.elapsedSeconds,backspaces,selectedCategories,passageWordCount:wordCountEditable?chosenWordCount:null,passageRounds,examCategorySlug:preset.examCategorySlug,liveExamSectionId:liveExam?.sectionId}}).then(result=>{applySaveResult(result);if(result&&liveExam)clearLiveExamDraft(liveExam.sectionId);liveExam?.onSaved(result);});},[backspaces,finalScore,finished,managedTest,preset.examCategorySlug,selectedCategories,typedText,wordCountEditable,preferences.passageWordCount]); // eslint-disable-line react-hooks/exhaustive-deps
   // Live exam: a running copy of the answer, about once a second, for the exam's Final Submit (see lib/pending-attempts.ts).
   useEffect(()=>{if(!liveExam||!managedTest||adminPreview||finished||!startedAt.current||!typedText.trim())return;const timer=window.setTimeout(()=>{if(!startedAt.current)return;saveLiveExamDraft(liveExam.sectionId,{kind:"managed",payload:{testId:managedTest.testId,versionId:managedTest.versionId,startedAt:startedAt.current,typedText,elapsedSeconds:Math.max(0,activeDurationSeconds-clockRemaining(timeLeft)),backspaces,selectedCategories,passageWordCount:null,examCategorySlug:preset.examCategorySlug,liveExamSectionId:liveExam.sectionId}});},1000);return()=>window.clearTimeout(timer);},[typedText,finished]); // eslint-disable-line react-hooks/exhaustive-deps -- the copy follows the typed text
   useEffect(()=>{if(!finished||!finalScore||managedTest||adminPreview||!startedAt.current||recordedAttempt.current)return;recordedAttempt.current=true;const marks=scoredPreset.marksMethod?calculateConfiguredRssbMarks(finalScore,scoredPreset.marksMethod):null;void saveAttempt({kind:"practice",payload:{presetId:preset.id,title:preset.title,mode,preset:scoredPreset,inputSystemId,startedAt:startedAt.current,typedText,comparisonText:normalizedInput.comparisonText,passage:effectivePassage,elapsedSeconds:finalScore.elapsedSeconds,backspaces,score:finalScore,marksObtained:marks?.marksObtained??null,marksQualified:marks?.qualified??null,marksNetWpm:marks?Math.round(finalScore.correctWords/Math.max(finalScore.elapsedSeconds/60,1/60)):null,examCategorySlug:preset.examCategorySlug??null}});},[finished,finalScore,managedTest,adminPreview]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -367,7 +375,7 @@ export function ConfigurableTypingExam({ preset, mode, customPreset = false, mat
     : "Return to Tests"
     : "Return to Tests";
   if (finished && finalScore) return <>{saveState!=="idle"&&saveState!=="saved"&&<SaveStatusBanner adminPreview={adminPreview} state={saveState} onRetry={()=>{if(lastJob.current)void saveAttempt(lastJob.current).then(applySaveResult)}}/>}<AdvancedTypingResults preset={scoredPreset} score={verifiedScore ?? finalScore} backspaces={backspaces} onRestart={start} inputSystem={inputSystem} passage={effectivePassage} typedText={normalizedInput.comparisonText} returnHref={returnHref} returnLabel={returnLabel} mode={mode}/></>;
-  return <><ExamGuard active={timerStarted && !finished} question={examQuestion} onAnswer={yes => { const pending = examQuestion; setExamQuestion(null); if (yes) pending?.onConfirm(); }} notice={examNotice} onNotice={setExamNotice}/><ExamWorkspace hideBack={Boolean(liveExam)} preset={scoredPreset} passage={effectivePassage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} wordMethodLocked={wordMethodLocked} manualUnlock={manualUnlock} onManualUnlockChange={!timerStarted && !isLiveTest ? setManualUnlock : undefined} typedText={typedText} setTypedText={setTypedAndRepeat} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={pauseAllowed ? togglePause : undefined} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} keyboardSound={preferences.keyboardSound} onKeyboardSoundChange={(value) => updatePreferences({ keyboardSound: value })} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCountLocked ? naturalWordCount : (preferences.passageWordCount ?? naturalWordCount)} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={changePassageWordCount} backHref={backHref} adminPreview={adminPreview} scrollLocked={scrollLocked}/></>;
+  return <><ExamGuard active={timerStarted && !finished} question={examQuestion} onAnswer={yes => { const pending = examQuestion; setExamQuestion(null); if (yes) pending?.onConfirm(); }} notice={examNotice} onNotice={setExamNotice}/><ExamWorkspace hideBack={Boolean(liveExam)} preset={scoredPreset} passage={effectivePassage} roundPassage={limitedPassage} inputSystem={inputSystem} fontAvailable={fontAvailable} fontPreferences={fontPreferences} setFontPreferences={changeFontPreferences} encodingMismatch={normalizedInput.encodingMismatch} rulesLocked={rulesLocked} highlightLocked={highlightLocked} backspaceLocked={backspaceLocked} wordMethodLocked={wordMethodLocked} manualUnlock={manualUnlock} onManualUnlockChange={!timerStarted && !isLiveTest ? setManualUnlock : undefined} typedText={typedText} setTypedText={setTypedAndRepeat} onFirstTypingInput={beginTiming} timerStarted={timerStarted} onInputSystemChange={attemptVariant === "custom" && !managedRulesLocked && !(customPreset && !managedTest) ? changeInputSystem : undefined} timeLeft={timeLeft} paused={paused} onPauseToggle={pauseAllowed ? togglePause : undefined} settings={settings} setSettings={saveSettings} autoScroll={autoScroll} setAutoScroll={changeScroll} showScrollbar={showScrollbar} setShowScrollbar={changeScrollbar} keyboardSound={preferences.keyboardSound} onKeyboardSoundChange={(value) => updatePreferences({ keyboardSound: value })} setBackspaces={setBackspaces} onSubmit={submit} practiceNavigation={practiceNavigation} onNavigateTest={navigatePracticeTest} durationMinutes={activeDurationSeconds / 60} durationLocked={durationLocked} onDurationChange={changeDuration} showPassageWordCount={showPassageWordCount} passageWordCount={passageWordCountLocked && !wordCountEditable ? naturalWordCount : (chosenWordCount ?? naturalWordCount)} passageWordCountLocked={passageWordCountLocked} onPassageWordCountChange={changePassageWordCount} backHref={backHref} adminPreview={adminPreview} scrollLocked={scrollLocked}/></>;
 }
 
 // Real requested feature: an "anytime" live test has no shared release
@@ -457,7 +465,7 @@ function ExamStart({ preset, mode, inputSystem, inputSystemId, onInputSystemChan
   </main>;
 }
 
-type WorkspaceProps = { hideBack?: boolean; preset: ExamPreset; passage: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; rulesLocked: boolean; highlightLocked: boolean; backspaceLocked: boolean; wordMethodLocked: boolean; manualUnlock: boolean; onManualUnlockChange?: (value: boolean) => void; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle?: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; keyboardSound: boolean; onKeyboardSoundChange: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void; durationMinutes: number; durationLocked: boolean; onDurationChange: (value: number) => void; showPassageWordCount: boolean; passageWordCount: number; passageWordCountLocked: boolean; onPassageWordCountChange: (value: number | null) => void; backHref?: string; adminPreview: boolean; scrollLocked?: boolean };
+type WorkspaceProps = { hideBack?: boolean; preset: ExamPreset; passage: string; roundPassage?: string; inputSystem: InputSystem; fontAvailable: boolean | null; fontPreferences: TypingFontPreferences; setFontPreferences: (value: TypingFontPreferences) => void; encodingMismatch: boolean; rulesLocked: boolean; highlightLocked: boolean; backspaceLocked: boolean; wordMethodLocked: boolean; manualUnlock: boolean; onManualUnlockChange?: (value: boolean) => void; typedText: string; setTypedText: (value: string) => void; onFirstTypingInput: () => void; timerStarted: boolean; onInputSystemChange?: (id: string) => void; timeLeft: number; paused: boolean; onPauseToggle?: () => void; settings: TypingSettings; setSettings?: (value: TypingSettings) => void; autoScroll: boolean; setAutoScroll: (value: boolean) => void; showScrollbar: boolean; setShowScrollbar: (value: boolean) => void; keyboardSound: boolean; onKeyboardSoundChange: (value: boolean) => void; setBackspaces: React.Dispatch<React.SetStateAction<number>>; onSubmit: () => void; practiceNavigation?:PracticeNavigation; onNavigateTest:(href:string)=>void; durationMinutes: number; durationLocked: boolean; onDurationChange: (value: number) => void; showPassageWordCount: boolean; passageWordCount: number; passageWordCountLocked: boolean; onPassageWordCountChange: (value: number | null) => void; backHref?: string; adminPreview: boolean; scrollLocked?: boolean };
 
 export type SettingsPopupProps = {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
@@ -529,7 +537,7 @@ export function TypingSettingsPopup({ triggerRef, onClose, children }: SettingsP
   </div>;
 }
 
-function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAvailable, fontPreferences, setFontPreferences, encodingMismatch, rulesLocked, highlightLocked, backspaceLocked, wordMethodLocked, manualUnlock, onManualUnlockChange, typedText, setTypedText, onFirstTypingInput, timerStarted, onInputSystemChange, timeLeft, paused, onPauseToggle, settings, setSettings, autoScroll, setAutoScroll, showScrollbar, setShowScrollbar, keyboardSound, onKeyboardSoundChange, setBackspaces, onSubmit, practiceNavigation, onNavigateTest, durationMinutes, durationLocked, onDurationChange, showPassageWordCount, passageWordCount, passageWordCountLocked, onPassageWordCountChange, backHref, adminPreview, scrollLocked = false }: WorkspaceProps) {
+function ExamWorkspace({ hideBack = false, preset, passage, roundPassage, inputSystem, fontAvailable, fontPreferences, setFontPreferences, encodingMismatch, rulesLocked, highlightLocked, backspaceLocked, wordMethodLocked, manualUnlock, onManualUnlockChange, typedText, setTypedText, onFirstTypingInput, timerStarted, onInputSystemChange, timeLeft, paused, onPauseToggle, settings, setSettings, autoScroll, setAutoScroll, showScrollbar, setShowScrollbar, keyboardSound, onKeyboardSoundChange, setBackspaces, onSubmit, practiceNavigation, onNavigateTest, durationMinutes, durationLocked, onDurationChange, showPassageWordCount, passageWordCount, passageWordCountLocked, onPassageWordCountChange, backHref, adminPreview, scrollLocked = false }: WorkspaceProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null); const passageRef = useRef<HTMLDivElement>(null);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -559,17 +567,26 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
   const printPassage = () => {
     printBrandedTestPage({
       title: preset.title,
-      details: [inputSystem.language, inputSystem.fontLabel, `${Math.round(preset.durationSeconds / 60)} minutes`, ...(preset.speedRequirement ? [`${preset.speedRequirement} WPM required`] : []), `${passage.trim().split(/\s+/u).length} words`],
-      passage,
+      details: [inputSystem.language, inputSystem.fontLabel, `${Math.round(preset.durationSeconds / 60)} minutes`, ...(preset.speedRequirement ? [`${preset.speedRequirement} WPM required`] : []), `${roundText.split(/\s+/u).length} words`],
+      passage: roundText,
       fontFamily: typingFontFamily(fontPreferences, inputSystem.script, inputSystem.fontStack),
       fontSize: 18,
       fontFace: inputSystem.requiredFontAsset ? `@font-face{font-family:"${inputSystem.fontLabel.split(" (")[0]}";src:url("${new URL(inputSystem.requiredFontAsset, window.location.origin).href}") format("truetype");}` : undefined,
       logoUrl: new URL("/logo-256.png", window.location.origin).href,
     });
   };
-  const passageUnits = useMemo(() => segmentGraphemes(passage), [passage]);
-  const typedUnits = useMemo(() => (showErrors ? segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText) : []), [showErrors, typedText, inputSystem]);
-  const typedUnitCount = useMemo(() => segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText).length, [inputSystem, typedText]);
+  // The Original Passage panel shows the passage once. When the student finishes it before time and starts again (the
+  // checked passage is then the same text written out again after a space), the panel goes back to its first line and
+  // follows the new round, instead of showing a long copied-out text with the place at the bottom.
+  const roundText = (roundPassage ?? passage).trim();
+  const roundUnits = useMemo(() => segmentGraphemes(roundText), [roundText]);
+  const allTypedUnits = useMemo(() => segmentGraphemes(normalizeTypingInput(typedText, inputSystem).comparisonText), [inputSystem, typedText]);
+  const roundSize = roundUnits.length + 1;
+  const repeating = passage.length > (roundPassage ?? passage).length;
+  const roundIndex = repeating && roundUnits.length ? Math.floor(allTypedUnits.length / roundSize) : 0;
+  const passageUnits = useMemo(() => (repeating ? roundUnits : segmentGraphemes(passage)), [repeating, roundUnits, passage]);
+  const typedUnits = useMemo(() => (showErrors ? allTypedUnits.slice(roundIndex * roundSize) : []), [showErrors, allTypedUnits, roundIndex, roundSize]);
+  const typedUnitCount = allTypedUnits.length - roundIndex * roundSize;
   const highlightStart = settings.highlightMode === "word" ? Math.max(0, passageUnits.lastIndexOf(" ", Math.max(0, typedUnitCount - 1)) + 1) : typedUnitCount;
   const nextWordSpace = passageUnits.indexOf(" ", typedUnitCount);
   const highlightEnd = settings.highlightMode === "word" ? (nextWordSpace < 0 ? passageUnits.length : nextWordSpace) : typedUnitCount + 1;
@@ -604,6 +621,12 @@ function ExamWorkspace({ hideBack = false, preset, passage, inputSystem, fontAva
     const typingTarget = Math.max(0, Math.min(typingMaximum, typingMaximum * typingProgress));
     if (Math.abs(typing.scrollTop - typingTarget) > typing.clientHeight * .25) typing.scrollTop = typingTarget;
   }, [autoScroll, scrollByLine, fontPreferences.originalSize, fontPreferences.typingSize, paused, typedText]);
+  // A new round: back to the first line of the passage (with or without Auto Scroll).
+  useEffect(() => {
+    if (roundIndex === 0) return;
+    const original = passageRef.current; if (!original) return;
+    lockedPassageScrollTop.current = 0; lastActiveLine.current = null; original.scrollTop = 0;
+  }, [roundIndex]);
   useEffect(() => {
     const original = passageRef.current;
     if (!autoScroll || paused || !original) return;
