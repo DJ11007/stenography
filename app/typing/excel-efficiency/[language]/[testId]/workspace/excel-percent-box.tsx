@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 // Excel's Scale spin box (PAGE LAYOUT > Scale to Fit > Scale, and Page Setup > Page > Adjust to): type any value --
 // 88, 88%, 57 % -- and it is applied on Enter or when leaving the box, kept within 10%-400%; the arrows (and the
@@ -13,13 +13,17 @@ export function PercentSpinBox({ value, onCommit, disabled, label, id, showPerce
   value: number; onCommit: (value: number) => void; disabled?: boolean; label: string; id?: string; showPercent?: boolean; className?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  // Clicking in selects the whole value, so what is typed replaces it (the click's mouse-up would otherwise drop the
+  // selection and "88" would be added after "100": 10088 -> 400%).
+  const justFocused = useRef(false);
   const shown = draft ?? (showPercent ? `${value}%` : String(value));
   const commit = (text: string) => { const next = parseScale(text); setDraft(null); if (next !== null && next !== value) onCommit(next); };
   const step = (delta: number) => { const base = draft !== null ? parseScale(draft) ?? value : value; setDraft(null); const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, base + delta)); if (next !== value) onCommit(next); };
   return (
     <span className={`inline-flex h-[20px] items-stretch border border-[#c6c6c6] bg-white ${disabled ? "opacity-60" : ""} ${className}`}>
       <input id={id} aria-label={label} type="text" inputMode="decimal" disabled={disabled} value={shown}
-        onFocus={(event) => { setDraft(String(value)); requestAnimationFrame(() => event.target.select()); }}
+        onFocus={(event) => { setDraft(String(value)); justFocused.current = true; const input = event.target; requestAnimationFrame(() => input.select()); }}
+        onMouseUp={(event) => { if (justFocused.current) { event.preventDefault(); event.currentTarget.select(); justFocused.current = false; } }}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={(event) => commit(event.target.value)}
         onKeyDown={(event) => {
