@@ -16,7 +16,7 @@ test("migration 011 is additive, validates underline metadata, and leaves histor
 test("Underline Color / thickness / words-only reach every underlined piece in the selection, and the Words only STYLE creates an underline", async () => {
   const source = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
   // The selection often starts in the <b>/<i> wrapper, before the underline span (EFFICIENCY TEST 2 Q1: red double underline in the header).
-  assert.match(source, /const innermost=intersecting\.filter\(item=>!intersecting\.some\(other=>other!==item&&item\.contains\(other\)\)\);\n const touched=innermost\.length\?innermost:current\?\[current\]:\[\];/);
+  assert.match(source, /const innermost=intersecting\.filter\(item=>!intersecting\.some\(other=>other!==item&&item\.contains\(other\)\)\);\r?\n const touched=innermost\.length\?innermost:current\?\[current\]:\[\];/);
   assert.match(source, /if\(action==="color"&&value&&\/\^#\[0-9a-f\]\{6\}\$\/i\.test\(value\)\)\{for\(const item of underlined\)/);
   // More Underlines > Words only > Apply used to do nothing on plain text (Q2a).
   assert.match(source, /if\(action==="words-only"&&value!==undefined\)\{for\(const item of underlined\)/);

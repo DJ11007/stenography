@@ -287,7 +287,7 @@ test("taking bullets off several paragraphs keeps them separate paragraphs (the 
   const editor = await readFile(new URL("../app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx", import.meta.url), "utf8");
   assert.match(editor, /const items=page\?\[\.\.\.page\.querySelectorAll<HTMLElement>\(`\$\{kind\} > li`\)\]\.filter\(item=>keys\.includes\(blockKey\(item\)\)\):\[\];/);
   assert.match(editor, /if\(items\.includes\(child\)\)\{rest=null;const paragraph=document\.createElement\("p"\);/);
-  assert.match(editor, /changed\(\);\n  \}\n  reselect\(\);\n \};/);
+  assert.match(editor, /changed\(\);\r?\n  \}\r?\n  reselect\(\);\r?\n \};/);
 });
 
 test("the Font dialog shows Calibri (Body) for text with no font of its own", async () => {

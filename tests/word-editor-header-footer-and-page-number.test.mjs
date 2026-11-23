@@ -62,7 +62,7 @@ test("double-clicking the top or bottom of the page enters the header or footer,
   assert.match(editor, /if\(first&&event\.clientY<first\.top\)\{event\.preventDefault\(\);editHeaderFooter\("header"\);return\}/);
   assert.match(editor, /if\(last&&event\.clientY>last\.bottom\)\{event\.preventDefault\(\);editHeaderFooter\("footer"\)\}/);
   assert.match(editor, /event\.key==="Escape"&&!dialog\)\{event\.preventDefault\(\);closeHeaderFooterRef\.current\(\)\}/);
-  assert.match(editor, /setInsideHeaderFooter\(null\);\n  dropEmptyHeaderFooter\(\);/);
+  assert.match(editor, /setInsideHeaderFooter\(null\);\r?\n  dropEmptyHeaderFooter\(\);/);
 });
 
 test("insideHeaderFooter is tracked via the same selectionchange listener that already tracks insideTable", async () => {
@@ -99,7 +99,7 @@ test("a single click (or arrow key) never enters the header/footer -- only a dou
   assert.match(editor, /if\(clampSelectionToArea\(selection\)\)return;/);
   assert.match(editor, /const area=hfMode\.current\?page\.querySelector<HTMLElement>\(`:scope > \$\{hfMode\.current\}`\):null;/);
   assert.match(editor, /event\.detail<2\)\{const area=\(event\.target as Element\)\.closest\("header,footer"\);if\(area\?hfMode\.current!==area\.tagName\.toLowerCase\(\):hfMode\.current\)\{event\.preventDefault\(\);return\}/);
-  assert.match(editor, /hfMode\.current=which;\n  const range=document\.createRange\(\);[\s\S]*?setInsideHeaderFooter\(which\);/);
+  assert.match(editor, /hfMode\.current=which;\r?\n  const range=document\.createRange\(\);[\s\S]*?setInsideHeaderFooter\(which\);/);
 });
 
 test("a selection can never span the header/footer and the body, and Ctrl+A selects only the area being edited (a triple-click on the header used to merge the first paragraph into it)", async () => {
