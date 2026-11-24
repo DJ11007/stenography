@@ -4,8 +4,13 @@
 // punctuation and white-space, Sounds like, All word forms, and format criteria
 // (font, size, bold... alignment, highlight).
 //
+// Whole words / Prefix / Suffix treat combining marks (\p{M}, e.g. Hindi matras) as part of a
+// word, so "किसान" with Find whole words only does not match inside "किसानों".
+//
 // It works on a linear text view of the editor (`buildDocumentText`) in which every block
 // ends with a paragraph mark (\r), so patterns can match across runs and across paragraphs.
+
+import { krutiDevToUnicode } from "./hindi-font-converter.ts";
 
 export type FindFormat = {
   bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean; superscript?: boolean; subscript?: boolean;
@@ -24,6 +29,16 @@ export const DEFAULT_ENGINE_OPTIONS: FindEngineOptions = {
 };
 
 export type TextMatch = { index: number; length: number; groups: string[] };
+
+// Hindi tests: a student typing on the Kruti Dev keyboard puts its keys into Find what / Replace
+// with ("fdlku" for किसान, Ñ"kd for कृषक), but a Unicode document holds Devanagari, so Find never
+// matched. This gives the Unicode the keys stand for, keeping ^ codes (^p, ^&...) as they are, or
+// null when the text is already Devanagari or the keys spell no Hindi.
+export function krutiDevKeysAsUnicode(text: string): string | null {
+  if (!text || /[ऀ-ॿ]/u.test(text)) return null;
+  const converted = text.split(/(\^[\s\S]?)/u).map((part, index) => index % 2 ? part : krutiDevToUnicode(part)).join("");
+  return converted !== text && /[ऀ-ॿ]/u.test(converted) ? converted : null;
+}
 
 const PARA = "\r", LINE = "\v", PAGE = "\f", GRAPHIC = "￼";
 const NEVER = "(?!)";
@@ -202,15 +217,15 @@ export function findMatches(text: string, needle: string, options: FindEngineOpt
   }
   let pattern: string;
   if (options.allWordForms && !options.wildcards && /^\p{L}+$/u.test(needle.trim())) {
-    pattern = `(?<![\\p{L}\\p{N}_])(?:${wordForms(needle.trim()).map(escapeLiteral).join("|")})(?![\\p{L}\\p{N}_])`;
+    pattern = `(?<![\\p{L}\\p{M}\\p{N}_])(?:${wordForms(needle.trim()).map(escapeLiteral).join("|")})(?![\\p{L}\\p{M}\\p{N}_])`;
   } else {
     const translated = translateNeedle(needle, options);
     if (!translated) return [];
     pattern = translated.pattern;
-    if (options.wholeWord && !options.wildcards) pattern = `(?<![\\p{L}\\p{N}_])(?:${pattern})(?![\\p{L}\\p{N}_])`;
+    if (options.wholeWord && !options.wildcards) pattern = `(?<![\\p{L}\\p{M}\\p{N}_])(?:${pattern})(?![\\p{L}\\p{M}\\p{N}_])`;
     else if (!options.wildcards) {
-      if (options.matchPrefix) pattern = `(?<![\\p{L}\\p{N}_])(?:${pattern})`;
-      if (options.matchSuffix) pattern = `(?:${pattern})(?![\\p{L}\\p{N}_])`;
+      if (options.matchPrefix) pattern = `(?<![\\p{L}\\p{M}\\p{N}_])(?:${pattern})`;
+      if (options.matchSuffix) pattern = `(?:${pattern})(?![\\p{L}\\p{M}\\p{N}_])`;
     }
   }
   try { collect(new RegExp(pattern, flags)); } catch { return []; }

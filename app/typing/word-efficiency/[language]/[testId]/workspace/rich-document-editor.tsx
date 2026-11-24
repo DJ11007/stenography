@@ -22,7 +22,7 @@ import { TableDesignGroups, TableLayoutGroups, WordPalette, type TableToolsActio
 import { canonicalWordMeasurement } from "@/lib/word-editor-measurements";
 import { adjustParagraphIndent, changeEditorRangeCase, clearEditorRangeFormatting, clearInnerRunStyles, expandListBlocks, inheritedHighlight, inheritedTextDecoration, parseInches, reattachOrphanedListItems, selectedEditorBlocks, snapshotPaintStyle, wrapEditorRange, type EditorRunStyles } from "@/lib/word-editor-dom";
 import { createEditorBlock, editorBlockAttrs, editorBlockType, expandListElements, regroupListElements } from "@/lib/word-editor-structure";
-import { buildDocumentText, expandReplacement, findMatches, formatOnlyMatches, matchSatisfiesFormat, rangeForMatch, type FindEngineOptions, type Segment, type TextMatch } from "@/lib/word-find-engine";
+import { buildDocumentText, expandReplacement, findMatches, krutiDevKeysAsUnicode, formatOnlyMatches, matchSatisfiesFormat, rangeForMatch, type FindEngineOptions, type Segment, type TextMatch } from "@/lib/word-find-engine";
 import { PageSetupDialog2013, BLANK_FONT_VALUES, type ReplaceFormat, BordersShadingDialog2013, CellOptionsDialog2013, InsertCellsDialog2013, bordersPreset, shadingResultColor, type BorderEdgeKey, type CellOptionsValues, type TableOptionsValues, ConvertTextToTableDialog2013, ConvertToTextDialog2013, DateTimeDialog2013, DeleteCellsDialog2013, DropCapDialog2013, WatermarkDialog2013, DEFAULT_WATERMARK, type WatermarkValues, FindReplaceDialog2013, FontDialog2013, FormulaDialog2013, InsertTableDialog2013, PageNumberFormatDialog2013, ParagraphDialog2013, SortDialog2013, SplitCellsDialog2013, SymbolDialog2013, TableOptionsDialog2013, TablePropertiesDialog2013, Word13Chrome, formatFormulaResult, type BordersShadingValues, type PageNumberFormatValues, type SortValues, type TablePropertiesValues } from "@/components/word-efficiency/word-2013-dialogs";
 import { borderOnSheet, defaultBorderOptions, formatPageBorder, pageBorderRect, parsePageBorder, PT_PX, WHOLE_DOCUMENT } from "@/lib/word-page-border";
 import { caretInPosition, emptyPositionAt, ensureHeaderFooterMarkers, headerFooterZone, keepPositionTypeable, mergeHeaderFooterPositions, repairHeaderFooterZones, restoreHeaderFooterTabs, typeInPosition } from "@/lib/word-header-footer-tabs";
@@ -564,18 +564,24 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
  // formatting command (font, size, colour, highlight, bold, underline, Font dialog...) applies to
  // ALL of them -- e.g. Any Letter (^$) selects every letter but not the spaces. Kept as text
  // offsets: formatting never changes the text, so they stay valid while each match is formatted.
+ const hindiDocument=documentLanguage==="Hindi";
  const findSelection=useRef<{index:number;length:number}[]|null>(null);
  const findSelectionRanges=()=>{const root=editor.current;if(!root||!findSelection.current)return[];const{segments}=buildDocumentText(root);return findSelection.current.map(span=>rangeForMatch(segments,span.index,span.length)).filter((range):range is Range=>Boolean(range))};
  const dropFindSelection=()=>{if(!findSelection.current)return;findSelection.current=null;paintHighlight("word-find-selected",[])};
  const clearFindHighlights=(keepSelection=false)=>{paintHighlight("word-find-all",[]);paintHighlight("word-find-current",[]);if(keepSelection&&findSelection.current)return;findSelection.current=null;paintHighlight("word-find-selected",[])};
  const collectMatches=(needle:string,options:FindEngineOptions,scope:"selection"|"document")=>{
-  const root=editor.current;if(!root)return{matches:[] as TextMatch[],segments:[] as Segment[],text:""};
+  const root=editor.current;if(!root)return{matches:[] as TextMatch[],segments:[] as Segment[],text:"",krutiDev:false};
   const{text,segments}=buildDocumentText(root);
   let matches:TextMatch[]=!needle&&options.format?formatOnlyMatches(segments,root,options.format):findMatches(text,needle,options);
+  // Hindi test: Kruti Dev keys typed in Find what ("fdlku") find the Devanagari they stand for (किसान)
+  // when the keys themselves are not in the document; Replace then converts Replace with the same way.
+  let krutiDev=false;
+  const unicodeNeedle=hindiDocument&&needle&&!matches.length&&!options.wildcards?krutiDevKeysAsUnicode(needle):null;
+  if(unicodeNeedle){const converted=findMatches(text,unicodeNeedle,options);if(converted.length){matches=converted;krutiDev=true}}
   if(needle&&options.format){const format=options.format;matches=matches.filter(match=>matchSatisfiesFormat(segments,root,match.index,match.length,format))}
   const scopeRange=scope==="selection"?findScopeRange.current:null;
   if(scopeRange)matches=matches.filter(match=>{const range=rangeForMatch(segments,match.index,match.length);return Boolean(range)&&scopeRange.compareBoundaryPoints(Range.START_TO_START,range!)<=0&&scopeRange.compareBoundaryPoints(Range.END_TO_END,range!)>=0});
-  return{matches,segments,text}
+  return{matches,segments,text,krutiDev}
  };
  // Word counts every match (Any Letter ^$ is ONE letter, so a paragraph is ~715 items, as in Word);
  // when matches touch, the number of words they make is added in brackets: "(129 words)".
@@ -646,7 +652,8 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
  const runReplaceOne=(needle:string,replacement:string,options:FindEngineOptions,scope:"selection"|"document",replaceFormat:ReplaceFormat|null=null):string=>{
   if(!needle&&!options.format)return"Type something in Find what.";
   if(submitted)return"";
-  const{matches,segments,text}=collectMatches(needle,options,scope);
+  const{matches,segments,text,krutiDev}=collectMatches(needle,options,scope);
+  if(krutiDev)replacement=krutiDevKeysAsUnicode(replacement)??replacement;
   const selection=getSelection();const active=selection?.rangeCount&&editor.current?.contains(selection.anchorNode)?selection.getRangeAt(0):null;
   if(active){for(const match of matches){const range=rangeForMatch(segments,match.index,match.length);if(range&&active.compareBoundaryPoints(Range.START_TO_START,range)===0&&active.compareBoundaryPoints(Range.END_TO_END,range)===0){replaceMatch(range,expandReplacement(replacement,{text:text.slice(match.index,match.index+match.length),groups:match.groups},options),replaceFormat);break}}}
   return findNext(needle,options,scope)
@@ -655,8 +662,9 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
   if(!needle&&!options.format)return"Type something in Find what.";
   if(!editor.current||submitted)return"";
   clearFindHighlights();
-  const{matches,segments,text}=collectMatches(needle,options,scope);
+  const{matches,segments,text,krutiDev}=collectMatches(needle,options,scope);
   if(!matches.length)return`Search text not found${scope==="selection"?" in the selection":""}.`;
+  if(krutiDev)replacement=krutiDevKeysAsUnicode(replacement)??replacement;
   // Last match first, so earlier text positions stay the same while the document changes. Each
   // match's range is found again just before it is replaced: a range worked out up front went
   // stale as soon as an edit rebuilt its text node, so a format-only Replace All (Find ^$, Replace
