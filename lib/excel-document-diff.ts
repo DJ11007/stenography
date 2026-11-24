@@ -196,9 +196,24 @@ export function splitMarks(total: number, parts: number): number[] {
 
 export type ExcelQuestionRule = { allocatedMarks: number; partLabel: string | null; additionalCriteria: ExcelCriterion[] };
 
+// Whether the question's own text lists separate steps: "a) Merge and Center  b) Font colour red" (or "(a)", "(b)"...).
+// Only then does the question's mark have parts; a question that asks for one thing is marked as one thing.
+export function questionHasLetteredParts(instruction: string): boolean {
+  const letters = new Set([...instruction.matchAll(/(?:^|[\s(\[:;,.])\(?([a-hA-H])\)(?=\s|$)/g)].map((match) => match[1].toLowerCase()));
+  return letters.has("a") && letters.has("b");
+}
+
 // A question's rules as saved: its marks split over the groups, a), b), c)... (more than 26 are joined into the last).
-export function excelQuestionRules(marks: number, groups: ExcelRuleGroup[]): ExcelQuestionRule[] {
+// With the question's text given and no lettered steps in it ("create cell A59 as 'sales count' with the above
+// formatting"), everything it needs is ONE part: a question is not split because the model answer changed several
+// cells, or gave one cell several kinds of formatting (each used to become a part of its own, with the question's
+// marks cut into 0.33 pieces). The question is then marked in full or not at all, as it was set.
+export function excelQuestionRules(marks: number, groups: ExcelRuleGroup[], instruction?: string): ExcelQuestionRule[] {
   if (!groups.length || !(marks > 0)) return [];
+  // (a part holds at most 200 criteria, as the database allows)
+  if (instruction !== undefined && !questionHasLetteredParts(instruction) && groups.length > 1 && groups.reduce((total, group) => total + group.criteria.length, 0) <= 200) {
+    groups = [{ description: groups.map((group) => group.description).join("; "), criteria: groups.flatMap((group) => group.criteria) }];
+  }
   const merged = groups.length <= 26 ? groups : [...groups.slice(0, 25), { description: "The rest", criteria: groups.slice(25).flatMap((group) => group.criteria) }];
   const shares = splitMarks(marks, merged.length);
   return merged.map((group, index) => ({ allocatedMarks: shares[index], partLabel: merged.length === 1 ? null : String.fromCharCode(97 + index), additionalCriteria: group.criteria }));

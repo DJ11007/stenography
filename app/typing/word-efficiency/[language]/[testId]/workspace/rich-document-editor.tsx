@@ -1863,14 +1863,31 @@ function paginatePages(page: HTMLElement, sheetHeight: number, zoom: number) {
       if (startTop < nextSheetTop - 0.5) moveTo(block, startTop, nextSheetTop);
       breakSheet = null;
     }
-    if (block.tagName === "TABLE" && paginateTableRows(block as HTMLTableElement, { top, zoom, step, sheetHeight, padTop: bodyTop, padBottom: sheetHeight - bodyBottom, usable })) continue;
+    if (block.tagName === "TABLE") {
+      // A table that starts so low on a sheet that its first row does not fit there starts the next sheet instead.
+      // Without this a table taller than a page (which the rows below are split for) was left where it was and its
+      // rows ran down over the bottom margin, the grey gap and the next sheet's top margin.
+      const firstRow = (block as HTMLTableElement).rows[0], tableRect = block.getBoundingClientRect();
+      if (firstRow) {
+        const rowRect = firstRow.getBoundingClientRect(), rowTop = (rowRect.top - top()) / zoom, rowBottom = (rowRect.bottom - top()) / zoom, sheet = sheetOf(rowTop);
+        if (rowBottom > sheet * step + bodyBottom + 0.5 && rowBottom - rowTop <= usable) moveTo(block, (tableRect.top - top()) / zoom, (sheet + 1) * step + bodyTop);
+      }
+      if (paginateTableRows(block as HTMLTableElement, { top, zoom, step, sheetHeight, padTop: bodyTop, padBottom: sheetHeight - bodyBottom, usable })) continue;
+    }
     const rect = block.getBoundingClientRect(), blockTop = (rect.top - top()) / zoom, blockBottom = (rect.bottom - top()) / zoom;
     const sheet = sheetOf(blockTop), sheetTextTop = sheet * step + bodyTop, sheetTextBottom = sheet * step + bodyBottom;
     // Starts above the body (a tall header): down to where the body starts.
     if (blockTop < sheetTextTop - 0.5 && blockTop >= sheet * step - 0.5) { moveTo(block, blockTop, sheetTextTop); continue; }
     if (blockBottom <= sheetTextBottom + 0.5) continue;
-    if ((block.tagName === "P" || block.tagName === "LI") && splitBetweenSheets(block, { top, zoom, step, bodyTop, bodyBottom })) continue;
-    if (blockBottom - blockTop > usable) continue;
+    const splittable = block.tagName === "P" || block.tagName === "LI";
+    if (splittable && splitBetweenSheets(block, { top, zoom, step, bodyTop, bodyBottom })) continue;
+    if (blockBottom - blockTop > usable) {
+      // Taller than a whole sheet, so it cannot move down in one piece, and it could not be split here because fewer
+      // than two of its lines fit on this sheet (Widow/Orphan control). It starts the next sheet instead and is split
+      // from there; left where it was, it ran down over the bottom margin, the grey gap and the sheets below.
+      if (splittable && blockTop > sheetTextTop + 0.5) { moveTo(block, blockTop, (sheet + 1) * step + bodyTop); splitBetweenSheets(block, { top, zoom, step, bodyTop, bodyBottom }); }
+      continue;
+    }
     if (blockTop <= sheetTextTop + 0.5 && blockTop >= sheet * step) continue;
     moveTo(block, blockTop, (sheet + 1) * step + bodyTop);
   }

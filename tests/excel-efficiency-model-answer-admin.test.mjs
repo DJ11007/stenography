@@ -34,7 +34,7 @@ test("the Model Answer editor runs the real sheet in authoring mode and saves on
   assert.match(editor, /autosaveAction=\{saveExcelEfficiencyModelAnswer\}/);
   assert.match(editor, /submitAction=\{saveActiveAnswer\}/);
   assert.match(editor, /diffExcelDocuments\(before, document\)/);
-  assert.match(editor, /excelQuestionRules\(active\.marks, excelRuleGroups\(document, changes\)\)/);
+  assert.match(editor, /excelQuestionRules\(active\.marks, excelRuleGroups\(document, changes\), active\.instruction\)/);
   assert.match(editor, /saveExcelEfficiencyQuestionRules\(versionId, activeNumber, rules\)/);
   // the same bar as Word's: question buttons with a tick or a cross, an arrow to hide the question, Reset
   assert.match(editor, /\{done \? "✓" : "✗"\}/);

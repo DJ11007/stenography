@@ -78,7 +78,7 @@ test("the header and footer sit at Word's 0.5 inch from the top and bottom of ev
 
 test("a paragraph that does not fit at the bottom of a page is split between its lines, never in the saved text", async () => {
   const editor = await read(EDITOR);
-  assert.match(editor, /if \(\(block\.tagName === "P" \|\| block\.tagName === "LI"\) && splitBetweenSheets\(block, \{ top, zoom, step, bodyTop, bodyBottom \}\)\) continue;/);
+  assert.match(editor, /if \(splittable && splitBetweenSheets\(block, \{ top, zoom, step, bodyTop, bodyBottom \}\)\) continue;/);
   // Widow/Orphan control and a drop cap's lines stay together
   assert.match(editor, /if \(lines\.length - at < 2\) at = lines\.length - 2;/);
   assert.match(editor, /if \(at - firstOnSheet < 2 \|\| at < capLines\)/);

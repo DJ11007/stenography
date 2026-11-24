@@ -82,7 +82,7 @@ export function ModelAnswerEditor({ versionId, original, initialDocument, questi
     const before = activeNumber !== null ? checkpoints[activeNumber] ?? document : document;
     const { changes, unsupported } = diffExcelDocuments(before, document);
     // A question marked by hand-written rules keeps them: only the sheet is saved.
-    const rules = active && !active.handWritten ? excelQuestionRules(active.marks, excelRuleGroups(document, changes)) : [];
+    const rules = active && !active.handWritten ? excelQuestionRules(active.marks, excelRuleGroups(document, changes), active.instruction) : [];
     const [saved, result] = await Promise.all([
       saveExcelEfficiencyModelAnswer(versionId, document),
       activeNumber !== null && rules.length ? saveExcelEfficiencyQuestionRules(versionId, activeNumber, rules) : Promise.resolve({ ok: true, error: "" }),

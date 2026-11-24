@@ -90,10 +90,11 @@ test("highlighting every word of a paragraph becomes ONE rule, not one criterion
   assert.deepEqual(criteria[0], { rule: "words", kind: "body", place: 0, props: { highlight: ["00FFFF"] }, spaceProps: { highlight: [null] } });
 });
 
-test("formatting only some words keeps the per-run criteria (nothing to generalise)", () => {
+test("formatting only some words gives a text rule per word (every occurrence), never a run position", () => {
   const some = doc(paragraph([run("Video", { highlight: "00FFFF" }), run(" provides "), run("a", { highlight: "00FFFF" }), run(" powerful "), run("way", { highlight: "00FFFF" }), run(" to help")]), second);
   const criteria = criteriaFor(doc(paragraph([run("Video provides a powerful way to help")]), second), some);
-  assert.ok(criteria.length >= 3 && criteria.every((criterion) => "target" in criterion));
+  assert.ok(criteria.length >= 3 && criteria.every((criterion) => "rule" in criterion && criterion.rule === "text" && criterion.props.highlight), JSON.stringify(criteria));
+  assert.deepEqual(criteria.map((criterion) => criterion.find), ["Video", "a", "way"]);
 });
 
 test("words only: a student who highlights the words (however the runs are split) earns the marks; highlighting the spaces too, nothing, or not every word earns none", async () => {

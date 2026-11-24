@@ -245,8 +245,16 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
   const beforeRuns = textRuns(before);
   const afterRuns = textRuns(after);
   const sameShape = beforeRuns.length === afterRuns.length;
+  // When the run count changed, a run whose text was already a run of the paragraph before is compared with THAT run,
+  // not with the paragraph's first run. Otherwise formatting an earlier question had left on one run (Q5: "Ajay sir"
+  // purple) was reported again as a change made by this question (Q6: replace words), so the replace question was
+  // also marked on the earlier question's work, at a run position that moves with every other split.
+  const beforeByText = new Map<string, JsonRecord[]>();
+  for (const beforeRun of beforeRuns) beforeByText.set(runText(beforeRun), [...(beforeByText.get(runText(beforeRun)) ?? []), beforeRun]);
   afterRuns.forEach((run, runIndex) => {
-    const beforeRun = (sameShape ? beforeRuns[runIndex] : beforeRuns[0]) ?? {};
+    const sameTextBefore = sameShape ? undefined : beforeByText.get(runText(run));
+    const beforeCandidates = sameShape ? [beforeRuns[runIndex] ?? {}] : sameTextBefore ?? [beforeRuns[0] ?? {}];
+    const beforeRun = beforeCandidates[0];
     // A paragraph is frequently more than one run (e.g. bolding only part of
     // a sentence), so two different runs in the same paragraph can easily
     // pick up the exact same field change (both set to font size 16, say).
@@ -257,9 +265,8 @@ function diffBlock(before: WordBlock, after: WordBlock, position: number, change
     const snippet = text ? ` ("${text.length > 24 ? `${text.slice(0, 24)}…` : text}")` : "";
     for (const field of RUN_FIELDS) {
       if (field === "text") continue;
-      const beforeValue = normalizedRunField(beforeRun, field);
       const afterValue = normalizedRunField(run, field);
-      if (!equalValue(beforeValue, afterValue)) {
+      if (!beforeCandidates.some((candidate) => equalValue(normalizedRunField(candidate, field), afterValue))) {
         changes.push({ target: `blocks.${index}.runs.${runIndex}.${field}`, expectedValue: afterValue, label: `Paragraph ${position}${snippet}: ${fieldLabel(field)} changed to ${String(afterValue)}`, blockPosition: position });
       }
     }
@@ -393,10 +400,78 @@ export function modelAnswerRuleCriteria(finalDocument: unknown, criteria: ModelA
 // (migration 202610201200: {"rule":"words"}). Highlighting is "words only": when the model's spaces are NOT highlighted
 // the rule requires that too (spaceProps), so highlighting the spaces as well does not earn the mark. Other formatting
 // (bold, colour...) leaves the spaces unconstrained. Anything else (only some words formatted, different values)
-// keeps its run criteria.
+// keeps its run criteria... unless the formatted runs are a word or phrase (see "Find and Replace" below).
+//
+// "Replace every 'rajasthan' with 'punjab' in 24 pt red" formats SOME runs only: the replaced words. Those runs are
+// found by their position ("run 1, run 3, run 5 of paragraph 3 are 24 pt"), and which run number a word gets depends
+// on how everything else in the paragraph was split by earlier work, so a student who did the same thing (even the
+// same questions in a different order) was marked wrong. When the formatted runs are one word or phrase, and EVERY
+// occurrence of it in the model answer has that same formatting, the run criteria are replaced by one rule per field
+// that says just that (migration 202610201200: {"rule":"text","find":"punjab","props":{...}}): every occurrence of
+// the word in the document has the formatting, wherever it is and however the runs are split.
 const WORDS_ONLY_FIELDS = new Set(["highlight"]);
 const RUN_CRITERION = /^blocks\.([0-9]+)\.runs\.[0-9]+\.([A-Za-z]+)$/;
-export type ModelAnswerRuleCriterion = ReturnType<typeof modelAnswerRuleCriteria>[number] | { rule: "words"; kind: "header" | "footer" | "body"; place: number; props: Record<string, unknown[]>; spaceProps?: Record<string, unknown[]> };
+const RUN_CRITERION_RUN = /^blocks\.[0-9]+\.runs\.([0-9]+)\.[A-Za-z]+$/;
+export type ModelAnswerRuleCriterion = ReturnType<typeof modelAnswerRuleCriteria>[number] | { rule: "words"; kind: "header" | "footer" | "body"; place: number; props: Record<string, unknown[]>; spaceProps?: Record<string, unknown[]> } | { rule: "text"; kind: "header" | "footer" | "body"; find: string; wholeWord: true; minCount: number; props: Record<string, unknown[]> };
+
+const isWordChar = (character: string | undefined) => character !== undefined && /[\p{L}\p{N}]/u.test(character);
+// Where a whole word or phrase occurs in the paragraph (case-insensitively, a no-break space counting as a space), and
+// the runs that cover each place: what the database's text rule looks at.
+function phraseSpans(block: WordBlock, phrase: string): { runs: JsonRecord[] }[] {
+  const runs = runsOf(block), lengths = runs.map((run) => runText(run).length);
+  const joined = runs.map(runText).join("").replace(/\u00a0/g, " ").toLowerCase(), needle = phrase.toLowerCase();
+  const found: { runs: JsonRecord[] }[] = [];
+  for (let at = joined.indexOf(needle); at >= 0; at = joined.indexOf(needle, at + Math.max(1, needle.length))) {
+    if (isWordChar(joined[at - 1]) || isWordChar(joined[at + needle.length])) continue;
+    let start = 0;
+    const covering = runs.filter((_, index) => { const from = start, to = start + lengths[index]; start = to; return lengths[index] > 0 && from < at + needle.length && at < to; });
+    found.push({ runs: covering });
+  }
+  return found;
+}
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+function formattedWordRules(finalDocument: unknown, criteria: ReturnType<typeof modelAnswerRuleCriteria>, skip: Set<string>): Map<string, ModelAnswerRuleCriterion> {
+  type Entry = { criterion: ReturnType<typeof modelAnswerRuleCriteria>[number]; field: string; run: string; accepted: unknown[] };
+  const phrases = new Map<string, { phrase: string; kind: "header" | "footer" | "body"; entries: Entry[] }>();
+  const blocks = blocksOf(finalDocument);
+  for (const criterion of criteria) {
+    const match = /^blocks\.([0-9]+)\.runs\.([0-9]+)\.([A-Za-z]+)$/.exec(criterion.target);
+    if (!match || match[3] === "text" || criterion.kind === undefined || skip.has(`${match[1]}.${match[3]}`)) continue;
+    const block = blocks[Number(match[1])], run = block ? textRuns(block)[Number(match[2])] : undefined;
+    if (!block || !run) continue;
+    const phrase = runText(run).replace(/\u00a0/g, " ").trim();
+    if (!phrase || phrase.length > 80 || !/[\p{L}\p{N}]/u.test(phrase) || /[\r\n\t]/.test(phrase)) continue;
+    const key = `${criterion.kind}|${phrase.toLowerCase()}`, entry = phrases.get(key) ?? { phrase, kind: criterion.kind, entries: [] };
+    entry.entries.push({ criterion, field: match[3], run: `${match[1]}.${match[2]}`, accepted: [criterion.expectedValue, ...criterion.alternatives] });
+    phrases.set(key, entry);
+  }
+  const rules = new Map<string, ModelAnswerRuleCriterion>();
+  for (const { phrase, kind, entries } of phrases.values()) {
+    // Every changed run of the phrase must have been changed in the same way (the same fields, the same values)...
+    const byRun = new Map<string, Entry[]>();
+    for (const entry of entries) byRun.set(entry.run, [...(byRun.get(entry.run) ?? []), entry]);
+    const signatures = [...byRun.values()].map((list) => JSON.stringify(list.map((entry) => [entry.field, entry.accepted]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))));
+    if (new Set(signatures).size !== 1) continue;
+    const fields = new Map(entries.map((entry) => [entry.field, entry.accepted]));
+    // ...and every occurrence of the phrase in the model answer must have that formatting too, or "every occurrence"
+    // would be a rule the model answer itself fails.
+    let total = 0, allFormatted = true;
+    for (const block of blocks) {
+      if (blockKind(block) !== kind) continue;
+      for (const span of phraseSpans(block, phrase)) {
+        total += 1;
+        for (const [field, accepted] of fields) if (!span.runs.every((run) => accepted.some((value) => sameJson(value, normalizedRunField(run, field))))) allFormatted = false;
+      }
+    }
+    if (!allFormatted || total < byRun.size) continue;
+    for (const [field, accepted] of fields) {
+      const values = accepted.filter((value, index, all) => all.findIndex((other) => sameJson(other, value)) === index).slice(0, 5);
+      rules.set(`${kind}|${phrase.toLowerCase()}|${field}`, { rule: "text", kind, find: phrase, wholeWord: true, minCount: total, props: { [field]: values } });
+    }
+  }
+  return rules;
+}
 export function compressRunCriteria(finalDocument: unknown, criteria: ReturnType<typeof modelAnswerRuleCriteria>): ModelAnswerRuleCriterion[] {
   const groups = new Map<string, ReturnType<typeof modelAnswerRuleCriteria>>();
   for (const criterion of criteria) {
@@ -424,12 +499,18 @@ export function compressRunCriteria(finalDocument: unknown, criteria: ReturnType
     }
     compressed.set(key, { rule: "words", kind: items[0].kind, place: items[0].place, props: { [field]: accepted }, ...(spaceProps ? { spaceProps } : {}) });
   }
+  const wordRules = formattedWordRules(finalDocument, criteria, new Set(compressed.keys()));
   const out: ModelAnswerRuleCriterion[] = [], placed = new Set<string>();
   for (const criterion of criteria) {
     const match = RUN_CRITERION.exec(criterion.target), key = match ? `${match[1]}.${match[2]}` : "";
     const rule = compressed.get(key);
-    if (!rule) { out.push(criterion); continue; }
-    if (!placed.has(key)) { placed.add(key); out.push(rule); }
+    if (rule) { if (!placed.has(key)) { placed.add(key); out.push(rule); } continue; }
+    // A run criterion that is one formatted word or phrase: one text rule for the field instead of one per run.
+    const run = match && match[2] !== "text" && criterion.kind !== undefined ? textRuns(blocksOf(finalDocument)[Number(match[1])] ?? {})[Number(RUN_CRITERION_RUN.exec(criterion.target)?.[1])] : undefined;
+    const phrase = run ? runText(run).replace(/\u00a0/g, " ").trim().toLowerCase() : "", wordKey = match && criterion.kind ? `${criterion.kind}|${phrase}|${match[2]}` : "";
+    const wordRule = wordKey ? wordRules.get(wordKey) : undefined;
+    if (wordRule) { if (!placed.has(wordKey)) { placed.add(wordKey); out.push(wordRule); } continue; }
+    out.push(criterion);
   }
   return out;
 }
