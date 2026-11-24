@@ -421,7 +421,7 @@
    "questions": [
     {
      "group": "HOME › Font",
-     "instruction": "प्रथम पैराग्राफ (हिंदी) को फॉन्ट साइज 16, बोल्ड एवं फॉन्ट कलर Dark Red दीजिए।",
+     "instruction": "प्रथम पैराग्राफ (हिंदी) का फॉन्ट साइज Grow Font (A↑) बटन से दो बार बढ़ाइए (14 से 18)।",
      "criteria": [
       {
        "rule": "words",
@@ -429,105 +429,69 @@
        "place": 0,
        "props": {
         "fontSize": [
-         16
+         18
         ],
-        "bold": [
-         true
-        ],
-        "color": [
-         "C00000"
-        ]
+        "fontFamily": {
+         "regex": "^kruti dev"
+        }
        }
       }
      ],
-     "solution": "1. पहला (हिंदी) पैराग्राफ सेलेक्ट करें।\n2. HOME → Font Size **16**, **Bold** (Ctrl+B)।\n3. **Font Color ▾** → Standard Colors में **Dark Red**।\n\nजाँच: पहला पैराग्राफ साइज 16, बोल्ड और गहरा लाल।"
+     "solution": "1. पहला (हिंदी) पैराग्राफ सेलेक्ट करें।\n2. HOME → **Grow Font (A↑)** दो बार दबाएँ (Ctrl+Shift+>)। साइज 14 → 16 → **18**।\n\nजाँच: पहला पैराग्राफ साइज 18, फॉन्ट Kruti Dev 010 ही रहे।"
     },
     {
      "group": "HOME › Font",
-     "instruction": "द्वितीय पैराग्राफ को फॉन्ट Arial, इटैलिक एवं डबल अंडरलाइन दीजिए।",
+     "instruction": "चतुर्थ पैराग्राफ (The Home tab contains…) को Font डायलॉग से Small caps इफेक्ट दीजिए।",
      "criteria": [
       {
        "rule": "words",
        "kind": "body",
-       "place": 1,
+       "place": 3,
        "props": {
-        "fontFamily": [
-         "Arial"
-        ],
-        "italic": [
+        "smallCaps": [
          true
-        ],
-        "underline": [
-         true
-        ],
-        "underlineStyle": [
-         "double"
         ]
        }
       }
      ],
-     "solution": "1. दूसरा पैराग्राफ (\"Microsoft Word is…\") सेलेक्ट करें।\n2. HOME → Font **Arial**, **Italic** (Ctrl+I)।\n3. **Underline ▾** → **Double underline** (या Font डायलॉग Ctrl+D → Underline style **Double**)।\n\nजाँच: दूसरा पैराग्राफ Arial, इटैलिक, डबल अंडरलाइन।"
+     "solution": "1. चौथा पैराग्राफ (\"The Home tab contains…\") सेलेक्ट करें।\n2. HOME → Font ग्रुप **↘** (Ctrl+D) → Effects में **Small caps** ✔ → **OK**।\n\nजाँच: छोटे अक्षर छोटे कैपिटल अक्षरों में दिखें।"
     },
     {
      "group": "HOME › Font",
-     "instruction": "चतुर्थ पैराग्राफ को Change Case से UPPERCASE कीजिए।",
+     "instruction": "\"Einstein's famous formula is E = mc2\" लाइन को Font डायलॉग से Hidden (छिपा हुआ) कीजिए।",
      "criteria": [
       {
-       "rule": "text",
-       "kind": "body",
-       "place": 3,
-       "find": "THE HOME TAB CONTAINS THE MOST USED COMMANDS OF WORD",
-       "caseSensitive": true
-      }
-     ],
-     "solution": "1. चौथा पैराग्राफ (\"The Home tab contains…\") सेलेक्ट करें।\n2. HOME → **Change Case (Aa ▾)** → **UPPERCASE**।\n\nजाँच: चौथे पैराग्राफ के सभी अक्षर बड़े।"
-    },
-    {
-     "group": "HOME › Font",
-     "instruction": "\"E = mc2\" में 2 को सुपरस्क्रिप्ट (Superscript) कीजिए।",
-     "criteria": [
-      {
-       "rule": "text",
+       "rule": "words",
        "kind": "body",
        "place": 8,
-       "find": "2",
        "props": {
-        "superscript": [
+        "hidden": [
          true
         ]
        }
       }
      ],
-     "solution": "1. \"E = mc2\" में केवल **2** सेलेक्ट करें।\n2. HOME → **Superscript (x²)** (Ctrl+Shift+=)।\n\nजाँच: E = mc²।"
+     "solution": "1. \"Einstein's famous formula is E = mc2\" लाइन सेलेक्ट करें।\n2. HOME → Font ग्रुप **↘** (Ctrl+D) → Effects में **Hidden** ✔ → **OK**।\n\nजाँच: लाइन पेज पर दिखनी बंद हो जाए (¶ Show/Hide चालू करने पर डॉटेड अंडरलाइन के साथ दिखेगी)।"
     },
     {
      "group": "HOME › Paragraph",
-     "instruction": "द्वितीय पैराग्राफ को Justify अलाइनमेंट एवं लाइन स्पेसिंग 1.5 दीजिए।",
+     "instruction": "द्वितीय पैराग्राफ (Microsoft Word is…) के ऊपर Spacing Before 24 pt दीजिए।",
      "criteria": [
       {
        "rule": "value",
        "kind": "body",
        "place": 1,
-       "target": "blocks.0.alignment",
-       "spec": [
-        "justify"
-       ]
-      },
-      {
-       "rule": "value",
-       "kind": "body",
-       "place": 1,
-       "target": "blocks.0.attrs.lineHeight",
-       "spec": [
-        "1.5"
-       ]
+       "target": "blocks.0.attrs.marginTop",
+       "spec": {
+        "regex": "^24(\\.0+)?(pt)?$"
+       }
       }
      ],
-     "solution": "दूसरे पैराग्राफ में क्लिक करें:\n1. HOME → **Justify** (Ctrl+J)।\n2. HOME → **Line and Paragraph Spacing ▾** → **1.5**।\n\nजाँच: जस्टिफाई और लाइन स्पेसिंग 1.5।"
+     "solution": "1. दूसरे पैराग्राफ में क्लिक करें।\n2. HOME → Paragraph ग्रुप **↘** → Spacing **Before: 24 pt** → **OK** (या PAGE LAYOUT → Spacing Before **24 pt**)।\n\nजाँच: दूसरे पैराग्राफ के ऊपर ज़्यादा जगह।"
     },
     {
      "group": "HOME › Paragraph",
-     "instruction": "दी गई सूची (Home Tab, Insert Tab…) की बुलेट्स को नंबरिंग 1. 2. 3. में बदलिए।",
+     "instruction": "दी गई सूची (Home Tab, Insert Tab…) की बुलेट्स को Bullet Library के Checkmark (✓) बुलेट में बदलिए।",
      "criteria": [
       {
        "rule": "value",
@@ -535,7 +499,7 @@
        "place": 4,
        "target": "blocks.0.attrs.listStyle",
        "spec": [
-        "decimal"
+        "bullet-check"
        ]
       },
       {
@@ -544,7 +508,7 @@
        "place": 5,
        "target": "blocks.0.attrs.listStyle",
        "spec": [
-        "decimal"
+        "bullet-check"
        ]
       },
       {
@@ -553,7 +517,7 @@
        "place": 6,
        "target": "blocks.0.attrs.listStyle",
        "spec": [
-        "decimal"
+        "bullet-check"
        ]
       },
       {
@@ -562,76 +526,209 @@
        "place": 7,
        "target": "blocks.0.attrs.listStyle",
        "spec": [
-        "decimal"
+        "bullet-check"
        ]
       }
      ],
-     "solution": "1. सूची के चारों आइटम सेलेक्ट करें।\n2. HOME → **Numbering ▾** → **1. 2. 3.**।\n\nजाँच: सूची 1. से 4. तक नंबर वाली।"
+     "solution": "1. सूची के चारों आइटम सेलेक्ट करें।\n2. HOME → **Bullets ▾** → Bullet Library में **✓ (Checkmark)**।\n\nजाँच: चारों आइटम के आगे ✓।"
     },
     {
-     "group": "HOME › Paragraph",
-     "instruction": "तृतीय पैराग्राफ पर Box बॉर्डर एवं Light Green शेडिंग दीजिए।",
-     "criteria": [
-      {
-       "rule": "value",
-       "kind": "body",
-       "place": 2,
-       "target": "blocks.0.attrs.border",
-       "spec": {
-        "regex": "^(?!.*sides:)\\S+ (solid|double|dotted|dashed)"
-       }
-      },
-      {
-       "rule": "value",
-       "kind": "body",
-       "place": 2,
-       "target": "blocks.0.attrs.backgroundColor",
-       "spec": {
-        "regex": "92D050|rgb\\(146, ?208, ?80\\)"
-       }
-      }
-     ],
-     "solution": "तीसरे पैराग्राफ में क्लिक करें:\n1. HOME → **Borders ▾** → **Borders and Shading…** → Borders: Setting **Box** → Apply to **Paragraph**।\n2. **Shading** टैब → Fill **Light Green** → Apply to **Paragraph** → **OK**।\n\nजाँच: तीसरे पैराग्राफ के चारों ओर बॉर्डर और हल्की हरी शेडिंग।"
-    },
-    {
-     "group": "HOME › Paragraph",
-     "instruction": "टेबल को \"Marks\" कॉलम के अनुसार आरोही क्रम (Ascending) में सॉर्ट कीजिए।",
+     "group": "INSERT › Table",
+     "instruction": "टेबल पर Table Style \"Grid Table 4 - Accent 1\" लगाइए।",
      "criteria": [
       {
        "rule": "table",
        "place": 0,
-       "headerAt": {
-        "3": "Marks"
-       },
-       "sortedColumn": 3
+       "attrs": {
+        "tableStyle": [
+         "grid-4-accent-1"
+        ]
+       }
       }
      ],
-     "solution": "1. टेबल में क्लिक करें।\n2. HOME → **Sort (A↓Z)** → Sort by **Marks**, Type **Number**, **Ascending**, My list has **Header row** → **OK**।\n\nजाँच: Marks 55, 68, 74, 82, 91 के क्रम में।"
+     "solution": "1. टेबल में क्लिक करें।\n2. TABLE TOOLS → **DESIGN** → Table Styles ▾ → Grid Tables में **Grid Table 4 - Accent 1** (नीली हेडिंग वाली)।\n\nजाँच: टेबल की पहली रो नीली, बाकी रो धारीदार।"
     },
     {
-     "group": "HOME › Editing",
-     "instruction": "पूरे डॉक्यूमेंट में \"document\" शब्द को \"file\" शब्द से Replace All कीजिए।",
+     "group": "INSERT › Table",
+     "instruction": "टेबल को Table Properties से पेज के बीच में (Alignment: Center) कीजिए।",
      "criteria": [
       {
-       "rule": "text",
-       "kind": "body",
-       "find": "document",
-       "minCount": 0,
-       "maxCount": 0
-      },
-      {
-       "rule": "text",
-       "kind": "body",
-       "find": "file",
-       "wholeWord": true,
-       "minCount": 4
+       "rule": "table",
+       "place": 0,
+       "attrs": {
+        "tableAlign": [
+         "center"
+        ]
+       }
       }
      ],
-     "solution": "1. HOME → **Replace** (Ctrl+H)।\n2. Find what **document**, Replace with **file** → **Replace All**।\n\nजाँच: डॉक्यूमेंट में कहीं भी \"document\" नहीं, चार जगह \"file\"।"
+     "solution": "1. टेबल में क्लिक करें।\n2. TABLE TOOLS → **LAYOUT** → **Properties** → **Table** टैब → Alignment **Center** → **OK**।\n\nजाँच: पूरी टेबल पेज के बीच में।"
     },
     {
-     "group": "INSERT › Pages",
-     "instruction": "टेबल से ठीक पहले Page Break लगाइए, ताकि टेबल नए पेज पर आ जाए।",
+     "group": "INSERT › Table",
+     "instruction": "टेबल का \"City\" कॉलम डिलीट कीजिए।",
+     "criteria": [
+      {
+       "rule": "table",
+       "place": 0,
+       "columns": 3,
+       "headerAt": {
+        "0": "S.No.",
+        "1": "Name",
+        "2": "Marks"
+       }
+      }
+     ],
+     "solution": "1. टेबल के \"City\" कॉलम के किसी सेल में क्लिक करें।\n2. TABLE TOOLS → **LAYOUT** → **Delete ▾** → **Delete Columns**।\n\nजाँच: टेबल में S.No., Name, Marks — तीन कॉलम।"
+    },
+    {
+     "group": "INSERT › Table",
+     "instruction": "टेबल की पहली रो को Repeat Header Rows कीजिए, ताकि वह हर पेज पर दोहराई जाए।",
+     "criteria": [
+      {
+       "rule": "table",
+       "place": 0,
+       "attrs": {
+        "repeatHeader": [
+         true
+        ]
+       }
+      }
+     ],
+     "solution": "1. टेबल की पहली रो (S.No., Name…) में क्लिक करें।\n2. TABLE TOOLS → **LAYOUT** → Data ग्रुप में **Repeat Header Rows**।\n\nजाँच: Repeat Header Rows बटन चालू दिखे।"
+    },
+    {
+     "group": "DESIGN › Page Background",
+     "instruction": "पेज पर Box पेज बॉर्डर (Dotted लाइन, कलर Green) दीजिए और Options में Measure from: Text कीजिए।",
+     "criteria": [
+      {
+       "rule": "value",
+       "target": "pageLayout.border",
+       "spec": {
+        "regex": "^(?!.*sides:)\\S+ dotted (#00B050|rgb\\(0, ?176, ?80\\)).* measure:text"
+       }
+      }
+     ],
+     "solution": "1. DESIGN → **Page Borders**।\n2. Setting **Box**, Style **डॉटेड लाइन (·····)**, Color **Green**।\n3. **Options…** → Measure from **Text** → **OK** → **OK**।\n\nजाँच: हरी डॉटेड बॉर्डर टेक्स्ट के पास (पेज के किनारे से नहीं)।"
+    },
+    {
+     "group": "PAGE LAYOUT › Page Setup",
+     "instruction": "पूरे डॉक्यूमेंट को Two कॉलम (Columns) में कीजिए।",
+     "criteria": [
+      {
+       "rule": "value",
+       "target": "pageLayout.columnCount",
+       "spec": [
+        "2",
+        2
+       ]
+      }
+     ],
+     "solution": "1. PAGE LAYOUT → **Columns ▾** → **Two**।\n\nजाँच: टेक्स्ट दो कॉलम में।"
+    },
+    {
+     "group": "PAGE LAYOUT › Page Setup",
+     "instruction": "डॉक्यूमेंट में Line Numbers (Continuous) लगाइए।",
+     "criteria": [
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 0,
+       "target": "blocks.0.attrs.lineNumbers",
+       "spec": [
+        true
+       ]
+      },
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 1,
+       "target": "blocks.0.attrs.lineNumbers",
+       "spec": [
+        true
+       ]
+      },
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 2,
+       "target": "blocks.0.attrs.lineNumbers",
+       "spec": [
+        true
+       ]
+      },
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 3,
+       "target": "blocks.0.attrs.lineNumbers",
+       "spec": [
+        true
+       ]
+      }
+     ],
+     "solution": "1. PAGE LAYOUT → **Line Numbers ▾** → **Continuous**।\n\nजाँच: हर लाइन के बाईं ओर 1, 2, 3… नंबर।"
+    },
+    {
+     "group": "PAGE LAYOUT › Page Setup",
+     "instruction": "डॉक्यूमेंट में Hyphenation Automatic कीजिए।",
+     "criteria": [
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 0,
+       "target": "blocks.0.attrs.hyphens",
+       "spec": [
+        "auto"
+       ]
+      },
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 1,
+       "target": "blocks.0.attrs.hyphens",
+       "spec": [
+        "auto"
+       ]
+      },
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 2,
+       "target": "blocks.0.attrs.hyphens",
+       "spec": [
+        "auto"
+       ]
+      },
+      {
+       "rule": "value",
+       "kind": "body",
+       "place": 3,
+       "target": "blocks.0.attrs.hyphens",
+       "spec": [
+        "auto"
+       ]
+      }
+     ],
+     "solution": "1. PAGE LAYOUT → **Hyphenation ▾** → **Automatic**।\n\nजाँच: लाइन के अंत के लंबे शब्द ज़रूरत पर हाइफ़न (-) से टूटें।"
+    },
+    {
+     "group": "PAGE LAYOUT › Page Setup",
+     "instruction": "Page Setup से बाईं ओर 1\" का Gutter दीजिए।",
+     "criteria": [
+      {
+       "rule": "value",
+       "target": "pageLayout.gutter",
+       "spec": {
+        "regex": "^(25\\.4|2\\.54|1)(0*)?(mm|cm|in)?$"
+       }
+      }
+     ],
+     "solution": "1. PAGE LAYOUT → **Margins ▾** → **Custom Margins…**।\n2. Gutter **1\"**, Gutter position **Left** → **OK**।\n\nजाँच: बायाँ मार्जिन 1\" ज़्यादा चौड़ा।"
+    },
+    {
+     "group": "PAGE LAYOUT › Page Setup",
+     "instruction": "टेबल से ठीक पहले Section Break (Next Page) लगाइए।",
      "criteria": [
       {
        "rule": "value",
@@ -639,104 +736,11 @@
        "place": 10,
        "target": "blocks.0.type",
        "spec": [
-        "page-break"
+        "section-break"
        ]
       }
      ],
-     "solution": "1. \"Samradhi Classes, Jaipur\" लाइन के अंत में क्लिक करें (टेबल से ठीक पहले)।\n2. INSERT → **Page Break** (Ctrl+Enter)।\n\nजाँच: टेबल अगले पेज पर।"
-    },
-    {
-     "group": "INSERT › Table",
-     "instruction": "डॉक्यूमेंट के अंत में (टेबल के बाद) 3 कॉलम एवं 4 रो की एक नई टेबल इन्सर्ट कीजिए।",
-     "criteria": [
-      {
-       "rule": "table",
-       "place": 1,
-       "columns": 3,
-       "rowCount": 4
-      }
-     ],
-     "solution": "1. दी गई टेबल के नीचे, डॉक्यूमेंट के अंत में क्लिक करें।\n2. INSERT → **Table ▾** → **Insert Table…** → Number of columns **3**, Number of rows **4** → **OK** (या ग्रिड में 3x4)।\n\nजाँच: अंत में 3 कॉलम × 4 रो की नई टेबल।"
-    },
-    {
-     "group": "INSERT › Symbols",
-     "instruction": "\"Samradhi Classes, Jaipur\" से पहले कॉपीराइट चिह्न © लगाइए।",
-     "criteria": [
-      {
-       "rule": "anyOf",
-       "criteria": [
-        {
-         "rule": "text",
-         "kind": "body",
-         "place": 9,
-         "find": "© Samradhi"
-        },
-        {
-         "rule": "text",
-         "kind": "body",
-         "place": 9,
-         "find": "©Samradhi"
-        }
-       ]
-      }
-     ],
-     "solution": "1. \"Samradhi Classes, Jaipur\" के आरंभ में क्लिक करें।\n2. INSERT → **Symbol ▾** → **©** (या More Symbols… → Special Characters → **Copyright**) → Insert।\n\nजाँच: © Samradhi Classes, Jaipur।"
-    },
-    {
-     "group": "INSERT › Header & Footer",
-     "instruction": "हेडर में \"RSSB LDC EXAM - 2026\" लिखिए एवं फूटर में दाईं ओर पेज नंबर लगाइए।",
-     "criteria": [
-      {
-       "rule": "text",
-       "kind": "header",
-       "find": "RSSB LDC EXAM - 2026"
-      },
-      {
-       "rule": "run",
-       "kind": "footer",
-       "props": {
-        "field": {
-         "regex": "^page-number\\|.*\\|right$"
-        }
-       }
-      }
-     ],
-     "solution": "1. INSERT → **Header ▾** → **Edit Header** → टाइप करें **RSSB LDC EXAM - 2026**।\n2. INSERT → **Page Number ▾** → **Bottom of Page** → **Plain Number 3** (दाईं ओर)।\n3. **Close Header and Footer**।\n\nजाँच: हेडर में टेक्स्ट, फूटर में दाईं ओर पेज नंबर।"
-    },
-    {
-     "group": "DESIGN › Page Background",
-     "instruction": "पेज पर Box पेज बॉर्डर दीजिए, जिसकी लाइन Double एवं कलर Blue हो।",
-     "criteria": [
-      {
-       "rule": "value",
-       "target": "pageLayout.border",
-       "spec": {
-        "regex": "^(?!.*sides:)\\S+ double (#0070C0|rgb\\(0, ?112, ?192\\))"
-       }
-      }
-     ],
-     "solution": "1. DESIGN → **Page Borders**।\n2. Setting **Box**, Style **डबल लाइन (═)**, Color **Blue** → Apply to **Whole document** → **OK**।\n\nजाँच: पूरे पेज के चारों ओर नीली डबल लाइन।"
-    },
-    {
-     "group": "PAGE LAYOUT › Page Setup",
-     "instruction": "पेज का Orientation Landscape एवं Margins Narrow कीजिए।",
-     "criteria": [
-      {
-       "rule": "value",
-       "target": "pageLayout.aspectRatio",
-       "spec": {
-        "regex": "^(29\\.7 ?/ ?21|1\\.414 ?/ ?1)$"
-       }
-      },
-      {
-       "rule": "value",
-       "target": "pageLayout.padding",
-       "spec": [
-        "12.7mm 12.7mm 12.7mm 12.7mm"
-       ]
-      }
-     ],
-     "solution": "1. PAGE LAYOUT → **Orientation ▾** → **Landscape**।\n2. PAGE LAYOUT → **Margins ▾** → **Narrow**।\n\nजाँच: पेज लैंडस्केप, चारों मार्जिन 0.5\"।"
+     "solution": "1. \"Samradhi Classes, Jaipur\" लाइन के अंत में क्लिक करें (टेबल से ठीक पहले)।\n2. PAGE LAYOUT → **Breaks ▾** → Section Breaks में **Next Page**।\n\nजाँच: टेबल नए सेक्शन के नए पेज पर।"
     }
    ]
   },
