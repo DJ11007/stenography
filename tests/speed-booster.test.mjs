@@ -90,3 +90,41 @@ test("the page has the five tabs and the hub links to it", async () => {
   const hub = await read("app/typing/page.tsx");
   assert.match(hub, /href: "\/typing\/speed-booster"/);
 });
+
+// 24 Nov 2026: the Hindi side.
+import { HINDI_BURST_LEVELS, HINDI_COMMON_WORDS, HINDI_DRILL_WORDS, HINDI_FEATURES, HINDI_RHYTHM_PASSAGES, featureStatsFrom, hindiFeatureDrill, weakestFeatures } from "../lib/speed-booster-hindi.ts";
+import { krutiDevToUnicode, unicodeToKrutiDev } from "../lib/hindi-font-converter.ts";
+
+test("every Hindi line survives Unicode -> Kruti Dev -> Unicode with the same words (Kruti Dev typists are checked right)", () => {
+  const all = [...HINDI_BURST_LEVELS.flatMap((level) => level.sentences), ...HINDI_COMMON_WORDS, ...HINDI_DRILL_WORDS, ...HINDI_RHYTHM_PASSAGES];
+  const count = (text) => text.trim().split(/\s+/u).length;
+  for (const text of all) {
+    const kruti = unicodeToKrutiDev(text);
+    assert.equal(krutiDevToUnicode(kruti).normalize("NFC"), text.normalize("NFC"), text);
+    assert.equal(count(kruti), count(text), text);
+  }
+});
+
+test("five Hindi burst levels of 8; no % (it is the visarga key in Kruti Dev); every weak-area group has drill words", () => {
+  assert.equal(HINDI_BURST_LEVELS.length, 5);
+  for (const level of HINDI_BURST_LEVELS) assert.equal(level.sentences.length, 8);
+  assert.ok(!HINDI_BURST_LEVELS.flatMap((level) => level.sentences).some((sentence) => sentence.includes("%")));
+  for (const feature of HINDI_FEATURES) assert.ok(HINDI_DRILL_WORDS.filter((word) => feature.pattern.test(word.normalize("NFC"))).length >= 10, feature.id);
+  assert.equal(new Set(HINDI_COMMON_WORDS).size, HINDI_COMMON_WORDS.length);
+});
+
+test("Hindi weak areas: a wrong word counts against every group it belongs to", () => {
+  const stats = featureStatsFrom("किसान क्षेत्र किसान क्षेत्र", "कसान क्षेत्र कसान क्षेत्र");
+  assert.equal(stats["i-matra"].misses, 2);
+  assert.equal(stats.conjunct.hits, 2);
+  assert.equal(weakestFeatures(stats, 1, 2)[0].id, "i-matra");
+  assert.ok(hindiFeatureDrill(["conjunct"], 15, () => 0.3).split(" ").every((word) => /क्ष|त्र|ज्ञ|श्र|द्ध|द्व|द्य/u.test(word)));
+});
+
+test("the page offers English / Hindi and Unicode / Kruti Dev, and checks Kruti Dev by decoding", async () => {
+  const page = await read("app/typing/speed-booster/speed-booster.tsx");
+  assert.match(page, /हिन्दी \(Hindi\)/);
+  assert.match(page, /"Kruti Dev 010"/);
+  assert.match(page, /decode: input === "kruti" \? \(text\) => krutiDevToUnicode\(text\)\.normalize\("NFC"\)/);
+  assert.match(page, /function HindiWeakTab/);
+});

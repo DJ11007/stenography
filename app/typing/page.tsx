@@ -13,7 +13,7 @@ const sections = [
   },
   {
     title: "Speed Booster",
-    description: "Stuck at 35-40 WPM? A daily plan, technique check, burst training, common words, weak-key and rhythm drills to reach 50+.",
+    description: "Stuck at one speed? A daily plan, technique check, burst training, common words, weak-key and rhythm drills -- in English and Hindi (Unicode / Kruti Dev).",
     href: "/typing/speed-booster",
     action: "Boost my speed",
     icon: "⚡",
