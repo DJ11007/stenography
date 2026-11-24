@@ -113,7 +113,40 @@ function SpeedBooster() {
     { id: "rhythm", label: "Rhythm & Read-ahead" },
   ];
 
-  return <div className="mt-6">
+  // Full screen (owner's request, 24 Nov 2026): the whole Speed Booster -- English or Hindi, every tab -- fills the
+  // screen with nothing else around it; Esc or the same button leaves it.
+  // A browser that refuses real full screen (some phones, embedded views) gets the same panel filling the whole window.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [realFullscreen, setRealFullscreen] = useState(false);
+  const [windowFill, setWindowFill] = useState(false);
+  const isFullscreen = realFullscreen || windowFill;
+  useEffect(() => {
+    const onChange = () => {
+      const real = document.fullscreenElement === boxRef.current && boxRef.current !== null;
+      setRealFullscreen(real);
+      if (real) setWindowFill(false);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  useEffect(() => {
+    if (!windowFill) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setWindowFill(false); };
+    document.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow; document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = overflow; };
+  }, [windowFill]);
+  const toggleFullscreen = () => {
+    if (windowFill) { setWindowFill(false); return; }
+    if (document.fullscreenElement) { void document.exitFullscreen(); return; }
+    const box = boxRef.current;
+    if (!box?.requestFullscreen) { setWindowFill(true); return; }
+    box.requestFullscreen().catch(() => setWindowFill(true));
+    // Some browsers neither grant nor refuse (they wait on a permission prompt): fill the window meanwhile.
+    window.setTimeout(() => { if (!document.fullscreenElement) setWindowFill(true); }, 500);
+  };
+
+  return <div ref={boxRef} className={realFullscreen ? "h-full overflow-y-auto bg-slate-100 p-4 sm:p-6" : windowFill ? "fixed inset-0 z-[60] overflow-y-auto bg-slate-100 p-4 sm:p-6" : "mt-6"}>
     <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
       <span className="text-sm font-black text-slate-700">Language:</span>
       <div role="group" aria-label="Language" className="flex gap-1 rounded-xl bg-slate-100 p-1">
@@ -126,8 +159,12 @@ function SpeedBooster() {
           {([["unicode", "Unicode (Mangal / Remington GAIL)"], ["kruti", "Kruti Dev 010"]] as const).map(([id, label]) => <button key={id} type="button" aria-pressed={store.hindiInput === id} onClick={() => update((current) => ({ ...current, hindiInput: id }))}
             className={`rounded-lg px-3 py-1.5 text-xs font-black ${store.hindiInput === id ? "bg-blue-700 text-white" : "text-slate-700 hover:bg-white"}`}>{label}</button>)}
         </div>
-        <p className="w-full text-xs text-slate-500">{store.hindiInput === "kruti" ? "Kruti Dev: type with your Kruti Dev / Remington keys (keyboard in English mode); the text shows in the Kruti Dev font." : "Unicode: switch your computer's keyboard to Hindi (Remington GAIL, Mangal or InScript) before you type."}</p>
       </>}
+      <button type="button" onClick={toggleFullscreen} aria-pressed={isFullscreen} title={isFullscreen ? "Exit full screen (Esc)" : "Full screen"}
+        className="ml-auto flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-sm font-black text-white hover:bg-slate-900">
+        <span aria-hidden="true">{isFullscreen ? "⤡" : "⛶"}</span>{isFullscreen ? "Exit Full Screen" : "Full Screen"}
+      </button>
+      {lang === "hi" && <p className="w-full text-xs text-slate-500">{store.hindiInput === "kruti" ? "Kruti Dev: type with your Kruti Dev / Remington keys (keyboard in English mode); the text shows in the Kruti Dev font." : "Unicode: switch your computer's keyboard to Hindi (Remington GAIL, Mangal or InScript) before you type."}</p>}
     </div>
     <div role="tablist" aria-label="Speed Booster sections" className="mt-4 flex flex-wrap gap-2">
       {tabs.map((item) => <button key={item.id} type="button" role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)}

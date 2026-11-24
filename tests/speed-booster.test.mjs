@@ -128,3 +128,12 @@ test("the page offers English / Hindi and Unicode / Kruti Dev, and checks Kruti 
   assert.match(page, /decode: input === "kruti" \? \(text\) => krutiDevToUnicode\(text\)\.normalize\("NFC"\)/);
   assert.match(page, /function HindiWeakTab/);
 });
+
+test("a Full Screen button puts the whole Speed Booster (English and Hindi, every tab) in full screen", async () => {
+  const page = await read("app/typing/speed-booster/speed-booster.tsx");
+  assert.match(page, /box\.requestFullscreen\(\)\.catch\(\(\) => setWindowFill\(true\)\)/);
+  assert.match(page, /fixed inset-0 z-\[60\]/);
+  assert.match(page, /document\.exitFullscreen\(\)/);
+  assert.match(page, /\{isFullscreen \? "Exit Full Screen" : "Full Screen"\}/);
+  assert.match(page, /<div ref=\{boxRef\}/);
+});
