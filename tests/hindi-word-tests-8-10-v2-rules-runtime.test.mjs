@@ -137,3 +137,44 @@ test("the migration makes a new version per test, publishes automatically, repor
   const { rows: [{ versions }] } = await db.query("select count(*)::int versions from public.word_efficiency_versions");
   assert.equal(versions, 6);
 });
+
+// Real reported problem (26 Nov 2026): no attempt of the new Tests 8-10 could start -- "Working Matter paragraph
+// contains unknown fields" (the list items carried "numbered"). Every practice document must pass the server's own
+// check, and migration 202611261000 removes the field from the live papers.
+test("each new practice document passes the server's practice-document check; the fix migration removes \"numbered\"", async () => {
+  const db = new PGlite();
+  await db.exec("create role anon; create role authenticated;");
+  // A function's text in a migration, with either $$ or $function$ around its body.
+  const fn = async (file, name) => { const s = await read(`supabase/migrations/${file}`); const i = s.lastIndexOf(`create or replace function public.${name}(`); const tag = s.slice(i).match(/\sas\s+(\$[a-z]*\$)/)[1]; const start = s.indexOf(tag, i); return s.slice(i, s.indexOf(`${tag};`, start + tag.length) + tag.length + 1); };
+  await db.exec(await fn("202608250012_repair_word_efficiency_fonts_clipboard_and_measurements.sql", "word_efficiency_approved_fonts"));
+  await db.exec(await fn("202610211000_word_efficiency_matter_fonts.sql", "assert_word_efficiency_working_matter"));
+  const check = (matter) => db.query("select public.assert_word_efficiency_working_matter($1::jsonb)", [JSON.stringify(matter)]);
+  for (const paper of spec.tests) await check(paper.matter);
+  // The papers as first published: refused.
+  const withNumbered = structuredClone(spec.tests[0].matter);
+  for (const [index, paragraph] of withNumbered.paragraphs.entries()) if (paragraph.type === "list-item") Object.assign(paragraph, { paragraphNumber: index + 1, numbered: false });
+  await assert.rejects(check(withNumbered), /unknown fields/);
+  // The fix migration on the live tables.
+  await db.exec(`create table public.word_efficiency_tests(id uuid primary key, current_version_id uuid, title text, language text);
+    create table public.word_efficiency_versions(id uuid primary key, working_matter_snapshot jsonb);`);
+  await db.query("insert into public.word_efficiency_versions values('00000000-0000-0000-0000-0000000000b8',$1::jsonb)", [JSON.stringify(withNumbered)]);
+  await db.exec("insert into public.word_efficiency_tests values('00000000-0000-0000-0000-000000000008','00000000-0000-0000-0000-0000000000b8','EFFICIENCY TEST 8','Hindi')");
+  const migration = await read("supabase/migrations/202611261000_hindi_word_tests_8_10_matter_fields.sql");
+  const results = await db.exec(migration);
+  assert.deepEqual(results.findLast((result) => result.rows.length).rows.map((row) => [row.title, Number(row.numbered_fields_left)]), [["EFFICIENCY TEST 8", 0]]);
+  const { rows: [{ matter }] } = await db.query("select working_matter_snapshot matter from public.word_efficiency_versions");
+  assert.deepEqual(matter, spec.tests[0].matter);
+  await db.exec(migration);
+});
+
+// Real reported problem (26 Nov 2026): after Merge Cells (Test 8 Q7) every save and the submit were refused ("Invalid
+// table cell formatting"): the merged row was saved with one cell and four cell formats. Every solved paper must pass
+// the editor's own document check, as a student's submit does.
+test("each solved paper passes the editor's document check (a merged row keeps one slot per column)", async () => {
+  const { validateWordEditorDocument } = await import("../lib/word-editor-document.ts");
+  for (const n of NUMBERS) validateWordEditorDocument(fixtures[n].model);
+  const table = fixtures[8].model.blocks.find((block) => block.type === "table");
+  assert.deepEqual(table.attrs.rows[0], ["RESULT SHEET", "", "", ""]);
+  const editor = await read("app/typing/word-efficiency/[language]/[testId]/workspace/rich-document-editor.tsx");
+  assert.match(editor, /const gridRows=type==="table"&&Array\.isArray\(block\.attrs\.rows\)\?\{rows:block\.attrs\.rows\}:\{\};return\{\.\.\.block,type,attrs:\{\.\.\.block\.attrs,\.\.\.editorBlockAttrs\(html,type\),\.\.\.gridRows\}\}/);
+});

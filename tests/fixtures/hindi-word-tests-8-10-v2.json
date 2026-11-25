@@ -109,7 +109,7 @@
      {
       "id": "matter-p-5",
       "type": "list-item",
-      "paragraphNumber": 5,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -129,13 +129,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-6",
       "type": "list-item",
-      "paragraphNumber": 6,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -155,13 +154,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-7",
       "type": "list-item",
-      "paragraphNumber": 7,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -181,13 +179,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-8",
       "type": "list-item",
-      "paragraphNumber": 8,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -207,8 +204,7 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-9",
@@ -815,7 +811,7 @@
      {
       "id": "matter-p-5",
       "type": "list-item",
-      "paragraphNumber": 5,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -835,13 +831,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-6",
       "type": "list-item",
-      "paragraphNumber": 6,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -861,13 +856,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-7",
       "type": "list-item",
-      "paragraphNumber": 7,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -887,13 +881,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-8",
       "type": "list-item",
-      "paragraphNumber": 8,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -913,8 +906,7 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-9",
@@ -1529,7 +1521,7 @@
      {
       "id": "matter-p-5",
       "type": "list-item",
-      "paragraphNumber": 5,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -1549,13 +1541,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-6",
       "type": "list-item",
-      "paragraphNumber": 6,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -1575,13 +1566,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-7",
       "type": "list-item",
-      "paragraphNumber": 7,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -1601,13 +1591,12 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-8",
       "type": "list-item",
-      "paragraphNumber": 8,
+      "paragraphNumber": null,
       "listGroup": "list-1",
       "runs": [
        {
@@ -1627,8 +1616,7 @@
       "rightIndent": 0,
       "lineSpacing": 1.15,
       "spaceBefore": 0,
-      "spaceAfter": 8,
-      "numbered": false
+      "spaceAfter": 8
      },
      {
       "id": "matter-p-9",

@@ -15,7 +15,9 @@ type Run = { text: string; bold: boolean; italic: boolean; underline: boolean; s
 const run = (text: string, extra: Partial<Run> = {}): Run => ({ text, bold: false, italic: false, underline: false, strike: false, color: null, highlight: null, fontSize: 12, fontFamily: "Segoe UI", ...extra });
 let id = 0;
 const paragraph = (runs: Run[], extra: Record<string, unknown> = {}) => ({ id: `matter-p-${++id}`, type: "paragraph", paragraphNumber: id, listGroup: null, runs, alignment: "left", leftIndent: 0, rightIndent: 0, lineSpacing: 1.15, spaceBefore: 0, spaceAfter: 8, ...extra });
-const listItem = (text: string) => ({ ...paragraph([run(text)]), type: "list-item", listGroup: "list-1", numbered: false });
+// Only what the server accepts in a practice document (assert_word_efficiency_working_matter, migration 202610211000):
+// no "numbered" field, and a list item has no paragraph number.
+const listItem = (text: string) => ({ ...paragraph([run(text)]), type: "list-item", paragraphNumber: null, listGroup: "list-1" });
 const table = (rows: string[][]) => ({ id: `matter-p-${++id}`, type: "table", rows, cellFonts: rows.map((row) => row.map(() => "Segoe UI")), cellSizes: rows.map((row) => row.map(() => 12)) });
 type Para = Run[] | { runs: Run[]; extra: Record<string, unknown> };
 
