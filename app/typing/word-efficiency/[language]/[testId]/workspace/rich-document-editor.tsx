@@ -851,7 +851,9 @@ if(insideTable){onTableTool("sortDialog");return false}setDialog({kind:"sort",va
   if(action==="columns"){if(value==="more")onValueCommand("columnsAction","custom");else onValueCommand("columns",value);return}
   if(action==="breaks"){if(value==="page")run("pageBreak");else if(value==="nextPage")run("sectionBreak");else if(value==="textWrapping"){restoreSelection();document.execCommand("insertLineBreak");changed()}return}
   if(action==="lineNumbers"){const blocks=value==="suppress"?selectedBlocks():pageBlocks();for(const block of blocks)block.classList.toggle("editor-line-numbers",value==="continuous");if(blocks.length){noteOperation("lineNumbers");changed()}return}
-  if(action==="hyphenation"){for(const block of pageBlocks())block.style.hyphens=value==="auto"?"auto":"";noteOperation("hyphenation");changed();return}
+  // Recorded as "lineNumbers": the editor setting that shows the Hyphenation button. No setting is called "hyphenation",
+  // so the server refused every save and the submit once it was used (Hindi Word Test 7 Q13, 25 Nov 2026).
+  if(action==="hyphenation"){for(const block of pageBlocks())block.style.hyphens=value==="auto"?"auto":"";noteOperation("lineNumbers");changed();return}
   if(action==="paragraphDialog"){run("paragraphDialog");return}
   const blocks=selectedBlocks();if(!blocks.length){setMessage("Place the cursor in a paragraph first.");return}
   const number=Number(value);if(!Number.isFinite(number))return;
