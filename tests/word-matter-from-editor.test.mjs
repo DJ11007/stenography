@@ -77,8 +77,11 @@ test("effects the working document cannot store are dropped but listed in a warn
  assert.equal(result.ok,true);
  const warning=result.matter.warnings.find(item=>item.startsWith("Not kept"));
  assert.ok(warning);
- for(const part of["superscript","subscript","small caps","double strikethrough","first-line / hanging indents","paragraph borders","paragraph shading"])assert.ok(warning.includes(part),part);
- assert.equal(result.matter.paragraphs[0].runs.some(r=>r.strike),true,"double strike is kept as a single strike");
+ for(const part of["superscript","subscript","small caps","first-line / hanging indents","paragraph borders"])assert.ok(warning.includes(part),part);
+ // Double strikethrough and paragraph shading are kept since 26 Nov 2026 (migration 202611271000), so they are not listed.
+ for(const part of["double strikethrough","paragraph shading"])assert.ok(!warning.includes(part),part);
+ assert.equal(result.matter.paragraphs[0].runs.find(r=>r.text==="dbl").doubleStrike,true,"double strike is kept");
+ assert.equal(result.matter.paragraphs[0].shading,"FFFF00");
 });
 
 test("default paragraph spacing: a paragraph with no spacing set gets Word's 8 pt after and 1.15 lines, an explicit 0 stays 0, list items are not spaced",async()=>{

@@ -2,11 +2,15 @@ import{unzipSync}from"fflate";
 import{XMLParser}from"fast-xml-parser";
 import{looksLikeKrutiDevText}from"./word-pdf-extraction.ts";
 
-export type MatterRun={text:string;bold:boolean;italic:boolean;underline:boolean;strike:boolean;fontFamily:string|null;fontSize:number|null;color:string|null;highlight:string|null};
-export type MatterTextParagraph={id:string;type:"paragraph"|"list-item";paragraphNumber:number|null;listGroup:string|null;runs:MatterRun[];alignment:"left"|"center"|"right"|"justify";leftIndent:number;rightIndent:number;lineSpacing:number;spaceBefore:number;spaceAfter:number;numbered?:boolean};
+// doubleStrike / shading / cellFormats are optional (only present when used), so every practice document saved
+// before they existed is still valid: a run with doubleStrike true has strike false (as the editor saves it), a
+// paragraph's shading is its background colour (RRGGBB), and cellFormats holds each table cell's text formatting.
+export type MatterRun={text:string;bold:boolean;italic:boolean;underline:boolean;strike:boolean;fontFamily:string|null;fontSize:number|null;color:string|null;highlight:string|null;doubleStrike?:boolean};
+export type MatterCellFormat={bold?:true;italic?:true;underline?:true;strike?:true;doubleStrike?:true;color?:string;highlight?:string;shading?:string;align?:"left"|"center"|"right"|"justify"};
+export type MatterTextParagraph={id:string;type:"paragraph"|"list-item";paragraphNumber:number|null;listGroup:string|null;runs:MatterRun[];alignment:"left"|"center"|"right"|"justify";leftIndent:number;rightIndent:number;lineSpacing:number;spaceBefore:number;spaceAfter:number;shading?:string;numbered?:boolean};
 // cellFonts / cellSizes: each cell's font and size (pt) from its first run -- a Hindi table typed in
 // Kruti Dev 010 shows as Latin gibberish in any other font.
-export type MatterTable={id:string;type:"table";rows:string[][];cellFonts?:(string|null)[][];cellSizes?:(number|null)[][]};
+export type MatterTable={id:string;type:"table";rows:string[][];cellFonts?:(string|null)[][];cellSizes?:(number|null)[][];cellFormats?:(MatterCellFormat|null)[][]};
 export type MatterParagraph=MatterTextParagraph|MatterTable;
 export type WorkingMatterSnapshot={schemaVersion:1|"1";language:"English"|"Hindi";source?:{fileName:string;sizeBytes:number;bucket?:string;storagePath?:string};paragraphs:MatterParagraph[];formattingSummary:{paragraphs:number;runs:number;italicParagraphs:number;justifiedParagraphs:number;listItems:number;tables:number;fonts:string[]};warnings:string[]};
 const MAX_DOCX_BYTES=10*1024*1024,MAX_UNCOMPRESSED_BYTES=40*1024*1024;
@@ -94,7 +98,7 @@ export function convertWorkingMatterToEditorDocument(matter:WorkingMatterSnapsho
    id:`block-${index}`,
    type:paragraph.type==="list-item"?"list-item":"paragraph",
    alignment:paragraph.alignment,
-   runs:paragraph.runs.length?paragraph.runs.map(run=>({text:run.text,bold:run.bold,italic:run.italic,underline:run.underline,strike:run.strike,superscript:false,subscript:false,fontFamily:run.fontFamily,fontSize:run.fontSize,color:run.color,highlight:run.highlight})):[{text:"",bold:false,italic:false,underline:false,strike:false,superscript:false,subscript:false,fontFamily:null,fontSize:null,color:null,highlight:null}],
+   runs:paragraph.runs.length?paragraph.runs.map(run=>({text:run.text,bold:run.bold,italic:run.italic,underline:run.underline,strike:run.strike,superscript:false,subscript:false,fontFamily:run.fontFamily,fontSize:run.fontSize,color:run.color,highlight:run.highlight,...(run.doubleStrike?{doubleStrike:true}:{})})):[{text:"",bold:false,italic:false,underline:false,strike:false,superscript:false,subscript:false,fontFamily:null,fontSize:null,color:null,highlight:null}],
   };
  });
  return{schemaVersion:"1",blocks,savedAt:"1970-01-01T00:00:00.000Z"};

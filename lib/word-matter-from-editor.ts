@@ -1,4 +1,4 @@
-﻿import type { MatterParagraph, MatterRun, MatterTextParagraph, WorkingMatterSnapshot } from "./word-docx";
+﻿import type { MatterCellFormat, MatterParagraph, MatterRun, MatterTextParagraph, WorkingMatterSnapshot } from "./word-docx";
 import { APPROVED_WORD_FONTS } from "./word-editor-capabilities.ts";
 
 // The admin now DESIGNS the working document in the exam editor itself (instead of uploading a
@@ -13,6 +13,8 @@ export type MatterConversion = { ok: true; matter: WorkingMatterSnapshot } | { o
 // Mangal): a Hindi document typed in Kruti Dev 010 lost its font on "Save & return" and students
 // saw the Kruti Dev keys (ukyank gekjs ...) instead of Hindi (EFFICIENCY TEST 4).
 const APPROVED_MATTER_FONTS = new Set<string>(APPROVED_WORD_FONTS);
+// The table cell formatting a practice document keeps (lib/word-docx.ts MatterCellFormat).
+const MATTER_CELL_FORMAT_KEYS = ["bold", "italic", "underline", "strike", "doubleStrike", "color", "highlight", "shading", "align"] as const;
 const DEFAULT_TEXT_COLORS = new Set(["000000", "020618"]);
 const MAX_PARAGRAPHS = 550, MAX_TEXT_PARAGRAPH_NUMBER = 500;
 
@@ -42,6 +44,9 @@ function lineSpacing(raw: unknown): number {
 }
 function hex(raw: unknown): string | null {
   const value = asString(raw).replace(/^#/, "").trim();
+  // A paragraph's shading is saved as the browser reports it: "rgb(255, 255, 0)".
+  const rgb = value.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/i);
+  if (rgb) return rgb[4] !== undefined && Number(rgb[4]) === 0 ? null : rgb.slice(1, 4).map(part => Math.min(255, Number(part)).toString(16).padStart(2, "0")).join("").toUpperCase();
   return /^[0-9a-f]{6}$/i.test(value) ? value.toUpperCase() : null;
 }
 
@@ -55,7 +60,6 @@ function noteLostRunFeatures(run: EditorRun, lost: Set<string>) {
   if (run.hidden === true) lost.add("hidden text");
   if (run.outline === true) lost.add("outline text");
   if (run.emboss === true) lost.add("emboss text");
-  if (run.doubleStrike === true) lost.add("double strikethrough (kept as a single strikethrough)");
   if (Number(run.charScale) && Number(run.charScale) !== 100) lost.add("character scale");
   if (Number(run.charSpacing)) lost.add("character spacing");
   if (Number(run.charPosition)) lost.add("raised/lowered text");
@@ -63,7 +67,6 @@ function noteLostRunFeatures(run: EditorRun, lost: Set<string>) {
 function noteLostBlockFeatures(attrs: Record<string, unknown>, lost: Set<string>) {
   if (asString(attrs.specialIndentMode) && attrs.specialIndentMode !== "none") lost.add("first-line / hanging indents");
   if (attrs.border) lost.add("paragraph borders");
-  if (attrs.backgroundColor) lost.add("paragraph shading");
   if (attrs.hyphens) lost.add("hyphenation");
 }
 
@@ -78,15 +81,16 @@ function convertRun(run: EditorRun): MatterRun {
     bold: run.bold === true,
     italic: run.italic === true,
     underline: run.underline === true,
-    strike: run.strike === true || run.doubleStrike === true,
+    strike: run.strike === true && run.doubleStrike !== true,
     fontFamily: APPROVED_MATTER_FONTS.has(family) ? family : null,
     fontSize: Number.isFinite(size) && size >= 4 && size <= 200 ? size : null,
     color: color && !DEFAULT_TEXT_COLORS.has(color) ? color : null,
     highlight: hex(run.highlight),
+    ...(run.doubleStrike === true ? { doubleStrike: true } : {}),
   };
 }
 
-const sameFormat = (a: MatterRun, b: MatterRun) => a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.strike === b.strike && a.fontFamily === b.fontFamily && a.fontSize === b.fontSize && a.color === b.color && a.highlight === b.highlight;
+const sameFormat = (a: MatterRun, b: MatterRun) => a.bold === b.bold && a.italic === b.italic && a.underline === b.underline && a.strike === b.strike && a.fontFamily === b.fontFamily && a.fontSize === b.fontSize && a.color === b.color && a.highlight === b.highlight && Boolean(a.doubleStrike) === Boolean(b.doubleStrike);
 
 function mergeRuns(runs: MatterRun[]): MatterRun[] {
   const merged: MatterRun[] = [];
@@ -97,6 +101,19 @@ function mergeRuns(runs: MatterRun[]): MatterRun[] {
     else merged.push({ ...run });
   }
   return merged.length ? merged : [{ ...(runs[0] ?? { text: "", bold: false, italic: false, underline: false, strike: false, fontFamily: null, fontSize: null, color: null, highlight: null }), text: "" }];
+}
+
+// The text formatting of one table cell that a practice document keeps (null: plain text).
+function matterCellFormat(format: Record<string, unknown>): MatterCellFormat | null {
+  const kept: MatterCellFormat = {};
+  for (const key of MATTER_CELL_FORMAT_KEYS) {
+    const value = format[key];
+    if (key === "color" || key === "highlight" || key === "shading") { const color = hex(value); if (color && !(key === "color" && DEFAULT_TEXT_COLORS.has(color))) kept[key] = color; }
+    else if (key === "align") { if (value === "left" || value === "center" || value === "right" || value === "justify") kept.align = value; }
+    else if (value === true) kept[key] = true;
+  }
+  if (kept.doubleStrike) delete kept.strike;
+  return Object.keys(kept).length ? kept : null;
 }
 
 export type MatterConversionOptions = { defaultSpaceAfter?: number; defaultLineSpacing?: number };
@@ -121,7 +138,9 @@ export function editorDocumentToMatter(document: unknown, language: "English" | 
       const cell = (rowIndex: number, cellIndex: number) => { const row = formats[rowIndex]; const format = Array.isArray(row) ? row[cellIndex] as Record<string, unknown> | undefined : undefined; return format ?? {}; };
       const cellFonts = keep.map(item => item.row.map((_, c) => { const family = asString(cell(item.index, c).fontFamily).replace(/ \((?:Headings|Body)\)$/u, ""); return APPROVED_MATTER_FONTS.has(family) ? family : null; }));
       const cellSizes = keep.map(item => item.row.map((_, c) => { const size = Number(cell(item.index, c).fontSize); return Number.isFinite(size) && size >= 4 && size <= 200 ? size : null; }));
-      if (rows.length) paragraphs.push({ id, type: "table", rows, ...(cellFonts.flat().some(Boolean) ? { cellFonts } : {}), ...(cellSizes.flat().some(Boolean) ? { cellSizes } : {}) });
+      // Each cell's text formatting (bold, underline, colour, alignment ...), so a question can ask to change or remove it.
+      const cellFormats = keep.map(item => item.row.map((_, c) => matterCellFormat(cell(item.index, c))));
+      if (rows.length) paragraphs.push({ id, type: "table", rows, ...(cellFonts.flat().some(Boolean) ? { cellFonts } : {}), ...(cellSizes.flat().some(Boolean) ? { cellSizes } : {}), ...(cellFormats.flat().some(Boolean) ? { cellFormats } : {}) });
       else dropped++;
       previousWasList = false;
       continue;
@@ -144,6 +163,7 @@ export function editorDocumentToMatter(document: unknown, language: "English" | 
       leftIndent: inches(attrs.marginLeft), rightIndent: inches(attrs.marginRight),
       lineSpacing: attrs.lineHeight === undefined && options.defaultLineSpacing ? options.defaultLineSpacing : lineSpacing(attrs.lineHeight),
       spaceBefore: points(attrs.marginTop), spaceAfter: attrs.marginBottom === undefined && !isList && options.defaultSpaceAfter !== undefined ? options.defaultSpaceAfter : points(attrs.marginBottom),
+      ...(!isList && hex(attrs.backgroundColor) ? { shading: hex(attrs.backgroundColor)! } : {}),
     };
     paragraphs.push(paragraph);
   }
