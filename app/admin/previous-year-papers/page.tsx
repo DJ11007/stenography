@@ -8,7 +8,14 @@ import { PreviousYearPaperPanel } from "./panel";
 
 type TestOption = { id: string; title: string; language: string };
 
+// Language, then title in number order (TEST 2 before TEST 10).
+const byNumber = (a: TestOption, b: TestOption) => a.language.localeCompare(b.language) || a.title.localeCompare(b.title, "en", { numeric: true, sensitivity: "base" });
+
 async function publishedTests(section: PreviousYearSection): Promise<TestOption[]> {
+  return (await loadPublishedTests(section)).sort(byNumber);
+}
+
+async function loadPublishedTests(section: PreviousYearSection): Promise<TestOption[]> {
   const supabase = await createClient();
   if (section === "word" || section === "excel") {
     const { data } = await supabase.from(section === "word" ? "word_efficiency_tests" : "excel_efficiency_tests").select("id,title,language").eq("status", "published").order("language").order("title").limit(2000);
