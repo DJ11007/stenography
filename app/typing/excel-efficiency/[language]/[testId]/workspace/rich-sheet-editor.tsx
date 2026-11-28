@@ -1648,7 +1648,7 @@ export const RichSheetEditor = memo(function RichSheetEditor({ attemptId, origin
                 <option value="more">More Number Formats...</option>
               </select>
               <div className="flex items-center gap-0.5">
-                <MenuButton id="accounting" menu={menu} setMenu={setMenu} label="Accounting Number Format" icon={<span>₹</span>} disabled={submitted} onMain={() => applyCurrency(active.currency ?? "₹")}>
+                <MenuButton id="accounting" menu={menu} setMenu={setMenu} label="Accounting Number Format (₹ Rupee)" icon={<RupeeIcon />} disabled={submitted} onMain={() => applyCurrency(active.currency ?? "₹")}>
                   {CURRENCIES.map(([symbol, label]) => <MenuItem key={symbol} checked={active.numberFormat === "Accounting" && (active.currency ?? "₹") === symbol} onClick={() => { applyCurrency(symbol); setMenu(null); }}>{label}</MenuItem>)}
                   <MenuSeparator /><MenuItem onClick={() => openFormatCells("Number")}>More Accounting Formats...</MenuItem>
                 </MenuButton>
@@ -2817,4 +2817,9 @@ function HeaderFooterDialog({ header, footer, onOk, onCancel }: { header: Header
       </div>
     </div>
   );
+}
+
+// The ₹ sign drawn, not typed: computers whose fonts lack U+20B9 (older Windows) showed an empty box on the button.
+function RupeeIcon() {
+  return <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Rupee"><path d="M6 4h12M6 9h12M9 4c4 0 6 1.6 6 4.5S13 13 9 13H7l8 8" /></svg>;
 }

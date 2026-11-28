@@ -35,7 +35,9 @@ export type SheetCell = {
 };
 export type UnderlineStyle = "single" | "double" | "singleAccounting" | "doubleAccounting";
 export type CurrencySymbol = "₹" | "$" | "£" | "€" | "¥";
-export const CURRENCIES: [CurrencySymbol, string][] = [["₹", "₹ English (India)"], ["$", "$ English (United States)"], ["£", "£ English (United Kingdom)"], ["€", "€ Euro (€ 123)"], ["¥", "¥ Chinese (PRC)"]];
+// "Rupee" is written out: computers whose fonts lack the ₹ sign (older Windows) showed an empty box, so students
+// could not find the option (English Excel Test 25 Q6, Live Exam 13, 28 Nov 2026).
+export const CURRENCIES: [CurrencySymbol, string][] = [["₹", "₹ Rupee (Rs.) English (India)"], ["$", "$ English (United States)"], ["£", "£ English (United Kingdom)"], ["€", "€ Euro (€ 123)"], ["¥", "¥ Chinese (PRC)"]];
 export type NumberFormat = "General" | "Number" | "Currency" | "Accounting" | "ShortDate" | "LongDate" | "Time" | "Percentage" | "Fraction" | "Scientific" | "Text";
 export const NUMBER_FORMAT_LABELS: [NumberFormat, string][] = [["General", "General"], ["Number", "Number"], ["Currency", "Currency"], ["Accounting", "Accounting"], ["ShortDate", "Short Date"], ["LongDate", "Long Date"], ["Time", "Time"], ["Percentage", "Percentage"], ["Fraction", "Fraction"], ["Scientific", "Scientific"], ["Text", "Text"]];
 export type ConditionalType = "greaterThan" | "lessThan" | "between" | "equalTo" | "textContains" | "duplicate" | "unique" | "top" | "bottom" | "topPercent" | "bottomPercent" | "aboveAverage" | "belowAverage" | "dataBar" | "colorScale" | "iconSet";
