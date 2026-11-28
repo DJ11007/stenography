@@ -127,6 +127,54 @@ export function clearInnerRunStyles(span:HTMLElement,properties:string[],options
   if(unwrap)element.replaceWith(...element.childNodes);
  }
 }
+// Font dialog: when Strikethrough / Double strikethrough was changed, the old
+// strikethrough on the selection is taken off first (the new choice is then
+// applied around it). Unticking Double strikethrough used to leave it in place:
+// the dialog only wrapped the text in a new span, and the inner span still drew
+// the double line (Hindi Word Test 21 Q10, "remove the double strikethrough").
+// Two places hold it: elements inside the selection (cleared), and -- when only
+// part of a run is selected -- the run's own span around it. A CSS line drawn by
+// an outer element cannot be switched off from inside, so that span is split
+// into before / selection / after, and only the selection's part loses the line.
+// An underline on the same element is kept.
+const STRIKE_TAGS=/^(S|STRIKE|DEL)$/;
+const STRIKE_STOP=/^(P|LI|TD|TH|DIV|H[1-6]|BLOCKQUOTE|HEADER|FOOTER|SECTION|ARTICLE|BODY)$/;
+function hasStrike(element:HTMLElement){
+ return STRIKE_TAGS.test(element.tagName)||element.dataset?.doubleStrike==="true"||(element.style?.textDecorationLine||"").includes("line-through")||(element.style?.textDecoration||"").includes("line-through");
+}
+function stripStrike(element:HTMLElement){
+ const wasDouble=element.dataset?.doubleStrike==="true";
+ delete element.dataset?.doubleStrike;
+ const line=element.style?.textDecorationLine||"";
+ const shorthand=element.style?.textDecoration||"";
+ if(line.includes("line-through")||shorthand.includes("line-through")){
+  const keep=(line||shorthand).split(/\s+/).filter(token=>token==="underline"||token==="overline");
+  const style=element.style.textDecorationStyle,color=element.style.textDecorationColor;
+  element.style.removeProperty("text-decoration");
+  // The "double" of a double strikethrough belongs to the strike line, not to an underline kept here.
+  if(keep.length){element.style.textDecorationLine=keep.join(" ");if(style&&!(style==="double"&&(wasDouble||!keep.includes("underline"))))element.style.textDecorationStyle=style;if(color&&!/^currentcolor$/i.test(color))element.style.textDecorationColor=color}
+ }
+ if(element.getAttribute("style")==="")element.removeAttribute("style");
+}
+export function clearInnerStrike(span:HTMLElement){
+ for(const element of [...span.querySelectorAll("*")]as HTMLElement[]){
+  if(STRIKE_TAGS.test(element.tagName)){element.replaceWith(...element.childNodes);continue}
+  stripStrike(element);
+ }
+ // The run's span around a partly selected run (see above).
+ for(let guard=0;guard<20;guard++){
+  let outer:HTMLElement|null=null;
+  for(let at=span.parentElement;at&&!STRIKE_STOP.test(at.tagName)&&at.getAttribute("contenteditable")!=="true";at=at.parentElement)if(hasStrike(at)){outer=at;break}
+  if(!outer)return;
+  let child:Node=span;while(child.parentNode!==outer)child=child.parentNode!;
+  const before=outer.cloneNode(false)as HTMLElement,middle=outer.cloneNode(false)as HTMLElement,after=outer.cloneNode(false)as HTMLElement;
+  let seen=false;
+  for(const node of [...outer.childNodes]){if(node===child){middle.append(node);seen=true}else(seen?after:before).append(node)}
+  if(STRIKE_TAGS.test(middle.tagName)){const plain=document.createElement("span");plain.append(...middle.childNodes);outer.replaceWith(...[before,plain,after].filter(part=>part===plain||part.textContent!==""));continue}
+  stripStrike(middle);
+  outer.replaceWith(...[before,middle,after].filter(part=>part===middle||part.textContent!==""));
+ }
+}
 // A selection that runs across table cells (a whole row, say) must never be
 // wrapped in ONE span: surroundContents/extractContents would pull the cells'
 // text out of the table and into the first cell, destroying it. Each cell's

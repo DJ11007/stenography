@@ -36,6 +36,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   }
   // ?test=7n / 8n: the new Hindi Test 7 / Test 8 papers from tests/fixtures/hindi-word-tests-7-8.json.
   // ?test=8v2 / 9v2 / 10v2: the new Hindi Test 8 / 9 / 10 papers from tests/fixtures/hindi-word-tests-8-10-v2.json.
+  // ?test=21: Hindi Test 21 (previous-year paper) from tests/fixtures/hindi-word-test-21.json.
+  if (which === "21") {
+    const paper = JSON.parse(await (await import("node:fs/promises")).readFile(`${process.cwd()}/tests/fixtures/hindi-word-test-21.json`, "utf8")) as { matter: never; questions: { instruction: string }[] };
+    const marks = Math.floor((25 / paper.questions.length) * 100) / 100;
+    const list = paper.questions.map((question, index) => ({ id: `q${index + 1}`, question_version_id: `q${index + 1}`, number: index + 1, display_order: index + 1, instruction: question.instruction, marks, section: null, is_visible: true }));
+    return <Harness original={paper.matter} capabilities={test4.editor_capabilities} questions={list as never} />;
+  }
   if (which === "8v2" || which === "9v2" || which === "10v2") {
     const spec = JSON.parse(await (await import("node:fs/promises")).readFile(`${process.cwd()}/tests/fixtures/hindi-word-tests-8-10-v2.json`, "utf8")) as { tests: { matter: never; questions: { instruction: string }[] }[] };
     const paper = spec.tests[which === "8v2" ? 0 : which === "9v2" ? 1 : 2];

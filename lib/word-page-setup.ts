@@ -73,6 +73,20 @@ export function paperFromWidth(px: number | null): PaperSize | null {
   return PAPER_SIZES.find(size => size.id === id) ?? null;
 }
 
+/**
+ * The paper size of a page as it is shown: a landscape page's width is the paper's LONG side, so it is matched
+ * against the paper heights (and the page's width / height ratio picks between papers of the same height).
+ * Before this, Page Setup read an A4 landscape page (29.7 cm wide) as A3 portrait, and pressing OK turned the
+ * page into A3 landscape (Hindi Word Test 21: Q1 Landscape, then Q12 Gutter from Page Setup).
+ */
+export function paperForPage(px: number | null, landscape: boolean, ratio?: number | null): PaperSize | null {
+  if (!px) return null;
+  if (!landscape) return paperFromWidth(px);
+  const sameHeight = PAPER_SIZES.filter(size => Math.abs(size.height * PX_PER_CM - px) < 1.5);
+  if (sameHeight.length < 2 || !ratio) return sameHeight[0] ?? null;
+  return sameHeight.reduce((best, size) => (Math.abs(size.height / size.width - ratio) < Math.abs(best.height / best.width - ratio) ? size : best));
+}
+
 export type PageSetupValues = {
   top: number; bottom: number; left: number; right: number;
   gutter: number; gutterPosition: "left" | "top";
