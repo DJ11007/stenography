@@ -44,6 +44,14 @@ const sections = [
     tone: "bg-sky-600",
   },
   {
+    title: "Old Exam Papers",
+    description: "Previous-year papers that appeared in real exams -- Typing, Stenography, Word and Excel -- arranged by year. Take the complete test with the same timer and marking.",
+    href: "/typing/old-exam-papers",
+    action: "See old papers",
+    icon: "📜",
+    tone: "bg-amber-600",
+  },
+  {
     title: "Live Test Centre",
     description: "Free scheduled live tests with a single secure attempt and a public results leaderboard.",
     href: "/live-test",
@@ -75,7 +83,7 @@ export default function TypingHubPage() {
       <TypingBrandHeader backHref="/" backLabel="Home" />
       <section className="mx-auto max-w-7xl px-4 py-12">
         <p className="mt-5 text-sm font-bold uppercase tracking-widest text-blue-600">Choose your path</p>
-        <h2 className="mt-2 text-3xl font-black">Eight focused typing areas</h2>
+        <h2 className="mt-2 text-3xl font-black">Nine focused typing areas</h2>
         <div className="mt-7 grid gap-5 md:grid-cols-2">
           {sections.map((section) => (
             <article

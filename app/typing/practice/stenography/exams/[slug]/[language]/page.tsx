@@ -7,6 +7,7 @@ import { normalizeExamCategoryPage, examCategoryPageBounds, sortExamCategoryNavi
 import { TypingBrandHeader } from "../../../../../_components/typing-brand";
 import { ExamCategoryIcon } from "../../../../../exams/_components/exam-category-icon";
 import { RealTestGrid } from "../real-test-grid";
+import { getPreviousYearMap } from "@/lib/previous-year-papers-server";
 
 function languageFromSegment(segment: string) {
   return segment === "hindi" ? ("Hindi" as const) : segment === "english" ? ("English" as const) : null;
@@ -34,6 +35,7 @@ export default async function StenographyCategoryTestsPage({ params, searchParam
   const total = all.length;
   const { page, from, to, pages } = examCategoryPageBounds(normalizeExamCategoryPage(query.page), total);
   const tests = all.slice(from, to + 1);
+  const previous = await getPreviousYearMap("stenography", tests.map((test) => test.id));
   const samplePresetId = stenographyCategoryPresetId(category.slug, language);
 
   const basePath = `/typing/practice/stenography/exams/${category.slug}/${languageSegment}`;
@@ -72,7 +74,7 @@ export default async function StenographyCategoryTestsPage({ params, searchParam
               </div>
             </div>
           )}
-          <RealTestGrid tests={tests} language={language} total={total} startNumber={from + 1} examSlug={category.slug} />
+          <RealTestGrid tests={tests} language={language} total={total} startNumber={from + 1} examSlug={category.slug} previous={previous} />
 
           {pages > 1 && <nav aria-label="Test pages" className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <Link href={pageHref(Math.max(1, page - 1))} aria-disabled={page === 1} className={`rounded-lg border px-3 py-1.5 text-sm font-bold ${page === 1 ? "pointer-events-none border-slate-100 text-slate-300" : "border-slate-300 text-slate-700"}`}>‹ Prev</Link>

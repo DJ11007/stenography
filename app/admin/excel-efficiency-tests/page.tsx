@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PreviousYearPaperPanel } from "../previous-year-papers/panel";
 import Link from "next/link";
 import { SafeInstructions } from "@/app/typing/word-efficiency/_components/safe-instructions";
 import { BackButton } from "@/app/_components/back-button";
@@ -56,6 +57,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         {params.error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 font-bold text-red-800">{params.error}</p>}
         {params.saved && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">A new immutable test version was saved.<ClearMatterDrafts /></p>}
         {params.deleted && <p role="status" className="mt-5 rounded-xl bg-green-50 p-4 font-bold text-green-800">The test and all database records were permanently deleted.</p>}
+        {view === "design" && editing && <div className="mt-5"><PreviousYearPaperPanel section="excel" testId={editing.id} title={editing.title} saved={params.pypSaved} error={params.pypError} returnTo={`/admin/excel-efficiency-tests?edit=${editing.id}`} /></div>}
         <div className="mt-6 grid gap-6">
           {view === "design" && (
           <section className="rounded-3xl bg-white p-5 shadow sm:p-7">

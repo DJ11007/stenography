@@ -259,7 +259,7 @@ test("each drop's position is set instantly on mount (no transition); only the a
 test("WordTris is wired into the Typing Hub and the admin dashboard nav", async () => {
   const hub = await read("app/typing/page.tsx");
   assert.match(hub, /href: "\/typing\/games"/);
-  assert.match(hub, /Eight focused typing areas/);
+  assert.match(hub, /Nine focused typing areas/);
   const admin = await read("app/admin/page.tsx");
   assert.match(admin, /\/admin\/wordtris-words/);
 });

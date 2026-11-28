@@ -7,6 +7,8 @@ import { TypingBrandHeader } from "../../../../_components/typing-brand";
 import { ExamCategoryIcon } from "../../../_components/exam-category-icon";
 import { WordLengthTag } from "../../../../_components/word-length-tag";
 import { wordLengthStatsFromCounts } from "@/lib/word-length-stats";
+import { getPreviousYearMap } from "@/lib/previous-year-papers-server";
+import { PREVIOUS_YEAR_CARD, PreviousYearBadge, PreviousYearNote } from "@/app/_components/previous-year-badge";
 
 function languageFromSegment(segment: string) {
   return segment === "hindi" ? ("Hindi" as const) : segment === "english" ? ("English" as const) : null;
@@ -29,6 +31,7 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
   // catalogue -- exercises run in the order they were actually published.
   const sort = query.sort === "newest" ? "newest" : "oldest";
   const { items, page, pages, total } = await getExamCategoryNavigator({ categorySlug: slug, language, page: query.page, sort });
+  const previous = await getPreviousYearMap("typing", items.map((item) => item.id));
 
   const officialPresetId = examCategoryPresetId(slug, language);
   const pageHref = (targetPage: number, targetSort: "newest" | "oldest" = sort) => {
@@ -82,11 +85,12 @@ export default async function ExamCategoryExercisesPage({ params, searchParams }
                 // to render/score it with THIS category's own rules. When
                 // an item's native category already matches (its own home
                 // page), this resolves to the exact same rules either way.
-                <Link key={item.id} href={`/tests/${item.slug}?viewAs=${slug}`} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md">
+                <Link key={item.id} href={`/tests/${item.slug}?viewAs=${slug}`} className={`flex items-center gap-4 rounded-2xl border p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md ${previous.has(item.id) ? PREVIOUS_YEAR_CARD : "border-slate-200 bg-white"}`}>
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-sm font-black text-white">{(page - 1) * 50 + index + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-black text-slate-800">{item.title}</span>
                     <WordLengthTag stats={wordLengthStatsFromCounts(item.passageCharacters, item.passageWords)} />
+                    {previous.get(item.id) && <span className="mt-1.5 block"><PreviousYearBadge paper={previous.get(item.id)!} /><span className="mt-1 block"><PreviousYearNote paper={previous.get(item.id)!} compact /></span></span>}
                   </span>
                 </Link>
               ))}

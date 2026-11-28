@@ -75,6 +75,13 @@ const groups = [
     ],
   },
   {
+    heading: "Previous year papers",
+    description: "Mark any published Typing, Stenography, Word or Excel test as a paper that appeared in a real exam.",
+    items: [
+      ["/admin/previous-year-papers", "Previous Year Papers", "Exam name, date and a description students see; the test gets a highlighted card and is listed by year on Old Exam Papers.", "Manage →"],
+    ],
+  },
+  {
     heading: "SCTyping desktop app",
     description: "Control what students see inside the installed offline app.",
     items: [
