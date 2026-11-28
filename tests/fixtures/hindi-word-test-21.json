@@ -301,7 +301,7 @@
      "rule": "value",
      "target": "pageLayout.aspectRatio",
      "spec": {
-      "regex": "^29\\.7 ?/ ?21$"
+      "regex": "^(29\\.7 ?/ ?21|1\\.414 ?/ ?1)$"
      }
     }
    ],
@@ -363,12 +363,16 @@
      "kind": "body",
      "place": 0,
      "target": "blocks.0.attrs.backgroundColor",
-     "spec": {
-      "regex": "^(|transparent|none|rgba\\(0, ?0, ?0, ?0\\))$"
-     }
+     "spec": [
+      null,
+      "",
+      "transparent",
+      "none",
+      "rgba(0, 0, 0, 0)"
+     ]
     }
    ],
-   "solution": "1. पहले पैराग्राफ में क्लिक करें।\n2. HOME → **Shading ▾** → **No Color**।\n\nजाँच: पहले पैराग्राफ के पीछे का रंग हट जाए।"
+   "solution": "1. पहले पैराग्राफ में क्लिक करें।\n2. HOME → **Shading ▾** → **No Color** (No Fill)।\n\nजाँच: पहले पैराग्राफ के पीछे का रंग हट जाए।"
   },
   {
    "instruction": "तृतीय पैराग्राफ के फॉन्ट कलर (Font Color) को ग्रीन (Green) व चतुर्थ पैराग्राफ के फॉन्ट कलर (Font Color) को डार्क रेड (Dark Red) सेट करें।",

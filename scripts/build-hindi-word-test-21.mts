@@ -49,7 +49,8 @@ const tableRule = (extra: Record<string, unknown>) => ({ rule: "table", place: 0
 
 const questions = [
   { instruction: "पृष्ठ का ओरिएंटेशन लैंडस्केप (Landscape) सेट करें।",
-    criteria: [page("aspectRatio", { regex: "^29\\.7 ?/ ?21$" })],
+    // Orientation > Landscape saves "1.414 / 1"; Page Setup (Landscape, A4) saves "29.7 / 21".
+    criteria: [page("aspectRatio", { regex: "^(29\\.7 ?/ ?21|1\\.414 ?/ ?1)$" })],
     solution: "1. PAGE LAYOUT → **Orientation ▾** → **Landscape**।\n\nजाँच: पेज चौड़ाई में (आड़ा)।" },
   { instruction: "द्वितीय व तृतीय पैराग्राफ की राइट इंडेंटेशन (Right Indentation) को 1.1\" सेट करें।",
     criteria: [1, 2].map((place) => value(place, "attrs.marginRight", { regex: "^79\\.2(0*)pt$" })),
@@ -58,8 +59,9 @@ const questions = [
     criteria: [1, 2].map((place) => value(place, "attrs.lineHeight", { regex: "^1\\.5(0*)$" })),
     solution: "1. दूसरा और तीसरा पैराग्राफ सेलेक्ट करें।\n2. HOME → **Line and Paragraph Spacing ▾** → **1.5**।\n\nजाँच: लाइनों के बीच डेढ़ गुना जगह।" },
   { instruction: "प्रथम पैराग्राफ की बैकग्राउंड कलर / शेडिंग (Background Color/Shading) इफेक्ट को दूर (REMOVE) करें।",
-    criteria: [value(0, "attrs.backgroundColor", { regex: "^(|transparent|none|rgba\\(0, ?0, ?0, ?0\\))$" })],
-    solution: "1. पहले पैराग्राफ में क्लिक करें।\n2. HOME → **Shading ▾** → **No Color**।\n\nजाँच: पहले पैराग्राफ के पीछे का रंग हट जाए।" },
+    // No Color / No Fill leaves no background colour at all (the attribute is then missing, i.e. null).
+    criteria: [value(0, "attrs.backgroundColor", [null, "", "transparent", "none", "rgba(0, 0, 0, 0)"])],
+    solution: "1. पहले पैराग्राफ में क्लिक करें।\n2. HOME → **Shading ▾** → **No Color** (No Fill)।\n\nजाँच: पहले पैराग्राफ के पीछे का रंग हट जाए।" },
   { instruction: "तृतीय पैराग्राफ के फॉन्ट कलर (Font Color) को ग्रीन (Green) व चतुर्थ पैराग्राफ के फॉन्ट कलर (Font Color) को डार्क रेड (Dark Red) सेट करें।",
     criteria: [words(2, { color: ["00B050"] }), words(3, { color: ["C00000"] })],
     solution: "1. तीसरा पैराग्राफ सेलेक्ट करें → HOME → **Font Color ▾** → Standard Colors में **Green**।\n2. चौथा पैराग्राफ सेलेक्ट करें → **Font Color ▾** → **Dark Red**।\n\nजाँच: तीसरा हरा, चौथा गहरा लाल।" },
